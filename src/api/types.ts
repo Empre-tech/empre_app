@@ -24,9 +24,16 @@ export interface RegisterInput {
   phone?: string;
 }
 
+export interface Subcategory {
+  id: string;
+  name: string;
+  category_id: string;
+}
+
 export interface Category {
   id: string;
   name: string;
+  subcategories?: Subcategory[];
 }
 
 /** Versión liviana para el mapa (GET /api/entities). */
@@ -52,6 +59,7 @@ export interface EntityDetail {
   name: string;
   description: string;
   category: Category;
+  subcategories?: Subcategory[];
   address: string;
   city: string;
   contact_info: string;
@@ -75,6 +83,7 @@ export interface EntityOwnerItem {
   verification_status: VerificationStatus;
   is_verified: boolean;
   created_at: string;
+  subcategories?: Subcategory[];
 }
 
 export interface Paginated<T> {
@@ -118,6 +127,8 @@ export interface EntityInput {
   description: string;
   /** UUID de la categoría. */
   category: string;
+  /** UUIDs de subcategorías (dependientes de `category`). */
+  subcategory_ids: string[];
   address: string;
   city: string;
   contact_info: string;

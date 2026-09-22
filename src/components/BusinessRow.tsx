@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { EntityMap } from '@/api/types';
 import { formatDistance } from '@/lib/format';
-import { colors, radius, spacing } from '@/theme';
+import { colors, fonts, radius, spacing } from '@/theme';
 import { Avatar } from './Avatar';
 import { VerifiedBadge } from './VerifiedBadge';
 
@@ -50,6 +50,6 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.85 },
   info: { flex: 1, gap: 2 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  name: { flexShrink: 1, fontSize: 16, fontWeight: '700', color: colors.ink },
-  meta: { fontSize: 14, color: colors.muted },
+  name: { flexShrink: 1, fontSize: 16, fontWeight: '700', fontFamily: fonts.ui.bold, color: colors.ink },
+  meta: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted },
 });

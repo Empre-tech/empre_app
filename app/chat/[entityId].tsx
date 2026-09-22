@@ -22,7 +22,7 @@ import { Button } from '@/components/Button';
 import { CHAT_MAX_CONTENT_BYTES, CHAT_MAX_CONTENT_CHARS } from '@/config';
 import { formatMessageTime } from '@/lib/format';
 import { utf8Length } from '@/lib/text';
-import { colors, radius, spacing } from '@/theme';
+import { colors, fonts, radius, spacing } from '@/theme';
 
 const LOCAL_PREFIX = 'local-';
 
@@ -217,8 +217,8 @@ const styles = StyleSheet.create({
   },
   headerButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1 },
-  title: { fontSize: 17, fontWeight: '700', color: colors.ink },
-  status: { fontSize: 12 },
+  title: { fontSize: 17, fontWeight: '700', fontFamily: fonts.ui.bold, color: colors.ink },
+  status: { fontSize: 12, fontFamily: fonts.ui.semibold },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, padding: spacing.xl },
   muted: { color: colors.muted, textAlign: 'center' },
   emptyInverted: { transform: [{ scaleY: -1 }], marginTop: spacing.xxl },
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   bubble: { maxWidth: '80%', borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: 2 },
   bubbleMine: { backgroundColor: colors.primary, borderBottomRightRadius: 4 },
   bubbleTheirs: { backgroundColor: colors.surface, borderBottomLeftRadius: 4 },
-  bubbleText: { fontSize: 15, color: colors.ink },
+  bubbleText: { fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink },
   bubbleTextMine: { color: '#fff' },
   time: { fontSize: 11, color: colors.muted, alignSelf: 'flex-end' },
   timeMine: { color: 'rgba(255,255,255,0.8)' },
@@ -247,13 +247,14 @@ const styles = StyleSheet.create({
     flex: 1,
     maxHeight: 120,
     minHeight: 44,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.line,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
     paddingTop: 10,
     paddingBottom: 10,
     fontSize: 15,
+    fontFamily: fonts.ui.medium,
     color: colors.ink,
   },
   send: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },

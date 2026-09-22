@@ -22,7 +22,7 @@ import { Button } from '@/components/Button';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { hasLocation } from '@/lib/geo';
 import { resolveImageUrl } from '@/lib/image';
-import { colors, radius, spacing } from '@/theme';
+import { colors, fonts, radius, spacing } from '@/theme';
 
 const PHONE_RE = /^[+\d\s()-]{7,}$/;
 
@@ -197,15 +197,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  name: { flexShrink: 1, fontSize: 24, fontWeight: '800', color: colors.ink },
-  category: { fontSize: 15, color: colors.muted },
-  verifiedNote: { fontSize: 13, color: colors.verified, fontWeight: '600' },
-  pendingNote: { fontSize: 13, color: colors.warning, fontWeight: '600' },
-  description: { fontSize: 15, lineHeight: 22, color: colors.ink, marginTop: spacing.sm },
+  name: { flexShrink: 1, fontSize: 26, fontFamily: fonts.display.semibold, color: colors.ink },
+  category: { fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.muted },
+  verifiedNote: { fontSize: 13, color: colors.verified, fontWeight: '600', fontFamily: fonts.ui.semibold },
+  pendingNote: { fontSize: 13, color: colors.warning, fontWeight: '600', fontFamily: fonts.ui.semibold },
+  description: { fontSize: 15, lineHeight: 22, fontFamily: fonts.ui.medium, color: colors.ink, marginTop: spacing.sm },
   infoBlock: { gap: spacing.sm, marginTop: spacing.sm },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  infoText: { flex: 1, fontSize: 14, color: colors.ink },
+  infoText: { flex: 1, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink },
   actions: { gap: spacing.sm, marginTop: spacing.lg },
-  section: { fontSize: 18, fontWeight: '700', color: colors.ink, marginTop: spacing.xl },
+  section: { fontSize: 18, fontWeight: '700', fontFamily: fonts.ui.bold, color: colors.ink, marginTop: spacing.xl },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 2, borderRadius: radius.sm, overflow: 'hidden' },
 });

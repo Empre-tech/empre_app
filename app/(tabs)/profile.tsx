@@ -12,7 +12,7 @@ import { Button } from '@/components/Button';
 import { SignInPrompt } from '@/components/SignInPrompt';
 import { verificationLabel } from '@/lib/format';
 import { pickImage } from '@/lib/images';
-import { colors, radius, spacing } from '@/theme';
+import { colors, fonts, radius, spacing } from '@/theme';
 
 const statusColor: Record<VerificationStatus, string> = {
   verified: colors.success,
@@ -83,6 +83,18 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {user.role === 'admin' && (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/admin')}
+          style={({ pressed }) => [styles.adminCard, pressed && { opacity: 0.85 }]}
+        >
+          <Ionicons name="shield-checkmark-outline" size={20} color={colors.primary} />
+          <Text style={styles.adminCardText}>Panel de administración</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+        </Pressable>
+      )}
+
       <View style={styles.sectionRow}>
         <Text style={styles.section}>Mis negocios</Text>
         <Pressable accessibilityRole="button" onPress={() => router.push('/business/new')} hitSlop={8}>
@@ -136,8 +148,8 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, marginBottom: spacing.md },
   headerInfo: { flex: 1, gap: 2 },
-  name: { fontSize: 22, fontWeight: '800', color: colors.ink },
-  meta: { fontSize: 14, color: colors.muted },
+  name: { fontSize: 24, fontFamily: fonts.display.semibold, color: colors.ink },
+  meta: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted },
   avatarButton: { width: 72, height: 72 },
   avatarBadge: {
     position: 'absolute',
@@ -152,10 +164,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  adminCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.lg,
+  },
+  adminCardText: { flex: 1, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
   sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md },
-  section: { fontSize: 18, fontWeight: '700', color: colors.ink },
-  link: { fontSize: 14, fontWeight: '700', color: colors.primary },
-  empty: { color: colors.muted, fontSize: 14 },
+  section: { fontSize: 18, fontWeight: '700', fontFamily: fonts.ui.bold, color: colors.ink },
+  link: { fontSize: 14, fontWeight: '700', fontFamily: fonts.ui.bold, color: colors.primary },
+  empty: { color: colors.muted, fontSize: 14, fontFamily: fonts.ui.medium },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -166,7 +188,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
   },
   cardInfo: { flex: 1, gap: 2 },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: colors.ink },
-  badge: { fontSize: 13, fontWeight: '700' },
+  cardTitle: { fontSize: 16, fontWeight: '700', fontFamily: fonts.ui.bold, color: colors.ink },
+  badge: { fontSize: 13, fontWeight: '700', fontFamily: fonts.ui.bold },
   logout: { marginTop: spacing.xl },
 });

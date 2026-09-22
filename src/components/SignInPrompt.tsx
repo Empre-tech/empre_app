@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
-import { colors, spacing } from '@/theme';
+import { colors, fonts, spacing } from '@/theme';
 import { Button } from './Button';
 
 /** Pantalla vacía para secciones que requieren cuenta (mensajes, perfil). */
@@ -18,7 +18,7 @@ export function SignInPrompt({ title, message }: { title: string; message: strin
 
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.md },
-  title: { fontSize: 20, fontWeight: '700', color: colors.ink, textAlign: 'center' },
-  message: { fontSize: 15, color: colors.muted, textAlign: 'center', marginBottom: spacing.md },
+  title: { fontSize: 22, fontFamily: fonts.display.semibold, color: colors.ink, textAlign: 'center' },
+  message: { fontSize: 15, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center', marginBottom: spacing.md },
   button: { alignSelf: 'stretch' },
 });

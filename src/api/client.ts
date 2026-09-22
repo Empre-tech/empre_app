@@ -1,3 +1,4 @@
+import * as FileSystem from 'expo-file-system/legacy';
 import { API_URL } from '@/config';
 import type { TokenPair } from './types';
 
@@ -107,7 +108,7 @@ export async function getValidAccessToken(): Promise<string | null> {
 type Query = Record<string, string | number | undefined | null>;
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   query?: Query;
   /** Cuerpo multipart (subida de archivos). Tiene prioridad sobre `body`. */
@@ -128,15 +129,23 @@ function buildUrl(path: string, query?: Query): string {
   return `${API_URL}${path}${params.length ? `?${params.join('&')}` : ''}`;
 }
 
-async function readError(res: Response): Promise<string> {
+function parseErrorBody(text: string, status: number): string {
   try {
-    const data = (await res.json()) as { error?: unknown; message?: unknown };
-    if (typeof data.error === 'string') return data.error;
-    if (typeof data.message === 'string') return data.message;
+    const data = JSON.parse(text) as { error?: unknown; message?: unknown; details?: unknown };
+    const base =
+      typeof data.error === 'string' ? data.error : typeof data.message === 'string' ? data.message : null;
+    const details = typeof data.details === 'string' ? data.details : null;
+    if (base && details) return `${base}: ${details}`;
+    if (base) return base;
+    if (details) return details;
   } catch {
     // cuerpo vacío o no-JSON
   }
-  return `Error ${res.status}`;
+  return text || `Error ${status}`;
+}
+
+async function readError(res: Response): Promise<string> {
+  return parseErrorBody(await res.text(), res.status);
 }
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -158,7 +167,9 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       return { res, hadToken: token !== null };
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') throw error;
-      throw new ApiError(0, 'No pudimos conectar con el servidor. Revisa tu conexión.');
+      const raw = error instanceof Error ? error.message : String(error);
+      console.warn(`[api] fetch falló para ${method} ${path}:`, raw);
+      throw new ApiError(0, `No pudimos conectar con el servidor. Revisa tu conexión. (${raw})`);
     }
   };
 
@@ -173,4 +184,58 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
+}
+
+
+// ---------------------------------------------------------------------------
+// Subida de archivos.
+//
+// React Native (New Architecture / Hermes) puede fallar al construir un
+// FormData con un archivo local ("Unsupported FormData part implementation"),
+// así que las subidas usan expo-file-system, que sube el archivo de forma
+// nativa (fuera del polyfill de fetch/FormData de RN) y es mucho más fiable.
+// ---------------------------------------------------------------------------
+
+interface UploadOptions {
+  fieldName: string;
+  mimeType: string;
+  parameters?: Record<string, string>;
+}
+
+export async function uploadFile<T>(path: string, fileUri: string, options: UploadOptions): Promise<T> {
+  const doUpload = async () => {
+    const token = await getValidAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    try {
+      return await FileSystem.uploadAsync(buildUrl(path), fileUri, {
+        httpMethod: 'POST',
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: options.fieldName,
+        mimeType: options.mimeType,
+        parameters: options.parameters,
+        headers,
+      });
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : String(error);
+      console.warn(`[api] uploadAsync falló para ${path}:`, raw);
+      throw new ApiError(0, `No pudimos conectar con el servidor. Revisa tu conexión. (${raw})`);
+    }
+  };
+
+  let result = await doUpload();
+
+  if (result.status === 401 && (await refreshSession())) {
+    result = await doUpload();
+  }
+
+  if (result.status < 200 || result.status >= 300) {
+    throw new ApiError(result.status, parseErrorBody(result.body, result.status));
+  }
+  if (!result.body) return undefined as T;
+  try {
+    return JSON.parse(result.body) as T;
+  } catch {
+    return undefined as T;
+  }
 }

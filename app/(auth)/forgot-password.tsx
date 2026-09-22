@@ -5,7 +5,7 @@ import { authApi } from '@/api/endpoints';
 import { AuthLayout } from '@/components/AuthLayout';
 import { Button } from '@/components/Button';
 import { TextField } from '@/components/TextField';
-import { colors } from '@/theme';
+import { colors, fonts } from '@/theme';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -54,6 +54,6 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  error: { color: colors.danger, fontSize: 14 },
-  success: { color: colors.success, fontSize: 15 },
+  error: { color: colors.danger, fontSize: 14, fontFamily: fonts.ui.semibold },
+  success: { color: colors.success, fontSize: 15, fontFamily: fonts.ui.medium },
 });

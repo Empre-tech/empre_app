@@ -1,5 +1,5 @@
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
-import { colors, radius, spacing } from '@/theme';
+import { colors, fonts, radius, spacing } from '@/theme';
 
 interface Props extends TextInputProps {
   label: string;
@@ -23,14 +23,15 @@ export function TextField({ label, error, style, ...inputProps }: Props) {
 
 const styles = StyleSheet.create({
   wrapper: { gap: spacing.xs },
-  label: { fontSize: 14, fontWeight: '600', color: colors.ink },
+  label: { fontSize: 14, fontWeight: '600', fontFamily: fonts.ui.semibold, color: colors.ink },
   input: {
-    minHeight: 48,
-    borderWidth: 1,
+    minHeight: 50,
+    borderWidth: 1.5,
     borderColor: colors.line,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
     fontSize: 16,
+    fontFamily: fonts.ui.medium,
     color: colors.ink,
     backgroundColor: colors.bg,
   },

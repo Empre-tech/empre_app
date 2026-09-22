@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
 import { resolveImageUrl } from '@/lib/image';
 import { initials } from '@/lib/text';
-import { colors } from '@/theme';
+import { colors, fonts } from '@/theme';
 
 interface Props {
   uri?: string | null;
@@ -28,5 +28,5 @@ export function Avatar({ uri, name, size = 48 }: Props) {
 const styles = StyleSheet.create({
   image: { backgroundColor: colors.surface },
   fallback: { backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  initials: { color: colors.muted, fontWeight: '700' },
+  initials: { color: colors.muted, fontWeight: '700', fontFamily: fonts.ui.bold },
 });

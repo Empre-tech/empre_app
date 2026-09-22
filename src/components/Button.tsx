@@ -1,5 +1,5 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
-import { colors, radius, spacing } from '@/theme';
+import { colors, fonts, radius, spacing } from '@/theme';
 
 interface Props {
   title: string;
@@ -23,7 +23,8 @@ export function Button({ title, onPress, variant = 'primary', loading = false, d
         variant === 'primary' && styles.primary,
         variant === 'secondary' && styles.secondary,
         variant === 'ghost' && styles.ghost,
-        pressed && styles.pressed,
+        pressed && variant === 'primary' && styles.primaryPressed,
+        pressed && variant !== 'primary' && styles.pressed,
         isDisabled && styles.disabled,
         style,
       ]}
@@ -40,16 +41,17 @@ export function Button({ title, onPress, variant = 'primary', loading = false, d
 const styles = StyleSheet.create({
   base: {
     minHeight: 48,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',
   },
   primary: { backgroundColor: colors.primary },
-  secondary: { backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line },
+  primaryPressed: { backgroundColor: colors.primaryDark },
+  secondary: { backgroundColor: colors.bg, borderWidth: 1.5, borderColor: colors.line },
   ghost: { backgroundColor: 'transparent' },
-  pressed: { opacity: 0.85 },
+  pressed: { opacity: 0.7 },
   disabled: { opacity: 0.5 },
-  label: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  label: { color: '#fff', fontSize: 15.5, fontFamily: fonts.ui.bold },
   labelAlt: { color: colors.ink },
 });

@@ -7,7 +7,7 @@ import { AuthLayout } from '@/components/AuthLayout';
 import { Button } from '@/components/Button';
 import { TextField } from '@/components/TextField';
 import { finishAuth } from '@/lib/navigation';
-import { colors, spacing } from '@/theme';
+import { colors, fonts, spacing } from '@/theme';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -79,6 +79,6 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  error: { color: colors.danger, fontSize: 14 },
+  error: { color: colors.danger, fontSize: 14, fontFamily: fonts.ui.semibold },
   links: { gap: spacing.sm },
 });

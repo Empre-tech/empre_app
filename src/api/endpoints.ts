@@ -1,4 +1,4 @@
-import { request } from './client';
+import { request, uploadFile } from './client';
 import type {
   Category,
   ChatMessage,
@@ -8,11 +8,13 @@ import type {
   EntityInput,
   EntityMap,
   EntityOwnerItem,
+  Paginated,
   RegisterInput,
   TokenPair,
   UploadableImage,
   UploadedImage,
   User,
+  VerificationStatus,
 } from './types';
 
 /**
@@ -26,15 +28,6 @@ function unwrapList<T>(res: unknown): T[] {
     if (Array.isArray(data)) return data as T[];
   }
   return [];
-}
-
-/** Multipart con el archivo en el campo `file` (lo que esperan los endpoints de imágenes). */
-function imageForm(image: UploadableImage, fields: Record<string, string> = {}): FormData {
-  const form = new FormData();
-  // React Native acepta { uri, name, type } como parte de un FormData.
-  form.append('file', { uri: image.uri, name: image.name, type: image.type } as unknown as Blob);
-  for (const [key, value] of Object.entries(fields)) form.append(key, value);
-  return form;
 }
 
 export const authApi = {
@@ -56,7 +49,7 @@ export const usersApi = {
   me: () => request<User>('/api/users/me'),
 
   uploadProfileImage: (image: UploadableImage) =>
-    request<UploadedImage>('/api/users/profile/image', { method: 'POST', formData: imageForm(image) }),
+    uploadFile<UploadedImage>('/api/users/profile/image', image.uri, { fieldName: 'file', mimeType: image.type }),
 };
 
 export const categoriesApi = {
@@ -66,6 +59,8 @@ export const categoriesApi = {
 
 export interface EntityListParams {
   category?: string;
+  /** Búsqueda libre: nombre, descripción o dirección. */
+  q?: string;
   lat?: number;
   long?: number;
   /** metros */
@@ -80,6 +75,7 @@ export const entitiesApi = {
         auth: false,
         query: {
           category: params.category,
+          q: params.q,
           lat: params.lat,
           long: params.long,
           radius: params.radius,
@@ -103,9 +99,35 @@ export const entitiesApi = {
 
   /** Solo el dueño. `gallery` añade una foto; `profile` y `banner` reemplazan la anterior. */
   uploadImage: (id: string, type: EntityImageType, image: UploadableImage) =>
-    request<UploadedImage>(`/api/entities/${id}/images`, {
-      method: 'POST',
-      formData: imageForm(image, { type }),
+    uploadFile<UploadedImage>(`/api/entities/${id}/images`, image.uri, {
+      fieldName: 'file',
+      mimeType: image.type,
+      parameters: { type },
+    }),
+
+  /** Quita una foto ya subida de la galería (perfil y banner se reemplazan subiendo una nueva). */
+  deleteImage: (id: string, photoId: string) =>
+    request<{ message: string }>(`/api/entities/${id}/images/${photoId}`, { method: 'DELETE' }),
+};
+
+export interface AdminEntityListParams {
+  /** Estado a listar. Por defecto "pending" (la cola de revisión). */
+  status?: VerificationStatus;
+  page?: number;
+  pageSize?: number;
+}
+
+export const adminApi = {
+  /** Solo para usuarios con role "admin". Lista negocios por estado de verificación. */
+  listEntities: (params: AdminEntityListParams = {}) =>
+    request<Paginated<EntityOwnerItem>>('/api/admin/entities', {
+      query: { status: params.status, page: params.page, pageSize: params.pageSize ?? 50 },
+    }),
+
+  verifyEntity: (id: string, verificationStatus: VerificationStatus) =>
+    request<EntityDetail>(`/api/admin/entities/${id}/verify`, {
+      method: 'PATCH',
+      body: { status: verificationStatus },
     }),
 };
 

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import type { ColorValue } from 'react-native';
-import { colors } from '@/theme';
+import { colors, fonts } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -16,6 +16,8 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
+        tabBarStyle: { backgroundColor: colors.bg, borderTopColor: colors.line },
+        tabBarLabelStyle: { fontFamily: fonts.ui.bold, fontSize: 11 },
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Explorar', tabBarIcon: tabIcon('map-outline') }} />
