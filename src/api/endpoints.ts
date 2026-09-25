@@ -59,6 +59,14 @@ export const usersApi = {
   /** Negocios que el usuario marcó como favoritos. */
   favorites: async () =>
     unwrapList<EntityMap>(await request<unknown>('/api/users/me/favorites', { query: { pageSize: 100 } })),
+
+  /** Registra (o reasigna) el token de notificaciones push de este dispositivo. */
+  registerPushToken: (token: string) =>
+    request<{ message: string }>('/api/users/push-token', { method: 'POST', body: { token } }),
+
+  /** Deja de recibir notificaciones push en este dispositivo (p. ej. al cerrar sesión). */
+  removePushToken: (token: string) =>
+    request<{ message: string }>('/api/users/push-token', { method: 'DELETE', body: { token } }),
 };
 
 export const categoriesApi = {

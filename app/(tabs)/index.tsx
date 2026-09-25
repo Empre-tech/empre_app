@@ -55,6 +55,9 @@ export default function ExploreScreen() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
+  // Distingue "sin permiso" de "tardó/falló obteniendo el GPS", para poder mostrar
+  // un mensaje útil en vez de repetir "necesitamos tu ubicación" sin explicar qué pasó.
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
   // Evita volver a centrar automáticamente cada vez que se remonta el MapView
   // (p. ej. al alternar entre mapa y lista); solo centramos la primera vez.
@@ -68,6 +71,7 @@ export default function ExploreScreen() {
 
   const requestLocation = async () => {
     setLocating(true);
+    setLocationError(null);
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== 'granted') {
@@ -75,11 +79,22 @@ export default function ExploreScreen() {
         return null;
       }
       setLocationDenied(false);
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      // Con GPS débil (adentro de un edificio, etc.) esto puede quedarse colgado; sin límite
+      // de tiempo el botón "Usar mi ubicación" parece no hacer nada. Si tarda más de 12s,
+      // lo tratamos como error y se lo explicamos al usuario en vez de dejarlo esperando.
+      const position = await Promise.race([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000)),
+      ]);
       const coords = { latitude: position.coords.latitude, longitude: position.coords.longitude };
       setUserCoords(coords);
       return coords;
-    } catch {
+    } catch (error) {
+      setLocationError(
+        error instanceof Error && error.message === 'timeout'
+          ? 'Tardamos demasiado en obtener tu ubicación. Revisa que el GPS esté activado e intenta de nuevo.'
+          : 'No pudimos obtener tu ubicación. Revisa que la ubicación del celular esté activada e intenta de nuevo.',
+      );
       return null;
     } finally {
       setLocating(false);
@@ -140,6 +155,10 @@ export default function ExploreScreen() {
     () => (userCoords && distanceKm(userCoords, CARTAGENA_CENTER) < NEARBY_CITY_RADIUS_KM ? userCoords : null),
     [userCoords],
   );
+
+  // Tuvimos coordenadas pero están lejos de Cartagena: distinto de "no tenemos ubicación",
+  // así el aviso del modal no repite "necesitamos tu ubicación" cuando en realidad sí la tenemos.
+  const locationOutOfRange = Boolean(userCoords) && !reference;
 
   const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 5 * 60_000 });
   const entities = useQuery({
@@ -360,6 +379,8 @@ export default function ExploreScreen() {
         radiusValue={radiusKm}
         hasReference={Boolean(reference)}
         denied={locationDenied}
+        outOfRange={locationOutOfRange}
+        error={locationError}
         locating={locating}
         onSelectRadius={(km) => {
           setRadiusKm(km);
@@ -467,6 +488,8 @@ function FiltersModal({
   radiusValue,
   hasReference,
   denied,
+  outOfRange,
+  error,
   locating,
   onSelectRadius,
   onRetryLocation,
@@ -482,6 +505,8 @@ function FiltersModal({
   radiusValue: number | null;
   hasReference: boolean;
   denied: boolean;
+  outOfRange: boolean;
+  error: string | null;
   locating: boolean;
   onSelectRadius: (km: number | null) => void;
   onRetryLocation: () => void;
@@ -557,19 +582,33 @@ function FiltersModal({
 
             {!hasReference ? (
               <View style={styles.modalNotice}>
-                <Text style={styles.modalNoticeText}>
-                  {denied
-                    ? 'No tenemos permiso para usar tu ubicación. Actívalo en los ajustes del celular.'
-                    : 'Necesitamos tu ubicación para filtrar por distancia.'}
-                </Text>
-                {!denied ? (
-                  <Button
-                    title={locating ? 'Ubicando…' : 'Usar mi ubicación'}
-                    variant="secondary"
-                    onPress={onRetryLocation}
-                    style={styles.modalNoticeButton}
-                  />
-                ) : null}
+                {locating ? (
+                  // Si ya diste permiso antes, esto pasa solo (al abrir la app y al abrir
+                  // Filtros) sin volver a preguntarte nada: mientras tanto mostramos que
+                  // estamos buscando tu ubicación, no un aviso de "danos permiso".
+                  <View style={styles.modalNoticeLoading}>
+                    <ActivityIndicator size="small" color={colors.primary} />
+                    <Text style={styles.modalNoticeText}>Obteniendo tu ubicación…</Text>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={styles.modalNoticeText}>
+                      {denied
+                        ? 'No tenemos permiso para usar tu ubicación. Actívalo en los ajustes del celular.'
+                        : outOfRange
+                          ? 'Tu ubicación está fuera de Cartagena, así que no podemos ordenar ni filtrar por distancia.'
+                          : (error ?? 'No pudimos obtener tu ubicación todavía.')}
+                    </Text>
+                    {!denied && !outOfRange ? (
+                      <Button
+                        title="Reintentar"
+                        variant="secondary"
+                        onPress={onRetryLocation}
+                        style={styles.modalNoticeButton}
+                      />
+                    ) : null}
+                  </>
+                )}
               </View>
             ) : null}
 
@@ -809,6 +848,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   modalNoticeText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
+  modalNoticeLoading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   modalNoticeButton: { minHeight: 40 },
   radiusOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
   radiusOption: {

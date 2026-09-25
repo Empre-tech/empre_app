@@ -9,6 +9,12 @@ const config: ExpoConfig = {
   version: '0.1.0',
   orientation: 'portrait',
   userInterfaceStyle: 'light',
+  owner: 'gioleonp',
+  extra: {
+    eas: {
+      projectId: '20ce8d48-19b2-4f50-805f-a5eb9044eefe',
+    },
+  },
   ios: {
     supportsTablet: false,
     bundleIdentifier: 'co.empre.app',
@@ -35,6 +41,15 @@ const config: ExpoConfig = {
       'expo-image-picker',
       {
         photosPermission: 'Empre necesita acceder a tus fotos para que puedas subir la imagen de tu perfil o de tu negocio.',
+      },
+    ],
+    [
+      'expo-notifications',
+      {
+        // Ícono/color del ícono pequeño de la notificación en Android. Usa el
+        // color de marca; el ícono real se agrega más adelante (por ahora cae
+        // al ícono por defecto de la app).
+        color: '#E1572B',
       },
     ],
   ],

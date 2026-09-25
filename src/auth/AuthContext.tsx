@@ -11,6 +11,7 @@ import {
 import { authApi, usersApi } from '@/api/endpoints';
 import { ApiError, setSessionHandlers, setSessionTokens } from '@/api/client';
 import type { RegisterInput, User } from '@/api/types';
+import { getRegisteredPushToken, setRegisteredPushToken } from '@/notifications/pushTokenStore';
 import { clearTokens, loadTokens, saveTokens } from './storage';
 
 type Status = 'loading' | 'signedOut' | 'signedIn';
@@ -33,6 +34,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
   const signOut = useCallback(async () => {
+    // Antes de borrar los tokens de sesión (que son los que autentican la
+    // llamada): si no, este dispositivo seguiría recibiendo notificaciones
+    // de esta cuenta después de cerrar sesión.
+    const pushToken = getRegisteredPushToken();
+    if (pushToken) {
+      try {
+        await usersApi.removePushToken(pushToken);
+      } catch {
+        // Best-effort: si falla, el token simplemente queda huérfano en el backend
+        // (dejará de servir cuando expire/se desinstale la app) y no bloquea el logout.
+      }
+      setRegisteredPushToken(null);
+    }
     setSessionTokens(null);
     await clearTokens();
     queryClient.clear();

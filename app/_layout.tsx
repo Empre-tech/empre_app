@@ -16,6 +16,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
 import { ChatProvider } from '@/chat/ChatProvider';
+import { usePushNotifications } from '@/notifications/usePushNotifications';
 import { colors } from '@/theme';
 
 // Se mantiene la splash nativa visible hasta que Fraunces y Manrope estén
@@ -24,6 +25,9 @@ void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function AppStack() {
   const { status } = useAuth();
+  // Registra el token push (si ya hay sesión) y navega al tocar una
+  // notificación; vive aquí porque necesita el router y el estado de sesión.
+  usePushNotifications();
 
   if (status === 'loading') {
     return (
