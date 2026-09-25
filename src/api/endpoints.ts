@@ -1,6 +1,7 @@
 import { request, uploadFile } from './client';
 import type {
   Category,
+  CategoryInput,
   ChatMessage,
   Conversation,
   EntityDetail,
@@ -10,6 +11,10 @@ import type {
   EntityOwnerItem,
   Paginated,
   RegisterInput,
+  Review,
+  ReviewInput,
+  ReviewSummary,
+  SubcategoryInput,
   TokenPair,
   UploadableImage,
   UploadedImage,
@@ -50,6 +55,10 @@ export const usersApi = {
 
   uploadProfileImage: (image: UploadableImage) =>
     uploadFile<UploadedImage>('/api/users/profile/image', image.uri, { fieldName: 'file', mimeType: image.type }),
+
+  /** Negocios que el usuario marcó como favoritos. */
+  favorites: async () =>
+    unwrapList<EntityMap>(await request<unknown>('/api/users/me/favorites', { query: { pageSize: 100 } })),
 };
 
 export const categoriesApi = {
@@ -59,7 +68,8 @@ export const categoriesApi = {
 
 export interface EntityListParams {
   category?: string;
-  /** Búsqueda libre: nombre, descripción o dirección. */
+  subcategory?: string;
+  /** Búsqueda libre: nombre, descripción, dirección, categoría o subcategoría. */
   q?: string;
   lat?: number;
   long?: number;
@@ -75,6 +85,7 @@ export const entitiesApi = {
         auth: false,
         query: {
           category: params.category,
+          subcategory: params.subcategory,
           q: params.q,
           lat: params.lat,
           long: params.long,
@@ -84,7 +95,10 @@ export const entitiesApi = {
       }),
     ),
 
-  get: (id: string) => request<EntityDetail>(`/api/entities/${id}`, { auth: false }),
+  // Sin `auth: false`: si hay sesión, mandamos el token para que el backend
+  // pueda devolver `is_favorite` correcto (visitantes sin sesión igual pueden
+  // ver el negocio; simplemente no se manda cabecera si no hay token).
+  get: (id: string) => request<EntityDetail>(`/api/entities/${id}`),
 
   mine: async () =>
     unwrapList<EntityOwnerItem>(await request<unknown>('/api/entities/mine', { query: { pageSize: 50 } })),
@@ -108,6 +122,43 @@ export const entitiesApi = {
   /** Quita una foto ya subida de la galería (perfil y banner se reemplazan subiendo una nueva). */
   deleteImage: (id: string, photoId: string) =>
     request<{ message: string }>(`/api/entities/${id}/images/${photoId}`, { method: 'DELETE' }),
+
+  /** Cambia la descripción de una foto de galería (Owner only). */
+  updateImageCaption: (id: string, photoId: string, caption: string) =>
+    request<{ message: string; caption: string }>(`/api/entities/${id}/images/${photoId}`, {
+      method: 'PATCH',
+      body: { caption },
+    }),
+
+  favorite: (id: string) => request<{ message: string }>(`/api/entities/${id}/favorite`, { method: 'POST' }),
+
+  unfavorite: (id: string) => request<{ message: string }>(`/api/entities/${id}/favorite`, { method: 'DELETE' }),
+};
+
+export interface ReviewListResult {
+  data: Review[];
+  summary: ReviewSummary;
+}
+
+export const reviewsApi = {
+  /** Lista pública de reseñas de un negocio, más nuevas primero, con el promedio. */
+  list: async (entityId: string): Promise<ReviewListResult> => {
+    const res = await request<{ data: Review[] | null; summary: ReviewSummary }>(
+      `/api/entities/${entityId}/reviews`,
+      { auth: false, query: { pageSize: 50 } },
+    );
+    return { data: res.data ?? [], summary: res.summary };
+  },
+
+  /** Crea o reemplaza mi reseña de este negocio (una por usuario). */
+  upsert: (entityId: string, input: ReviewInput) =>
+    request<Review>(`/api/entities/${entityId}/reviews`, { method: 'POST', body: input }),
+
+  /** Mi reseña de este negocio, si ya dejé una. */
+  mine: (entityId: string) => request<Review>(`/api/entities/${entityId}/reviews/mine`),
+
+  remove: (entityId: string) =>
+    request<{ message: string }>(`/api/entities/${entityId}/reviews`, { method: 'DELETE' }),
 };
 
 export interface AdminEntityListParams {
@@ -129,6 +180,25 @@ export const adminApi = {
       method: 'PATCH',
       body: { status: verificationStatus },
     }),
+
+  /** Solo admin. Crear/editar/eliminar categorías y subcategorías. */
+  createCategory: (input: CategoryInput) =>
+    request<{ message: string; id: string }>('/api/admin/categories', { method: 'POST', body: input }),
+
+  updateCategory: (id: string, input: CategoryInput) =>
+    request<{ message: string }>(`/api/admin/categories/${id}`, { method: 'PUT', body: input }),
+
+  deleteCategory: (id: string) =>
+    request<{ message: string }>(`/api/admin/categories/${id}`, { method: 'DELETE' }),
+
+  createSubcategory: (input: SubcategoryInput) =>
+    request<{ message: string; id: string }>('/api/admin/subcategories', { method: 'POST', body: input }),
+
+  updateSubcategory: (id: string, name: string) =>
+    request<{ message: string }>(`/api/admin/subcategories/${id}`, { method: 'PUT', body: { name } }),
+
+  deleteSubcategory: (id: string) =>
+    request<{ message: string }>(`/api/admin/subcategories/${id}`, { method: 'DELETE' }),
 };
 
 export const chatApi = {

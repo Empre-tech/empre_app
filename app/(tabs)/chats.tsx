@@ -35,6 +35,24 @@ export default function ChatsScreen() {
     enabled: status === 'signedIn' && tab === 'business',
   });
 
+  // Personales: yo soy el cliente hablando con un negocio (other_party es el negocio).
+  const personalConversations = (conversations.data ?? []).filter((c) => c.other_party.type === 'entity');
+
+  // De mis negocios: yo soy el dueño hablando con un cliente (other_party es el cliente).
+  const businessConversations = (conversations.data ?? []).filter((c) => c.other_party.type === 'user');
+  // Este useMemo (y cualquier otro hook) debe ir SIEMPRE antes del `return`
+  // condicional de abajo: si no, en un render sin sesión React monta menos
+  // hooks que en uno con sesión y lanza "Rendered fewer hooks than expected".
+  const conversationsByEntity = useMemo(() => {
+    const map = new Map<string, Conversation[]>();
+    for (const c of businessConversations) {
+      const list = map.get(c.entity_id) ?? [];
+      list.push(c);
+      map.set(c.entity_id, list);
+    }
+    return map;
+  }, [businessConversations]);
+
   if (status !== 'signedIn') {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -52,21 +70,6 @@ export default function ChatsScreen() {
       params: { entityId, name: party.name, ...(party.type === 'user' ? { userId: party.id } : {}) },
     });
   };
-
-  // Personales: yo soy el cliente hablando con un negocio (other_party es el negocio).
-  const personalConversations = (conversations.data ?? []).filter((c) => c.other_party.type === 'entity');
-
-  // De mis negocios: yo soy el dueño hablando con un cliente (other_party es el cliente).
-  const businessConversations = (conversations.data ?? []).filter((c) => c.other_party.type === 'user');
-  const conversationsByEntity = useMemo(() => {
-    const map = new Map<string, Conversation[]>();
-    for (const c of businessConversations) {
-      const list = map.get(c.entity_id) ?? [];
-      list.push(c);
-      map.set(c.entity_id, list);
-    }
-    return map;
-  }, [businessConversations]);
 
   const selectedBusiness = (myEntities.data ?? []).find((e) => e.id === selectedBusinessId) ?? null;
   const selectedBusinessConversations = selectedBusinessId ? conversationsByEntity.get(selectedBusinessId) ?? [] : [];

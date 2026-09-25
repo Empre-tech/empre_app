@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import { getValidAccessToken } from '@/api/client';
 import type { ChatMessage } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
@@ -75,6 +76,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       ws.onopen = () => {
         attempt = 0;
         setStatus('open');
+        // Al (re)conectar puede haber mensajes que llegaron mientras estuvimos
+        // desconectados (p. ej. la app en segundo plano) y que el servidor no
+        // pudo entregar en tiempo real: los recuperamos con un refetch.
+        void queryClient.invalidateQueries({ queryKey: ['conversations'] });
       };
 
       ws.onmessage = (event) => {
@@ -107,8 +112,25 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     void connect();
 
+    // El sistema operativo suspende la app en segundo plano y la conexión TCP
+    // puede quedar "zombie" (el WebSocket no se entera de que ya no sirve
+    // hasta que falla un ping, hasta 54s después). Al volver a primer plano,
+    // si el socket no está realmente abierto forzamos una reconexión ya
+    // mismo en vez de esperar a que el reintento automático lo note.
+    const onAppStateChange = (next: AppStateStatus) => {
+      if (next !== 'active' || disposed) return;
+      const current = socketRef.current;
+      if (current && current.readyState === WebSocket.OPEN) return;
+      if (timer) clearTimeout(timer);
+      attempt = 0;
+      current?.close();
+      void connect();
+    };
+    const subscription = AppState.addEventListener('change', onAppStateChange);
+
     return () => {
       disposed = true;
+      subscription.remove();
       if (timer) clearTimeout(timer);
       socketRef.current?.close();
       socketRef.current = null;

@@ -19,6 +19,13 @@ export function formatMessageTime(iso: string): string {
   return date.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit' });
 }
 
+/** Fecha corta para reseñas y contenido similar, p. ej. "12 mar 2025". */
+export function formatReviewDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 export function verificationLabel(status: 'pending' | 'verified' | 'rejected'): string {
   switch (status) {
     case 'verified':

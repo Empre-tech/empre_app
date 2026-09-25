@@ -14,7 +14,8 @@ interface Props {
   /** Ubicación actual del negocio (si ya tiene una). */
   initial: Coords | null;
   onCancel: () => void;
-  onConfirm: (coords: Coords) => void;
+  /** `address` es la dirección resuelta automáticamente (reverse geocoding) para el punto elegido, si se pudo obtener. */
+  onConfirm: (coords: Coords, address: string | null) => void;
 }
 
 /** Arma un texto corto y legible a partir de un resultado de reverseGeocodeAsync. */
@@ -164,7 +165,7 @@ export function LocationPickerModal({ visible, initial, onCancel, onConfirm }: P
           <Button title="Usar mi ubicación actual" variant="secondary" onPress={() => void useMyLocation()} loading={locating} />
           <View style={styles.row}>
             <Button title="Cancelar" variant="secondary" onPress={onCancel} style={styles.flex} />
-            <Button title="Confirmar" onPress={() => point && onConfirm(point)} disabled={!point} style={styles.flex} />
+            <Button title="Confirmar" onPress={() => point && onConfirm(point, address)} disabled={!point} style={styles.flex} />
           </View>
         </View>
       </View>

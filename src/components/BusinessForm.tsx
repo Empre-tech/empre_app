@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { categoriesApi, entitiesApi } from '@/api/endpoints';
-import type { EntityDetail, EntityInput, Subcategory, UploadableImage } from '@/api/types';
+import type { Category, EntityDetail, EntityInput, Subcategory, UploadableImage } from '@/api/types';
 import { hasLocation, type Coords } from '@/lib/geo';
 import { resolveImageUrl } from '@/lib/image';
 import { pickImage } from '@/lib/images';
@@ -31,8 +31,10 @@ interface Props {
   initial?: EntityDetail;
 }
 
-type PhotoKind = 'profile' | 'banner' | 'gallery';
+type PhotoKind = 'profile' | 'banner';
 
+// Crear un negocio usa un asistente por pasos; editar uno existente usa una
+// sola vista con todo el formulario junto (ver `editing` más abajo).
 const STEPS = ['Datos básicos', 'Ubicación y contacto', 'Fotos'] as const;
 
 export function BusinessForm({ initial }: Props) {
@@ -48,6 +50,7 @@ export function BusinessForm({ initial }: Props) {
   const [name, setName] = useState(initial?.name ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [categoryId, setCategoryId] = useState(initial?.category?.id ?? '');
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
   const [subcategoryIds, setSubcategoryIds] = useState<string[]>(
     (initial?.subcategories ?? []).map((s) => s.id),
   );
@@ -60,13 +63,11 @@ export function BusinessForm({ initial }: Props) {
   );
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  // Fotos nuevas elegidas en este formulario; se suben al guardar.
+  // Fotos nuevas elegidas en este formulario; se suben al guardar. La galería
+  // (y las publicaciones) se maneja directamente desde el perfil del negocio,
+  // tanto al crear como al editar, así que aquí solo hay perfil y banner.
   const [profile, setProfile] = useState<UploadableImage | null>(null);
   const [banner, setBanner] = useState<UploadableImage | null>(null);
-  const [gallery, setGallery] = useState<UploadableImage[]>([]);
-  // Fotos ya subidas que el usuario marcó para borrar al guardar.
-  const [removedPhotoIds, setRemovedPhotoIds] = useState<string[]>([]);
-  const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,42 +76,23 @@ export function BusinessForm({ initial }: Props) {
   const availableSubcategories: Subcategory[] = selectedCategory?.subcategories ?? [];
   const selectedSubcategories = availableSubcategories.filter((s) => subcategoryIds.includes(s.id));
 
+  const selectCategory = (category: Category) => {
+    setCategoryId(category.id);
+    // Al cambiar de categoría, las subcategorías de la anterior ya no aplican.
+    setSubcategoryIds((prev) => prev.filter((id) => (category.subcategories ?? []).some((s) => s.id === id)));
+    setCategoryPickerOpen(false);
+  };
+
   const choose = async (kind: PhotoKind) => {
     setError(null);
     try {
-      const image = await pickImage(
-        kind === 'profile' ? { aspect: [1, 1], maxWidth: 800 } : kind === 'banner' ? { aspect: [16, 9] } : {},
-      );
+      const image = await pickImage(kind === 'profile' ? { aspect: [1, 1], maxWidth: 800 } : { aspect: [16, 9] });
       if (!image) return;
       if (kind === 'profile') setProfile(image);
-      else if (kind === 'banner') setBanner(image);
-      else setGallery((prev) => [...prev, image]);
+      else setBanner(image);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No pudimos abrir la galería.');
     }
-  };
-
-  const removeExistingPhoto = (photoId: string) => {
-    if (!initial) return;
-    Alert.alert('Quitar foto', '¿Quitar esta foto de la galería?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Quitar',
-        style: 'destructive',
-        onPress: async () => {
-          setDeletingPhotoId(photoId);
-          try {
-            await entitiesApi.deleteImage(initial.id, photoId);
-            setRemovedPhotoIds((prev) => [...prev, photoId]);
-            void queryClient.invalidateQueries({ queryKey: ['entity', initial.id] });
-          } catch (e) {
-            Alert.alert('No pudimos quitar la foto', e instanceof Error ? e.message : 'Inténtalo de nuevo.');
-          } finally {
-            setDeletingPhotoId(null);
-          }
-        },
-      },
-    ]);
   };
 
   const goToBusiness = (id: string) => {
@@ -118,6 +100,11 @@ export function BusinessForm({ initial }: Props) {
     else router.replace({ pathname: '/business/[id]', params: { id } });
   };
 
+  const goBack = () => {
+    router.canGoBack() ? router.back() : router.replace('/(tabs)');
+  };
+
+  // Solo se usa en el asistente (crear): valida antes de pasar al siguiente paso.
   const stepError = (target: number): string | null => {
     if (target > 0 && name.trim().length < 2) return 'Escribe el nombre del negocio.';
     if (target > 0 && !categoryId) return 'Elige una categoría.';
@@ -131,18 +118,18 @@ export function BusinessForm({ initial }: Props) {
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
   };
 
-  const goBack = () => {
+  const goBackStep = () => {
     setError(null);
     if (step === 0) {
-      router.canGoBack() ? router.back() : router.replace('/(tabs)');
+      goBack();
       return;
     }
     setStep((s) => Math.max(s - 1, 0));
   };
 
   const onSubmit = async () => {
-    const err = stepError(1);
-    if (err) return setError(err);
+    if (name.trim().length < 2) return setError('Escribe el nombre del negocio.');
+    if (!categoryId) return setError('Elige una categoría.');
 
     setSaving(true);
     setError(null);
@@ -179,9 +166,6 @@ export function BusinessForm({ initial }: Props) {
       };
       if (profile) await upload('la foto de perfil', () => entitiesApi.uploadImage(id, 'profile', profile));
       if (banner) await upload('el banner', () => entitiesApi.uploadImage(id, 'banner', banner));
-      for (const [index, photo] of gallery.entries()) {
-        await upload(`la foto ${index + 1} de la galería`, () => entitiesApi.uploadImage(id, 'gallery', photo));
-      }
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['entities'] }),
@@ -231,23 +215,186 @@ export function BusinessForm({ initial }: Props) {
     ]);
   };
 
-  const existingGallery = useMemo(
-    () =>
-      [...(initial?.photos ?? [])]
-        .filter((p) => !removedPhotoIds.includes(p.id))
-        .sort((a, b) => a.order - b.order),
-    [initial?.photos, removedPhotoIds],
+  // Cuando se confirma una ubicación (búsqueda, toque en el mapa o "Usar mi
+  // ubicación actual"), autocompletamos la Dirección con lo que se pudo
+  // resolver automáticamente (reverse geocoding), sin bloquear si falla.
+  const onLocationConfirmed = (point: Coords, resolvedAddress: string | null) => {
+    setCoords(point);
+    if (resolvedAddress) setAddress(resolvedAddress);
+    setPickerOpen(false);
+  };
+
+  const categoryField = (
+    <View style={styles.field}>
+      <Text style={styles.label}>Categoría</Text>
+      {categories.isLoading ? (
+        <ActivityIndicator color={colors.primary} />
+      ) : (categories.data ?? []).length === 0 ? (
+        <Text style={styles.muted}>Todavía no hay categorías disponibles.</Text>
+      ) : (
+        <Pressable accessibilityRole="button" onPress={() => setCategoryPickerOpen(true)} style={styles.dropdown}>
+          {selectedCategory ? (
+            <View style={styles.dropdownSelected}>
+              <Ionicons name={selectedCategory.icon as keyof typeof Ionicons.glyphMap} size={16} color={colors.primary} />
+              <Text style={styles.dropdownText} numberOfLines={1}>
+                {selectedCategory.name}
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.dropdownText} numberOfLines={1}>
+              Elegir categoría
+            </Text>
+          )}
+          <Ionicons name="chevron-down" size={18} color={colors.muted} />
+        </Pressable>
+      )}
+    </View>
   );
 
+  const subcategoryField =
+    categoryId && availableSubcategories.length > 0 ? (
+      <View style={styles.field}>
+        <Text style={styles.label}>Subcategorías</Text>
+        <Pressable accessibilityRole="button" onPress={() => setSubPickerOpen(true)} style={styles.dropdown}>
+          <Text style={styles.dropdownText} numberOfLines={1}>
+            {selectedSubcategories.length > 0
+              ? selectedSubcategories.map((s) => s.name).join(', ')
+              : 'Elegir subcategorías (opcional)'}
+          </Text>
+          <Ionicons name="chevron-down" size={18} color={colors.muted} />
+        </Pressable>
+      </View>
+    ) : null;
+
+  const locationField = (
+    <View style={styles.field}>
+      <Text style={styles.label}>Ubicación en el mapa</Text>
+      <Text style={styles.muted}>
+        {coords
+          ? `Pin colocado (${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)})`
+          : 'Sin ubicación: el negocio solo aparecerá en la lista, no en el mapa.'}
+      </Text>
+      <Button title={coords ? 'Cambiar ubicación' : 'Elegir en el mapa'} variant="secondary" onPress={() => setPickerOpen(true)} />
+    </View>
+  );
+
+  const modals = (
+    <>
+      <LocationPickerModal
+        visible={pickerOpen}
+        initial={coords}
+        onCancel={() => setPickerOpen(false)}
+        onConfirm={onLocationConfirmed}
+      />
+
+      <CategoryPickerModal
+        visible={categoryPickerOpen}
+        options={categories.data ?? []}
+        selectedId={categoryId}
+        onSelect={selectCategory}
+        onClose={() => setCategoryPickerOpen(false)}
+      />
+
+      <SubcategoryPickerModal
+        visible={subPickerOpen}
+        categoryName={selectedCategory?.name ?? ''}
+        options={availableSubcategories}
+        selectedIds={subcategoryIds}
+        onClose={() => setSubPickerOpen(false)}
+        onToggle={(id) =>
+          setSubcategoryIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+        }
+      />
+    </>
+  );
+
+  // ---- Editar: una sola vista con todo el formulario junto ----
+  if (editing) {
+    return (
+      <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={goBack} style={styles.headerButton}>
+            <Ionicons name="chevron-back" size={24} color={colors.ink} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Editar negocio</Text>
+        </View>
+
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.field}>
+            <Text style={styles.label}>Fotos</Text>
+            <View style={styles.photoRow}>
+              <PhotoSlot
+                label="Perfil"
+                shape="square"
+                uri={profile?.uri ?? resolveImageUrl(initial?.profile_url)}
+                onPress={() => void choose('profile')}
+              />
+              <PhotoSlot
+                label="Banner"
+                shape="wide"
+                uri={banner?.uri ?? resolveImageUrl(initial?.banner_url)}
+                onPress={() => void choose('banner')}
+              />
+            </View>
+            <Text style={styles.muted}>Las demás fotos y publicaciones se administran desde el perfil del negocio.</Text>
+          </View>
+
+          <TextField
+            label="Nombre del negocio"
+            value={name}
+            onChangeText={setName}
+            autoCapitalize="words"
+            placeholder="Ej. Arepas de la Plaza"
+          />
+
+          {categoryField}
+          {subcategoryField}
+
+          <TextField
+            label="Descripción"
+            value={description}
+            onChangeText={setDescription}
+            autoCapitalize="sentences"
+            multiline
+            placeholder="Cuéntale a la gente qué ofreces"
+            style={styles.multiline}
+          />
+
+          <TextField label="Dirección" value={address} onChangeText={setAddress} autoCapitalize="words" placeholder="Calle, barrio o referencia" />
+          <TextField label="Ciudad" value={city} onChangeText={setCity} autoCapitalize="words" />
+          <TextField
+            label="Contacto (teléfono, WhatsApp, redes)"
+            value={contact}
+            onChangeText={setContact}
+            placeholder="300 123 4567"
+          />
+
+          {locationField}
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          <Button title="Guardar cambios" onPress={onSubmit} loading={saving} />
+          <Button title="Eliminar negocio" variant="ghost" onPress={confirmDelete} disabled={saving} />
+        </ScrollView>
+
+        {modals}
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // ---- Crear: asistente por pasos ----
   const isLastStep = step === STEPS.length - 1;
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={goBack} style={styles.headerButton}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={goBackStep} style={styles.headerButton}>
           <Ionicons name="chevron-back" size={24} color={colors.ink} />
         </Pressable>
-        <Text style={styles.headerTitle}>{editing ? 'Editar negocio' : 'Nuevo negocio'}</Text>
+        <Text style={styles.headerTitle}>Nuevo negocio</Text>
       </View>
 
       <View style={styles.stepper}>
@@ -286,59 +433,8 @@ export function BusinessForm({ initial }: Props) {
               placeholder="Ej. Arepas de la Plaza"
             />
 
-            <View style={styles.field}>
-              <Text style={styles.label}>Categoría</Text>
-              {categories.isLoading ? (
-                <ActivityIndicator color={colors.primary} />
-              ) : (categories.data ?? []).length === 0 ? (
-                <Text style={styles.muted}>Todavía no hay categorías disponibles.</Text>
-              ) : (
-                <View style={styles.chips}>
-                  {(categories.data ?? []).map((category) => {
-                    const active = category.id === categoryId;
-                    return (
-                      <Pressable
-                        key={category.id}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: active }}
-                        onPress={() => {
-                          setCategoryId(category.id);
-                          // Al cambiar de categoría, las subcategorías de la anterior ya no aplican.
-                          setSubcategoryIds((prev) =>
-                            prev.filter((id) => (category.subcategories ?? []).some((s) => s.id === id)),
-                          );
-                        }}
-                        style={[styles.chip, active && styles.chipActive]}
-                      >
-                        <Text style={[styles.chipText, active && styles.chipTextActive]}>{category.name}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              )}
-            </View>
-
-            {categoryId ? (
-              <View style={styles.field}>
-                <Text style={styles.label}>Subcategorías</Text>
-                {availableSubcategories.length === 0 ? (
-                  <Text style={styles.muted}>Esta categoría todavía no tiene subcategorías.</Text>
-                ) : (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => setSubPickerOpen(true)}
-                    style={styles.dropdown}
-                  >
-                    <Text style={styles.dropdownText} numberOfLines={1}>
-                      {selectedSubcategories.length > 0
-                        ? selectedSubcategories.map((s) => s.name).join(', ')
-                        : 'Elegir subcategorías (opcional)'}
-                    </Text>
-                    <Ionicons name="chevron-down" size={18} color={colors.muted} />
-                  </Pressable>
-                )}
-              </View>
-            ) : null}
+            {categoryField}
+            {subcategoryField}
 
             <TextField
               label="Descripción"
@@ -363,15 +459,7 @@ export function BusinessForm({ initial }: Props) {
               placeholder="300 123 4567"
             />
 
-            <View style={styles.field}>
-              <Text style={styles.label}>Ubicación en el mapa</Text>
-              <Text style={styles.muted}>
-                {coords
-                  ? `Pin colocado (${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)})`
-                  : 'Sin ubicación: el negocio solo aparecerá en la lista, no en el mapa.'}
-              </Text>
-              <Button title={coords ? 'Cambiar ubicación' : 'Elegir en el mapa'} variant="secondary" onPress={() => setPickerOpen(true)} />
-            </View>
+            {locationField}
           </>
         ) : null}
 
@@ -382,60 +470,14 @@ export function BusinessForm({ initial }: Props) {
               <PhotoSlot
                 label="Perfil"
                 shape="square"
-                uri={profile?.uri ?? resolveImageUrl(initial?.profile_url)}
+                uri={profile?.uri ?? null}
                 onPress={() => void choose('profile')}
               />
-              <PhotoSlot
-                label="Banner"
-                shape="wide"
-                uri={banner?.uri ?? resolveImageUrl(initial?.banner_url)}
-                onPress={() => void choose('banner')}
-              />
+              <PhotoSlot label="Banner" shape="wide" uri={banner?.uri ?? null} onPress={() => void choose('banner')} />
             </View>
-
-            <Text style={[styles.label, styles.subLabel]}>Galería</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.gallery}>
-              {existingGallery.map((photo) => (
-                <View key={photo.id} style={styles.galleryTile}>
-                  <Image source={{ uri: resolveImageUrl(photo.url) ?? undefined }} style={StyleSheet.absoluteFill} contentFit="cover" />
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Quitar foto"
-                    onPress={() => removeExistingPhoto(photo.id)}
-                    style={styles.removeBadge}
-                    disabled={deletingPhotoId === photo.id}
-                  >
-                    {deletingPhotoId === photo.id ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Ionicons name="close" size={14} color="#fff" />
-                    )}
-                  </Pressable>
-                </View>
-              ))}
-              {gallery.map((photo, index) => (
-                <View key={photo.uri} style={styles.galleryTile}>
-                  <Image source={{ uri: photo.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Quitar foto"
-                    onPress={() => setGallery((prev) => prev.filter((_, i) => i !== index))}
-                    style={styles.removeBadge}
-                  >
-                    <Ionicons name="close" size={14} color="#fff" />
-                  </Pressable>
-                </View>
-              ))}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Agregar foto a la galería"
-                onPress={() => void choose('gallery')}
-                style={[styles.galleryTile, styles.addTile]}
-              >
-                <Ionicons name="add" size={28} color={colors.muted} />
-              </Pressable>
-            </ScrollView>
-            <Text style={styles.muted}>Toca la X sobre una foto para quitarla.</Text>
+            <Text style={styles.muted}>
+              Las fotos de la galería y las publicaciones las agregas después, desde el perfil del negocio.
+            </Text>
           </View>
         ) : null}
 
@@ -446,46 +488,63 @@ export function BusinessForm({ initial }: Props) {
             <Button title="Atrás" variant="secondary" onPress={() => setStep((s) => Math.max(s - 1, 0))} style={styles.navButton} disabled={saving} />
           ) : null}
           {isLastStep ? (
-            <Button
-              title={editing ? 'Guardar cambios' : 'Crear negocio'}
-              onPress={onSubmit}
-              loading={saving}
-              style={styles.navButton}
-            />
+            <Button title="Crear negocio" onPress={onSubmit} loading={saving} style={styles.navButton} />
           ) : (
             <Button title="Siguiente" onPress={goNext} style={styles.navButton} />
           )}
         </View>
 
-        {!editing && isLastStep ? (
+        {isLastStep ? (
           <Text style={styles.muted}>Tu negocio quedará en revisión hasta que verifiquemos tu identidad.</Text>
-        ) : null}
-        {editing && isLastStep ? (
-          <Button title="Eliminar negocio" variant="ghost" onPress={confirmDelete} disabled={saving} />
         ) : null}
       </ScrollView>
 
-      <LocationPickerModal
-        visible={pickerOpen}
-        initial={coords}
-        onCancel={() => setPickerOpen(false)}
-        onConfirm={(point) => {
-          setCoords(point);
-          setPickerOpen(false);
-        }}
-      />
-
-      <SubcategoryPickerModal
-        visible={subPickerOpen}
-        categoryName={selectedCategory?.name ?? ''}
-        options={availableSubcategories}
-        selectedIds={subcategoryIds}
-        onClose={() => setSubPickerOpen(false)}
-        onToggle={(id) =>
-          setSubcategoryIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
-        }
-      />
+      {modals}
     </KeyboardAvoidingView>
+  );
+}
+
+function CategoryPickerModal({
+  visible,
+  options,
+  selectedId,
+  onSelect,
+  onClose,
+}: {
+  visible: boolean;
+  options: Category[];
+  selectedId: string;
+  onSelect: (category: Category) => void;
+  onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose} />
+      <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
+        <Text style={styles.modalTitle}>Elige una categoría</Text>
+        <ScrollView style={styles.modalList} contentContainerStyle={{ gap: spacing.xs }}>
+          {options.map((category) => {
+            const active = category.id === selectedId;
+            return (
+              <Pressable
+                key={category.id}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                onPress={() => onSelect(category)}
+                style={[styles.modalOption, active && styles.modalOptionActive]}
+              >
+                <View style={styles.modalOptionLeft}>
+                  <Ionicons name={category.icon as keyof typeof Ionicons.glyphMap} size={18} color={active ? colors.primary : colors.muted} />
+                  <Text style={[styles.modalOptionText, active && styles.modalOptionTextActive]}>{category.name}</Text>
+                </View>
+                {active ? <Ionicons name="checkmark" size={18} color={colors.primary} /> : null}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+    </Modal>
   );
 }
 
@@ -620,19 +679,6 @@ const styles = StyleSheet.create({
   muted: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },
   multiline: { minHeight: 96, textAlignVertical: 'top', paddingTop: 12 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: {
-    paddingHorizontal: spacing.md,
-    height: 36,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.line,
-    justifyContent: 'center',
-    backgroundColor: colors.bg,
-  },
-  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: 14, fontWeight: '600', fontFamily: fonts.ui.semibold, color: colors.ink },
-  chipTextActive: { color: '#fff' },
   dropdown: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -644,6 +690,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     backgroundColor: colors.bg,
   },
+  dropdownSelected: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   dropdownText: { flex: 1, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink, marginRight: spacing.sm },
   photoRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'center' },
   slot: {
@@ -664,26 +711,6 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  gallery: { gap: spacing.sm },
-  galleryTile: {
-    width: 84,
-    height: 84,
-    borderRadius: radius.sm,
-    overflow: 'hidden',
-    backgroundColor: colors.surface,
-  },
-  addTile: { alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line, borderStyle: 'dashed' },
-  removeBadge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
     backgroundColor: 'rgba(0,0,0,0.6)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -710,6 +737,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.surface,
   },
+  modalOptionLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   modalOptionActive: { backgroundColor: colors.primary + '1A' },
   modalOptionText: { fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink },
   modalOptionTextActive: { fontFamily: fonts.ui.semibold, color: colors.primary },

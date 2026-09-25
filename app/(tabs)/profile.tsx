@@ -83,6 +83,16 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push('/favorites')}
+        style={({ pressed }) => [styles.adminCard, pressed && { opacity: 0.85 }]}
+      >
+        <Ionicons name="heart-outline" size={20} color={colors.primary} />
+        <Text style={styles.adminCardText}>Mis favoritos</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+      </Pressable>
+
       {user.role === 'admin' && (
         <Pressable
           accessibilityRole="button"

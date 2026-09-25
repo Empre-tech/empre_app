@@ -33,6 +33,8 @@ export interface Subcategory {
 export interface Category {
   id: string;
   name: string;
+  /** Nombre de ícono de Ionicons (ej. "restaurant-outline"), usado en el mapa. */
+  icon: string;
   subcategories?: Subcategory[];
 }
 
@@ -40,17 +42,34 @@ export interface Category {
 export interface EntityMap {
   id: string;
   name: string;
+  category_id: string;
   category_name: string;
+  category_icon: string;
   profile_url: string;
   latitude: number;
   longitude: number;
   is_verified: boolean;
+  avg_rating: number;
+  review_count: number;
+}
+
+/** Cuerpo de POST/PUT /api/admin/categories. */
+export interface CategoryInput {
+  name: string;
+  icon: string;
+}
+
+/** Cuerpo de POST /api/admin/subcategories. */
+export interface SubcategoryInput {
+  name: string;
+  category_id: string;
 }
 
 export interface Photo {
   id: string;
   url: string;
   order: number;
+  caption: string;
 }
 
 /** Perfil completo (GET /api/entities/:id). */
@@ -72,6 +91,11 @@ export interface EntityDetail {
   owner_id: string;
   created_at: string;
   photos?: Photo[];
+  /** Promedio y cantidad de reseñas (solo en el detalle del negocio). */
+  avg_rating: number;
+  review_count: number;
+  /** true si el usuario logueado tiene este negocio en favoritos. */
+  is_favorite: boolean;
 }
 
 /** Lista del dueño (GET /api/entities/mine). */
@@ -150,4 +174,31 @@ export interface UploadedImage {
   id: string;
   url: string;
   type?: EntityImageType;
+}
+
+export interface ReviewUser {
+  id: string;
+  name: string;
+  profile_picture_url: string;
+}
+
+/** Reseña de un negocio (GET /api/entities/:id/reviews). */
+export interface Review {
+  id: string;
+  rating: number;
+  comment: string;
+  created_at: string;
+  updated_at: string;
+  user: ReviewUser;
+}
+
+export interface ReviewSummary {
+  average: number;
+  count: number;
+}
+
+/** Cuerpo de POST /api/entities/:id/reviews (crea o reemplaza mi reseña). */
+export interface ReviewInput {
+  rating: number;
+  comment: string;
 }

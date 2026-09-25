@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { EntityMap } from '@/api/types';
 import { formatDistance } from '@/lib/format';
@@ -15,6 +16,7 @@ interface Props {
 /** Fila/tarjeta de negocio: se usa en la lista y en la vista previa del mapa. */
 export function BusinessRow({ entity, distanceKm, onPress, style }: Props) {
   const distance = formatDistance(distanceKm);
+  const hasRating = entity.review_count > 0;
   return (
     <Pressable
       accessibilityRole="button"
@@ -30,9 +32,18 @@ export function BusinessRow({ entity, distanceKm, onPress, style }: Props) {
           </Text>
           {entity.is_verified ? <VerifiedBadge /> : null}
         </View>
-        <Text style={styles.meta} numberOfLines={1}>
-          {[entity.category_name, distance].filter(Boolean).join(' · ')}
-        </Text>
+        <View style={styles.metaRow}>
+          {hasRating ? (
+            <View style={styles.rating}>
+              <Ionicons name="star" size={13} color={colors.warning} />
+              <Text style={styles.ratingText}>{entity.avg_rating.toFixed(1)}</Text>
+              <Text style={styles.reviewCount}>({entity.review_count})</Text>
+            </View>
+          ) : null}
+          <Text style={styles.meta} numberOfLines={1}>
+            {[entity.category_name, distance].filter(Boolean).join(' · ')}
+          </Text>
+        </View>
       </View>
     </Pressable>
   );
@@ -51,5 +62,9 @@ const styles = StyleSheet.create({
   info: { flex: 1, gap: 2 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: { flexShrink: 1, fontSize: 16, fontWeight: '700', fontFamily: fonts.ui.bold, color: colors.ink },
-  meta: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  rating: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  ratingText: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink },
+  reviewCount: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
+  meta: { flexShrink: 1, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted },
 });

@@ -52,11 +52,18 @@ El firewall de Windows suele bloquear las conexiones del celular a la PC. Sin pe
 ## Qué incluye
 
 - **Auth**: registro, login, recuperar contraseña; tokens en `expo-secure-store`, renovación automática del access token.
-- **Explorar**: mapa de Cartagena con pines agrupados según el zoom, filtro por categoría, lista ordenada por
-  distancia y vista previa al tocar un pin. Se puede explorar sin cuenta.
-- **Perfil de negocio** estilo Instagram: banner, foto, sello de verificado, descripción, galería, cómo llegar, llamar.
-- **Crear y editar negocios**: datos, categoría, ubicación en el mapa (tocar o arrastrar el pin), foto de perfil,
-  banner y galería. Eliminar negocio.
+- **Explorar**: mapa de Cartagena con pines agrupados según el zoom, filtro por categoría y subcategoría
+  (se recentra en tu ubicación al aplicar un filtro), búsqueda por nombre/categoría, lista ordenada por
+  distancia con calificación (estrellas y cantidad de reseñas) y vista previa al tocar un pin. Se puede explorar sin cuenta.
+- **Perfil de negocio** estilo Instagram: banner, foto, sello de verificado, calificación, descripción, cómo llegar
+  y llamar (barra de acciones), y dos pestañas — **Publicaciones** (galería a sangre) y **Reseñas**.
+- **Publicaciones**: galería estilo Instagram con visor a pantalla completa (deslizar entre fotos), descripción
+  editable y borrado por el dueño.
+- **Reseñas**: calificación de 1 a 5 estrellas y comentario; cada usuario puede escribir, editar o borrar su
+  propia reseña de un negocio.
+- **Favoritos**: marcar/desmarcar un negocio (ícono de corazón), con su propia lista en la pestaña Perfil.
+- **Crear y editar negocios**: datos, categoría y subcategorías, ubicación en el mapa (tocar o arrastrar el pin),
+  foto de perfil, banner y galería. Eliminar negocio.
 - **Foto de perfil del usuario**: toca tu avatar en la pestaña Perfil.
 - **Chat en tiempo real** (WebSocket) con historial, reconexión automática y lista de conversaciones; funciona
   tanto para clientes como para el dueño del negocio.
@@ -66,7 +73,6 @@ El firewall de Windows suele bloquear las conexiones del celular a la PC. Sin pe
 
 - Los negocios nuevos quedan **pendientes** de verificación; el flujo de verificación de identidad
   (documento + selfie) aún no existe en el backend, así que no hay pantalla para eso.
-- No hay endpoint para **borrar fotos de la galería** de un negocio.
 - `is_read` no se actualiza: no hay indicador de mensajes no leídos.
 - Las URLs de las imágenes son firmadas y caducan a los 15 minutos; se renuevan al recargar los datos.
 

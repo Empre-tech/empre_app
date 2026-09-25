@@ -49,6 +49,15 @@ export default function ChatScreen() {
     enabled: authStatus === 'signedIn' && Boolean(entityId && customerId),
   });
 
+  // Cada vez que el socket (re)conecta mientras esta pantalla está abierta,
+  // refrescamos el historial: si estuvimos desconectados un momento (p. ej.
+  // la app pasó a segundo plano), esto trae los mensajes que el servidor no
+  // pudo entregar en tiempo real.
+  useEffect(() => {
+    if (chat.status === 'open') void history.refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat.status]);
+
   // Mensajes en tiempo real que pertenecen a esta conversación.
   useEffect(() => {
     return chat.subscribe((message) => {

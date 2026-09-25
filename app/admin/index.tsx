@@ -114,6 +114,15 @@ export default function AdminScreen() {
       <View style={styles.header}>
         {back}
         <Text style={styles.headerTitle}>Administración</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Categorías"
+          onPress={() => router.push('/admin/categories')}
+          style={styles.categoriesButton}
+          hitSlop={8}
+        >
+          <Ionicons name="pricetags-outline" size={22} color={colors.primary} />
+        </Pressable>
       </View>
 
       <View style={styles.tabs}>
@@ -215,7 +224,8 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   backButton: { padding: 4, marginLeft: -4 },
-  headerTitle: { fontSize: 20, fontFamily: fonts.display.semibold, color: colors.ink },
+  headerTitle: { flex: 1, fontSize: 20, fontFamily: fonts.display.semibold, color: colors.ink },
+  categoriesButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   tabs: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
   tab: {
     paddingVertical: 8,

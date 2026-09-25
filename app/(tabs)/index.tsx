@@ -14,10 +14,10 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import MapView, { Marker, type Region } from 'react-native-maps';
+import MapView, { Circle, Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { categoriesApi, entitiesApi } from '@/api/endpoints';
-import type { EntityMap } from '@/api/types';
+import type { Category, EntityMap } from '@/api/types';
 import { BusinessRow } from '@/components/BusinessRow';
 import { Button } from '@/components/Button';
 import { CARTAGENA_CENTER, DEFAULT_REGION, NEARBY_CITY_RADIUS_KM } from '@/config';
@@ -44,6 +44,7 @@ export default function ExploreScreen() {
 
   const [mode, setMode] = useState<'map' | 'list'>('map');
   const [categoryId, setCategoryId] = useState<string | undefined>();
+  const [subcategoryId, setSubcategoryId] = useState<string | undefined>();
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
   const [userCoords, setUserCoords] = useState<Coords | null>(null);
   const [selected, setSelected] = useState<EntityMap | null>(null);
@@ -51,9 +52,13 @@ export default function ExploreScreen() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [radiusKm, setRadiusKm] = useState<number | null>(null);
-  const [radiusPickerOpen, setRadiusPickerOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
+  // Evita volver a centrar automáticamente cada vez que se remonta el MapView
+  // (p. ej. al alternar entre mapa y lista); solo centramos la primera vez.
+  const didCenterRef = useRef(false);
 
   // No golpeamos el backend en cada tecla: esperamos una pausa corta.
   useEffect(() => {
@@ -81,20 +86,54 @@ export default function ExploreScreen() {
     }
   };
 
-  // Ubicación del usuario (opcional): centra el mapa y permite ordenar/filtrar por distancia.
+  // Pide la ubicación del usuario (permite centrar el mapa y ordenar/filtrar por distancia).
   useEffect(() => {
     let active = true;
     (async () => {
       const coords = await requestLocation();
       if (!active || !coords) return;
-      if (distanceKm(coords, CARTAGENA_CENTER) < NEARBY_CITY_RADIUS_KM) {
-        mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 500);
-      }
     })();
     return () => {
       active = false;
     };
   }, []);
+
+  // Centra el mapa en la ubicación del usuario apenas tenemos AMBAS cosas: las
+  // coordenadas y que el MapView nativo ya terminó de montarse. Si se llama a
+  // animateToRegion antes de que el mapa esté listo (típico en un arranque en
+  // frío, la primera vez que se abre la app), la llamada se pierde en
+  // silencio y el mapa se queda en la región por defecto.
+  useEffect(() => {
+    if (didCenterRef.current || !mapReady || !userCoords) return;
+    didCenterRef.current = true;
+    mapRef.current?.animateToRegion({ ...userCoords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 500);
+  }, [mapReady, userCoords]);
+
+  /** Centra y aleja el mapa lo justo para que el círculo del filtro de distancia quepa entero. */
+  const focusRadius = (center: Coords, km: number) => {
+    // 1° de latitud ≈ 111km; en longitud se acorta según el coseno de la latitud.
+    const latitudeDelta = (km / 111) * 2.6;
+    const longitudeDelta = latitudeDelta / Math.max(Math.cos((center.latitude * Math.PI) / 180), 0.1);
+    mapRef.current?.animateToRegion({ ...center, latitudeDelta, longitudeDelta }, 400);
+  };
+
+  // Cada vez que se aplica un filtro (categoría o búsqueda) volvemos a centrar
+  // el mapa en la ubicación del usuario, para que no se quede mirando una zona
+  // donde ya no hay resultados relevantes. Comparamos contra el valor anterior
+  // "a mano" (en vez de solo listar las deps) para no disparar esto también en
+  // el primer render, que ya lo cubre el efecto de centrado inicial de arriba.
+  const previousFiltersRef = useRef({ categoryId, subcategoryId, debouncedSearch });
+  useEffect(() => {
+    const previous = previousFiltersRef.current;
+    const changed =
+      previous.categoryId !== categoryId ||
+      previous.subcategoryId !== subcategoryId ||
+      previous.debouncedSearch !== debouncedSearch;
+    previousFiltersRef.current = { categoryId, subcategoryId, debouncedSearch };
+    if (!changed || !userCoords) return;
+    setMode('map');
+    mapRef.current?.animateToRegion({ ...userCoords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 500);
+  }, [categoryId, subcategoryId, debouncedSearch, userCoords]);
 
   // Solo ordenamos/filtramos por distancia si el usuario está realmente cerca de la ciudad.
   const reference = useMemo(
@@ -107,6 +146,7 @@ export default function ExploreScreen() {
     queryKey: [
       'entities',
       categoryId ?? 'all',
+      subcategoryId ?? 'all',
       debouncedSearch,
       radiusKm ?? 'any',
       radiusKm && reference ? `${reference.latitude.toFixed(3)},${reference.longitude.toFixed(3)}` : 'no-ref',
@@ -114,6 +154,7 @@ export default function ExploreScreen() {
     queryFn: () =>
       entitiesApi.list({
         category: categoryId,
+        subcategory: subcategoryId,
         q: debouncedSearch || undefined,
         // El backend filtra por caja (aproximado); el radio exacto lo afinamos abajo con Haversine.
         ...(radiusKm && reference
@@ -144,12 +185,15 @@ export default function ExploreScreen() {
 
   const openBusiness = (id: string) => router.push({ pathname: '/business/[id]', params: { id } });
 
-  const openRadiusPicker = () => {
+  const openFilters = () => {
     if (!reference && !locating) void requestLocation();
-    setRadiusPickerOpen(true);
+    setFiltersOpen(true);
   };
 
-  const radiusLabel = radiusKm ? `< ${radiusKm} km` : 'Distancia';
+  const activeFilterCount = (categoryId ? 1 : 0) + (subcategoryId ? 1 : 0) + (radiusKm !== null ? 1 : 0);
+  const selectedCategory = (categories.data ?? []).find((c) => c.id === categoryId) ?? null;
+  const selectedSubcategory = (selectedCategory?.subcategories ?? []).find((s) => s.id === subcategoryId) ?? null;
+  const radiusLabel = radiusKm ? `< ${radiusKm} km` : null;
 
   return (
     <View style={styles.screen}>
@@ -160,9 +204,19 @@ export default function ExploreScreen() {
           initialRegion={DEFAULT_REGION}
           showsUserLocation
           showsMyLocationButton={false}
+          onMapReady={() => setMapReady(true)}
           onRegionChangeComplete={setRegion}
           onPress={() => setSelected(null)}
         >
+          {radiusKm && reference ? (
+            <Circle
+              center={reference}
+              radius={radiusKm * 1000}
+              strokeWidth={1.5}
+              strokeColor={colors.primary}
+              fillColor="rgba(225, 87, 43, 0.12)"
+            />
+          ) : null}
           {clusters.map((cluster) => {
             const [only] = cluster.items;
             const coordinate = { latitude: cluster.latitude, longitude: cluster.longitude };
@@ -178,7 +232,11 @@ export default function ExploreScreen() {
                   }}
                 >
                   <View style={[styles.pin, only.is_verified && styles.pinVerified]}>
-                    <Ionicons name="storefront" size={16} color="#fff" />
+                    <Ionicons
+                      name={(only.category_icon || 'storefront') as keyof typeof Ionicons.glyphMap}
+                      size={16}
+                      color="#fff"
+                    />
                   </View>
                 </Marker>
               );
@@ -251,41 +309,72 @@ export default function ExploreScreen() {
         <View style={styles.filterRow}>
           <Pressable
             accessibilityRole="button"
-            onPress={openRadiusPicker}
-            style={[styles.radiusChip, radiusKm !== null && styles.chipActive]}
+            accessibilityLabel="Abrir filtros"
+            onPress={openFilters}
+            style={[styles.filtersButton, activeFilterCount > 0 && styles.chipActive]}
           >
-            {locating ? (
-              <ActivityIndicator size="small" color={radiusKm ? '#fff' : colors.primary} />
-            ) : (
-              <Ionicons name="navigate" size={14} color={radiusKm ? '#fff' : colors.ink} />
-            )}
-            <Text style={[styles.chipText, radiusKm !== null && styles.chipTextActive]}>{radiusLabel}</Text>
+            <Ionicons name="options-outline" size={16} color={activeFilterCount > 0 ? '#fff' : colors.ink} />
+            <Text style={[styles.chipText, activeFilterCount > 0 && styles.chipTextActive]}>Filtros</Text>
+            {activeFilterCount > 0 ? (
+              <View style={styles.filtersBadge}>
+                <Text style={styles.filtersBadgeText}>{activeFilterCount}</Text>
+              </View>
+            ) : null}
           </Pressable>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={styles.chipScroll}>
-            <Chip label="Todos" active={!categoryId} onPress={() => setCategoryId(undefined)} />
-            {(categories.data ?? []).map((category) => (
-              <Chip
-                key={category.id}
-                label={category.name}
-                active={categoryId === category.id}
-                onPress={() => setCategoryId(category.id)}
-              />
-            ))}
-          </ScrollView>
+
+          {selectedCategory || radiusLabel ? (
+            <View style={styles.activeChips}>
+              {selectedCategory ? (
+                <ActiveChip
+                  icon={selectedCategory.icon as keyof typeof Ionicons.glyphMap}
+                  label={selectedCategory.name}
+                  onRemove={() => {
+                    setCategoryId(undefined);
+                    setSubcategoryId(undefined);
+                  }}
+                />
+              ) : null}
+              {selectedSubcategory ? (
+                <ActiveChip
+                  icon="pricetag-outline"
+                  label={selectedSubcategory.name}
+                  onRemove={() => setSubcategoryId(undefined)}
+                />
+              ) : null}
+              {radiusLabel ? <ActiveChip icon="navigate" label={radiusLabel} onRemove={() => setRadiusKm(null)} /> : null}
+            </View>
+          ) : null}
         </View>
       </View>
 
-      <RadiusPickerModal
-        visible={radiusPickerOpen}
-        value={radiusKm}
+      <FiltersModal
+        visible={filtersOpen}
+        categories={categories.data ?? []}
+        categoryId={categoryId}
+        onSelectCategory={(id) => {
+          setCategoryId(id);
+          setSubcategoryId(undefined);
+        }}
+        subcategoryId={subcategoryId}
+        onSelectSubcategory={setSubcategoryId}
+        radiusValue={radiusKm}
         hasReference={Boolean(reference)}
         denied={locationDenied}
-        onSelect={(km) => {
+        locating={locating}
+        onSelectRadius={(km) => {
           setRadiusKm(km);
-          setRadiusPickerOpen(false);
+          if (km && reference) {
+            setMode('map');
+            focusRadius(reference, km);
+          }
         }}
         onRetryLocation={requestLocation}
-        onClose={() => setRadiusPickerOpen(false)}
+        onClear={() => {
+          setCategoryId(undefined);
+          setSubcategoryId(undefined);
+          setRadiusKm(null);
+        }}
+        onClose={() => setFiltersOpen(false)}
       />
 
       {mode === 'list' ? (
@@ -346,74 +435,195 @@ export default function ExploreScreen() {
   );
 }
 
-function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function ActiveChip({
+  icon,
+  label,
+  onRemove,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onRemove: () => void;
+}) {
+  return (
+    <View style={styles.activeChip}>
+      <Ionicons name={icon} size={13} color={colors.primary} />
+      <Text style={styles.activeChipText} numberOfLines={1}>
+        {label}
+      </Text>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Quitar filtro ${label}`} onPress={onRemove} hitSlop={8}>
+        <Ionicons name="close" size={14} color={colors.muted} />
+      </Pressable>
+    </View>
+  );
+}
+
+function FiltersModal({
+  visible,
+  categories,
+  categoryId,
+  onSelectCategory,
+  subcategoryId,
+  onSelectSubcategory,
+  radiusValue,
+  hasReference,
+  denied,
+  locating,
+  onSelectRadius,
+  onRetryLocation,
+  onClear,
+  onClose,
+}: {
+  visible: boolean;
+  categories: Category[];
+  categoryId: string | undefined;
+  onSelectCategory: (id: string | undefined) => void;
+  subcategoryId: string | undefined;
+  onSelectSubcategory: (id: string | undefined) => void;
+  radiusValue: number | null;
+  hasReference: boolean;
+  denied: boolean;
+  locating: boolean;
+  onSelectRadius: (km: number | null) => void;
+  onRetryLocation: () => void;
+  onClear: () => void;
+  onClose: () => void;
+}) {
+  const hasFilters = Boolean(categoryId) || Boolean(subcategoryId) || radiusValue !== null;
+  const selectedCategory = categories.find((c) => c.id === categoryId) ?? null;
+  const subcategories = selectedCategory?.subcategories ?? [];
+
+  return (
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable style={styles.modalCard} onPress={(event) => event.stopPropagation()}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Filtros</Text>
+            {hasFilters ? (
+              <Pressable accessibilityRole="button" onPress={onClear} hitSlop={8}>
+                <Text style={styles.modalClear}>Limpiar</Text>
+              </Pressable>
+            ) : null}
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} style={styles.modalScroll}>
+            <Text style={styles.modalSectionLabel}>Categoría</Text>
+            <View style={styles.categoryGrid}>
+              <CategoryGridItem
+                label="Todos"
+                icon="apps-outline"
+                active={!categoryId}
+                onPress={() => onSelectCategory(undefined)}
+              />
+              {categories.map((category) => (
+                <CategoryGridItem
+                  key={category.id}
+                  label={category.name}
+                  icon={(category.icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap}
+                  active={categoryId === category.id}
+                  onPress={() => onSelectCategory(category.id)}
+                />
+              ))}
+            </View>
+
+            {subcategories.length > 0 ? (
+              <>
+                <Text style={[styles.modalSectionLabel, { marginTop: spacing.md }]}>Subcategoría</Text>
+                <View style={styles.radiusOptions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => onSelectSubcategory(undefined)}
+                    style={[styles.radiusOption, !subcategoryId && styles.radiusOptionActive]}
+                  >
+                    <Text style={[styles.radiusOptionText, !subcategoryId && styles.radiusOptionTextActive]}>Todas</Text>
+                  </Pressable>
+                  {subcategories.map((sub) => {
+                    const active = subcategoryId === sub.id;
+                    return (
+                      <Pressable
+                        key={sub.id}
+                        accessibilityRole="button"
+                        onPress={() => onSelectSubcategory(sub.id)}
+                        style={[styles.radiusOption, active && styles.radiusOptionActive]}
+                      >
+                        <Text style={[styles.radiusOptionText, active && styles.radiusOptionTextActive]}>{sub.name}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            ) : null}
+
+            <Text style={[styles.modalSectionLabel, { marginTop: spacing.md }]}>Distancia desde ti</Text>
+
+            {!hasReference ? (
+              <View style={styles.modalNotice}>
+                <Text style={styles.modalNoticeText}>
+                  {denied
+                    ? 'No tenemos permiso para usar tu ubicación. Actívalo en los ajustes del celular.'
+                    : 'Necesitamos tu ubicación para filtrar por distancia.'}
+                </Text>
+                {!denied ? (
+                  <Button
+                    title={locating ? 'Ubicando…' : 'Usar mi ubicación'}
+                    variant="secondary"
+                    onPress={onRetryLocation}
+                    style={styles.modalNoticeButton}
+                  />
+                ) : null}
+              </View>
+            ) : null}
+
+            <View style={styles.radiusOptions}>
+              {RADIUS_OPTIONS.map((option) => {
+                const active = radiusValue === option.km;
+                const disabled = option.km !== null && !hasReference;
+                return (
+                  <Pressable
+                    key={option.label}
+                    accessibilityRole="button"
+                    disabled={disabled}
+                    onPress={() => onSelectRadius(option.km)}
+                    style={[styles.radiusOption, active && styles.radiusOptionActive, disabled && styles.modalOptionDisabled]}
+                  >
+                    <Text style={[styles.radiusOptionText, active && styles.radiusOptionTextActive]}>{option.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScrollView>
+
+          <Button title="Ver resultados" onPress={onClose} style={styles.modalApply} />
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function CategoryGridItem({
+  label,
+  icon,
+  active,
+  onPress,
+}: {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  active: boolean;
+  onPress: () => void;
+}) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       onPress={onPress}
-      style={[styles.chip, active && styles.chipActive]}
+      style={styles.categoryItem}
     >
-      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+      <View style={[styles.categoryIconCircle, active && styles.categoryIconCircleActive]}>
+        <Ionicons name={icon} size={22} color={active ? '#fff' : colors.ink} />
+      </View>
+      <Text style={[styles.categoryItemLabel, active && styles.categoryItemLabelActive]} numberOfLines={1}>
+        {label}
+      </Text>
     </Pressable>
-  );
-}
-
-function RadiusPickerModal({
-  visible,
-  value,
-  hasReference,
-  denied,
-  onSelect,
-  onRetryLocation,
-  onClose,
-}: {
-  visible: boolean;
-  value: number | null;
-  hasReference: boolean;
-  denied: boolean;
-  onSelect: (km: number | null) => void;
-  onRetryLocation: () => void;
-  onClose: () => void;
-}) {
-  return (
-    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        <Pressable style={styles.modalCard} onPress={(event) => event.stopPropagation()}>
-          <Text style={styles.modalTitle}>Distancia desde ti</Text>
-
-          {!hasReference ? (
-            <View style={styles.modalNotice}>
-              <Text style={styles.modalNoticeText}>
-                {denied
-                  ? 'No tenemos permiso para usar tu ubicación. Actívalo en los ajustes del celular.'
-                  : 'Necesitamos tu ubicación para filtrar por distancia.'}
-              </Text>
-              {!denied ? (
-                <Button title="Usar mi ubicación" variant="secondary" onPress={onRetryLocation} style={styles.modalNoticeButton} />
-              ) : null}
-            </View>
-          ) : null}
-
-          {RADIUS_OPTIONS.map((option) => {
-            const active = value === option.km;
-            const disabled = option.km !== null && !hasReference;
-            return (
-              <Pressable
-                key={option.label}
-                accessibilityRole="button"
-                disabled={disabled}
-                onPress={() => onSelect(option.km)}
-                style={[styles.modalOption, active && styles.modalOptionActive, disabled && styles.modalOptionDisabled]}
-              >
-                <Text style={[styles.modalOptionText, active && styles.modalOptionTextActive]}>{option.label}</Text>
-                {active ? <Ionicons name="checkmark" size={18} color={colors.primary} /> : null}
-              </Pressable>
-            );
-          })}
-        </Pressable>
-      </Pressable>
-    </Modal>
   );
 }
 
@@ -446,7 +656,7 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink, height: '100%' },
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  radiusChip: {
+  filtersButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -456,21 +666,35 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     borderWidth: 1,
     borderColor: colors.line,
+    ...shadow,
   },
-  chipScroll: { flex: 1 },
-  chips: { gap: spacing.sm, paddingRight: spacing.sm },
-  chip: {
-    paddingHorizontal: spacing.md,
-    height: 36,
-    borderRadius: radius.pill,
-    backgroundColor: colors.bg,
-    borderWidth: 1,
-    borderColor: colors.line,
+  filtersBadge: {
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 4,
   },
+  filtersBadgeText: { fontSize: 10, fontFamily: fonts.ui.bold, color: colors.primary },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 14, fontWeight: '600', fontFamily: fonts.ui.semibold, color: colors.ink },
   chipTextActive: { color: '#fff' },
+  activeChips: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexShrink: 1 },
+  activeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    height: 30,
+    borderRadius: radius.pill,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    maxWidth: 140,
+  },
+  activeChipText: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.ink, flexShrink: 1 },
   toggle: {
     width: 40,
     height: 40,
@@ -543,7 +767,40 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     paddingBottom: spacing.xxl,
   },
-  modalTitle: { fontSize: 19, fontFamily: fonts.display.semibold, color: colors.ink, marginBottom: spacing.sm },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
+  modalTitle: { fontSize: 19, fontFamily: fonts.display.semibold, color: colors.ink },
+  modalClear: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.primary },
+  modalScroll: { maxHeight: 420 },
+  modalSectionLabel: {
+    fontSize: 13,
+    fontFamily: fonts.ui.semibold,
+    color: colors.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: spacing.sm,
+  },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  categoryItem: { width: '25%', alignItems: 'center', marginBottom: spacing.md },
+  categoryIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryIconCircleActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  categoryItemLabel: {
+    fontSize: 11,
+    fontFamily: fonts.ui.medium,
+    color: colors.ink,
+    marginTop: 4,
+    textAlign: 'center',
+    maxWidth: 72,
+  },
+  categoryItemLabelActive: { fontFamily: fonts.ui.bold, color: colors.primary },
   modalNotice: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
@@ -553,16 +810,19 @@ const styles = StyleSheet.create({
   },
   modalNoticeText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   modalNoticeButton: { minHeight: 40 },
-  modalOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
+  radiusOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
+  radiusOption: {
+    paddingHorizontal: spacing.md,
+    height: 36,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    justifyContent: 'center',
   },
-  modalOptionActive: {},
+  radiusOptionActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   modalOptionDisabled: { opacity: 0.4 },
-  modalOptionText: { fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink },
-  modalOptionTextActive: { fontWeight: '700', fontFamily: fonts.ui.bold, color: colors.primary },
+  radiusOptionText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.ink },
+  radiusOptionTextActive: { fontFamily: fonts.ui.bold, color: '#fff' },
+  modalApply: { marginTop: spacing.md },
 });
