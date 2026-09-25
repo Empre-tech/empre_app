@@ -38,17 +38,6 @@ puerto 8080), así que no hace falta crear `.env` ni escribir IPs. El celular y 
 > Los avisos de `npm audit` son de herramientas de desarrollo y no afectan la app.
 > Si alguna vez las versiones se desalinean: `npx expo install --fix`.
 
-### Si el celular no conecta (firewall / sin permisos de administrador)
-
-El firewall de Windows suele bloquear las conexiones del celular a la PC. Sin permisos de admin hay dos salidas:
-
-- **Túnel de Expo** para la app: `npx expo start --tunnel`. Como el backend sigue en tu PC, también necesita un
-  túnel: `cloudflared tunnel --url http://localhost:8080` (o ngrok) te da una URL `https://...`; ponla en `.env`
-  como `EXPO_PUBLIC_API_URL=https://...` y reinicia Expo con `npx expo start -c`.
-  Antes cambia `JWT_SECRET` en el `.env` del backend por algo largo y aleatorio: la URL es pública.
-- **Android por USB** (con depuración USB activada): `adb reverse tcp:8080 tcp:8080` y
-  `EXPO_PUBLIC_API_URL=http://localhost:8080`.
-
 ## Qué incluye
 
 - **Auth**: registro, login, recuperar contraseña; tokens en `expo-secure-store`, renovación automática del access token.
