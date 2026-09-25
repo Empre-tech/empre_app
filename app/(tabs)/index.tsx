@@ -20,7 +20,7 @@ import { categoriesApi, entitiesApi } from '@/api/endpoints';
 import type { Category, EntityMap } from '@/api/types';
 import { BusinessRow } from '@/components/BusinessRow';
 import { Button } from '@/components/Button';
-import { CARTAGENA_CENTER, DEFAULT_REGION, NEARBY_CITY_RADIUS_KM } from '@/config';
+import { DEFAULT_REGION } from '@/config';
 import { clusterItems } from '@/lib/cluster';
 import { distanceKm, hasLocation, type Coords } from '@/lib/geo';
 import { colors, fonts, radius, spacing } from '@/theme';
@@ -150,15 +150,10 @@ export default function ExploreScreen() {
     mapRef.current?.animateToRegion({ ...userCoords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 500);
   }, [categoryId, subcategoryId, debouncedSearch, userCoords]);
 
-  // Solo ordenamos/filtramos por distancia si el usuario está realmente cerca de la ciudad.
-  const reference = useMemo(
-    () => (userCoords && distanceKm(userCoords, CARTAGENA_CENTER) < NEARBY_CITY_RADIUS_KM ? userCoords : null),
-    [userCoords],
-  );
-
-  // Tuvimos coordenadas pero están lejos de Cartagena: distinto de "no tenemos ubicación",
-  // así el aviso del modal no repite "necesitamos tu ubicación" cuando en realidad sí la tenemos.
-  const locationOutOfRange = Boolean(userCoords) && !reference;
+  // Ordenamos/filtramos por distancia con la ubicación real del usuario, esté donde
+  // esté: alguien probando la app desde otra ciudad (o viajando) también debe poder
+  // usar "cerca de mí", aunque el resultado sea que todo quede lejos.
+  const reference = userCoords;
 
   const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 5 * 60_000 });
   const entities = useQuery({
@@ -379,7 +374,6 @@ export default function ExploreScreen() {
         radiusValue={radiusKm}
         hasReference={Boolean(reference)}
         denied={locationDenied}
-        outOfRange={locationOutOfRange}
         error={locationError}
         locating={locating}
         onSelectRadius={(km) => {
@@ -488,7 +482,6 @@ function FiltersModal({
   radiusValue,
   hasReference,
   denied,
-  outOfRange,
   error,
   locating,
   onSelectRadius,
@@ -505,7 +498,6 @@ function FiltersModal({
   radiusValue: number | null;
   hasReference: boolean;
   denied: boolean;
-  outOfRange: boolean;
   error: string | null;
   locating: boolean;
   onSelectRadius: (km: number | null) => void;
@@ -595,11 +587,9 @@ function FiltersModal({
                     <Text style={styles.modalNoticeText}>
                       {denied
                         ? 'No tenemos permiso para usar tu ubicación. Actívalo en los ajustes del celular.'
-                        : outOfRange
-                          ? 'Tu ubicación está fuera de Cartagena, así que no podemos ordenar ni filtrar por distancia.'
-                          : (error ?? 'No pudimos obtener tu ubicación todavía.')}
+                        : (error ?? 'No pudimos obtener tu ubicación todavía.')}
                     </Text>
-                    {!denied && !outOfRange ? (
+                    {!denied ? (
                       <Button
                         title="Reintentar"
                         variant="secondary"

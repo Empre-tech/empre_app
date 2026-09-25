@@ -42,9 +42,6 @@ export const DEFAULT_REGION = {
   longitudeDelta: 0.07,
 };
 
-/** Si el usuario está a más de esto (km) de Cartagena, no ordenamos por distancia. */
-export const NEARBY_CITY_RADIUS_KM = 60;
-
 /** Máximo de caracteres de un mensaje de chat (el backend rechaza los más largos). */
 export const CHAT_MAX_CONTENT_CHARS = 1000;
 
