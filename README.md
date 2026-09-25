@@ -34,6 +34,8 @@ npx expo start
 Escanea el QR con Expo Go. La app **detecta sola** dónde está el backend (la misma PC que sirve la app,
 puerto 8080), así que no hace falta crear `.env` ni escribir IPs. El celular y la PC deben estar en la misma red Wi‑Fi.
 
+Esto alcanza para todo **excepto las notificaciones push** (Expo Go ya no las soporta): ver la sección [Notificaciones push](#notificaciones-push) para ese caso.
+
 > Importante: **no ejecutes `npm audit fix --force`** en este proyecto. Mezcla versiones de Expo y lo rompe.
 > Los avisos de `npm audit` son de herramientas de desarrollo y no afectan la app.
 > Si alguna vez las versiones se desalinean: `npx expo install --fix`.
@@ -56,7 +58,34 @@ puerto 8080), así que no hace falta crear `.env` ni escribir IPs. El celular y 
 - **Foto de perfil del usuario**: toca tu avatar en la pestaña Perfil.
 - **Chat en tiempo real** (WebSocket) con historial, reconexión automática y lista de conversaciones; funciona
   tanto para clientes como para el dueño del negocio.
+- **Notificaciones push**: nuevo mensaje de chat (si no estás con la conversación abierta), reseña nueva en tu
+  negocio, favorito nuevo y cambio de verificación. Requiere un development build, ver más abajo.
 - Las fotos se convierten a JPEG y se reducen antes de subirlas (el backend solo acepta JPEG, PNG y WebP).
+
+## Notificaciones push
+
+Usan el servicio de push de Expo, así que el token solo se puede generar en una app vinculada a un proyecto de
+EAS — **Expo Go no funciona para esto** (Expo le quitó el soporte de push remoto). Para probarlas:
+
+1. `npx expo install expo-notifications expo-device` (ya están en `package.json`; correr solo si hace falta reinstalar).
+2. `npx eas-cli@latest init` una vez, para vincular el proyecto a tu cuenta de Expo — esto genera un
+   `extra.eas.projectId` que hay que pegar a mano en `app.config.ts` (usa configuración dinámica, así que EAS no
+   puede escribirlo solo). El proyecto actual (`gioleonp/empre`) es personal: si otra persona del equipo va a
+   compilar, necesita que la agreguen como colaboradora en [expo.dev](https://expo.dev), o crear su propio
+   proyecto de EAS y actualizar el `projectId`.
+3. Generar un development build (reemplaza a Expo Go para este proyecto):
+   - Android: `npx expo run:android` (compila localmente, necesita Android Studio/el SDK de Android).
+   - iOS: no se puede compilar localmente desde Windows (hace falta Xcode/Mac). La alternativa es
+     `npx eas-cli build --profile development --platform ios`, que compila en la nube — para instalarlo en un
+     iPhone físico hace falta una cuenta de Apple Developer Program (de pago) para el certificado/provisioning.
+4. Con el development build instalado, corre `npx expo start --dev-client` en vez de `npx expo start` y ábrelo
+   desde ahí (ya no se abre con el QR de Expo Go).
+
+El registro del token es automático: al iniciar sesión, `usePushNotifications` (`src/notifications/`) pide permiso,
+obtiene el token de Expo y lo manda a `POST /api/users/push-token`; al cerrar sesión lo da de baja con `DELETE` del
+mismo endpoint, así el celular deja de recibir notificaciones de esa cuenta. Tocar una notificación navega directo
+a la conversación de chat o al perfil del negocio, según el tipo (`chat`, `review`, `favorite`, `verification`) que
+viene en el `data` de la notificación.
 
 ## Limitaciones conocidas (dependen del backend)
 
@@ -79,6 +108,7 @@ src/
   api/                  client.ts (fetch + refresh), endpoints.ts, types.ts (espejo de los DTOs del backend)
   auth/                 AuthContext + almacenamiento seguro de tokens
   chat/                 ChatProvider: un solo WebSocket compartido, con reconexión
+  notifications/        Registro del token push, navegación al tocar una notificación
   components/           Button, TextField, BusinessForm, LocationPickerModal, ...
   lib/                  geo, cluster, imágenes, formato, utilidades
   config.ts, theme.ts   URL del backend (autodetección) / colores
