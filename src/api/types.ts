@@ -2,6 +2,7 @@
 
 export type Role = 'user' | 'admin';
 export type VerificationStatus = 'pending' | 'verified' | 'rejected';
+export type ServiceMode = 'in_place' | 'delivery' | 'both' | '';
 
 export interface TokenPair {
   access_token: string;
@@ -30,6 +31,16 @@ export interface Subcategory {
   category_id: string;
 }
 
+/** Horario de un día de la semana (0=domingo ... 6=sábado, igual a Date.getDay()). */
+export interface BusinessHour {
+  weekday: number;
+  closed: boolean;
+  is_24h: boolean;
+  /** "HH:MM", vacío si closed o is_24h. */
+  open_time: string;
+  close_time: string;
+}
+
 export interface Category {
   id: string;
   name: string;
@@ -51,6 +62,9 @@ export interface EntityMap {
   is_verified: boolean;
   avg_rating: number;
   review_count: number;
+  service_mode: ServiceMode;
+  is_open_now: boolean;
+  has_hours: boolean;
 }
 
 /** Cuerpo de POST/PUT /api/admin/categories. */
@@ -70,6 +84,8 @@ export interface Photo {
   url: string;
   order: number;
   caption: string;
+  /** MIME real detectado por el backend (ej. "image/jpeg", "video/mp4"). */
+  content_type: string;
 }
 
 /** Perfil completo (GET /api/entities/:id). */
@@ -96,6 +112,9 @@ export interface EntityDetail {
   review_count: number;
   /** true si el usuario logueado tiene este negocio en favoritos. */
   is_favorite: boolean;
+  service_mode: ServiceMode;
+  hours?: BusinessHour[];
+  is_open_now: boolean;
 }
 
 /** Lista del dueño (GET /api/entities/mine). */
@@ -140,9 +159,12 @@ export interface Conversation {
   entity_id: string;
   content: string;
   created_at: string;
+  /** Si el ÚLTIMO mensaje está leído (no confundir con `unread_count`, que es el total pendiente). */
   is_read: boolean;
   sent_by_entity: boolean;
   other_party: ConversationParty;
+  /** Cuántos mensajes del otro lado están sin leer en esta conversación. */
+  unread_count: number;
 }
 
 /** Campos editables de un negocio (POST /api/entities y PUT /api/entities/:id). */
@@ -159,6 +181,8 @@ export interface EntityInput {
   /** 0,0 significa "sin ubicación": el negocio solo aparece en la lista, no en el mapa. */
   latitude: number;
   longitude: number;
+  service_mode?: ServiceMode;
+  hours?: BusinessHour[];
 }
 
 export type EntityImageType = 'profile' | 'banner' | 'gallery';
@@ -174,6 +198,7 @@ export interface UploadedImage {
   id: string;
   url: string;
   type?: EntityImageType;
+  content_type?: string;
 }
 
 export interface ReviewUser {
@@ -201,4 +226,51 @@ export interface ReviewSummary {
 export interface ReviewInput {
   rating: number;
   comment: string;
+}
+
+// ---------------------------------------------------------------------------
+// Asistente de IA para crear negocios (POST /api/ai/business-assistant)
+// ---------------------------------------------------------------------------
+
+export interface AIChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+/** Lo que el asistente ya logró definir a partir de la conversación; cada
+ * campo puede venir vacío/ausente si todavía no se ha hablado de eso. */
+export interface AIBusinessDraft {
+  name_suggestions?: string[];
+  description?: string;
+  category_id?: string;
+  subcategory_ids?: string[];
+  service_mode?: ServiceMode;
+  hours?: BusinessHour[];
+  ready?: boolean;
+}
+
+export interface AIChatResponse {
+  /** Mensaje del asistente para mostrar en el chat. */
+  reply: string;
+  draft?: AIBusinessDraft;
+  /** true cuando ya hay suficiente información para pasar al formulario. */
+  ready: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Asistente de IA para redactar texto (POST /api/ai/writing-assistant)
+// ---------------------------------------------------------------------------
+
+export type AITextKind = 'business_description' | 'post_caption';
+
+export interface AITextRequest {
+  kind: AITextKind;
+  current_text?: string;
+  business_name?: string;
+  category_name?: string;
+}
+
+export interface AITextResponse {
+  /** 2 o 3 opciones listas para usar; el dueño elige una. */
+  suggestions: string[];
 }

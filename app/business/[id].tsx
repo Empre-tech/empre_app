@@ -22,16 +22,33 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi, reviewsApi } from '@/api/endpoints';
 import type { Photo } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
+import { AIWritingAssist } from '@/components/AIWritingAssist';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
+import { PostComposerSheet } from '@/components/PostComposerSheet';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { hasLocation } from '@/lib/geo';
 import { formatReviewDate } from '@/lib/format';
 import { resolveImageUrl } from '@/lib/image';
-import { pickImage } from '@/lib/images';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const PHONE_RE = /^[+\d\s()-]{7,}$/;
+
+// Mismo orden que Go time.Weekday (0=domingo ... 6=sábado) y Date.getDay().
+const WEEKDAY_LABELS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+const SERVICE_MODE_LABELS: Record<string, { text: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  in_place: { text: 'Atiende en el local', icon: 'storefront-outline' },
+  delivery: { text: 'Solo a domicilio', icon: 'bicycle-outline' },
+  both: { text: 'En el local y a domicilio', icon: 'checkmark-done-outline' },
+};
+
+function formatHourRow(h: { closed: boolean; is_24h: boolean; open_time: string; close_time: string }): string {
+  if (h.closed) return 'Cerrado';
+  if (h.is_24h) return 'Abierto 24 horas';
+  return `${h.open_time} - ${h.close_time}`;
+}
 
 export default function BusinessScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -57,6 +74,7 @@ export default function BusinessScreen() {
   // etiquetados), no apiladas una tras otra, para que se entienda de un
   // vistazo que son dos cosas distintas.
   const [activeTab, setActiveTab] = useState<'posts' | 'reviews'>('posts');
+  const [showHours, setShowHours] = useState(false);
 
   // Favorito: estado local optimista para que el corazón responda al toque
   // de inmediato, sincronizado con lo que devuelve el servidor.
@@ -192,7 +210,7 @@ export default function BusinessScreen() {
   const [captionDirty, setCaptionDirty] = useState(false);
   const [savingCaption, setSavingCaption] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
   const viewerListRef = useRef<FlatList<Photo>>(null);
 
   // Al abrir el visor, arrancamos el "cursor" en la foto tocada.
@@ -214,19 +232,8 @@ export default function BusinessScreen() {
   const openViewer = (index: number) => setOpenIndex(index);
   const closeViewer = () => setOpenIndex(null);
 
-  const addPost = async () => {
-    if (!business) return;
-    try {
-      const image = await pickImage({ aspect: [4, 5], maxWidth: 1600 });
-      if (!image) return;
-      setUploading(true);
-      await entitiesApi.uploadImage(business.id, 'gallery', image);
-      await queryClient.invalidateQueries({ queryKey: ['entity', id] });
-    } catch (e) {
-      Alert.alert('No pudimos subir la foto', e instanceof Error ? e.message : 'Intenta de nuevo.');
-    } finally {
-      setUploading(false);
-    }
+  const onPostPublished = () => {
+    void queryClient.invalidateQueries({ queryKey: ['entity', id] });
   };
 
   const saveCaption = async () => {
@@ -352,14 +359,24 @@ export default function BusinessScreen() {
             {business.is_verified ? <VerifiedBadge size={20} /> : null}
           </View>
           <Text style={styles.category}>{business.category?.name}</Text>
-          {ratingSummary.count > 0 ? (
-            <View style={styles.ratingBadgeRow}>
-              <StarRow rating={ratingSummary.average} size={14} />
-              <Text style={styles.ratingBadgeText}>
-                {ratingSummary.average.toFixed(1)} ({ratingSummary.count})
-              </Text>
-            </View>
-          ) : null}
+          <View style={styles.badgesRow}>
+            {ratingSummary.count > 0 ? (
+              <View style={styles.ratingBadgeRow}>
+                <StarRow rating={ratingSummary.average} size={14} />
+                <Text style={styles.ratingBadgeText}>
+                  {ratingSummary.average.toFixed(1)} ({ratingSummary.count})
+                </Text>
+              </View>
+            ) : null}
+            {business.hours && business.hours.length > 0 ? (
+              <View style={[styles.openBadge, business.is_open_now ? styles.openBadgeOpen : styles.openBadgeClosed]}>
+                <View style={[styles.openDot, business.is_open_now ? styles.openDotOpen : styles.openDotClosed]} />
+                <Text style={[styles.openBadgeText, business.is_open_now ? styles.openBadgeTextOpen : styles.openBadgeTextClosed]}>
+                  {business.is_open_now ? 'Abierto ahora' : 'Cerrado ahora'}
+                </Text>
+              </View>
+            ) : null}
+          </View>
           {business.is_verified ? (
             <Text style={styles.verifiedNote}>Identidad verificada por Empre</Text>
           ) : isOwner ? (
@@ -373,7 +390,39 @@ export default function BusinessScreen() {
           <View style={styles.infoBlock}>
             {location ? <InfoRow icon="location-outline" text={location} /> : null}
             {contact ? <InfoRow icon="call-outline" text={contact} /> : null}
+            {business.service_mode && SERVICE_MODE_LABELS[business.service_mode] ? (
+              <InfoRow
+                icon={SERVICE_MODE_LABELS[business.service_mode].icon}
+                text={SERVICE_MODE_LABELS[business.service_mode].text}
+              />
+            ) : null}
           </View>
+
+          {business.hours && business.hours.length > 0 ? (
+            <View style={styles.hoursBlock}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setShowHours((v) => !v)}
+                style={styles.hoursToggle}
+              >
+                <Ionicons name="time-outline" size={18} color={colors.muted} />
+                <Text style={styles.infoText}>Ver horario de atención</Text>
+                <Ionicons name={showHours ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} />
+              </Pressable>
+              {showHours ? (
+                <View style={styles.hoursTable}>
+                  {[...business.hours]
+                    .sort((a, b) => a.weekday - b.weekday)
+                    .map((h) => (
+                      <View key={h.weekday} style={styles.hoursTableRow}>
+                        <Text style={styles.hoursTableDay}>{WEEKDAY_LABELS[h.weekday]}</Text>
+                        <Text style={styles.hoursTableTime}>{formatHourRow(h)}</Text>
+                      </View>
+                    ))}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
           <View style={styles.actions}>
             {!isOwner ? <Button title="Enviar mensaje" onPress={onMessage} /> : null}
@@ -438,59 +487,59 @@ export default function BusinessScreen() {
 
         {activeTab === 'posts' ? (
           <View style={styles.tabContent}>
-            {isOwner ? (
-              <View style={styles.tabContentHeader}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Agregar publicación"
-                  onPress={() => void addPost()}
-                  disabled={uploading}
-                  style={[styles.addButton, uploading && styles.addButtonDisabled]}
-                >
-                  {uploading ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
-                  ) : (
-                    <>
-                      <Ionicons name="add" size={16} color={colors.primary} />
-                      <Text style={styles.addButtonText}>Agregar</Text>
-                    </>
-                  )}
-                </Pressable>
-              </View>
-            ) : null}
-
-            {photos.length > 0 ? (
+            {photos.length > 0 || isOwner ? (
               <View style={styles.grid}>
-                {photos.map((photo, index) => (
+                {isOwner ? (
                   <Pressable
-                    key={photo.id}
-                    onPress={() => openViewer(index)}
-                    style={({ pressed }) => [{ width: tile, height: tile }, pressed && styles.tilePressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Nueva publicación"
+                    onPress={() => setComposerOpen(true)}
+                    style={({ pressed }) => [{ width: tile, height: tile }, styles.addTile, pressed && styles.tilePressed]}
                   >
-                    <Image
-                      source={{ uri: resolveImageUrl(photo.url) ?? undefined }}
-                      style={styles.tileImage}
-                      contentFit="cover"
-                      transition={150}
-                    />
+                    <View style={styles.addTileIcon}>
+                      <Ionicons name="add" size={22} color={colors.primary} />
+                    </View>
+                    <Text style={styles.addTileText}>Nueva</Text>
                   </Pressable>
-                ))}
+                ) : null}
+
+                {photos.map((photo, index) => {
+                  const isVideo = isVideoPost(photo);
+                  return (
+                    <Pressable
+                      key={photo.id}
+                      onPress={() => openViewer(index)}
+                      style={({ pressed }) => [{ width: tile, height: tile }, pressed && styles.tilePressed]}
+                    >
+                      {isVideo ? (
+                        <GridVideoThumb uri={resolveImageUrl(photo.url) ?? ''} />
+                      ) : (
+                        <Image
+                          source={{ uri: resolveImageUrl(photo.url) ?? undefined }}
+                          style={styles.tileImage}
+                          contentFit="cover"
+                          transition={150}
+                        />
+                      )}
+                      {isVideo ? (
+                        <View style={styles.videoBadge}>
+                          <Ionicons name="play" size={10} color="#fff" />
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
               </View>
             ) : (
               <View style={[styles.emptyPosts, styles.emptyPostsOutsideBody]}>
                 <Ionicons name="images-outline" size={28} color={colors.muted} />
-                <Text style={styles.emptyPostsText}>
-                  Aún no tienes publicaciones. Sube fotos de tu negocio para atraer más clientes.
-                </Text>
-                <Button
-                  title={uploading ? 'Subiendo…' : 'Agregar publicación'}
-                  variant="secondary"
-                  onPress={() => void addPost()}
-                  disabled={uploading}
-                  style={styles.emptyPostsButton}
-                />
+                <Text style={styles.emptyPostsText}>Este negocio todavía no tiene publicaciones.</Text>
               </View>
             )}
+
+            {isOwner && photos.length === 0 ? (
+              <Text style={styles.addHint}>Sube tu primera foto o video para atraer más clientes.</Text>
+            ) : null}
           </View>
         ) : (
           <View style={[styles.tabContent, styles.body]}>
@@ -562,16 +611,23 @@ export default function BusinessScreen() {
               const next = Math.round(event.nativeEvent.contentOffset.x / width);
               setCurrentIndex(next);
             }}
-            renderItem={({ item }) => (
+            renderItem={({ item, index }) => (
               <View style={[styles.viewerSlide, { width }]}>
-                <Image
-                  source={{ uri: resolveImageUrl(item.url) ?? undefined }}
-                  style={styles.viewerImage}
-                  contentFit="contain"
-                />
+                {isVideoPost(item) ? (
+                  <ViewerVideoSlide uri={resolveImageUrl(item.url) ?? ''} active={index === currentIndex} />
+                ) : (
+                  <Image
+                    source={{ uri: resolveImageUrl(item.url) ?? undefined }}
+                    style={styles.viewerImage}
+                    contentFit="contain"
+                  />
+                )}
               </View>
             )}
           />
+
+          <ViewerScrim position="top" height={110} />
+          <ViewerScrim position="bottom" height={220} />
 
           <View style={[styles.viewerHeader, { paddingTop: insets.top + spacing.sm }]}>
             <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={closeViewer} style={styles.viewerIconButton}>
@@ -600,33 +656,48 @@ export default function BusinessScreen() {
           {activePhoto ? (
             <View style={[styles.viewerFooter, { paddingBottom: insets.bottom + spacing.md }]}>
               {isOwner ? (
-                <View style={styles.captionRow}>
-                  <TextInput
-                    value={captionDraft}
-                    onChangeText={(value) => {
-                      setCaptionDraft(value);
-                      setCaptionDirty(true);
-                    }}
-                    placeholder="Agrega una descripción…"
-                    placeholderTextColor="rgba(255,255,255,0.6)"
-                    style={styles.captionInput}
-                    maxLength={200}
-                  />
-                  {captionDirty ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Guardar descripción"
-                      onPress={() => void saveCaption()}
-                      disabled={savingCaption}
-                      style={styles.captionSave}
-                    >
-                      {savingCaption ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <Ionicons name="checkmark" size={18} color="#fff" />
-                      )}
-                    </Pressable>
-                  ) : null}
+                <View style={styles.captionEditor}>
+                  <View style={styles.captionAssistRow}>
+                    <AIWritingAssist
+                      kind="post_caption"
+                      currentText={captionDraft}
+                      businessName={business.name}
+                      categoryName={business.category?.name}
+                      variant="dark"
+                      onApply={(text) => {
+                        setCaptionDraft(text);
+                        setCaptionDirty(true);
+                      }}
+                    />
+                  </View>
+                  <View style={styles.captionRow}>
+                    <TextInput
+                      value={captionDraft}
+                      onChangeText={(value) => {
+                        setCaptionDraft(value);
+                        setCaptionDirty(true);
+                      }}
+                      placeholder="Agrega una descripción…"
+                      placeholderTextColor="rgba(255,255,255,0.6)"
+                      style={styles.captionInput}
+                      maxLength={200}
+                    />
+                    {captionDirty ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Guardar descripción"
+                        onPress={() => void saveCaption()}
+                        disabled={savingCaption}
+                        style={styles.captionSave}
+                      >
+                        {savingCaption ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <Ionicons name="checkmark" size={18} color="#fff" />
+                        )}
+                      </Pressable>
+                    ) : null}
+                  </View>
                 </View>
               ) : activePhoto.caption ? (
                 <Text style={styles.viewerCaption}>{activePhoto.caption}</Text>
@@ -664,6 +735,88 @@ export default function BusinessScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <PostComposerSheet
+        visible={composerOpen}
+        onClose={() => setComposerOpen(false)}
+        entityId={business.id}
+        businessName={business.name}
+        categoryName={business.category?.name}
+        onPublished={onPostPublished}
+      />
+    </View>
+  );
+}
+
+/** Una publicación es un video si el content_type que devolvió el backend empieza con "video/". */
+function isVideoPost(photo: Photo): boolean {
+  return photo.content_type?.startsWith('video/') ?? false;
+}
+
+/** Miniatura de video en la cuadrícula: reproduce en silencio y en bucle, como una vista previa. */
+function GridVideoThumb({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.muted = true;
+    p.loop = true;
+    p.play();
+  });
+  return <VideoView player={player} style={styles.tileImage} contentFit="cover" nativeControls={false} />;
+}
+
+/** Video del visor a pantalla completa: solo reproduce mientras es la diapositiva activa, con silencio opcional. */
+function ViewerVideoSlide({ uri, active }: { uri: string; active: boolean }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = true;
+    p.muted = true;
+  });
+  const [muted, setMuted] = useState(true);
+
+  useEffect(() => {
+    player.muted = muted;
+  }, [muted, player]);
+
+  useEffect(() => {
+    if (active) player.play();
+    else player.pause();
+  }, [active, player]);
+
+  return (
+    <View style={styles.viewerVideoWrap}>
+      <VideoView player={player} style={styles.viewerImage} contentFit="contain" nativeControls={false} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={muted ? 'Activar sonido' : 'Silenciar'}
+        onPress={() => setMuted((m) => !m)}
+        style={styles.muteButton}
+      >
+        <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={18} color="#fff" />
+      </Pressable>
+    </View>
+  );
+}
+
+/**
+ * Degradado falso (sin depender de expo-linear-gradient) hecho con varias
+ * franjas semitransparentes cada vez más oscuras: así el fondo del visor se
+ * funde con la foto en vez de verse como una caja negra plana pegada encima,
+ * y el texto queda legible sin importar qué tan clara sea la foto de fondo.
+ */
+function ViewerScrim({ position, height }: { position: 'top' | 'bottom'; height: number }) {
+  const bands = 10;
+  const items = Array.from({ length: bands });
+  return (
+    <View
+      pointerEvents="none"
+      style={[
+        styles.scrim,
+        position === 'top' ? { top: 0 } : { bottom: 0 },
+        { height, flexDirection: position === 'top' ? 'column' : 'column-reverse' },
+      ]}
+    >
+      {items.map((_, i) => {
+        const t = (i + 1) / bands;
+        return <View key={i} style={{ flex: 1, backgroundColor: `rgba(18,13,10,${(t * 0.7).toFixed(2)})` }} />;
+      })}
     </View>
   );
 }
@@ -810,6 +963,38 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 2 },
   tileImage: { width: '100%', height: '100%', backgroundColor: colors.surface },
   tilePressed: { opacity: 0.8 },
+  // Celda "+" al inicio de la cuadrícula (estilo Instagram) para publicar sin
+  // salir de la vista de publicaciones ni buscar un botón aparte.
+  addTile: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    borderStyle: 'dashed',
+  },
+  addTileIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(225,87,43,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addTileText: { fontSize: 11, fontFamily: fonts.ui.bold, color: colors.primary },
+  addHint: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center', marginTop: spacing.md },
+  videoBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   emptyPosts: {
     marginTop: spacing.sm,
     alignItems: 'center',
@@ -831,6 +1016,20 @@ const styles = StyleSheet.create({
   viewer: { flex: 1, backgroundColor: colors.ink },
   viewerSlide: { height: '100%', alignItems: 'center', justifyContent: 'center' },
   viewerImage: { width: '100%', height: '100%' },
+  viewerVideoWrap: { width: '100%', height: '100%' },
+  muteButton: {
+    position: 'absolute',
+    bottom: spacing.xxl + spacing.lg,
+    right: spacing.md,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Franjas del degradado falso detrás del encabezado/pie del visor.
+  scrim: { position: 'absolute', left: 0, right: 0, zIndex: 0 },
   viewerHeader: {
     position: 'absolute',
     top: 0,
@@ -842,8 +1041,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
   },
-  viewerIconButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  viewerCounter: { color: '#fff', fontSize: 13, fontFamily: fonts.ui.semibold },
+  viewerIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  viewerCounter: {
+    color: '#fff',
+    fontSize: 13,
+    fontFamily: fonts.ui.bold,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
   viewerFooter: {
     position: 'absolute',
     left: 0,
@@ -851,9 +1064,18 @@ const styles = StyleSheet.create({
     bottom: 0,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
-    backgroundColor: 'rgba(36,28,23,0.7)',
   },
-  viewerCaption: { color: '#fff', fontSize: 14, fontFamily: fonts.ui.medium, lineHeight: 20 },
+  viewerCaption: {
+    color: '#fff',
+    fontSize: 15,
+    fontFamily: fonts.ui.medium,
+    lineHeight: 21,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  captionEditor: { gap: spacing.xs },
+  captionAssistRow: { flexDirection: 'row', justifyContent: 'flex-end' },
   captionRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   captionInput: {
     flex: 1,
@@ -873,8 +1095,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ratingBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  badgesRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 2, flexWrap: 'wrap' },
+  ratingBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   ratingBadgeText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
+  openBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.sm,
+    height: 22,
+    borderRadius: radius.pill,
+  },
+  openBadgeOpen: { backgroundColor: colors.verified + '1A' },
+  openBadgeClosed: { backgroundColor: colors.line },
+  openDot: { width: 6, height: 6, borderRadius: 3 },
+  openDotOpen: { backgroundColor: colors.verified },
+  openDotClosed: { backgroundColor: colors.muted },
+  openBadgeText: { fontSize: 12, fontFamily: fonts.ui.semibold },
+  openBadgeTextOpen: { color: colors.verified },
+  openBadgeTextClosed: { color: colors.muted },
+  hoursBlock: { marginTop: spacing.sm },
+  hoursToggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  hoursTable: { marginTop: spacing.sm, gap: 6 },
+  hoursTableRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  hoursTableDay: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.ink },
+  hoursTableTime: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   starRow: { flexDirection: 'row', gap: 2 },
   starPicker: { flexDirection: 'row', gap: 8, alignSelf: 'center', marginVertical: spacing.sm },
   reviewsList: { gap: spacing.md, marginTop: spacing.sm },

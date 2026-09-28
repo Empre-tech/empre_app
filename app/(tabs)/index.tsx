@@ -52,6 +52,7 @@ export default function ExploreScreen() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [radiusKm, setRadiusKm] = useState<number | null>(null);
+  const [openNow, setOpenNow] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
@@ -164,6 +165,7 @@ export default function ExploreScreen() {
       debouncedSearch,
       radiusKm ?? 'any',
       radiusKm && reference ? `${reference.latitude.toFixed(3)},${reference.longitude.toFixed(3)}` : 'no-ref',
+      openNow,
     ],
     queryFn: () =>
       entitiesApi.list({
@@ -174,6 +176,7 @@ export default function ExploreScreen() {
         ...(radiusKm && reference
           ? { lat: reference.latitude, long: reference.longitude, radius: radiusKm * 1000 }
           : {}),
+        openNow,
       }),
   });
 
@@ -204,7 +207,7 @@ export default function ExploreScreen() {
     setFiltersOpen(true);
   };
 
-  const activeFilterCount = (categoryId ? 1 : 0) + (subcategoryId ? 1 : 0) + (radiusKm !== null ? 1 : 0);
+  const activeFilterCount = (categoryId ? 1 : 0) + (subcategoryId ? 1 : 0) + (radiusKm !== null ? 1 : 0) + (openNow ? 1 : 0);
   const selectedCategory = (categories.data ?? []).find((c) => c.id === categoryId) ?? null;
   const selectedSubcategory = (selectedCategory?.subcategories ?? []).find((s) => s.id === subcategoryId) ?? null;
   const radiusLabel = radiusKm ? `< ${radiusKm} km` : null;
@@ -356,6 +359,7 @@ export default function ExploreScreen() {
                 />
               ) : null}
               {radiusLabel ? <ActiveChip icon="navigate" label={radiusLabel} onRemove={() => setRadiusKm(null)} /> : null}
+              {openNow ? <ActiveChip icon="time-outline" label="Abiertos ahora" onRemove={() => setOpenNow(false)} /> : null}
             </View>
           ) : null}
         </View>
@@ -384,10 +388,13 @@ export default function ExploreScreen() {
           }
         }}
         onRetryLocation={requestLocation}
+        openNow={openNow}
+        onToggleOpenNow={setOpenNow}
         onClear={() => {
           setCategoryId(undefined);
           setSubcategoryId(undefined);
           setRadiusKm(null);
+          setOpenNow(false);
         }}
         onClose={() => setFiltersOpen(false)}
       />
@@ -486,6 +493,8 @@ function FiltersModal({
   locating,
   onSelectRadius,
   onRetryLocation,
+  openNow,
+  onToggleOpenNow,
   onClear,
   onClose,
 }: {
@@ -502,10 +511,12 @@ function FiltersModal({
   locating: boolean;
   onSelectRadius: (km: number | null) => void;
   onRetryLocation: () => void;
+  openNow: boolean;
+  onToggleOpenNow: (value: boolean) => void;
   onClear: () => void;
   onClose: () => void;
 }) {
-  const hasFilters = Boolean(categoryId) || Boolean(subcategoryId) || radiusValue !== null;
+  const hasFilters = Boolean(categoryId) || Boolean(subcategoryId) || radiusValue !== null || openNow;
   const selectedCategory = categories.find((c) => c.id === categoryId) ?? null;
   const subcategories = selectedCategory?.subcategories ?? [];
 
@@ -619,6 +630,21 @@ function FiltersModal({
                 );
               })}
             </View>
+
+            <Text style={[styles.modalSectionLabel, { marginTop: spacing.md }]}>Disponibilidad</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: openNow }}
+              onPress={() => onToggleOpenNow(!openNow)}
+              style={[
+                styles.radiusOption,
+                openNow && styles.radiusOptionActive,
+                { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center' },
+              ]}
+            >
+              <Ionicons name="time-outline" size={14} color={openNow ? '#fff' : colors.ink} style={{ marginRight: 4 }} />
+              <Text style={[styles.radiusOptionText, openNow && styles.radiusOptionTextActive]}>Abiertos ahora</Text>
+            </Pressable>
           </ScrollView>
 
           <Button title="Ver resultados" onPress={onClose} style={styles.modalApply} />

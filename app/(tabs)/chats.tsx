@@ -145,11 +145,18 @@ export default function ChatsScreen() {
           data={myEntities.data ?? []}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
-          renderItem={({ item }) => <BusinessRow business={item} count={conversationsByEntity.get(item.id)?.length ?? 0} onPress={() => setSelectedBusinessId(item.id)} />}
+          renderItem={({ item }) => (
+            <BusinessRow business={item} count={sumUnread(conversationsByEntity.get(item.id))} onPress={() => setSelectedBusinessId(item.id)} />
+          )}
         />
       )}
     </View>
   );
+}
+
+/** Suma los mensajes sin leer de todas las conversaciones de un negocio (no cuántas conversaciones hay). */
+function sumUnread(conversations?: Conversation[]): number {
+  return (conversations ?? []).reduce((total, c) => total + c.unread_count, 0);
 }
 
 function BusinessRow({ business, count, onPress }: { business: EntityOwnerItem; count: number; onPress: () => void }) {
@@ -204,23 +211,34 @@ function ConversationList({
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.list}
       ListEmptyComponent={<Text style={styles.empty}>{emptyText}</Text>}
-      renderItem={({ item }) => (
-        <Pressable onPress={() => onOpen(item)} style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}>
-          <Avatar uri={item.other_party.profile_url} name={item.other_party.name} size={52} />
-          <View style={styles.rowInfo}>
-            <View style={styles.rowTop}>
-              <Text style={styles.name} numberOfLines={1}>
-                {item.other_party.name}
-              </Text>
-              <Text style={styles.time}>{formatMessageTime(item.created_at)}</Text>
+      renderItem={({ item }) => {
+        const unread = item.unread_count > 0;
+        return (
+          <Pressable onPress={() => onOpen(item)} style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}>
+            <View>
+              <Avatar uri={item.other_party.profile_url} name={item.other_party.name} size={52} />
+              {unread ? <View style={styles.unreadDot} /> : null}
             </View>
-            <Text style={styles.snippet} numberOfLines={1}>
-              {item.sent_by_entity === (item.other_party.type === 'entity') ? '' : 'Tú: '}
-              {item.content}
-            </Text>
-          </View>
-        </Pressable>
-      )}
+            <View style={styles.rowInfo}>
+              <View style={styles.rowTop}>
+                <Text style={[styles.name, unread && styles.nameUnread]} numberOfLines={1}>
+                  {item.other_party.name}
+                </Text>
+                <Text style={[styles.time, unread && styles.timeUnread]}>{formatMessageTime(item.created_at)}</Text>
+              </View>
+              <Text style={[styles.snippet, unread && styles.snippetUnread]} numberOfLines={1}>
+                {item.sent_by_entity === (item.other_party.type === 'entity') ? '' : 'Tú: '}
+                {item.content}
+              </Text>
+            </View>
+            {unread ? (
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{item.unread_count > 9 ? '9+' : item.unread_count}</Text>
+              </View>
+            ) : null}
+          </Pressable>
+        );
+      }}
     />
   );
 }
@@ -248,8 +266,25 @@ const styles = StyleSheet.create({
   rowInfo: { flex: 1, gap: 2 },
   rowTop: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
   name: { flexShrink: 1, fontSize: 16, fontWeight: '700', fontFamily: fonts.ui.bold, color: colors.ink },
+  nameUnread: { color: colors.ink },
   time: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
+  timeUnread: { color: colors.primary, fontFamily: fonts.ui.bold },
   snippet: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted },
+  // Sin leer: el nombre ya es bold por defecto, así que lo que distingue de
+  // verdad un mensaje pendiente es el snippet (normalmente gris) pasando a
+  // tinta oscura y semibold, más el punto sobre el avatar y el contador.
+  snippetUnread: { color: colors.ink, fontFamily: fonts.ui.semibold },
+  unreadDot: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: colors.primary,
+    borderWidth: 2,
+    borderColor: colors.bg,
+  },
   countBadge: {
     minWidth: 22,
     height: 22,

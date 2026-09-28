@@ -40,6 +40,14 @@ export function BusinessRow({ entity, distanceKm, onPress, style }: Props) {
               <Text style={styles.reviewCount}>({entity.review_count})</Text>
             </View>
           ) : null}
+          {entity.has_hours ? (
+            <View style={styles.openDotRow}>
+              <View style={[styles.openDot, entity.is_open_now ? styles.openDotOpen : styles.openDotClosed]} />
+              <Text style={[styles.openText, entity.is_open_now ? styles.openTextOpen : styles.openTextClosed]}>
+                {entity.is_open_now ? 'Abierto' : 'Cerrado'}
+              </Text>
+            </View>
+          ) : null}
           <Text style={styles.meta} numberOfLines={1}>
             {[entity.category_name, distance].filter(Boolean).join(' · ')}
           </Text>
@@ -66,5 +74,12 @@ const styles = StyleSheet.create({
   rating: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   ratingText: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink },
   reviewCount: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
+  openDotRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  openDot: { width: 6, height: 6, borderRadius: 3 },
+  openDotOpen: { backgroundColor: colors.verified },
+  openDotClosed: { backgroundColor: colors.muted },
+  openText: { fontSize: 12, fontFamily: fonts.ui.semibold },
+  openTextOpen: { color: colors.verified },
+  openTextClosed: { color: colors.muted },
   meta: { flexShrink: 1, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted },
 });

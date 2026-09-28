@@ -200,6 +200,8 @@ interface UploadOptions {
   fieldName: string;
   mimeType: string;
   parameters?: Record<string, string>;
+  /** 0 a 1. Solo llega si el dispositivo reporta bytes esperados (casi siempre). */
+  onProgress?: (fraction: number) => void;
 }
 
 export async function uploadFile<T>(path: string, fileUri: string, options: UploadOptions): Promise<T> {
@@ -207,15 +209,26 @@ export async function uploadFile<T>(path: string, fileUri: string, options: Uplo
     const token = await getValidAccessToken();
     const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
+    const uploadOptions = {
+      httpMethod: 'POST' as const,
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      fieldName: options.fieldName,
+      mimeType: options.mimeType,
+      parameters: options.parameters,
+      headers,
+    };
     try {
-      return await FileSystem.uploadAsync(buildUrl(path), fileUri, {
-        httpMethod: 'POST',
-        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-        fieldName: options.fieldName,
-        mimeType: options.mimeType,
-        parameters: options.parameters,
-        headers,
-      });
+      // Con progreso: usamos la API de "tarea" para poder reportar avance real
+      // (video en particular puede tardar varios segundos en subir).
+      if (options.onProgress) {
+        const task = FileSystem.createUploadTask(buildUrl(path), fileUri, uploadOptions, (data) => {
+          if (data.totalBytesExpectedToSend > 0) {
+            options.onProgress!(data.totalBytesSent / data.totalBytesExpectedToSend);
+          }
+        });
+        return await task.uploadAsync();
+      }
+      return await FileSystem.uploadAsync(buildUrl(path), fileUri, uploadOptions);
     } catch (error) {
       const raw = error instanceof Error ? error.message : String(error);
       console.warn(`[api] uploadAsync falló para ${path}:`, raw);
@@ -225,8 +238,11 @@ export async function uploadFile<T>(path: string, fileUri: string, options: Uplo
 
   let result = await doUpload();
 
+  if (!result) throw new ApiError(0, 'La subida no devolvió respuesta.');
+
   if (result.status === 401 && (await refreshSession())) {
     result = await doUpload();
+    if (!result) throw new ApiError(0, 'La subida no devolvió respuesta.');
   }
 
   if (result.status < 200 || result.status >= 300) {

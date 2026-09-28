@@ -12,23 +12,52 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { categoriesApi, entitiesApi } from '@/api/endpoints';
-import type { Category, EntityDetail, EntityInput, Subcategory, UploadableImage } from '@/api/types';
+import type {
+  BusinessHour,
+  Category,
+  EntityDetail,
+  EntityInput,
+  ServiceMode,
+  Subcategory,
+  UploadableImage,
+} from '@/api/types';
 import { hasLocation, type Coords } from '@/lib/geo';
 import { resolveImageUrl } from '@/lib/image';
 import { pickImage } from '@/lib/images';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { AIWritingAssist } from './AIWritingAssist';
 import { Button } from './Button';
 import { LocationPickerModal } from './LocationPickerModal';
 import { TextField } from './TextField';
 
+/** Datos con los que el asistente de IA prellena el formulario de creación
+ * (solo aplica cuando no hay `initial`, es decir, al crear un negocio nuevo). */
+export interface BusinessDraft {
+  name?: string;
+  /** Nombres sugeridos por la IA, para elegir uno con un toque si el dueño
+   * todavía no decidió el nombre. */
+  nameSuggestions?: string[];
+  description?: string;
+  categoryId?: string;
+  subcategoryIds?: string[];
+  serviceMode?: ServiceMode;
+  hours?: BusinessHour[];
+}
+
 interface Props {
   /** Si viene, el formulario edita ese negocio; si no, crea uno nuevo. */
   initial?: EntityDetail;
+  /** Prellenado sugerido por el asistente de IA (solo al crear). El dueño
+   * puede editar cualquier campo antes de guardar: la IA nunca guarda nada
+   * directamente. */
+  draft?: BusinessDraft;
 }
 
 type PhotoKind = 'profile' | 'banner';
@@ -37,7 +66,38 @@ type PhotoKind = 'profile' | 'banner';
 // sola vista con todo el formulario junto (ver `editing` más abajo).
 const STEPS = ['Datos básicos', 'Ubicación y contacto', 'Fotos'] as const;
 
-export function BusinessForm({ initial }: Props) {
+// Weekday sigue la numeración de Go time.Weekday (0=domingo ... 6=sábado),
+// igual a Date.getDay() en JS, así que el índice del arreglo coincide con weekday.
+const WEEKDAY_LABELS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+const SERVICE_MODE_OPTIONS: { value: ServiceMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { value: 'in_place', label: 'En el lugar', icon: 'storefront-outline' },
+  { value: 'delivery', label: 'A domicilio', icon: 'bicycle-outline' },
+  { value: 'both', label: 'Ambos', icon: 'checkmark-done-outline' },
+];
+
+function defaultHours(initial?: BusinessHour[]): BusinessHour[] {
+  return Array.from({ length: 7 }, (_, weekday) => {
+    const existing = initial?.find((h) => h.weekday === weekday);
+    if (existing) return { ...existing };
+    return { weekday, closed: true, is_24h: false, open_time: '08:00', close_time: '18:00' };
+  });
+}
+
+// true si los 7 días tienen exactamente la misma configuración (aparte del
+// weekday): así decidimos si mostrar el editor "un solo horario para todos
+// los días" o la lista completa día por día.
+function allDaysEqual(hours: BusinessHour[]): boolean {
+  return hours.every(
+    (h) =>
+      h.closed === hours[0].closed &&
+      h.is_24h === hours[0].is_24h &&
+      h.open_time === hours[0].open_time &&
+      h.close_time === hours[0].close_time,
+  );
+}
+
+export function BusinessForm({ initial, draft }: Props) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -47,12 +107,12 @@ export function BusinessForm({ initial }: Props) {
 
   const [step, setStep] = useState(0);
 
-  const [name, setName] = useState(initial?.name ?? '');
-  const [description, setDescription] = useState(initial?.description ?? '');
-  const [categoryId, setCategoryId] = useState(initial?.category?.id ?? '');
+  const [name, setName] = useState(initial?.name ?? draft?.name ?? '');
+  const [description, setDescription] = useState(initial?.description ?? draft?.description ?? '');
+  const [categoryId, setCategoryId] = useState(initial?.category?.id ?? draft?.categoryId ?? '');
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
   const [subcategoryIds, setSubcategoryIds] = useState<string[]>(
-    (initial?.subcategories ?? []).map((s) => s.id),
+    initial ? (initial.subcategories ?? []).map((s) => s.id) : draft?.subcategoryIds ?? [],
   );
   const [subPickerOpen, setSubPickerOpen] = useState(false);
   const [address, setAddress] = useState(initial?.address ?? '');
@@ -62,6 +122,33 @@ export function BusinessForm({ initial }: Props) {
     initial && hasLocation(initial) ? { latitude: initial.latitude, longitude: initial.longitude } : null,
   );
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  const [serviceMode, setServiceMode] = useState<ServiceMode>(initial?.service_mode ?? draft?.serviceMode ?? '');
+  const [hours, setHours] = useState<BusinessHour[]>(() => defaultHours(initial?.hours ?? draft?.hours));
+  // Por defecto, si los 7 días ya son iguales (caso más común, y el de un
+  // negocio nuevo) mostramos un solo horario para todos los días en vez de
+  // obligar a llenar 7 filas idénticas; si ya difieren (un negocio existente
+  // con horarios distintos por día, o un horario con excepciones que ya armó
+  // la IA), mostramos la lista completa.
+  const [sameAllDays, setSameAllDays] = useState(() => allDaysEqual(defaultHours(initial?.hours ?? draft?.hours)));
+
+  const updateHour = (weekday: number, patch: Partial<BusinessHour>) => {
+    setHours((prev) => prev.map((h) => (h.weekday === weekday ? { ...h, ...patch } : h)));
+  };
+
+  const applyToAllDays = (patch: Partial<BusinessHour>) => {
+    setHours((prev) => prev.map((h) => ({ ...h, ...patch })));
+  };
+
+  const copyFirstDayToAll = () => {
+    const template = hours[0];
+    setHours((prev) => prev.map((h) => ({ ...template, weekday: h.weekday })));
+  };
+
+  const toggleSameAllDays = () => {
+    if (!sameAllDays) copyFirstDayToAll();
+    setSameAllDays((v) => !v);
+  };
 
   // Fotos nuevas elegidas en este formulario; se suben al guardar. La galería
   // (y las publicaciones) se maneja directamente desde el perfil del negocio,
@@ -144,6 +231,14 @@ export function BusinessForm({ initial }: Props) {
         contact_info: contact.trim(),
         latitude: coords?.latitude ?? 0,
         longitude: coords?.longitude ?? 0,
+        service_mode: serviceMode || undefined,
+        hours: hours.map((h) =>
+          h.closed
+            ? { weekday: h.weekday, closed: true, is_24h: false, open_time: '', close_time: '' }
+            : h.is_24h
+              ? { weekday: h.weekday, closed: false, is_24h: true, open_time: '', close_time: '' }
+              : { weekday: h.weekday, closed: false, is_24h: false, open_time: h.open_time.trim(), close_time: h.close_time.trim() },
+        ),
       };
 
       let id: string;
@@ -266,6 +361,124 @@ export function BusinessForm({ initial }: Props) {
       </View>
     ) : null;
 
+  const serviceModeField = (
+    <View style={styles.field}>
+      <Text style={styles.label}>¿Cómo prestas el servicio?</Text>
+      <View style={styles.serviceModeRow}>
+        {SERVICE_MODE_OPTIONS.map((opt) => {
+          const active = serviceMode === opt.value;
+          return (
+            <Pressable
+              key={opt.value}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              onPress={() => setServiceMode(active ? '' : opt.value)}
+              style={[styles.serviceModeOption, active && styles.serviceModeOptionActive]}
+            >
+              <Ionicons name={opt.icon} size={18} color={active ? colors.primary : colors.muted} />
+              <Text style={[styles.serviceModeText, active && styles.serviceModeTextActive]} numberOfLines={1}>
+                {opt.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+
+  // Controles de un día (switches + horas), reutilizados tanto por el editor
+  // "un horario para todos los días" (onChange escribe en los 7) como por
+  // cada fila de la lista día por día (onChange escribe solo en ese día).
+  const renderDayControls = (h: BusinessHour, onChange: (patch: Partial<BusinessHour>) => void) => (
+    <>
+      <View style={styles.hourControls}>
+        <View style={styles.hourToggle}>
+          <Text style={styles.hourToggleLabel}>Cerrado</Text>
+          <Switch
+            value={h.closed}
+            onValueChange={(v) => onChange({ closed: v, is_24h: v ? false : h.is_24h })}
+            trackColor={{ true: colors.primary + '55', false: colors.line }}
+            thumbColor={h.closed ? colors.primary : '#fff'}
+          />
+        </View>
+        {!h.closed ? (
+          <View style={styles.hourToggle}>
+            <Text style={styles.hourToggleLabel}>24 horas</Text>
+            <Switch
+              value={h.is_24h}
+              onValueChange={(v) => onChange({ is_24h: v })}
+              trackColor={{ true: colors.primary + '55', false: colors.line }}
+              thumbColor={h.is_24h ? colors.primary : '#fff'}
+            />
+          </View>
+        ) : null}
+      </View>
+      {!h.closed && !h.is_24h ? (
+        <View style={styles.hourTimes}>
+          <TextInput
+            value={h.open_time}
+            onChangeText={(v) => onChange({ open_time: v })}
+            placeholder="08:00"
+            placeholderTextColor={colors.muted}
+            style={styles.hourTimeInput}
+            keyboardType="numbers-and-punctuation"
+            maxLength={5}
+          />
+          <Text style={styles.muted}>a</Text>
+          <TextInput
+            value={h.close_time}
+            onChangeText={(v) => onChange({ close_time: v })}
+            placeholder="18:00"
+            placeholderTextColor={colors.muted}
+            style={styles.hourTimeInput}
+            keyboardType="numbers-and-punctuation"
+            maxLength={5}
+          />
+        </View>
+      ) : null}
+    </>
+  );
+
+  const hoursField = (
+    <View style={styles.field}>
+      <Text style={styles.label}>Horario de atención</Text>
+
+      <Pressable accessibilityRole="button" onPress={toggleSameAllDays} style={styles.hoursModeToggle}>
+        <Ionicons name={sameAllDays ? 'checkbox' : 'square-outline'} size={20} color={colors.primary} />
+        <Text style={styles.hoursModeText}>Usar el mismo horario todos los días</Text>
+      </Pressable>
+
+      {sameAllDays ? (
+        <View style={styles.hourRow}>
+          <Text style={styles.hourDay}>Todos los días</Text>
+          {renderDayControls(hours[0], applyToAllDays)}
+        </View>
+      ) : (
+        <>
+          <Pressable accessibilityRole="button" onPress={copyFirstDayToAll} style={styles.hoursCopyLink}>
+            <Ionicons name="copy-outline" size={14} color={colors.primary} />
+            <Text style={styles.hoursCopyLinkText}>
+              Copiar el horario de {WEEKDAY_LABELS[hours[0].weekday]} a todos los días
+            </Text>
+          </Pressable>
+          <View style={styles.hoursList}>
+            {hours.map((h) => (
+              <View key={h.weekday} style={styles.hourRow}>
+                <Text style={styles.hourDay}>{WEEKDAY_LABELS[h.weekday]}</Text>
+                {renderDayControls(h, (patch) => updateHour(h.weekday, patch))}
+              </View>
+            ))}
+          </View>
+        </>
+      )}
+
+      <Text style={styles.muted}>
+        Usa el formato de 24 horas (ej. 18:00). Si el negocio cruza la medianoche, escribe la hora de cierre del día
+        siguiente (ej. 18:00 a 02:00).
+      </Text>
+    </View>
+  );
+
   const locationField = (
     <View style={styles.field}>
       <Text style={styles.label}>Ubicación en el mapa</Text>
@@ -361,6 +574,15 @@ export function BusinessForm({ initial }: Props) {
             multiline
             placeholder="Cuéntale a la gente qué ofreces"
             style={styles.multiline}
+            labelAccessory={
+              <AIWritingAssist
+                kind="business_description"
+                currentText={description}
+                businessName={name}
+                categoryName={selectedCategory?.name}
+                onApply={setDescription}
+              />
+            }
           />
 
           <TextField label="Dirección" value={address} onChangeText={setAddress} autoCapitalize="words" placeholder="Calle, barrio o referencia" />
@@ -373,6 +595,8 @@ export function BusinessForm({ initial }: Props) {
           />
 
           {locationField}
+          {serviceModeField}
+          {hoursField}
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -433,6 +657,31 @@ export function BusinessForm({ initial }: Props) {
               placeholder="Ej. Arepas de la Plaza"
             />
 
+            {draft?.nameSuggestions && draft.nameSuggestions.length > 0 ? (
+              <View style={styles.nameSuggestions}>
+                <Text style={styles.nameSuggestionsLabel}>Sugerencias de la IA:</Text>
+                <View style={styles.nameSuggestionsRow}>
+                  {draft.nameSuggestions.map((suggestion) => (
+                    <Pressable
+                      key={suggestion}
+                      accessibilityRole="button"
+                      onPress={() => setName(suggestion)}
+                      style={[styles.nameSuggestionChip, name === suggestion && styles.nameSuggestionChipActive]}
+                    >
+                      <Text
+                        style={[
+                          styles.nameSuggestionChipText,
+                          name === suggestion && styles.nameSuggestionChipTextActive,
+                        ]}
+                      >
+                        {suggestion}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
             {categoryField}
             {subcategoryField}
 
@@ -444,6 +693,15 @@ export function BusinessForm({ initial }: Props) {
               multiline
               placeholder="Cuéntale a la gente qué ofreces"
               style={styles.multiline}
+              labelAccessory={
+                <AIWritingAssist
+                  kind="business_description"
+                  currentText={description}
+                  businessName={name}
+                  categoryName={selectedCategory?.name}
+                  onApply={setDescription}
+                />
+              }
             />
           </>
         ) : null}
@@ -460,6 +718,8 @@ export function BusinessForm({ initial }: Props) {
             />
 
             {locationField}
+            {serviceModeField}
+            {hoursField}
           </>
         ) : null}
 
@@ -714,6 +974,69 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  nameSuggestions: { gap: spacing.xs, marginTop: -spacing.sm },
+  nameSuggestionsLabel: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
+  nameSuggestionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  nameSuggestionChip: {
+    paddingHorizontal: spacing.sm,
+    height: 32,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+  },
+  nameSuggestionChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  nameSuggestionChipText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.ink },
+  nameSuggestionChipTextActive: { fontFamily: fonts.ui.bold, color: '#fff' },
+  serviceModeRow: { flexDirection: 'row', gap: spacing.sm },
+  serviceModeOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    minHeight: 44,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.xs,
+    backgroundColor: colors.bg,
+  },
+  serviceModeOptionActive: { borderColor: colors.primary, backgroundColor: colors.primary + '1A' },
+  serviceModeText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
+  serviceModeTextActive: { fontFamily: fonts.ui.semibold, color: colors.primary },
+  hoursModeToggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingVertical: 2 },
+  hoursModeText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.ink },
+  hoursCopyLink: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
+  hoursCopyLinkText: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.primary },
+  hoursList: { gap: spacing.sm },
+  hourRow: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    gap: spacing.xs,
+    backgroundColor: colors.surface,
+  },
+  hourDay: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
+  hourControls: { flexDirection: 'row', gap: spacing.lg },
+  hourToggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  hourToggleLabel: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
+  hourTimes: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  hourTimeInput: {
+    minHeight: 40,
+    minWidth: 72,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    fontSize: 15,
+    fontFamily: fonts.ui.medium,
+    color: colors.ink,
+    backgroundColor: colors.bg,
+    textAlign: 'center',
   },
   navRow: { flexDirection: 'row', gap: spacing.sm },
   navButton: { flex: 1 },

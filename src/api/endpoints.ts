@@ -1,5 +1,9 @@
 import { request, uploadFile } from './client';
 import type {
+  AIChatMessage,
+  AIChatResponse,
+  AITextRequest,
+  AITextResponse,
   Category,
   CategoryInput,
   ChatMessage,
@@ -74,6 +78,18 @@ export const categoriesApi = {
     unwrapList<Category>(await request<unknown>('/api/categories', { auth: false, query: { pageSize: 100 } })),
 };
 
+export const aiApi = {
+  /** Envía toda la conversación (el backend no guarda estado entre llamadas)
+   * y devuelve la respuesta del asistente más el borrador de negocio que ya
+   * haya logrado armar. */
+  businessAssistant: (messages: AIChatMessage[]) =>
+    request<AIChatResponse>('/api/ai/business-assistant', { method: 'POST', body: { messages } }),
+
+  /** 2-3 opciones de texto listas para usar, para una descripción de negocio o el caption de una publicación. */
+  improveText: (body: AITextRequest) =>
+    request<AITextResponse>('/api/ai/writing-assistant', { method: 'POST', body }),
+};
+
 export interface EntityListParams {
   category?: string;
   subcategory?: string;
@@ -84,6 +100,8 @@ export interface EntityListParams {
   /** metros */
   radius?: number;
   pageSize?: number;
+  /** Solo negocios abiertos en este momento (hora de Cartagena). */
+  openNow?: boolean;
 }
 
 export const entitiesApi = {
@@ -99,6 +117,7 @@ export const entitiesApi = {
           long: params.long,
           radius: params.radius,
           pageSize: params.pageSize ?? 200,
+          open_now: params.openNow ? 'true' : undefined,
         },
       }),
     ),
@@ -119,12 +138,18 @@ export const entitiesApi = {
 
   remove: (id: string) => request<{ message: string }>(`/api/entities/${id}`, { method: 'DELETE' }),
 
-  /** Solo el dueño. `gallery` añade una foto; `profile` y `banner` reemplazan la anterior. */
-  uploadImage: (id: string, type: EntityImageType, image: UploadableImage) =>
+  /** Solo el dueño. `gallery` añade una publicación (foto o video); `profile` y `banner` reemplazan la anterior. */
+  uploadImage: (
+    id: string,
+    type: EntityImageType,
+    image: UploadableImage,
+    opts?: { caption?: string; onProgress?: (fraction: number) => void },
+  ) =>
     uploadFile<UploadedImage>(`/api/entities/${id}/images`, image.uri, {
       fieldName: 'file',
       mimeType: image.type,
-      parameters: { type },
+      parameters: opts?.caption ? { type, caption: opts.caption } : { type },
+      onProgress: opts?.onProgress,
     }),
 
   /** Quita una foto ya subida de la galería (perfil y banner se reemplazan subiendo una nueva). */

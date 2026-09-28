@@ -1,15 +1,21 @@
+import type { ReactNode } from 'react';
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 interface Props extends TextInputProps {
   label: string;
   error?: string | null;
+  /** Elemento opcional al lado derecho de la etiqueta, ej. el botón "Mejorar con IA". */
+  labelAccessory?: ReactNode;
 }
 
-export function TextField({ label, error, style, ...inputProps }: Props) {
+export function TextField({ label, error, labelAccessory, style, ...inputProps }: Props) {
   return (
     <View style={styles.wrapper}>
-      <Text style={styles.label}>{label}</Text>
+      <View style={styles.labelRow}>
+        <Text style={styles.label}>{label}</Text>
+        {labelAccessory}
+      </View>
       <TextInput
         placeholderTextColor={colors.muted}
         autoCapitalize="none"
@@ -23,6 +29,7 @@ export function TextField({ label, error, style, ...inputProps }: Props) {
 
 const styles = StyleSheet.create({
   wrapper: { gap: spacing.xs },
+  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
   label: { fontSize: 14, fontWeight: '600', fontFamily: fonts.ui.semibold, color: colors.ink },
   input: {
     minHeight: 50,

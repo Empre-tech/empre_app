@@ -48,19 +48,52 @@ Esto alcanza para todo **excepto las notificaciones push** (Expo Go ya no las so
   distancia con calificación (estrellas y cantidad de reseñas) y vista previa al tocar un pin. Se puede explorar sin cuenta.
 - **Perfil de negocio** estilo Instagram: banner, foto, sello de verificado, calificación, descripción, cómo llegar
   y llamar (barra de acciones), y dos pestañas — **Publicaciones** (galería a sangre) y **Reseñas**.
-- **Publicaciones**: galería estilo Instagram con visor a pantalla completa (deslizar entre fotos), descripción
-  editable y borrado por el dueño.
+- **Publicaciones**: galería estilo Instagram (fotos y videos cortos) con celda "+" para publicar sin salir de la
+  vista, miniatura de video en la cuadrícula (bucle mudo, con un badge de "play") y visor a pantalla completa
+  (deslizar entre publicaciones; el video reproduce solo mientras es la diapositiva activa, silenciado por
+  defecto con botón para activar el sonido). Al publicar, una hoja muestra la vista previa grande, un botón
+  "Mejorar con IA" para el texto, y una barra de progreso real de la subida. Descripción editable y borrado por
+  el dueño.
 - **Reseñas**: calificación de 1 a 5 estrellas y comentario; cada usuario puede escribir, editar o borrar su
   propia reseña de un negocio.
 - **Favoritos**: marcar/desmarcar un negocio (ícono de corazón), con su propia lista en la pestaña Perfil.
 - **Crear y editar negocios**: datos, categoría y subcategorías, ubicación en el mapa (tocar o arrastrar el pin),
-  foto de perfil, banner y galería. Eliminar negocio.
+  foto de perfil, banner y galería, horario de atención (con "cerrado" y "24 horas" por día, un modo "mismo
+  horario todos los días" por defecto para no tener que llenar 7 filas iguales, y "copiar a todos los días" si ya
+  divergen) y modalidad de servicio (en el lugar / a domicilio / ambos). Eliminar negocio.
+- **Horarios**: el perfil del negocio muestra un badge "Abierto ahora"/"Cerrado ahora" y el horario completo
+  desplegable; el mapa y la lista muestran el mismo estado junto al negocio, y Filtros tiene un toggle
+  "Abiertos ahora" para mostrar solo los que están abiertos en este momento.
+- **Asistente de IA para crear negocios**: al tocar "Crear negocio" se puede elegir entre el formulario manual o
+  describirle el negocio a la IA en una conversación (`/business/new-ai`); la IA sugiere nombre, categoría,
+  descripción, modalidad y horario, y al final lleva al mismo formulario de siempre, ya prellenado, para revisar
+  y editar antes de guardar — la IA nunca crea el negocio directamente. Requiere que el backend tenga `AI_API_KEY`
+  configurada (ver el README del backend); sin eso, la opción de IA simplemente no debe usarse (el backend
+  responde 503).
+- **"Mejorar con IA" para textos**: el botón (`src/components/AIWritingAssist.tsx`) aparece junto a la
+  descripción del negocio (al crear o editar) y junto al texto de cada publicación; abre una hoja con 2-3 opciones
+  generadas para elegir una con un toque (o pedir otras), nunca se aplica nada sin que el dueño lo confirme.
+  Usa el mismo backend/API key que el asistente conversacional.
 - **Foto de perfil del usuario**: toca tu avatar en la pestaña Perfil.
 - **Chat en tiempo real** (WebSocket) con historial, reconexión automática y lista de conversaciones; funciona
   tanto para clientes como para el dueño del negocio.
 - **Notificaciones push**: nuevo mensaje de chat (si no estás con la conversación abierta), reseña nueva en tu
   negocio, favorito nuevo y cambio de verificación. Requiere un development build, ver más abajo.
-- Las fotos se convierten a JPEG y se reducen antes de subirlas (el backend solo acepta JPEG, PNG y WebP).
+- Las fotos se convierten a JPEG y se reducen antes de subirlas. Las publicaciones de galería también aceptan un
+  video corto (hasta 60 segundos, según lo detecta el celular; el backend además limita el peso a 60 MB) — se sube
+  tal cual lo grabó el celular, sin recomprimir. Requiere el paquete `expo-video` (`npx expo install expo-video`,
+  ver más abajo).
+
+## Publicaciones con video
+
+El visor de publicaciones usa `expo-video` para reproducir los videos de la galería. Si no está instalado
+(`Cannot find module 'expo-video'` en TypeScript, o al abrir la app), instálalo una vez con:
+
+```
+npx expo install expo-video
+```
+
+Este comando ajusta `package.json` a la versión compatible con el SDK de Expo que tenga el proyecto en ese momento.
 
 ## Notificaciones push
 
