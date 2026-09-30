@@ -67,7 +67,7 @@ export default function ChatsScreen() {
     // Cliente: el otro lado es el negocio. Dueño: el otro lado es el cliente, y su id viaja como userId.
     router.push({
       pathname: '/chat/[entityId]',
-      params: { entityId, name: party.name, ...(party.type === 'user' ? { userId: party.id } : {}) },
+      params: { entityId, name: party.name, avatar: party.profile_url, ...(party.type === 'user' ? { userId: party.id } : {}) },
     });
   };
 

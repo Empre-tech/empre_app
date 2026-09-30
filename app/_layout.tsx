@@ -1,4 +1,4 @@
-import { Fraunces_500Medium, Fraunces_600SemiBold, Fraunces_700Bold } from '@expo-google-fonts/fraunces';
+import { Nunito_600SemiBold, Nunito_700Bold, Nunito_800ExtraBold } from '@expo-google-fonts/nunito';
 import {
   Manrope_400Regular,
   Manrope_500Medium,
@@ -19,7 +19,7 @@ import { ChatProvider } from '@/chat/ChatProvider';
 import { usePushNotifications } from '@/notifications/usePushNotifications';
 import { colors } from '@/theme';
 
-// Se mantiene la splash nativa visible hasta que Fraunces y Manrope estén
+// Se mantiene la splash nativa visible hasta que Nunito y Manrope estén
 // listas, así se evita el "parpadeo" de la tipografía del sistema al abrir.
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -61,9 +61,9 @@ export default function RootLayout() {
     Manrope_600SemiBold,
     Manrope_700Bold,
     Manrope_800ExtraBold,
-    Fraunces_500Medium,
-    Fraunces_600SemiBold,
-    Fraunces_700Bold,
+    Nunito_600SemiBold,
+    Nunito_700Bold,
+    Nunito_800ExtraBold,
   });
 
   useEffect(() => {

@@ -38,6 +38,11 @@ export function LocationPickerModal({ visible, initial, onCancel, onConfirm }: P
   const [message, setMessage] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [address, setAddress] = useState<string | null>(null);
+  // Mientras esto es true, `address` todavía no refleja el punto actual (p. ej.
+  // justo después de tocar "Usar mi ubicación actual"): bloqueamos "Confirmar"
+  // para que la dirección resuelta SIEMPRE viaje con las coordenadas, en vez de
+  // dejar que el dueño confirme de una y la dirección le llegue vacía.
+  const [geocoding, setGeocoding] = useState(false);
 
   // Cada vez que se abre, partimos de la ubicación actual del negocio.
   useEffect(() => {
@@ -46,6 +51,7 @@ export function LocationPickerModal({ visible, initial, onCancel, onConfirm }: P
       setMessage(null);
       setQuery('');
       setAddress(null);
+      setGeocoding(false);
     }
   }, [visible, initial]);
 
@@ -53,15 +59,19 @@ export function LocationPickerModal({ visible, initial, onCancel, onConfirm }: P
   useEffect(() => {
     if (!point) {
       setAddress(null);
+      setGeocoding(false);
       return;
     }
     let cancelled = false;
+    setGeocoding(true);
     (async () => {
       try {
         const results = await Location.reverseGeocodeAsync(point);
         if (!cancelled && results[0]) setAddress(formatAddress(results[0]));
       } catch {
         // Sin conexión o sin resultados: dejamos solo las coordenadas.
+      } finally {
+        if (!cancelled) setGeocoding(false);
       }
     })();
     return () => {
@@ -157,7 +167,11 @@ export function LocationPickerModal({ visible, initial, onCancel, onConfirm }: P
         <View style={[styles.actions, { paddingBottom: insets.bottom + spacing.md }]}>
           <View style={styles.hint}>
             <Text style={styles.hintText}>
-              {point ? address ?? 'Ubicación seleccionada' : 'Busca una dirección, toca el mapa o usa tu ubicación actual.'}
+              {!point
+                ? 'Busca una dirección, toca el mapa o usa tu ubicación actual.'
+                : geocoding
+                  ? 'Resolviendo la dirección…'
+                  : (address ?? 'Ubicación seleccionada')}
             </Text>
             {point ? <Text style={styles.hintSub}>Arrastra el pin para ajustarlo con precisión.</Text> : null}
           </View>
@@ -165,7 +179,13 @@ export function LocationPickerModal({ visible, initial, onCancel, onConfirm }: P
           <Button title="Usar mi ubicación actual" variant="secondary" onPress={() => void useMyLocation()} loading={locating} />
           <View style={styles.row}>
             <Button title="Cancelar" variant="secondary" onPress={onCancel} style={styles.flex} />
-            <Button title="Confirmar" onPress={() => point && onConfirm(point, address)} disabled={!point} style={styles.flex} />
+            <Button
+              title="Confirmar"
+              onPress={() => point && onConfirm(point, address)}
+              disabled={!point || geocoding}
+              loading={geocoding}
+              style={styles.flex}
+            />
           </View>
         </View>
       </View>

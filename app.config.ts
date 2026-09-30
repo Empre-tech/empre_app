@@ -30,6 +30,7 @@ const config: ExpoConfig = {
   plugins: [
     'expo-router',
     'expo-secure-store',
+    'expo-web-browser',
     [
       'expo-location',
       {
@@ -49,7 +50,7 @@ const config: ExpoConfig = {
         // Ícono/color del ícono pequeño de la notificación en Android. Usa el
         // color de marca; el ícono real se agrega más adelante (por ahora cae
         // al ícono por defecto de la app).
-        color: '#E1572B',
+        color: '#F58220',
       },
     ],
   ],

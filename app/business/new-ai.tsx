@@ -7,6 +7,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -25,7 +26,9 @@ type DisplayMessage = AIChatMessage & { id: string };
 
 function mergeDraft(prev: BusinessDraft, incoming: AIBusinessDraft): BusinessDraft {
   return {
-    name: prev.name,
+    // Un nombre ya confirmado por el dueño gana y no vuelve a pedirse; si la
+    // IA solo trae sugerencias, esas se muestran para elegir una.
+    name: incoming.name || prev.name,
     nameSuggestions:
       incoming.name_suggestions && incoming.name_suggestions.length > 0 ? incoming.name_suggestions : prev.nameSuggestions,
     description: incoming.description || prev.description,
@@ -47,6 +50,13 @@ function hasAnyDraftInfo(draft: BusinessDraft): boolean {
       (draft.nameSuggestions && draft.nameSuggestions.length > 0),
   );
 }
+
+const PROGRESS_STEPS: { key: string; label: string; check: (draft: BusinessDraft) => boolean }[] = [
+  { key: 'name', label: 'Nombre', check: (d) => Boolean(d.name || (d.nameSuggestions && d.nameSuggestions.length > 0)) },
+  { key: 'category', label: 'Categoría', check: (d) => Boolean(d.categoryId) },
+  { key: 'description', label: 'Descripción', check: (d) => Boolean(d.description) },
+  { key: 'hours', label: 'Horario', check: (d) => Boolean(d.hours && d.hours.length > 0) },
+];
 
 /** Asistente conversacional de IA para crear un negocio: el dueño describe
  * su negocio charlando, y al final se pasa al formulario de siempre (ya
@@ -91,7 +101,12 @@ export default function AIBusinessAssistantScreen() {
   };
 
   const reviewDraft = () => {
-    router.replace({ pathname: '/business/new', params: { aiDraft: JSON.stringify(draft) } });
+    // Antes usaba router.replace, lo que sacaba esta pantalla del stack de
+    // navegación: al volver atrás desde el formulario no había a dónde
+    // volver, y si el dueño entraba de nuevo al asistente se perdía toda la
+    // conversación. Con push, esta pantalla (y su conversación) se queda
+    // viva debajo, así que "atrás" regresa aquí tal como se dejó.
+    router.push({ pathname: '/business/new', params: { aiDraft: JSON.stringify(draft) } });
   };
 
   const canReview = hasAnyDraftInfo(draft);
@@ -107,11 +122,35 @@ export default function AIBusinessAssistantScreen() {
         >
           <Ionicons name="chevron-back" size={24} color={colors.ink} />
         </Pressable>
+        <View style={styles.headerIconWrap}>
+          <Ionicons name="sparkles" size={18} color={colors.accent} />
+        </View>
         <View style={styles.headerTitleWrap}>
           <Text style={styles.title}>Asistente de IA</Text>
           <Text style={styles.subtitle}>Crea tu negocio charlando</Text>
         </View>
       </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.progressRow}
+        contentContainerStyle={styles.progressRowContent}
+      >
+        {PROGRESS_STEPS.map((step) => {
+          const done = step.check(draft);
+          return (
+            <View key={step.key} style={[styles.progressChip, done && styles.progressChipDone]}>
+              {done ? (
+                <Ionicons name="checkmark" size={12} color={colors.accent} />
+              ) : (
+                <View style={styles.progressChipDot} />
+              )}
+              <Text style={[styles.progressLabel, done && styles.progressLabelDone]}>{step.label}</Text>
+            </View>
+          );
+        })}
+      </ScrollView>
 
       <FlatList
         ref={listRef}
@@ -121,6 +160,11 @@ export default function AIBusinessAssistantScreen() {
         contentContainerStyle={styles.messages}
         renderItem={({ item }) => (
           <View style={[styles.bubbleRow, item.role === 'user' ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
+            {item.role === 'assistant' ? (
+              <View style={styles.aiAvatar}>
+                <Ionicons name="sparkles" size={13} color="#fff" />
+              </View>
+            ) : null}
             <View style={[styles.bubble, item.role === 'user' ? styles.bubbleMine : styles.bubbleTheirs]}>
               <Text style={[styles.bubbleText, item.role === 'user' && styles.bubbleTextMine]}>{item.content}</Text>
             </View>
@@ -129,8 +173,11 @@ export default function AIBusinessAssistantScreen() {
         ListHeaderComponent={
           sending ? (
             <View style={[styles.bubbleRow, styles.bubbleRowTheirs]}>
+              <View style={styles.aiAvatar}>
+                <Ionicons name="sparkles" size={13} color="#fff" />
+              </View>
               <View style={[styles.bubble, styles.bubbleTheirs]}>
-                <ActivityIndicator size="small" color={colors.primary} />
+                <ActivityIndicator size="small" color={colors.accent} />
               </View>
             </View>
           ) : null
@@ -189,6 +236,14 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
   },
   headerButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerTitleWrap: { flex: 1 },
   title: { fontSize: 17, fontWeight: '700', fontFamily: fonts.ui.bold, color: colors.ink },
   subtitle: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
@@ -196,11 +251,49 @@ const styles = StyleSheet.create({
   bubbleRow: { flexDirection: 'row' },
   bubbleRowMine: { justifyContent: 'flex-end' },
   bubbleRowTheirs: { justifyContent: 'flex-start' },
-  bubble: { maxWidth: '85%', borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  bubble: { maxWidth: '78%', borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   bubbleMine: { backgroundColor: colors.primary, borderBottomRightRadius: 4 },
-  bubbleTheirs: { backgroundColor: colors.surface, borderBottomLeftRadius: 4 },
+  bubbleTheirs: { backgroundColor: colors.accentSoft, borderBottomLeftRadius: 4 },
   bubbleText: { fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink, lineHeight: 20 },
   bubbleTextMine: { color: '#fff' },
+  // Avatar con chispa para distinguir de un chat con una persona real.
+  aiAvatar: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+    alignSelf: 'flex-end',
+  },
+  progressRow: {
+    flexGrow: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+    backgroundColor: colors.surface,
+  },
+  progressRowContent: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  progressChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    height: 28,
+    paddingHorizontal: 11,
+    borderRadius: radius.pill,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  progressChipDone: { backgroundColor: colors.accentSoft, borderColor: colors.accentSoft },
+  progressChipDot: { width: 6, height: 6, borderRadius: 3, borderWidth: 1.5, borderColor: colors.line },
+  progressLabel: { fontSize: 11, fontFamily: fonts.ui.bold, color: colors.muted },
+  progressLabelDone: { color: colors.accent },
   error: { color: colors.danger, fontSize: 13, paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
   reviewButton: {
     flexDirection: 'row',

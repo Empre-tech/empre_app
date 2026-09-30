@@ -79,6 +79,7 @@ export default function AdminCategoriesScreen() {
   const [editingCategory, setEditingCategory] = useState<Category | 'new' | null>(null);
   const [addingSubTo, setAddingSubTo] = useState<Category | null>(null);
   const [editingSub, setEditingSub] = useState<{ sub: Subcategory; categoryName: string } | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const invalidateCategories = () => queryClient.invalidateQueries({ queryKey: ['categories'] });
 
@@ -162,6 +163,7 @@ export default function AdminCategoriesScreen() {
   }
 
   const data = categories.data ?? [];
+  const activeId = expandedId ?? data[0]?.id ?? null;
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -172,10 +174,11 @@ export default function AdminCategoriesScreen() {
           accessibilityRole="button"
           accessibilityLabel="Nueva categoría"
           onPress={() => setEditingCategory('new')}
-          style={styles.addButton}
+          style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]}
           hitSlop={8}
         >
-          <Ionicons name="add" size={22} color={colors.primary} />
+          <Ionicons name="add" size={16} color="#fff" />
+          <Text style={styles.addButtonText}>Nueva</Text>
         </Pressable>
       </View>
 
@@ -195,50 +198,55 @@ export default function AdminCategoriesScreen() {
           data={data}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
+          renderItem={({ item }) => {
+            const expanded = item.id === activeId;
+            const subCount = item.subcategories?.length ?? 0;
+            return (
             <View style={styles.card}>
-              <View style={styles.cardHeader}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setExpandedId(expanded ? '__none__' : item.id)}
+                style={styles.cardHeader}
+              >
                 <View style={styles.iconBadge}>
                   <Ionicons name={item.icon as keyof typeof Ionicons.glyphMap} size={20} color={colors.primary} />
                 </View>
                 <Text style={styles.cardTitle} numberOfLines={1}>
                   {item.name}
                 </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Editar ${item.name}`}
-                  onPress={() => setEditingCategory(item)}
-                  hitSlop={8}
-                  style={styles.cardAction}
-                >
-                  <Ionicons name="pencil" size={16} color={colors.muted} />
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Eliminar ${item.name}`}
-                  onPress={() => confirmDeleteCategory(item)}
-                  hitSlop={8}
-                  style={styles.cardAction}
-                >
-                  <Ionicons name="trash-outline" size={16} color={colors.danger} />
-                </Pressable>
-              </View>
+                <Text style={styles.subCount}>{subCount} subcategoría{subCount === 1 ? '' : 's'}</Text>
+                {expanded ? (
+                  <>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Editar ${item.name}`}
+                      onPress={() => setEditingCategory(item)}
+                      hitSlop={8}
+                      style={styles.cardAction}
+                    >
+                      <Ionicons name="pencil" size={16} color={colors.muted} />
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Eliminar ${item.name}`}
+                      onPress={() => confirmDeleteCategory(item)}
+                      hitSlop={8}
+                      style={styles.cardAction}
+                    >
+                      <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                    </Pressable>
+                  </>
+                ) : null}
+                <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} />
+              </Pressable>
 
+              {expanded ? (
               <View style={styles.subList}>
                 {(item.subcategories ?? []).map((sub) => (
                   <View key={sub.id} style={styles.subRow}>
                     <Text style={styles.subText} numberOfLines={1}>
                       {sub.name}
                     </Text>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Editar ${sub.name}`}
-                      onPress={() => setEditingSub({ sub, categoryName: item.name })}
-                      hitSlop={8}
-                      style={styles.subAction}
-                    >
-                      <Ionicons name="pencil" size={13} color={colors.muted} />
-                    </Pressable>
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`Eliminar ${sub.name}`}
@@ -260,8 +268,10 @@ export default function AdminCategoriesScreen() {
                   <Text style={styles.addSubText}>Agregar subcategoría</Text>
                 </Pressable>
               </View>
+              ) : null}
             </View>
-          )}
+            );
+          }}
         />
       )}
 
@@ -454,7 +464,17 @@ const styles = StyleSheet.create({
   },
   backButton: { padding: 4, marginLeft: -4 },
   headerTitle: { flex: 1, fontSize: 20, fontFamily: fonts.display.semibold, color: colors.ink },
-  addButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    height: 34,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+  },
+  addButtonPressed: { backgroundColor: colors.primaryDark },
+  addButtonText: { fontSize: 12, fontFamily: fonts.ui.bold, color: '#fff' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: spacing.xl },
   empty: { color: colors.muted, fontSize: 14, fontFamily: fonts.ui.medium, textAlign: 'center' },
   list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
@@ -467,16 +487,17 @@ const styles = StyleSheet.create({
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   iconBadge: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.primary + '1A',
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardTitle: { flex: 1, fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
+  subCount: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted, marginRight: 2 },
   cardAction: { padding: 4 },
-  subList: { gap: 4, paddingLeft: spacing.md + 34 },
+  subList: { gap: 4, paddingLeft: spacing.md + 40, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line },
   subRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingVertical: 3 },
   subText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   subAction: { padding: 3 },

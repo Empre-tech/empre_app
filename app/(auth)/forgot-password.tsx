@@ -32,7 +32,13 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <AuthLayout title="Recupera tu contraseña" subtitle="Te enviaremos un enlace para crear una nueva.">
+    <AuthLayout
+      title="Recupera tu contraseña"
+      subtitle="Te enviaremos un enlace para crear una nueva."
+      markIcon="lock-closed"
+      showBrand={false}
+      onBack={() => router.back()}
+    >
       <TextField
         label="Correo"
         value={email}

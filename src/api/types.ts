@@ -86,6 +86,8 @@ export interface Photo {
   caption: string;
   /** MIME real detectado por el backend (ej. "image/jpeg", "video/mp4"). */
   content_type: string;
+  /** Cuándo se publicó (la fecha de creación del Post al que pertenece). */
+  created_at: string;
 }
 
 /** Perfil completo (GET /api/entities/:id). */
@@ -240,6 +242,8 @@ export interface AIChatMessage {
 /** Lo que el asistente ya logró definir a partir de la conversación; cada
  * campo puede venir vacío/ausente si todavía no se ha hablado de eso. */
 export interface AIBusinessDraft {
+  /** Nombre ya decidido por el dueño. */
+  name?: string;
   name_suggestions?: string[];
   description?: string;
   category_id?: string;
@@ -273,4 +277,33 @@ export interface AITextRequest {
 export interface AITextResponse {
   /** 2 o 3 opciones listas para usar; el dueño elige una. */
   suggestions: string[];
+}
+
+export type SubscriptionStatus = 'active' | 'inactive';
+
+export interface SubscriptionRecord {
+  id: string;
+  entity_id: string;
+  plan: string;
+  status: SubscriptionStatus;
+  current_period_end?: string;
+}
+
+/** Gratis hasta que el negocio reciba mensajes de `trial_threshold` clientes
+ * distintos; `requires_payment` se vuelve true en ese punto si todavía no
+ * tiene un plan activo. */
+export interface Subscription {
+  subscription: SubscriptionRecord;
+  distinct_customers: number;
+  trial_threshold: number;
+  requires_payment: boolean;
+}
+
+export interface SubscriptionCheckout {
+  public_key: string;
+  reference: string;
+  amount_in_cents: number;
+  currency: string;
+  signature: string;
+  redirect_url: string;
 }

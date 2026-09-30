@@ -6,7 +6,12 @@ ver su perfil, chatear en tiempo real y publicar tu propio negocio. Consume el b
 
 ## Puesta en marcha (en cualquier PC)
 
-Necesitas: **Node 20.19+**, **Git**, **Docker Desktop** (para el backend) y la app **Expo Go** en tu celular.
+Necesitas: **Node 20.19+**, **Git**, **Docker Desktop** (para el backend) y, para probar la app, **o bien**
+tu celular con la app **Expo Go**, **o bien** un emulador de Android (Android Studio) — ver la sección
+["Usar el emulador de Android"](#3-opcional-usar-el-emulador-de-android-en-vez-del-celular) más abajo.
+
+> **Windows**: Docker Desktop necesita WSL2 (Docker te avisa y te guía si no lo tienes). Usa **PowerShell** o
+> una terminal de WSL para los comandos; donde el comando cambie entre bash y PowerShell, ya está anotado abajo.
 
 ### 1. Backend (repo `empre_backend`)
 
@@ -31,14 +36,34 @@ npm run typecheck           # debe terminar sin errores
 npx expo start
 ```
 
-Escanea el QR con Expo Go. La app **detecta sola** dónde está el backend (la misma PC que sirve la app,
-puerto 8080), así que no hace falta crear `.env` ni escribir IPs. El celular y la PC deben estar en la misma red Wi‑Fi.
+Escanea el QR con Expo Go (celular físico). La app **detecta sola** dónde está el backend (la misma PC que
+sirve la app, puerto 8080), así que no hace falta crear `.env` ni escribir IPs. El celular y la PC deben estar
+en la misma red Wi‑Fi. Si prefieres no usar tu celular, sigue la sección de abajo para abrirla en un emulador.
 
 Esto alcanza para todo **excepto las notificaciones push** (Expo Go ya no las soporta): ver la sección [Notificaciones push](#notificaciones-push) para ese caso.
 
 > Importante: **no ejecutes `npm audit fix --force`** en este proyecto. Mezcla versiones de Expo y lo rompe.
 > Los avisos de `npm audit` son de herramientas de desarrollo y no afectan la app.
 > Si alguna vez las versiones se desalinean: `npx expo install --fix`.
+
+### 3. (Opcional) Usar el emulador de Android en vez del celular
+
+Si no tienes celular a mano o prefieres probar en tu PC:
+
+1. Instala [Android Studio](https://developer.android.com/studio) y, dentro de él, abre **Device Manager** y
+   crea un dispositivo virtual (cualquier "Pixel" con Android 13+ funciona bien).
+2. Inícialo desde Device Manager (▶) **antes** de correr `npx expo start`, o déjalo que Expo lo abra por ti.
+3. Con `npx expo start` corriendo, presiona **`a`** en esa terminal — abre la app en el emulador automáticamente
+   (no hace falta escanear QR; el emulador también detecta solo el backend en `http://10.0.2.2:8080`, como ya
+   dice `.env.example`).
+
+**Si Android dice que "ya hay un emulador corriendo" y no abre uno nuevo**: casi siempre es un proceso viejo que
+quedó colgado de una sesión anterior.
+- Windows: abre el **Administrador de tareas**, busca `qemu-system-x86_64.exe` (o `emulator.exe`) y termínalo;
+  luego vuelve a abrir el emulador desde Device Manager.
+- Mac/Linux: `adb devices` para ver qué quedó activo, y `adb -s <device-id> emu kill` (o `killall qemu-system-x86_64`)
+  para cerrarlo.
+Después de cerrarlo, abre el emulador de nuevo desde Android Studio y repite `npx expo start` → `a`.
 
 ## Qué incluye
 
@@ -152,3 +177,51 @@ src/
 - Los colores, textos e identificadores de app (`co.empre.app`) son provisionales.
 - El mapa usa `react-native-maps` (Apple Maps en iOS, Google Maps en Android). No funciona en web.
 - Nunca subas `.env` a Git; en este repo está ignorado.
+
+## Dejar Expo Go: development build con EAS
+
+Expo Go no soporta bien las notificaciones push remotas ni algunas cosas del WebSocket en segundo
+plano. El siguiente paso es correr la app en un **development build** propio (sigue teniendo hot
+reload como Expo Go, pero es un APK/IPA instalable con todas las capacidades nativas).
+
+Estos pasos los corres tú (requieren tu cuenta de Expo/EAS, que Claude no puede loguear por ti):
+
+1. Instala las dependencias nuevas: `npx expo install expo-dev-client expo-web-browser`
+2. Instala la CLI si no la tienes: `npm i -g eas-cli`
+3. Inicia sesión: `eas login`
+4. Ya hay un `eas.json` con perfiles `development` / `preview` / `production` en este repo.
+5. Genera el build de desarrollo:
+   - Android: `eas build --profile development --platform android`
+   - iOS: `eas build --profile development --platform ios` (requiere cuenta de Apple Developer)
+6. Instala el APK/IPA resultante en tu celular (EAS te da un link/QR al terminar).
+7. A partir de ahí, en vez de `npx expo start` usa `npx expo start --dev-client` — abre con el
+   ícono de la app instalada, no con Expo Go.
+
+Con esto, las notificaciones push (`src/notifications/`) y el asistente de IA por chat funcionan
+igual que en producción. El perfil `production` (`eas build --profile production`) es el que se usa
+más adelante para subir la app a Play Store / App Store.
+
+## Suscripción de negocios (Wompi)
+
+Los dueños de negocio pueden pagar un plan mensual ("Empre Pro") desde `Mi negocio > Suscripción
+del negocio`. El pago se hace en el Widget Web Checkout de Wompi (se abre en el navegador del
+sistema vía `expo-web-browser`, nunca dentro de un WebView propio, así Empre nunca toca los datos
+de la tarjeta).
+
+Para que funcione:
+
+1. Crea una cuenta de comercio en https://comercios.wompi.co (hay un ambiente **sandbox** para
+   probar sin mover dinero real).
+2. En el backend, llena en `.env`: `WOMPI_PUBLIC_KEY`, `WOMPI_INTEGRITY_SECRET`,
+   `WOMPI_EVENTS_SECRET` (ver `empre_backend/.env.example`).
+3. En el panel de Wompi, configura la URL de eventos (webhook) apuntando a
+   `https://<tu-backend-público>/api/payments/wompi/webhook` — en desarrollo, la URL del túnel de
+   cloudflared que ya usas para el backend.
+4. Sin esas llaves, la pantalla de suscripción sigue existiendo pero el botón de pago devuelve un
+   error claro ("los pagos no están configurados todavía").
+
+El flujo completo: la app pide un checkout al backend → el backend genera una referencia única y la
+firma de integridad que exige Wompi → la app abre el widget con esos datos → el dueño paga → Wompi
+llama al webhook del backend con el resultado (firmado, se verifica antes de aplicarlo) → el backend
+activa la suscripción por 30 días. Renovar antes de que venza extiende desde la fecha de vencimiento
+actual, nunca desde hoy.

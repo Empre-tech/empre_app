@@ -19,7 +19,7 @@ Notifications.setNotificationHandler({
 });
 
 type NotificationData = {
-  type?: 'chat' | 'review' | 'favorite' | 'verification';
+  type?: 'chat' | 'review' | 'favorite' | 'verification' | 'subscription';
   entity_id?: string;
   user_id?: string;
 };
@@ -68,6 +68,11 @@ export function usePushNotifications() {
         case 'verification':
           if (data.entity_id) {
             router.push({ pathname: '/business/[id]', params: { id: data.entity_id } });
+          }
+          break;
+        case 'subscription':
+          if (data.entity_id) {
+            router.push({ pathname: '/business/subscription/[id]', params: { id: data.entity_id } });
           }
           break;
         default:

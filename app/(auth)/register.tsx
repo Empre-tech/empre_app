@@ -40,7 +40,12 @@ export default function RegisterScreen() {
   };
 
   return (
-    <AuthLayout title="Crea tu cuenta" subtitle="Descubre negocios cercanos y escríbeles directamente.">
+    <AuthLayout
+      title="Crea tu cuenta"
+      subtitle="Descubre negocios cercanos y escríbeles directamente."
+      variant="compact"
+      onBack={() => (router.canGoBack() ? router.back() : router.replace('/(auth)/login'))}
+    >
       <TextField label="Nombre" value={name} onChangeText={setName} autoCapitalize="words" autoComplete="name" placeholder="Tu nombre" />
       <TextField
         label="Correo"

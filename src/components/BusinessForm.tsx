@@ -30,6 +30,7 @@ import type {
 } from '@/api/types';
 import { hasLocation, type Coords } from '@/lib/geo';
 import { resolveImageUrl } from '@/lib/image';
+import { COLOMBIAN_CITIES } from '@/lib/cities';
 import { pickImage } from '@/lib/images';
 import { colors, fonts, radius, spacing } from '@/theme';
 import { AIWritingAssist } from './AIWritingAssist';
@@ -64,7 +65,7 @@ type PhotoKind = 'profile' | 'banner';
 
 // Crear un negocio usa un asistente por pasos; editar uno existente usa una
 // sola vista con todo el formulario junto (ver `editing` más abajo).
-const STEPS = ['Datos básicos', 'Ubicación y contacto', 'Fotos'] as const;
+const STEPS = ['Datos básicos', 'Ubicación', 'Fotos'] as const;
 
 // Weekday sigue la numeración de Go time.Weekday (0=domingo ... 6=sábado),
 // igual a Date.getDay() en JS, así que el índice del arreglo coincide con weekday.
@@ -111,6 +112,7 @@ export function BusinessForm({ initial, draft }: Props) {
   const [description, setDescription] = useState(initial?.description ?? draft?.description ?? '');
   const [categoryId, setCategoryId] = useState(initial?.category?.id ?? draft?.categoryId ?? '');
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
+  const [cityPickerOpen, setCityPickerOpen] = useState(false);
   const [subcategoryIds, setSubcategoryIds] = useState<string[]>(
     initial ? (initial.subcategories ?? []).map((s) => s.id) : draft?.subcategoryIds ?? [],
   );
@@ -361,6 +363,18 @@ export function BusinessForm({ initial, draft }: Props) {
       </View>
     ) : null;
 
+  const cityField = (
+    <View style={styles.field}>
+      <Text style={styles.label}>Ciudad</Text>
+      <Pressable accessibilityRole="button" onPress={() => setCityPickerOpen(true)} style={styles.dropdown}>
+        <Text style={styles.dropdownText} numberOfLines={1}>
+          {city || 'Elegir ciudad'}
+        </Text>
+        <Ionicons name="chevron-down" size={18} color={colors.muted} />
+      </Pressable>
+    </View>
+  );
+
   const serviceModeField = (
     <View style={styles.field}>
       <Text style={styles.label}>¿Cómo prestas el servicio?</Text>
@@ -518,6 +532,16 @@ export function BusinessForm({ initial, draft }: Props) {
           setSubcategoryIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
         }
       />
+
+      <CityPickerModal
+        visible={cityPickerOpen}
+        selected={city}
+        onSelect={(value) => {
+          setCity(value);
+          setCityPickerOpen(false);
+        }}
+        onClose={() => setCityPickerOpen(false)}
+      />
     </>
   );
 
@@ -536,8 +560,8 @@ export function BusinessForm({ initial, draft }: Props) {
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
           keyboardShouldPersistTaps="handled"
         >
+          <Text style={styles.sectionTitle}>Fotos</Text>
           <View style={styles.field}>
-            <Text style={styles.label}>Fotos</Text>
             <View style={styles.photoRow}>
               <PhotoSlot
                 label="Perfil"
@@ -555,6 +579,7 @@ export function BusinessForm({ initial, draft }: Props) {
             <Text style={styles.muted}>Las demás fotos y publicaciones se administran desde el perfil del negocio.</Text>
           </View>
 
+          <Text style={styles.sectionTitle}>Información</Text>
           <TextField
             label="Nombre del negocio"
             value={name}
@@ -585,13 +610,15 @@ export function BusinessForm({ initial, draft }: Props) {
             }
           />
 
+          <Text style={styles.sectionTitle}>Ubicación y horario</Text>
           <TextField label="Dirección" value={address} onChangeText={setAddress} autoCapitalize="words" placeholder="Calle, barrio o referencia" />
-          <TextField label="Ciudad" value={city} onChangeText={setCity} autoCapitalize="words" />
+          {cityField}
           <TextField
             label="Contacto (teléfono, WhatsApp, redes)"
             value={contact}
             onChangeText={setContact}
             placeholder="300 123 4567"
+            maxLength={10}
           />
 
           {locationField}
@@ -703,22 +730,24 @@ export function BusinessForm({ initial, draft }: Props) {
                 />
               }
             />
+
+            {serviceModeField}
           </>
         ) : null}
 
         {step === 1 ? (
           <>
             <TextField label="Dirección" value={address} onChangeText={setAddress} autoCapitalize="words" placeholder="Calle, barrio o referencia" />
-            <TextField label="Ciudad" value={city} onChangeText={setCity} autoCapitalize="words" />
+            {cityField}
             <TextField
               label="Contacto (teléfono, WhatsApp, redes)"
               value={contact}
               onChangeText={setContact}
               placeholder="300 123 4567"
+              maxLength={10}
             />
 
             {locationField}
-            {serviceModeField}
             {hoursField}
           </>
         ) : null}
@@ -750,7 +779,7 @@ export function BusinessForm({ initial, draft }: Props) {
           {isLastStep ? (
             <Button title="Crear negocio" onPress={onSubmit} loading={saving} style={styles.navButton} />
           ) : (
-            <Button title="Siguiente" onPress={goNext} style={styles.navButton} />
+            <Button title="Continuar" onPress={goNext} style={styles.navButton} />
           )}
         </View>
 
@@ -853,6 +882,46 @@ function SubcategoryPickerModal({
   );
 }
 
+function CityPickerModal({
+  visible,
+  selected,
+  onSelect,
+  onClose,
+}: {
+  visible: boolean;
+  selected: string;
+  onSelect: (city: string) => void;
+  onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const normalizedSelected = selected.trim().toLowerCase();
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose} />
+      <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
+        <Text style={styles.modalTitle}>Elige una ciudad</Text>
+        <ScrollView style={styles.modalList} contentContainerStyle={{ gap: spacing.xs }}>
+          {COLOMBIAN_CITIES.map((option) => {
+            const active = option.toLowerCase() === normalizedSelected;
+            return (
+              <Pressable
+                key={option}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                onPress={() => onSelect(option)}
+                style={[styles.modalOption, active && styles.modalOptionActive]}
+              >
+                <Text style={[styles.modalOptionText, active && styles.modalOptionTextActive]}>{option}</Text>
+                {active ? <Ionicons name="checkmark" size={18} color={colors.primary} /> : null}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
 function PhotoSlot({
   label,
   uri,
@@ -909,9 +978,9 @@ const styles = StyleSheet.create({
   },
   stepItem: { flex: 1, alignItems: 'center' },
   stepDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     borderWidth: 1.5,
     borderColor: colors.line,
     alignItems: 'center',
@@ -935,6 +1004,14 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.lg },
   field: { gap: spacing.sm },
   label: { fontSize: 14, fontWeight: '600', fontFamily: fonts.ui.semibold, color: colors.ink },
+  sectionTitle: {
+    fontSize: 12,
+    fontFamily: fonts.ui.bold,
+    color: colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginTop: spacing.md,
+  },
   subLabel: { marginTop: spacing.sm },
   muted: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },

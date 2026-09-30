@@ -19,7 +19,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { entitiesApi, reviewsApi } from '@/api/endpoints';
+import { entitiesApi, paymentsApi, reviewsApi } from '@/api/endpoints';
 import type { Photo } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { AIWritingAssist } from '@/components/AIWritingAssist';
@@ -29,7 +29,7 @@ import { PostComposerSheet } from '@/components/PostComposerSheet';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { hasLocation } from '@/lib/geo';
-import { formatReviewDate } from '@/lib/format';
+import { formatReviewDate, formatRelativeTime } from '@/lib/format';
 import { resolveImageUrl } from '@/lib/image';
 import { colors, fonts, radius, spacing } from '@/theme';
 
@@ -70,11 +70,27 @@ export default function BusinessScreen() {
 
   const isOwner = status === 'signedIn' && user?.id === business?.owner_id;
 
+  // Solo se pide si es el dueño: es la única info de suscripción que le
+  // interesa a alguien que no sea él, y evitamos una llamada de más para
+  // cualquier visitante viendo el perfil del negocio.
+  const subscriptionQuery = useQuery({
+    queryKey: ['subscription', business?.id],
+    queryFn: () => paymentsApi.getSubscription(business!.id),
+    enabled: isOwner && Boolean(business?.id),
+  });
+  const requiresPayment = subscriptionQuery.data?.requires_payment ?? false;
+
   // Publicaciones y Reseñas viven en pestañas (como Instagram: grilla /
   // etiquetados), no apiladas una tras otra, para que se entienda de un
   // vistazo que son dos cosas distintas.
   const [activeTab, setActiveTab] = useState<'posts' | 'reviews'>('posts');
   const [showHours, setShowHours] = useState(false);
+
+  // Descripción: se trunca a 3 líneas con un "Ver más" cuando es larga, en
+  // vez de siempre mostrarla completa y alargar el perfil. El umbral de
+  // caracteres es una heurística simple (no medimos líneas reales).
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const descriptionTruncatable = (business?.description?.length ?? 0) > 140;
 
   // Favorito: estado local optimista para que el corazón responda al toque
   // de inmediato, sincronizado con lo que devuelve el servidor.
@@ -332,7 +348,7 @@ export default function BusinessScreen() {
       router.push('/(auth)/login');
       return;
     }
-    router.push({ pathname: '/chat/[entityId]', params: { entityId: business.id, name: business.name } });
+    router.push({ pathname: '/chat/[entityId]', params: { entityId: business.id, name: business.name, avatar: business.profile_url } });
   };
 
   const onDirections = () => {
@@ -347,7 +363,17 @@ export default function BusinessScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xxl }}>
-        {bannerUrl ? <Image source={{ uri: bannerUrl }} style={styles.banner} contentFit="cover" /> : <View style={[styles.banner, styles.bannerEmpty]} />}
+        <View style={styles.bannerWrap}>
+          {bannerUrl ? <Image source={{ uri: bannerUrl }} style={styles.banner} contentFit="cover" /> : <View style={[styles.banner, styles.bannerEmpty]} />}
+          {photos.length > 0 ? (
+            <View style={styles.photoCountPill}>
+              <Ionicons name="images" size={12} color="#fff" />
+              <Text style={styles.photoCountPillText}>
+                {photos.length} {photos.length === 1 ? 'foto' : 'fotos'}
+              </Text>
+            </View>
+          ) : null}
+        </View>
 
         <View style={styles.body}>
           <View style={styles.avatarWrap}>
@@ -358,7 +384,16 @@ export default function BusinessScreen() {
             <Text style={styles.name}>{business.name}</Text>
             {business.is_verified ? <VerifiedBadge size={20} /> : null}
           </View>
-          <Text style={styles.category}>{business.category?.name}</Text>
+          {business.category?.name ? (
+            <View style={styles.categoryPill}>
+              <Text style={styles.categoryPillText}>
+                {business.category.name}
+                {business.subcategories && business.subcategories.length > 0
+                  ? ` · ${business.subcategories[0].name}`
+                  : ''}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.badgesRow}>
             {ratingSummary.count > 0 ? (
               <View style={styles.ratingBadgeRow}>
@@ -378,14 +413,32 @@ export default function BusinessScreen() {
             ) : null}
           </View>
           {business.is_verified ? (
-            <Text style={styles.verifiedNote}>Identidad verificada por Empre</Text>
+            <View style={styles.verifiedNoteRow}>
+              <Ionicons name="shield-checkmark" size={14} color={colors.verified} />
+              <Text style={styles.verifiedNote}>Identidad verificada por Empre</Text>
+            </View>
           ) : isOwner ? (
             <Text style={styles.pendingNote}>
               Tu negocio aún no está verificado. Puedes editarlo mientras tanto.
             </Text>
           ) : null}
 
-          {business.description ? <Text style={styles.description}>{business.description}</Text> : null}
+          {business.description ? (
+            <>
+              <Text style={styles.description} numberOfLines={descriptionExpanded ? undefined : 3}>
+                {business.description}
+              </Text>
+              {descriptionTruncatable ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setDescriptionExpanded((v) => !v)}
+                  hitSlop={6}
+                >
+                  <Text style={styles.readMore}>{descriptionExpanded ? 'Ver menos' : 'Ver más'}</Text>
+                </Pressable>
+              ) : null}
+            </>
+          ) : null}
 
           <View style={styles.infoBlock}>
             {location ? <InfoRow icon="location-outline" text={location} /> : null}
@@ -425,12 +478,39 @@ export default function BusinessScreen() {
           ) : null}
 
           <View style={styles.actions}>
+            {isOwner && requiresPayment ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => router.push({ pathname: '/business/subscription/[id]', params: { id: business.id } })}
+                style={({ pressed }) => [styles.trialBanner, pressed && styles.trialBannerPressed]}
+              >
+                <Ionicons name="sparkles" size={18} color={colors.primary} />
+                <View style={styles.trialBannerTextWrap}>
+                  <Text style={styles.trialBannerTitle}>Tu prueba gratis terminó</Text>
+                  <Text style={styles.trialBannerSubtitle}>
+                    Actívalo pronto o tu negocio se ocultará del mapa y las búsquedas.
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+              </Pressable>
+            ) : null}
             {!isOwner ? <Button title="Enviar mensaje" onPress={onMessage} /> : null}
             {isOwner ? (
               <Button
                 title="Editar negocio"
                 onPress={() => router.push({ pathname: '/business/edit/[id]', params: { id: business.id } })}
               />
+            ) : null}
+            {isOwner ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => router.push({ pathname: '/business/subscription/[id]', params: { id: business.id } })}
+                style={({ pressed }) => [styles.subscriptionLink, pressed && styles.subscriptionLinkPressed]}
+              >
+                <Ionicons name="diamond-outline" size={16} color={colors.primary} />
+                <Text style={styles.subscriptionLinkText}>Suscripción del negocio</Text>
+                {requiresPayment ? <View style={styles.subscriptionLinkDot} /> : null}
+              </Pressable>
             ) : null}
             {hasLocation(business) || (contact && PHONE_RE.test(contact)) ? (
               <View style={styles.secondaryActions}>
@@ -505,11 +585,17 @@ export default function BusinessScreen() {
 
                 {photos.map((photo, index) => {
                   const isVideo = isVideoPost(photo);
+                  const isFeatured = index === 0;
+                  const size = isFeatured ? tile * 2 + 2 : tile;
                   return (
                     <Pressable
                       key={photo.id}
                       onPress={() => openViewer(index)}
-                      style={({ pressed }) => [{ width: tile, height: tile }, pressed && styles.tilePressed]}
+                      style={({ pressed }) => [
+                        { width: size, height: size },
+                        styles.tileWrap,
+                        pressed && styles.tilePressed,
+                      ]}
                     >
                       {isVideo ? (
                         <GridVideoThumb uri={resolveImageUrl(photo.url) ?? ''} />
@@ -521,6 +607,12 @@ export default function BusinessScreen() {
                           transition={150}
                         />
                       )}
+                      {isFeatured ? (
+                        <View style={styles.featuredTileBadge}>
+                          <Ionicons name="sparkles" size={11} color="#fff" />
+                          <Text style={styles.featuredTileBadgeText}>Destacada</Text>
+                        </View>
+                      ) : null}
                       {isVideo ? (
                         <View style={styles.videoBadge}>
                           <Ionicons name="play" size={10} color="#fff" />
@@ -594,50 +686,19 @@ export default function BusinessScreen() {
       {back}
       {favoriteButton}
 
-      <Modal visible={openIndex !== null} animationType="fade" onRequestClose={closeViewer}>
+      <Modal visible={openIndex !== null} animationType="slide" onRequestClose={closeViewer} presentationStyle="pageSheet">
         <View style={styles.viewer}>
-          <FlatList
-            ref={viewerListRef}
-            data={photos}
-            keyExtractor={(item) => item.id}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            initialScrollIndex={openIndex ?? 0}
-            getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
-            onMomentumScrollEnd={(event) => {
-              // Solo mueve el "cursor" de foto activa; nunca controla si el
-              // visor está abierto, así un evento tardío del cierre no reabre nada.
-              const next = Math.round(event.nativeEvent.contentOffset.x / width);
-              setCurrentIndex(next);
-            }}
-            renderItem={({ item, index }) => (
-              <View style={[styles.viewerSlide, { width }]}>
-                {isVideoPost(item) ? (
-                  <ViewerVideoSlide uri={resolveImageUrl(item.url) ?? ''} active={index === currentIndex} />
-                ) : (
-                  <Image
-                    source={{ uri: resolveImageUrl(item.url) ?? undefined }}
-                    style={styles.viewerImage}
-                    contentFit="contain"
-                  />
-                )}
-              </View>
-            )}
-          />
-
-          <ViewerScrim position="top" height={110} />
-          <ViewerScrim position="bottom" height={220} />
-
           <View style={[styles.viewerHeader, { paddingTop: insets.top + spacing.sm }]}>
             <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={closeViewer} style={styles.viewerIconButton}>
-              <Ionicons name="close" size={24} color="#fff" />
+              <Ionicons name="close" size={22} color={colors.ink} />
             </Pressable>
             {photos.length > 1 ? (
               <Text style={styles.viewerCounter}>
                 {currentIndex + 1} / {photos.length}
               </Text>
-            ) : null}
+            ) : (
+              <View />
+            )}
             {isOwner && activePhoto ? (
               <Pressable
                 accessibilityRole="button"
@@ -646,64 +707,106 @@ export default function BusinessScreen() {
                 disabled={deleting}
                 style={styles.viewerIconButton}
               >
-                {deleting ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="trash-outline" size={20} color="#fff" />}
+                {deleting ? <ActivityIndicator size="small" color={colors.danger} /> : <Ionicons name="trash-outline" size={19} color={colors.danger} />}
               </Pressable>
             ) : (
               <View style={styles.viewerIconButton} />
             )}
           </View>
 
-          {activePhoto ? (
-            <View style={[styles.viewerFooter, { paddingBottom: insets.bottom + spacing.md }]}>
-              {isOwner ? (
+          <View style={[styles.viewerPhotoArea, { width, height: width }]}>
+            <FlatList
+              ref={viewerListRef}
+              style={{ width, height: width }}
+              data={photos}
+              keyExtractor={(item) => item.id}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              initialScrollIndex={openIndex ?? 0}
+              getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
+              onMomentumScrollEnd={(event) => {
+                // Solo mueve el "cursor" de foto activa; nunca controla si el
+                // visor está abierto, así un evento tardío del cierre no reabre nada.
+                const next = Math.round(event.nativeEvent.contentOffset.x / width);
+                setCurrentIndex(next);
+              }}
+              renderItem={({ item, index }) => (
+                <View style={[styles.viewerSlide, { width }]}>
+                  {isVideoPost(item) ? (
+                    <ViewerVideoSlide uri={resolveImageUrl(item.url) ?? ''} active={index === currentIndex} />
+                  ) : (
+                    <Image
+                      source={{ uri: resolveImageUrl(item.url) ?? undefined }}
+                      style={styles.viewerImage}
+                      contentFit="contain"
+                    />
+                  )}
+                </View>
+              )}
+            />
+            {photos.length > 1 ? (
+              <View style={styles.viewerDots} pointerEvents="none">
+                {photos.map((photo, index) => (
+                  <View key={photo.id} style={[styles.viewerDot, index === currentIndex && styles.viewerDotActive]} />
+                ))}
+              </View>
+            ) : null}
+          </View>
+
+          <ScrollView style={styles.viewerDetails} contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xl }}>
+            <View style={styles.viewerBizRow}>
+              <Avatar uri={business.profile_url} name={business.name} size={36} />
+              <View style={styles.viewerBizInfo}>
+                <Text style={styles.viewerBizName} numberOfLines={1}>{business.name}</Text>
+                {activePhoto?.created_at ? (
+                  <Text style={styles.viewerBizCategory}>{formatRelativeTime(activePhoto.created_at)}</Text>
+                ) : null}
+              </View>
+            </View>
+
+            {activePhoto ? (
+              isOwner ? (
                 <View style={styles.captionEditor}>
-                  <View style={styles.captionAssistRow}>
+                  <View style={styles.captionLabelRow}>
+                    <Text style={styles.captionLabel}>Descripción</Text>
                     <AIWritingAssist
                       kind="post_caption"
                       currentText={captionDraft}
                       businessName={business.name}
                       categoryName={business.category?.name}
-                      variant="dark"
                       onApply={(text) => {
                         setCaptionDraft(text);
                         setCaptionDirty(true);
                       }}
                     />
                   </View>
-                  <View style={styles.captionRow}>
-                    <TextInput
-                      value={captionDraft}
-                      onChangeText={(value) => {
-                        setCaptionDraft(value);
-                        setCaptionDirty(true);
-                      }}
-                      placeholder="Agrega una descripción…"
-                      placeholderTextColor="rgba(255,255,255,0.6)"
-                      style={styles.captionInput}
-                      maxLength={200}
+                  <TextInput
+                    value={captionDraft}
+                    onChangeText={(value) => {
+                      setCaptionDraft(value);
+                      setCaptionDirty(true);
+                    }}
+                    placeholder="Agrega una descripción…"
+                    placeholderTextColor={colors.muted}
+                    style={styles.captionInput}
+                    maxLength={200}
+                    multiline
+                  />
+                  {captionDirty ? (
+                    <Button
+                      title={savingCaption ? 'Guardando…' : 'Guardar descripción'}
+                      onPress={() => void saveCaption()}
+                      disabled={savingCaption}
+                      style={styles.captionSaveButton}
                     />
-                    {captionDirty ? (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Guardar descripción"
-                        onPress={() => void saveCaption()}
-                        disabled={savingCaption}
-                        style={styles.captionSave}
-                      >
-                        {savingCaption ? (
-                          <ActivityIndicator size="small" color="#fff" />
-                        ) : (
-                          <Ionicons name="checkmark" size={18} color="#fff" />
-                        )}
-                      </Pressable>
-                    ) : null}
-                  </View>
+                  ) : null}
                 </View>
               ) : activePhoto.caption ? (
                 <Text style={styles.viewerCaption}>{activePhoto.caption}</Text>
-              ) : null}
-            </View>
-          ) : null}
+              ) : null
+            ) : null}
+          </ScrollView>
         </View>
       </Modal>
 
@@ -795,32 +898,6 @@ function ViewerVideoSlide({ uri, active }: { uri: string; active: boolean }) {
   );
 }
 
-/**
- * Degradado falso (sin depender de expo-linear-gradient) hecho con varias
- * franjas semitransparentes cada vez más oscuras: así el fondo del visor se
- * funde con la foto en vez de verse como una caja negra plana pegada encima,
- * y el texto queda legible sin importar qué tan clara sea la foto de fondo.
- */
-function ViewerScrim({ position, height }: { position: 'top' | 'bottom'; height: number }) {
-  const bands = 10;
-  const items = Array.from({ length: bands });
-  return (
-    <View
-      pointerEvents="none"
-      style={[
-        styles.scrim,
-        position === 'top' ? { top: 0 } : { bottom: 0 },
-        { height, flexDirection: position === 'top' ? 'column' : 'column-reverse' },
-      ]}
-    >
-      {items.map((_, i) => {
-        const t = (i + 1) / bands;
-        return <View key={i} style={{ flex: 1, backgroundColor: `rgba(18,13,10,${(t * 0.7).toFixed(2)})` }} />;
-      })}
-    </View>
-  );
-}
-
 function InfoRow({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
   return (
     <View style={styles.infoRow}>
@@ -837,7 +914,7 @@ function StarRow({ rating, size = 14 }: { rating: number; size?: number }) {
       {[1, 2, 3, 4, 5].map((n) => {
         const diff = rating - n + 1;
         const name = diff >= 1 ? 'star' : diff >= 0.5 ? 'star-half' : 'star-outline';
-        return <Ionicons key={n} name={name} size={size} color={colors.warning} />;
+        return <Ionicons key={n} name={name} size={size} color={colors.accent} />;
       })}
     </View>
   );
@@ -849,7 +926,7 @@ function StarPicker({ value, onChange }: { value: number; onChange: (rating: num
     <View style={styles.starPicker}>
       {[1, 2, 3, 4, 5].map((n) => (
         <Pressable key={n} accessibilityRole="button" accessibilityLabel={`${n} estrellas`} onPress={() => onChange(n)} hitSlop={6}>
-          <Ionicons name={n <= value ? 'star' : 'star-outline'} size={32} color={colors.warning} />
+          <Ionicons name={n <= value ? 'star' : 'star-outline'} size={32} color={colors.accent} />
         </Pressable>
       ))}
     </View>
@@ -871,7 +948,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   favoriteButton: { left: undefined, right: spacing.md },
+  bannerWrap: { width: '100%', height: 160 },
   banner: { width: '100%', height: 160, backgroundColor: colors.surface },
+  photoCountPill: {
+    position: 'absolute',
+    right: spacing.md,
+    bottom: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    height: 22,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(22,35,58,0.55)',
+  },
+  photoCountPillText: { fontSize: 11, fontFamily: fonts.ui.bold, color: '#fff' },
   bannerEmpty: { backgroundColor: colors.line },
   body: { paddingHorizontal: spacing.lg, gap: spacing.sm },
   avatarWrap: {
@@ -884,14 +975,52 @@ const styles = StyleSheet.create({
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   name: { flexShrink: 1, fontSize: 26, fontFamily: fonts.display.semibold, color: colors.ink },
-  category: { fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.muted },
+  categoryPill: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    paddingHorizontal: 10,
+    height: 24,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primarySoft,
+    justifyContent: 'center',
+  },
+  categoryPillText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.primary },
+  verifiedNoteRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   verifiedNote: { fontSize: 13, color: colors.verified, fontWeight: '600', fontFamily: fonts.ui.semibold },
+  readMore: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.primary, marginTop: 2 },
   pendingNote: { fontSize: 13, color: colors.warning, fontWeight: '600', fontFamily: fonts.ui.semibold },
   description: { fontSize: 15, lineHeight: 22, fontFamily: fonts.ui.medium, color: colors.ink, marginTop: spacing.sm },
   infoBlock: { gap: spacing.sm, marginTop: spacing.sm },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   infoText: { flex: 1, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink },
   actions: { gap: spacing.sm, marginTop: spacing.lg },
+  subscriptionLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 40,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  subscriptionLinkPressed: { backgroundColor: colors.surface },
+  subscriptionLinkText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.primary },
+  subscriptionLinkDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.primary, marginLeft: 2 },
+  trialBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: 'rgba(36,104,198,0.08)',
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  trialBannerPressed: { opacity: 0.8 },
+  trialBannerTextWrap: { flex: 1 },
+  trialBannerTitle: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink },
+  trialBannerSubtitle: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted, marginTop: 1 },
   // Barra segmentada de acciones secundarias (Cómo llegar / Llamar): un solo
   // contenedor tipo "pill" con divisor interno, en vez de dos botones
   // apilados a todo el ancho — más compacta y escaneable.
@@ -946,7 +1075,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
-  tabItemActive: { borderBottomColor: colors.ink },
+  tabItemActive: { borderBottomColor: colors.primary },
   tabLabel: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
   tabLabelActive: { color: colors.ink },
   tabContent: { marginTop: spacing.md },
@@ -960,9 +1089,23 @@ const styles = StyleSheet.create({
   // Misma fila, pero para la pestaña de reseñas, que sí está dentro de
   // `body` (ya tiene su propio padding horizontal).
   tabContentHeaderInline: { alignItems: 'flex-end', marginBottom: spacing.sm },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 2 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
   tileImage: { width: '100%', height: '100%', backgroundColor: colors.surface },
   tilePressed: { opacity: 0.8 },
+  tileWrap: { borderRadius: radius.sm, overflow: 'hidden' },
+  featuredTileBadge: {
+    position: 'absolute',
+    left: 6,
+    bottom: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    height: 20,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(22,35,58,0.55)',
+  },
+  featuredTileBadgeText: { fontSize: 10, fontFamily: fonts.ui.bold, color: '#fff' },
   // Celda "+" al inicio de la cuadrícula (estilo Instagram) para publicar sin
   // salir de la vista de publicaciones ni buscar un botón aparte.
   addTile: {
@@ -973,12 +1116,13 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.line,
     borderStyle: 'dashed',
+    borderRadius: radius.sm,
   },
   addTileIcon: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(225,87,43,0.12)',
+    backgroundColor: 'rgba(36,104,198,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1013,13 +1157,13 @@ const styles = StyleSheet.create({
   emptyPostsButton: { minHeight: 40, marginTop: spacing.xs },
   // Fondo cálido oscuro (tinta de la marca), no negro puro, para que el
   // visor de publicaciones se sienta parte de Empre y no de otra app.
-  viewer: { flex: 1, backgroundColor: colors.ink },
-  viewerSlide: { height: '100%', alignItems: 'center', justifyContent: 'center' },
+  viewer: { flex: 1, backgroundColor: colors.bg },
+  viewerSlide: { height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ink },
   viewerImage: { width: '100%', height: '100%' },
   viewerVideoWrap: { width: '100%', height: '100%' },
   muteButton: {
     position: 'absolute',
-    bottom: spacing.xxl + spacing.lg,
+    bottom: spacing.lg,
     right: spacing.md,
     width: 36,
     height: 36,
@@ -1028,18 +1172,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Franjas del degradado falso detrás del encabezado/pie del visor.
-  scrim: { position: 'absolute', left: 0, right: 0, zIndex: 0 },
   viewerHeader: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
+    backgroundColor: colors.bg,
   },
   viewerIconButton: {
     width: 40,
@@ -1047,54 +1186,61 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.35)',
   },
   viewerCounter: {
-    color: '#fff',
+    color: colors.ink,
     fontSize: 13,
     fontFamily: fonts.ui.bold,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
   },
-  viewerFooter: {
+  // Área de la foto: contenida (no a pantalla completa) para que debajo quepa
+  // el bloque de descripción, como un post de feed en vez de una historia.
+  viewerPhotoArea: { backgroundColor: colors.ink },
+  viewerDots: {
     position: 'absolute',
+    bottom: spacing.sm,
     left: 0,
     right: 0,
-    bottom: 0,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
   },
+  viewerDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+  },
+  viewerDotActive: { backgroundColor: '#fff', width: 8, height: 8, borderRadius: 4 },
+  viewerDetails: { flex: 1, backgroundColor: colors.surface, paddingHorizontal: spacing.lg, paddingTop: spacing.md },
+  viewerBizRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  viewerBizInfo: { flex: 1, minWidth: 0 },
+  viewerBizName: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
+  viewerBizCategory: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted, marginTop: 1 },
   viewerCaption: {
-    color: '#fff',
-    fontSize: 15,
-    fontFamily: fonts.ui.medium,
-    lineHeight: 21,
-    textShadowColor: 'rgba(0,0,0,0.6)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  captionEditor: { gap: spacing.xs },
-  captionAssistRow: { flexDirection: 'row', justifyContent: 'flex-end' },
-  captionRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  captionInput: {
-    flex: 1,
-    color: '#fff',
+    color: colors.ink,
     fontSize: 14,
     fontFamily: fonts.ui.medium,
-    paddingVertical: 8,
+    lineHeight: 20,
+    marginTop: spacing.md,
+  },
+  captionEditor: { gap: spacing.xs, marginTop: spacing.md },
+  captionLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  captionLabel: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink },
+  captionInput: {
+    color: colors.ink,
+    fontSize: 14,
+    fontFamily: fonts.ui.medium,
+    minHeight: 64,
+    paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.bg,
+    textAlignVertical: 'top',
   },
-  captionSave: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  captionSaveButton: { alignSelf: 'flex-start', marginTop: spacing.xs },
   badgesRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 2, flexWrap: 'wrap' },
   ratingBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   ratingBadgeText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
@@ -1134,7 +1280,7 @@ const styles = StyleSheet.create({
   reviewName: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
   reviewDate: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
   reviewComment: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.ink },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(36,28,23,0.5)', alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(22,35,58,0.5)', alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
   reviewModalCard: {
     width: '100%',
     backgroundColor: colors.bg,

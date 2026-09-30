@@ -5,6 +5,8 @@ import type {
   AITextRequest,
   AITextResponse,
   Category,
+  Subscription,
+  SubscriptionCheckout,
   CategoryInput,
   ChatMessage,
   Conversation,
@@ -103,6 +105,16 @@ export interface EntityListParams {
   /** Solo negocios abiertos en este momento (hora de Cartagena). */
   openNow?: boolean;
 }
+
+export const paymentsApi = {
+  /** Estado actual de la suscripción de un negocio (solo el dueño puede verlo). */
+  getSubscription: (entityId: string) => request<Subscription>(`/api/entities/${entityId}/subscription`),
+
+  /** Inicia un intento de pago: crea la referencia en el backend y devuelve
+   * los datos firmados que necesita el widget de Wompi. */
+  createCheckout: (entityId: string) =>
+    request<SubscriptionCheckout>(`/api/entities/${entityId}/subscription/checkout`, { method: 'POST' }),
+};
 
 export const entitiesApi = {
   list: async (params: EntityListParams = {}) =>

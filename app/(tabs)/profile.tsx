@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi, usersApi } from '@/api/endpoints';
 import type { VerificationStatus } from '@/api/types';
@@ -14,10 +14,10 @@ import { verificationLabel } from '@/lib/format';
 import { pickImage } from '@/lib/images';
 import { colors, fonts, radius, spacing } from '@/theme';
 
-const statusColor: Record<VerificationStatus, string> = {
-  verified: colors.success,
-  pending: colors.warning,
-  rejected: colors.danger,
+const STATUS_STYLE: Record<VerificationStatus, { fg: string; bg: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  verified: { fg: colors.verified, bg: colors.verifiedSoft, icon: 'checkmark-circle' },
+  pending: { fg: colors.warning, bg: '#FBF0DA', icon: 'time-outline' },
+  rejected: { fg: colors.danger, bg: '#FBE4E4', icon: 'close-circle-outline' },
 };
 
 export default function ProfileScreen() {
@@ -88,7 +88,9 @@ export default function ProfileScreen() {
         onPress={() => router.push('/favorites')}
         style={({ pressed }) => [styles.adminCard, pressed && { opacity: 0.85 }]}
       >
-        <Ionicons name="heart-outline" size={20} color={colors.primary} />
+        <View style={styles.adminCardIcon}>
+          <Ionicons name="heart-outline" size={19} color={colors.primary} />
+        </View>
         <Text style={styles.adminCardText}>Mis favoritos</Text>
         <Ionicons name="chevron-forward" size={18} color={colors.muted} />
       </Pressable>
@@ -99,7 +101,9 @@ export default function ProfileScreen() {
           onPress={() => router.push('/admin')}
           style={({ pressed }) => [styles.adminCard, pressed && { opacity: 0.85 }]}
         >
-          <Ionicons name="shield-checkmark-outline" size={20} color={colors.primary} />
+          <View style={styles.adminCardIcon}>
+            <Ionicons name="shield-checkmark-outline" size={19} color={colors.primary} />
+          </View>
           <Text style={styles.adminCardText}>Panel de administración</Text>
           <Ionicons name="chevron-forward" size={18} color={colors.muted} />
         </Pressable>
@@ -133,9 +137,16 @@ export default function ProfileScreen() {
                 {entity.category_name}
               </Text>
             </View>
-            <Text style={[styles.badge, { color: statusColor[entity.verification_status] }]}>
-              {verificationLabel(entity.verification_status)}
-            </Text>
+            <View style={[styles.badge, { backgroundColor: STATUS_STYLE[entity.verification_status].bg }]}>
+              <Ionicons
+                name={STATUS_STYLE[entity.verification_status].icon}
+                size={12}
+                color={STATUS_STYLE[entity.verification_status].fg}
+              />
+              <Text style={[styles.badgeText, { color: STATUS_STYLE[entity.verification_status].fg }]}>
+                {verificationLabel(entity.verification_status)}
+              </Text>
+            </View>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Editar ${entity.name}`}
@@ -160,14 +171,27 @@ const styles = StyleSheet.create({
   headerInfo: { flex: 1, gap: 2 },
   name: { fontSize: 24, fontFamily: fonts.display.semibold, color: colors.ink },
   meta: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted },
-  avatarButton: { width: 72, height: 72 },
+  avatarButton: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.ink,
+        shadowOpacity: 0.15,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 },
+      },
+      default: { elevation: 4 },
+    }),
+  },
   avatarBadge: {
     position: 'absolute',
     right: -2,
     bottom: -2,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: colors.primary,
     borderWidth: 2,
     borderColor: colors.bg,
@@ -182,6 +206,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.lg,
+  },
+  adminCardIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   adminCardText: { flex: 1, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
   sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md },
@@ -199,6 +231,14 @@ const styles = StyleSheet.create({
   },
   cardInfo: { flex: 1, gap: 2 },
   cardTitle: { fontSize: 16, fontWeight: '700', fontFamily: fonts.ui.bold, color: colors.ink },
-  badge: { fontSize: 13, fontWeight: '700', fontFamily: fonts.ui.bold },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    height: 24,
+    borderRadius: radius.pill,
+  },
+  badgeText: { fontSize: 12, fontFamily: fonts.ui.bold },
   logout: { marginTop: spacing.xl },
 });

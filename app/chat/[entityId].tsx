@@ -18,16 +18,17 @@ import { chatApi } from '@/api/endpoints';
 import type { ChatMessage } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { useChat } from '@/chat/ChatProvider';
+import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { CHAT_MAX_CONTENT_BYTES, CHAT_MAX_CONTENT_CHARS } from '@/config';
-import { formatMessageTime } from '@/lib/format';
+import { formatDayLabel, formatMessageTime } from '@/lib/format';
 import { utf8Length } from '@/lib/text';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const LOCAL_PREFIX = 'local-';
 
 export default function ChatScreen() {
-  const { entityId, userId, name } = useLocalSearchParams<{ entityId: string; userId?: string; name?: string }>();
+  const { entityId, userId, name, avatar } = useLocalSearchParams<{ entityId: string; userId?: string; name?: string; avatar?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -93,6 +94,23 @@ export default function ChatScreen() {
     return out; // ya viene más nuevo primero: encaja con FlatList `inverted`
   }, [live, history.data]);
 
+  // Ids del mensaje más antiguo de cada día (separador "Hoy"/"Ayer" arriba de ese mensaje).
+  const dayStarts = useMemo(() => {
+    const set = new Set<string>();
+    const dayKey = (iso: string) => {
+      const d = new Date(iso);
+      return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    };
+    for (let i = 0; i < messages.length; i++) {
+      const current = messages[i];
+      const next = messages[i + 1];
+      if (!next || dayKey(current.created_at) !== dayKey(next.created_at)) {
+        set.add(current.id);
+      }
+    }
+    return set;
+  }, [messages]);
+
   const onSend = () => {
     const content = text.trim();
     if (!content || !entityId || !customerId || !user) return;
@@ -139,6 +157,10 @@ export default function ChatScreen() {
         >
           <Ionicons name="chevron-back" size={24} color={colors.ink} />
         </Pressable>
+        <View style={styles.headerAvatarWrap}>
+          <Avatar uri={avatar} name={name ?? '?'} size={38} />
+          <View style={[styles.onlineDot, { backgroundColor: connected ? colors.success : colors.muted }]} />
+        </View>
         <View style={styles.headerTitle}>
           <Text style={styles.title} numberOfLines={1}>
             {name ?? 'Chat'}
@@ -171,10 +193,26 @@ export default function ChatScreen() {
           renderItem={({ item }) => {
             const mine = item.sender_id === user?.id;
             return (
-              <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
-                <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
-                  <Text style={[styles.bubbleText, mine && styles.bubbleTextMine]}>{item.content}</Text>
-                  <Text style={[styles.time, mine && styles.timeMine]}>{formatMessageTime(item.created_at)}</Text>
+              <View>
+                {dayStarts.has(item.id) ? (
+                  <View style={styles.daySeparator}>
+                    <Text style={styles.daySeparatorText}>{formatDayLabel(item.created_at)}</Text>
+                  </View>
+                ) : null}
+                <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
+                  <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
+                    <Text style={[styles.bubbleText, mine && styles.bubbleTextMine]}>{item.content}</Text>
+                    <View style={styles.bubbleMeta}>
+                      <Text style={[styles.time, mine && styles.timeMine]}>{formatMessageTime(item.created_at)}</Text>
+                      {mine ? (
+                        <Ionicons
+                          name={item.is_read ? 'checkmark-done' : 'checkmark'}
+                          size={14}
+                          color="#fff"
+                        />
+                      ) : null}
+                    </View>
+                  </View>
                 </View>
               </View>
             );
@@ -225,6 +263,17 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
   },
   headerButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerAvatarWrap: { position: 'relative' },
+  onlineDot: {
+    position: 'absolute',
+    right: -1,
+    bottom: -1,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.bg,
+  },
   headerTitle: { flex: 1 },
   title: { fontSize: 17, fontWeight: '700', fontFamily: fonts.ui.bold, color: colors.ink },
   status: { fontSize: 12, fontFamily: fonts.ui.semibold },
@@ -232,6 +281,17 @@ const styles = StyleSheet.create({
   muted: { color: colors.muted, textAlign: 'center' },
   emptyInverted: { transform: [{ scaleY: -1 }], marginTop: spacing.xxl },
   messages: { padding: spacing.md, gap: spacing.sm },
+  daySeparator: { alignItems: 'center', marginVertical: spacing.sm },
+  daySeparatorText: {
+    fontSize: 11,
+    fontFamily: fonts.ui.bold,
+    color: colors.muted,
+    backgroundColor: colors.line,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+  },
   bubbleRow: { flexDirection: 'row' },
   bubbleRowMine: { justifyContent: 'flex-end' },
   bubbleRowTheirs: { justifyContent: 'flex-start' },
@@ -240,7 +300,8 @@ const styles = StyleSheet.create({
   bubbleTheirs: { backgroundColor: colors.surface, borderBottomLeftRadius: 4 },
   bubbleText: { fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink },
   bubbleTextMine: { color: '#fff' },
-  time: { fontSize: 11, color: colors.muted, alignSelf: 'flex-end' },
+  bubbleMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end' },
+  time: { fontSize: 11, color: colors.muted },
   timeMine: { color: 'rgba(255,255,255,0.8)' },
   error: { color: colors.danger, fontSize: 13, paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
   composer: {
@@ -254,14 +315,11 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    maxHeight: 120,
-    minHeight: 44,
+    height: 44,
     borderWidth: 1.5,
     borderColor: colors.line,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
-    paddingTop: 10,
-    paddingBottom: 10,
     fontSize: 15,
     fontFamily: fonts.ui.medium,
     color: colors.ink,

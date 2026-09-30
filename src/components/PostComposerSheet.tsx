@@ -212,7 +212,7 @@ function ComposerVideoPreview({ uri }: { uri: string }) {
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end' },
-  backdropTouch: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(36,28,23,0.55)' },
+  backdropTouch: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(22,35,58,0.55)' },
   sheetScroll: { flexGrow: 0, maxHeight: '100%' },
   sheet: {
     backgroundColor: colors.bg,
@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: 'rgba(225,87,43,0.12)',
+    backgroundColor: 'rgba(36,104,198,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(36,28,23,0.65)',
+    backgroundColor: 'rgba(22,35,58,0.65)',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,

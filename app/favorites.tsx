@@ -1,14 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { usersApi } from '@/api/endpoints';
+import { entitiesApi, usersApi } from '@/api/endpoints';
+import type { EntityMap } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
-import { BusinessRow } from '@/components/BusinessRow';
 import { Button } from '@/components/Button';
 import { SignInPrompt } from '@/components/SignInPrompt';
-import { colors, fonts, spacing } from '@/theme';
+import { categoryColor } from '@/lib/categoryColor';
+import { colors, fonts, radius, spacing } from '@/theme';
 
 export default function FavoritesScreen() {
   const { status } = useAuth();
@@ -63,7 +65,7 @@ export default function FavoritesScreen() {
           contentContainerStyle={styles.list}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           renderItem={({ item }) => (
-            <BusinessRow entity={item} onPress={() => router.push({ pathname: '/business/[id]', params: { id: item.id } })} />
+            <FavoriteRow entity={item} onPress={() => router.push({ pathname: '/business/[id]', params: { id: item.id } })} />
           )}
         />
       )}
@@ -71,8 +73,78 @@ export default function FavoritesScreen() {
   );
 }
 
+/** Fila de un favorito: caja de ícono teñida según la categoría del negocio
+ * (en vez del avatar redondo genérico de BusinessRow), nombre, "categoría ·
+ * distancia" en una sola línea, y un corazón lleno para quitarlo de favoritos
+ * sin tener que entrar al perfil. */
+function FavoriteRow({ entity, onPress }: { entity: EntityMap; onPress: () => void }) {
+  const queryClient = useQueryClient();
+  const [removing, setRemoving] = useState(false);
+  const { bg, fg } = categoryColor(entity.category_id);
+
+  const onUnfavorite = async () => {
+    setRemoving(true);
+    try {
+      await entitiesApi.unfavorite(entity.id);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['my-favorites'] }),
+        queryClient.invalidateQueries({ queryKey: ['entity', entity.id] }),
+      ]);
+    } catch {
+      setRemoving(false);
+    }
+  };
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Ver perfil de ${entity.name}`}
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+    >
+      <View style={[styles.iconBox, { backgroundColor: bg }]}>
+        <Ionicons name={(entity.category_icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap} size={24} color={fg} />
+      </View>
+      <View style={styles.rowInfo}>
+        <Text style={styles.rowName} numberOfLines={1}>
+          {entity.name}
+        </Text>
+        {entity.category_name ? (
+          <Text style={styles.rowMeta} numberOfLines={1}>
+            {entity.category_name}
+          </Text>
+        ) : null}
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Quitar de favoritos"
+        onPress={() => void onUnfavorite()}
+        disabled={removing}
+        hitSlop={8}
+      >
+        <Ionicons name="heart" size={22} color={removing ? colors.line : colors.accent} />
+      </Pressable>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  rowPressed: { opacity: 0.85 },
+  iconBox: { width: 56, height: 56, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  rowInfo: { flex: 1, minWidth: 0, gap: 3 },
+  rowName: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
+  rowMeta: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -71,9 +71,14 @@ export default function NewBusinessScreen() {
           <Ionicons name="sparkles" size={22} color="#fff" />
         </View>
         <View style={styles.optionText}>
-          <Text style={styles.optionTitle}>Crear con ayuda de IA</Text>
+          <View style={styles.optionTitleRow}>
+            <Text style={styles.optionTitle}>Crear con ayuda de IA</Text>
+            <View style={styles.recommendedPill}>
+              <Text style={styles.recommendedPillText}>Recomendado</Text>
+            </View>
+          </View>
           <Text style={styles.optionSubtitle}>
-            Cuéntale a la IA de tu negocio en tus palabras: ella sugiere nombre, categoría, descripción y horario.
+            Cuéntale a la IA tu negocio en tus palabras: ella sugiere nombre, categoría, descripción y horario.
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color={colors.muted} />
@@ -114,7 +119,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     backgroundColor: colors.bg,
   },
-  optionCardPrimary: { borderColor: colors.primary },
+  optionCardPrimary: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   optionCardPressed: { opacity: 0.85 },
   optionIcon: {
     width: 44,
@@ -126,6 +131,15 @@ const styles = StyleSheet.create({
   },
   optionIconPrimary: { backgroundColor: colors.primary },
   optionText: { flex: 1, gap: 2 },
+  optionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   optionTitle: { fontSize: 16, fontFamily: fonts.ui.bold, color: colors.ink },
+  recommendedPill: {
+    paddingHorizontal: 8,
+    height: 18,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+  },
+  recommendedPillText: { fontSize: 10, fontFamily: fonts.ui.bold, color: '#fff' },
   optionSubtitle: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, lineHeight: 18 },
 });
