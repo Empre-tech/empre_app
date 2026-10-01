@@ -6,9 +6,12 @@ ver su perfil, chatear en tiempo real y publicar tu propio negocio. Consume el b
 
 ## Puesta en marcha (en cualquier PC)
 
-Necesitas: **Node 20.19+**, **Git**, **Docker Desktop** (para el backend) y, para probar la app, **o bien**
-tu celular con la app **Expo Go**, **o bien** un emulador de Android (Android Studio) — ver la sección
-["Usar el emulador de Android"](#3-opcional-usar-el-emulador-de-android-en-vez-del-celular) más abajo.
+Necesitas: **Node 20.19+**, **Git**, **Docker Desktop** (para el backend) y **Android Studio** (para
+compilar el development build del celular — ver más abajo). Para probar la app en el celular, el equipo usa un
+**development build propio** (no Expo Go) — ver la sección
+["Correr el development build"](#correr-el-development-build-lo-que-usa-el-equipo) más abajo apenas termines
+el paso 2. Si solo quieres algo rápido para mirar la UI sin el mapa/push/IA funcionando del todo, Expo Go
+también sirve (paso 2) y no necesita Android Studio.
 
 > **Windows**: Docker Desktop necesita WSL2 (Docker te avisa y te guía si no lo tienes). Usa **PowerShell** o
 > una terminal de WSL para los comandos; donde el comando cambie entre bash y PowerShell, ya está anotado abajo.
@@ -40,7 +43,9 @@ Escanea el QR con Expo Go (celular físico). La app **detecta sola** dónde est�
 sirve la app, puerto 8080), así que no hace falta crear `.env` ni escribir IPs. El celular y la PC deben estar
 en la misma red Wi‑Fi. Si prefieres no usar tu celular, sigue la sección de abajo para abrirla en un emulador.
 
-Esto alcanza para todo **excepto las notificaciones push** (Expo Go ya no las soporta): ver la sección [Notificaciones push](#notificaciones-push) para ese caso.
+**Esto es solo para una mirada rápida.** Expo Go no soporta notificaciones push, y el asistente de IA por chat y
+algunas cosas del WebSocket en segundo plano tampoco funcionan igual — para probar la app completa (que es lo
+que usa el equipo día a día), sigue la siguiente sección.
 
 > Importante: **no ejecutes `npm audit fix --force`** en este proyecto. Mezcla versiones de Expo y lo rompe.
 > Los avisos de `npm audit` son de herramientas de desarrollo y no afectan la app.
@@ -64,6 +69,57 @@ quedó colgado de una sesión anterior.
 - Mac/Linux: `adb devices` para ver qué quedó activo, y `adb -s <device-id> emu kill` (o `killall qemu-system-x86_64`)
   para cerrarlo.
 Después de cerrarlo, abre el emulador de nuevo desde Android Studio y repite `npx expo start` → `a`.
+
+## Correr el development build (lo que usa el equipo)
+
+Es un APK propio con todas las capacidades nativas (mapa con Google Maps, notificaciones push, el asistente de
+IA, etc.) — sigue teniendo hot reload como Expo Go, pero sin sus limitaciones. **Lo compilamos localmente** con
+`npx expo run:android`, así que sí hace falta tener Android Studio/el SDK de Android instalado (no usamos
+`eas build` en la nube para esto).
+
+1. Instala [Android Studio](https://developer.android.com/studio) (trae el SDK de Android). No hace falta crear
+   ningún dispositivo virtual — vas a usar tu celular físico por USB.
+2. En tu celular Android, activa las **Opciones de desarrollador** (Ajustes → Acerca del teléfono → toca 7 veces
+   "Número de compilación") y dentro de ellas activa **Depuración USB**. Conecta el celular a la PC por cable y
+   acepta el aviso de "¿Permitir depuración USB?" que aparece en el teléfono.
+3. Clona este repo, instala dependencias y agrega la API key de Google Maps a tu `.env`:
+   ```bash
+   git clone <url-de-este-repo> empre_app
+   cd empre_app
+   npm install
+   cp .env.example .env        # en PowerShell: copy .env.example .env
+   # Edita .env y descomenta/completa: GOOGLE_MAPS_API_KEY=TU_LLAVE_AQUI (pídesela al equipo)
+   ```
+4. Compila e instala en tu celular:
+   ```bash
+   npx expo run:android
+   ```
+   La primera vez tarda varios minutos (descarga dependencias nativas y compila con Gradle). Al terminar instala
+   la app en tu celular automáticamente y la abre — vas a ver un ícono separado de Expo Go.
+5. De ahí en adelante, para seguir trabajando basta con `npx expo start --dev-client` (en vez de `npx expo start`)
+   y abrir esa misma app en el celular — hot reload funciona igual que con Expo Go.
+
+Solo hay que repetir el paso 4 (`npx expo run:android`) cuando cambien **dependencias nativas** (un paquete nuevo
+de Expo, agregar/cambiar algo en `app.config.ts`, etc.) — un cambio normal de código JS/TSX se ve con hot reload
+sin recompilar nada.
+
+### Google Maps API key (si el mapa crashea al abrir la app)
+
+Si al abrir la pantalla "Explorar" la app se cierra sola y en los logs de Android ves algo como:
+
+```
+java.lang.IllegalStateException: API key not found. Check that
+<meta-data android:name="com.google.android.geo.API_KEY" .../> is in the <application> element of AndroidManifest.xml
+```
+
+significa que compilaste sin `GOOGLE_MAPS_API_KEY` en el `.env`. A diferencia de `EXPO_PUBLIC_API_URL` (que se
+puede cambiar después sin recompilar), esta llave se **inyecta en el proyecto nativo de Android en el momento de
+compilar** (`app.config.ts` la lee de `process.env.GOOGLE_MAPS_API_KEY`), así que agregarla al `.env` después de
+que ya instalaste el APK no lo arregla: hay que volver a correr `npx expo run:android` para que se regenere el
+`AndroidManifest.xml` con la llave adentro, y eso reinstala la app en tu celular.
+
+La llave sale de [Google Cloud Console](https://console.cloud.google.com/) con la API **Maps SDK for Android**
+habilitada — pídesela al equipo en vez de crear una propia, para no duplicar configuración.
 
 ## Qué incluye
 
@@ -123,21 +179,9 @@ Este comando ajusta `package.json` a la versión compatible con el SDK de Expo q
 ## Notificaciones push
 
 Usan el servicio de push de Expo, así que el token solo se puede generar en una app vinculada a un proyecto de
-EAS — **Expo Go no funciona para esto** (Expo le quitó el soporte de push remoto). Para probarlas:
-
-1. `npx expo install expo-notifications expo-device` (ya están en `package.json`; correr solo si hace falta reinstalar).
-2. `npx eas-cli@latest init` una vez, para vincular el proyecto a tu cuenta de Expo — esto genera un
-   `extra.eas.projectId` que hay que pegar a mano en `app.config.ts` (usa configuración dinámica, así que EAS no
-   puede escribirlo solo). El proyecto actual (`gioleonp/empre`) es personal: si otra persona del equipo va a
-   compilar, necesita que la agreguen como colaboradora en [expo.dev](https://expo.dev), o crear su propio
-   proyecto de EAS y actualizar el `projectId`.
-3. Generar un development build (reemplaza a Expo Go para este proyecto):
-   - Android: `npx expo run:android` (compila localmente, necesita Android Studio/el SDK de Android).
-   - iOS: no se puede compilar localmente desde Windows (hace falta Xcode/Mac). La alternativa es
-     `npx eas-cli build --profile development --platform ios`, que compila en la nube — para instalarlo en un
-     iPhone físico hace falta una cuenta de Apple Developer Program (de pago) para el certificado/provisioning.
-4. Con el development build instalado, corre `npx expo start --dev-client` en vez de `npx expo start` y ábrelo
-   desde ahí (ya no se abre con el QR de Expo Go).
+EAS — **Expo Go no funciona para esto** (Expo le quitó el soporte de push remoto). Necesitas el development build
+descrito en ["Correr el development build"](#correr-el-development-build-lo-que-usa-el-equipo); con eso instalado
+ya tienes todo lo que hace falta para probarlas, no hay pasos adicionales.
 
 El registro del token es automático: al iniciar sesión, `usePushNotifications` (`src/notifications/`) pide permiso,
 obtiene el token de Expo y lo manda a `POST /api/users/push-token`; al cerrar sesión lo da de baja con `DELETE` del
@@ -178,28 +222,13 @@ src/
 - El mapa usa `react-native-maps` (Apple Maps en iOS, Google Maps en Android). No funciona en web.
 - Nunca subas `.env` a Git; en este repo está ignorado.
 
-## Dejar Expo Go: development build con EAS
+## Publicar en las tiendas (más adelante)
 
-Expo Go no soporta bien las notificaciones push remotas ni algunas cosas del WebSocket en segundo
-plano. El siguiente paso es correr la app en un **development build** propio (sigue teniendo hot
-reload como Expo Go, pero es un APK/IPA instalable con todas las capacidades nativas).
-
-Estos pasos los corres tú (requieren tu cuenta de Expo/EAS, que Claude no puede loguear por ti):
-
-1. Instala las dependencias nuevas: `npx expo install expo-dev-client expo-web-browser`
-2. Instala la CLI si no la tienes: `npm i -g eas-cli`
-3. Inicia sesión: `eas login`
-4. Ya hay un `eas.json` con perfiles `development` / `preview` / `production` en este repo.
-5. Genera el build de desarrollo:
-   - Android: `eas build --profile development --platform android`
-   - iOS: `eas build --profile development --platform ios` (requiere cuenta de Apple Developer)
-6. Instala el APK/IPA resultante en tu celular (EAS te da un link/QR al terminar).
-7. A partir de ahí, en vez de `npx expo start` usa `npx expo start --dev-client` — abre con el
-   ícono de la app instalada, no con Expo Go.
-
-Con esto, las notificaciones push (`src/notifications/`) y el asistente de IA por chat funcionan
-igual que en producción. El perfil `production` (`eas build --profile production`) es el que se usa
-más adelante para subir la app a Play Store / App Store.
+El equipo compila el development build localmente (ver
+["Correr el development build"](#correr-el-development-build-lo-que-usa-el-equipo)), así que normalmente no hace
+falta tocar EAS para nada. El `eas.json` del repo ya trae un perfil `production`
+(`eas build --profile production`) listo para cuando llegue el momento de subir la app a Play Store / App Store —
+eso sí compila en la nube de Expo, pero es un paso aparte que no afecta el día a día de desarrollo.
 
 ## Suscripción de negocios (Wompi)
 
