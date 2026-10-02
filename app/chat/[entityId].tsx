@@ -6,15 +6,17 @@ import {
   ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { chatApi } from '@/api/endpoints';
+import { chatApi, entitiesApi } from '@/api/endpoints';
 import type { ChatMessage } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { useChat } from '@/chat/ChatProvider';
@@ -26,6 +28,8 @@ import { utf8Length } from '@/lib/text';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const LOCAL_PREFIX = 'local-';
+const PHONE_RE = /^[+\d\s()-]{7,}$/;
+const QUICK_REPLIES = ['¿Horario?', '¿Precios?', '¿Hacen envíos?'];
 
 export default function ChatScreen() {
   const { entityId, userId, name, avatar } = useLocalSearchParams<{ entityId: string; userId?: string; name?: string; avatar?: string }>();
@@ -49,6 +53,47 @@ export default function ChatScreen() {
     queryFn: () => chatApi.history(entityId, userId),
     enabled: authStatus === 'signedIn' && Boolean(entityId && customerId),
   });
+
+  // Info del negocio (categoría, horario, teléfono): solo aplica cuando YO soy
+  // el cliente hablando con un negocio, no cuando soy el dueño viendo a un cliente.
+  const business = useQuery({
+    queryKey: ['entity', entityId],
+    queryFn: () => entitiesApi.get(entityId),
+    enabled: !sentByEntity && Boolean(entityId),
+  });
+
+  const todayHours = useMemo(() => {
+    const hours = business.data?.hours;
+    if (!hours || hours.length === 0) return null;
+    const today = hours.find((h) => h.weekday === new Date().getDay());
+    if (!today) return null;
+    if (today.closed) return 'Hoy: cerrado';
+    if (today.is_24h) return 'Hoy: abierto 24 horas';
+    return `Hoy: ${today.open_time} - ${today.close_time}`;
+  }, [business.data?.hours]);
+
+  const contact = business.data?.contact_info?.trim();
+  const hasPhone = Boolean(contact && PHONE_RE.test(contact));
+
+  const sendQuick = (content: string) => {
+    if (!entityId || !customerId || !user || chat.status !== 'open') return;
+    const sent = chat.send({ entity_id: entityId, user_id: customerId, sent_by_entity: sentByEntity, content });
+    if (!sent) return;
+    setLive((prev) => [
+      {
+        id: `${LOCAL_PREFIX}${Date.now()}`,
+        sender_id: user.id,
+        entity_id: entityId,
+        user_id: customerId,
+        sent_by_entity: sentByEntity,
+        content,
+        is_read: false,
+        created_at: new Date().toISOString(),
+      },
+      ...prev,
+    ]);
+    void queryClient.invalidateQueries({ queryKey: ['conversations'] });
+  };
 
   // Cada vez que el socket (re)conecta mientras esta pantalla está abierta,
   // refrescamos el historial: si estuvimos desconectados un momento (p. ej.
@@ -75,6 +120,21 @@ export default function ChatScreen() {
       });
     });
   }, [chat.subscribe, entityId, customerId, user?.id]);
+
+  // Avisos en vivo de "ya te leyeron": el otro lado acaba de abrir esta
+  // conversación, así que todo lo que YO mandé pasa a leído de una, sin
+  // esperar a que se vuelva a pedir el historial.
+  useEffect(() => {
+    return chat.subscribeRead((readEntityId) => {
+      if (readEntityId !== entityId || !user?.id) return;
+      const markRead = (list: ChatMessage[]) =>
+        list.map((m) => (m.sender_id === user.id && !m.is_read ? { ...m, is_read: true } : m));
+      setLive((prev) => markRead(prev));
+      queryClient.setQueryData<ChatMessage[]>(['history', entityId, customerId], (prev) =>
+        prev ? markRead(prev) : prev,
+      );
+    });
+  }, [chat.subscribeRead, entityId, customerId, user?.id, queryClient]);
 
   // Si el eco no llegó, al recargar el historial esos mensajes ya vienen de la base de datos,
   // así que descartamos las copias locales que queden.
@@ -147,7 +207,7 @@ export default function ChatScreen() {
   const connected = chat.status === 'open';
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <Pressable
           accessibilityRole="button"
@@ -165,11 +225,43 @@ export default function ChatScreen() {
           <Text style={styles.title} numberOfLines={1}>
             {name ?? 'Chat'}
           </Text>
-          <Text style={[styles.status, { color: connected ? colors.success : colors.muted }]}>
-            {connected ? 'En línea' : 'Conectando…'}
+          <Text style={[styles.status, { color: connected ? colors.success : colors.muted }]} numberOfLines={1}>
+            {connected ? 'Chat activo' : 'Conectando…'}
+            {business.data?.category.name ? ` · ${business.data.category.name}` : ''}
           </Text>
         </View>
+        {!sentByEntity && hasPhone ? (
+          <View style={styles.headerActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Llamar"
+              hitSlop={8}
+              onPress={() => void Linking.openURL(`tel:${contact!.replace(/[^\d+]/g, '')}`)}
+              style={styles.headerActionBtn}
+            >
+              <Ionicons name="call-outline" size={19} color={colors.primary} />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="WhatsApp"
+              hitSlop={8}
+              onPress={() => void Linking.openURL(`https://wa.me/${contact!.replace(/[^\d]/g, '')}`)}
+              style={styles.headerActionBtn}
+            >
+              <Ionicons name="logo-whatsapp" size={19} color={colors.success} />
+            </Pressable>
+          </View>
+        ) : null}
       </View>
+
+      {!sentByEntity && (todayHours || business.data) ? (
+        <View style={styles.infoBar}>
+          <Ionicons name="time-outline" size={13} color={colors.muted} />
+          <Text style={styles.infoBarText} numberOfLines={1}>
+            {[todayHours, 'Suele responder en 1 hora'].filter(Boolean).join(' · ')}
+          </Text>
+        </View>
+      ) : null}
 
       {authStatus !== 'signedIn' ? (
         <View style={styles.center}>
@@ -179,18 +271,27 @@ export default function ChatScreen() {
       ) : history.isLoading ? (
         <ActivityIndicator style={styles.center} color={colors.primary} />
       ) : (
-        <FlatList
-          inverted
-          data={messages}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.messages}
-          ListEmptyComponent={
-            // En una lista invertida el vacío se ve al revés: lo volteamos.
-            <Text style={[styles.muted, styles.emptyInverted]}>
-              {history.isError ? 'No pudimos cargar el historial.' : 'Escribe el primer mensaje.'}
-            </Text>
-          }
-          renderItem={({ item }) => {
+        <View style={styles.listWrap}>
+          {messages.length === 0 ? (
+            // Texto del estado vacío FUERA del FlatList invertido: antes vivía
+            // como ListEmptyComponent con un scaleY(-1) manual para
+            // "contrarrestar" el flip de `inverted`, pero en la práctica
+            // seguía viéndose al revés (hallazgo de UI confirmado con build
+            // nuevo). Renderizarlo como hermano normal, no invertido, evita
+            // el problema de raíz en vez de intentar contrarrestarlo.
+            <View style={styles.emptyWrap} pointerEvents="none">
+              <Text style={styles.muted}>
+                {history.isError ? 'No pudimos cargar el historial.' : 'Escribe el primer mensaje.'}
+              </Text>
+            </View>
+          ) : null}
+          <FlatList
+            style={styles.messagesList}
+            inverted
+            data={messages}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.messages}
+            renderItem={({ item }) => {
             const mine = item.sender_id === user?.id;
             return (
               <View>
@@ -206,9 +307,15 @@ export default function ChatScreen() {
                       <Text style={[styles.time, mine && styles.timeMine]}>{formatMessageTime(item.created_at)}</Text>
                       {mine ? (
                         <Ionicons
-                          name={item.is_read ? 'checkmark-done' : 'checkmark'}
+                          name={item.id.startsWith(LOCAL_PREFIX) ? 'checkmark' : 'checkmark-done'}
                           size={14}
-                          color="#fff"
+                          color={
+                            item.is_read
+                              ? colors.accent
+                              : item.id.startsWith(LOCAL_PREFIX)
+                                ? 'rgba(255,255,255,0.6)'
+                                : '#fff'
+                          }
                         />
                       ) : null}
                     </View>
@@ -216,11 +323,33 @@ export default function ChatScreen() {
                 </View>
               </View>
             );
-          }}
-        />
+            }}
+          />
+        </View>
       )}
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
+
+      {authStatus === 'signedIn' && !sentByEntity ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.quickRepliesScroll}
+          contentContainerStyle={styles.quickReplies}
+        >
+          {QUICK_REPLIES.map((label) => (
+            <Pressable
+              key={label}
+              accessibilityRole="button"
+              onPress={() => sendQuick(label)}
+              disabled={!connected}
+              style={({ pressed }) => [styles.quickReplyChip, (pressed || !connected) && { opacity: 0.6 }]}
+            >
+              <Text style={styles.quickReplyText}>{label}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
 
       {authStatus === 'signedIn' ? (
         <View style={[styles.composer, { paddingBottom: insets.bottom + spacing.sm }]}>
@@ -277,9 +406,46 @@ const styles = StyleSheet.create({
   headerTitle: { flex: 1 },
   title: { fontSize: 17, fontWeight: '700', fontFamily: fonts.ui.bold, color: colors.ink },
   status: { fontSize: 12, fontFamily: fonts.ui.semibold },
+  headerActions: { flexDirection: 'row', gap: spacing.xs },
+  headerActionBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  infoBarText: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
+  quickRepliesScroll: { flexGrow: 0, flexShrink: 0 },
+  quickReplies: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.sm },
+  quickReplyChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+  },
+  quickReplyText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.primary },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, padding: spacing.xl },
   muted: { color: colors.muted, textAlign: 'center' },
-  emptyInverted: { transform: [{ scaleY: -1 }], marginTop: spacing.xxl },
+  // El FlatList de mensajes debe ocupar todo el espacio disponible entre el
+  // header y los chips/composer; sin esto, con la conversación vacía se
+  // encogía a su contenido y dejaba un hueco que otros elementos (los chips
+  // de mensajes rápidos) terminaban ocupando de forma rara.
+  listWrap: { flex: 1 },
+  messagesList: { flex: 1 },
+  emptyWrap: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   messages: { padding: spacing.md, gap: spacing.sm },
   daySeparator: { alignItems: 'center', marginVertical: spacing.sm },
   daySeparatorText: {

@@ -18,6 +18,7 @@ import {
 import MapView, { Circle, Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { categoriesApi, entitiesApi } from '@/api/endpoints';
+import { useAuth } from '@/auth/AuthContext';
 import type { Category, EntityMap } from '@/api/types';
 import { BusinessRow } from '@/components/BusinessRow';
 import { Button } from '@/components/Button';
@@ -50,6 +51,13 @@ function greetingNow(): string {
 
 // Cuántos negocios mostrar en el carrusel de Destacados.
 const FEATURED_COUNT = 8;
+// Radio dentro del cual "Destacados cerca de ti" considera negocios. Evita
+// mostrar como "cerca" algo que está en otra ciudad (ver hallazgo de UI:
+// Destacados mostraba negocios a 171 km bajo ese título).
+const FEATURED_RADIUS_KM = 15;
+// Alto de la barra de Destacados cuando está minimizada (solo el handle + el
+// encabezado), para que el botón de "mi ubicación" no quede tapado.
+const FEATURED_CARD_MINIMIZED_HEIGHT = 56;
 // Alto aproximado de la tarjeta de Destacados flotando sobre el mapa —
 // se usa para no tapar el botón de "mi ubicación" ni el pin seleccionado.
 const FEATURED_CARD_HEIGHT = 190;
@@ -69,6 +77,8 @@ export default function ExploreScreen() {
   // si falla — el saludo cae de vuelta a "cerca de ti".
   const [neighborhood, setNeighborhood] = useState<string | null>(null);
   const [selected, setSelected] = useState<EntityMap | null>(null);
+  // Minimiza el panel de Destacados a solo su encabezado, para dejar ver más mapa.
+  const [featuredMinimized, setFeaturedMinimized] = useState(false);
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -195,6 +205,17 @@ export default function ExploreScreen() {
   // usar "cerca de mí", aunque el resultado sea que todo quede lejos.
   const reference = userCoords;
 
+  const { status: authStatus } = useAuth();
+  const myEntities = useQuery({
+    queryKey: ['my-entities'],
+    queryFn: entitiesApi.mine,
+    enabled: authStatus === 'signedIn',
+    staleTime: 60_000,
+  });
+  // Set de ids de mis propios negocios, para diferenciar su pin en el mapa
+  // (hallazgo de UI: el pin del propio negocio se ve igual que cualquier otro).
+  const myEntityIds = useMemo(() => new Set((myEntities.data ?? []).map((e) => e.id)), [myEntities.data]);
+
   const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 5 * 60_000 });
   const entities = useQuery({
     queryKey: [
@@ -239,18 +260,34 @@ export default function ExploreScreen() {
   const mapped = useMemo(() => items.filter(hasLocation), [items]);
   const clusters = useMemo(() => clusterItems(mapped, region), [mapped, region]);
 
-  // Destacados: los mejor calificados primero; si todavía nadie tiene
-  // reseñas (una ciudad/categoría recién empezando), mostramos los más
-  // cercanos en su lugar — `items` ya viene ordenado por distancia.
+  // Destacados: los mejor calificados primero dentro de FEATURED_RADIUS_KM; si
+  // todavía nadie tiene reseñas (una ciudad/categoría recién empezando),
+  // mostramos los más cercanos en su lugar — `items` ya viene ordenado por
+  // distancia. Sin ubicación del usuario no hay cómo saber qué es "cerca",
+  // así que en ese caso no acotamos por radio.
+  const nearby = useMemo(() => {
+    if (!reference) return items;
+    return items.filter((entity) => entity.distanceKm !== null && entity.distanceKm <= FEATURED_RADIUS_KM);
+  }, [items, reference]);
   const featured = useMemo(() => {
-    if (items.length === 0) return [];
-    const rated = items
+    if (nearby.length === 0) return [];
+    const rated = nearby
       .filter((entity) => entity.review_count > 0)
       .sort((a, b) => b.avg_rating - a.avg_rating || b.review_count - a.review_count);
-    return (rated.length > 0 ? rated : items).slice(0, FEATURED_COUNT);
-  }, [items]);
+    return (rated.length > 0 ? rated : nearby).slice(0, FEATURED_COUNT);
+  }, [nearby]);
+  // Hay negocios en general, pero ninguno a menos de FEATURED_RADIUS_KM: así
+  // distinguimos "todavía no hay nada" de "no hay nada cerca" para el estado vacío.
+  const featuredNearbyEmpty = featured.length === 0 && items.length > 0 && Boolean(reference);
 
   const openBusiness = (id: string) => router.push({ pathname: '/business/[id]', params: { id } });
+
+  const clearAllFilters = () => {
+    setCategoryId(undefined);
+    setSubcategoryId(undefined);
+    setRadiusKm(null);
+    setOpenNow(false);
+  };
 
   const openFilters = () => {
     if (!reference && !locating) void requestLocation();
@@ -292,17 +329,32 @@ export default function ExploreScreen() {
               </Pressable>
             ) : null}
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={mode === 'map' ? 'Ver como lista' : 'Ver en el mapa'}
-            onPress={() => {
-              setSelected(null);
-              setMode(mode === 'map' ? 'list' : 'map');
-            }}
-            style={styles.toggle}
-          >
-            <Ionicons name={mode === 'map' ? 'list' : 'map'} size={20} color={colors.ink} />
-          </Pressable>
+          <View style={styles.modeToggle}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: mode === 'map' }}
+              accessibilityLabel="Ver en el mapa"
+              onPress={() => {
+                setSelected(null);
+                setMode('map');
+              }}
+              style={[styles.modeToggleBtn, mode === 'map' && styles.modeToggleBtnActive]}
+            >
+              <Ionicons name="map" size={18} color={mode === 'map' ? '#fff' : colors.muted} />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: mode === 'list' }}
+              accessibilityLabel="Ver como lista"
+              onPress={() => {
+                setSelected(null);
+                setMode('list');
+              }}
+              style={[styles.modeToggleBtn, mode === 'list' && styles.modeToggleBtnActive]}
+            >
+              <Ionicons name="list" size={18} color={mode === 'list' ? '#fff' : colors.muted} />
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.filterRow}>
@@ -349,6 +401,9 @@ export default function ExploreScreen() {
               ) : null}
               {radiusLabel ? <ActiveChip icon="navigate" label={radiusLabel} onRemove={() => setRadiusKm(null)} /> : null}
               {openNow ? <ActiveChip icon="time-outline" label="Abiertos ahora" onRemove={() => setOpenNow(false)} /> : null}
+              <Pressable accessibilityRole="button" accessibilityLabel="Limpiar todos los filtros" onPress={clearAllFilters} style={styles.clearChip}>
+                <Text style={styles.clearChipText}>Limpiar</Text>
+              </Pressable>
             </View>
           ) : null}
 
@@ -380,6 +435,12 @@ export default function ExploreScreen() {
           })}
           </ScrollView>
         </View>
+
+        {!entities.isLoading ? (
+          <Text style={styles.resultsCount}>
+            {items.length} {items.length === 1 ? 'negocio' : 'negocios'}
+          </Text>
+        ) : null}
       </View>
 
       {/* Zona de contenido: mapa (con esquinas redondeadas arriba, como el
@@ -394,6 +455,11 @@ export default function ExploreScreen() {
               initialRegion={DEFAULT_REGION}
               showsUserLocation
               showsMyLocationButton={false}
+              // Oculta las etiquetas de lugares del mapa base de Google (cementerios,
+              // parques, centros comerciales, etc.) que no tienen nada que ver con
+              // los negocios de Empre y solo generan ruido visual (hallazgo de UI:
+              // "el mapa conserva etiquetas ajenas al filtro").
+              showsPointsOfInterests={false}
               onMapReady={() => setMapReady(true)}
               onRegionChangeComplete={setRegion}
               onPress={() => setSelected(null)}
@@ -412,6 +478,7 @@ export default function ExploreScreen() {
                 const coordinate = { latitude: cluster.latitude, longitude: cluster.longitude };
 
                 if (cluster.items.length === 1 && only) {
+                  const isMine = myEntityIds.has(only.id);
                   return (
                     <Marker
                       key={cluster.key}
@@ -421,18 +488,26 @@ export default function ExploreScreen() {
                         setSelected(only);
                       }}
                     >
-                      <View
-                        style={[
-                          styles.pin,
-                          { backgroundColor: categoryColor(only.category_id).fg },
-                          only.is_verified && styles.pinVerified,
-                        ]}
-                      >
-                        <Ionicons
-                          name={(only.category_icon || 'storefront') as keyof typeof Ionicons.glyphMap}
-                          size={16}
-                          color="#fff"
-                        />
+                      <View style={styles.pinWrap}>
+                        {isMine ? (
+                          <View style={styles.pinOwnerLabel}>
+                            <Text style={styles.pinOwnerLabelText}>Tu negocio</Text>
+                          </View>
+                        ) : null}
+                        <View
+                          style={[
+                            styles.pin,
+                            { backgroundColor: categoryColor(only.category_id).fg },
+                            only.is_verified && styles.pinVerified,
+                            isMine && styles.pinOwner,
+                          ]}
+                        >
+                          <Ionicons
+                            name={(only.category_icon || 'storefront') as keyof typeof Ionicons.glyphMap}
+                            size={16}
+                            color="#fff"
+                          />
+                        </View>
                       </View>
                     </Marker>
                   );
@@ -477,7 +552,17 @@ export default function ExploreScreen() {
                       void requestLocation();
                     }
                   }}
-                  style={[styles.locateButton, { bottom: (featured.length > 0 ? FEATURED_CARD_HEIGHT : spacing.lg) + insets.bottom }]}
+                  style={[
+                    styles.locateButton,
+                    {
+                      bottom:
+                        (featured.length > 0 || featuredNearbyEmpty
+                          ? featuredMinimized
+                            ? FEATURED_CARD_MINIMIZED_HEIGHT
+                            : FEATURED_CARD_HEIGHT
+                          : spacing.lg) + insets.bottom,
+                    },
+                  ]}
                 >
                   {locating ? (
                     <ActivityIndicator size="small" color={colors.primary} />
@@ -486,20 +571,81 @@ export default function ExploreScreen() {
                   )}
                 </Pressable>
 
-                {featured.length > 0 ? (
-                  <View style={[styles.featuredCard, { paddingBottom: insets.bottom + spacing.sm }]}>
-                    <View style={styles.featuredHandle} />
+                {featured.length > 0 || featuredNearbyEmpty ? (
+                  <View
+                    style={[
+                      styles.featuredCard,
+                      { paddingBottom: featuredMinimized ? spacing.xs : insets.bottom + spacing.sm },
+                    ]}
+                  >
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={featuredMinimized ? 'Expandir Destacados' : 'Minimizar Destacados'}
+                      onPress={() => setFeaturedMinimized((v) => !v)}
+                      style={styles.featuredHandleWrap}
+                      hitSlop={8}
+                    >
+                      <View style={styles.featuredHandle} />
+                    </Pressable>
                     <View style={styles.featuredHeader}>
-                      <Text style={styles.featuredTitle}>Destacados cerca de ti</Text>
-                      <Pressable accessibilityRole="button" onPress={() => setMode('list')} hitSlop={8}>
-                        <Text style={styles.featuredSeeAll}>Ver todos</Text>
-                      </Pressable>
+                      <Text style={styles.featuredTitle} numberOfLines={1}>
+                        {selectedCategory ? `Destacados en ${selectedCategory.name}` : 'Destacados cerca de ti'}
+                      </Text>
+                      <View style={styles.featuredHeaderActions}>
+                        {!featuredMinimized ? (
+                          <Pressable accessibilityRole="button" onPress={() => setMode('list')} hitSlop={8}>
+                            <Text style={styles.featuredSeeAll}>Ver todos</Text>
+                          </Pressable>
+                        ) : null}
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={featuredMinimized ? 'Expandir Destacados' : 'Minimizar Destacados'}
+                          onPress={() => setFeaturedMinimized((v) => !v)}
+                          hitSlop={8}
+                        >
+                          <Ionicons
+                            name={featuredMinimized ? 'chevron-up' : 'chevron-down'}
+                            size={18}
+                            color={colors.muted}
+                          />
+                        </Pressable>
+                      </View>
                     </View>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.featuredList}>
-                      {featured.map((entity) => (
-                        <FeaturedCard key={entity.id} entity={entity} onPress={() => openBusiness(entity.id)} />
-                      ))}
-                    </ScrollView>
+
+                    {!featuredMinimized && featured.length > 0 ? (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.featuredList}>
+                        {featured.map((entity) => (
+                          <FeaturedCard
+                            key={entity.id}
+                            entity={entity}
+                            onPress={() => {
+                              setSelected(entity);
+                              if (hasLocation(entity)) {
+                                mapRef.current?.animateToRegion(
+                                  { latitude: entity.latitude, longitude: entity.longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 },
+                                  400,
+                                );
+                              }
+                            }}
+                          />
+                        ))}
+                      </ScrollView>
+                    ) : !featuredMinimized && featuredNearbyEmpty ? (
+                      <View style={styles.featuredEmpty}>
+                        <Ionicons name="search" size={22} color={colors.muted} />
+                        <Text style={styles.featuredEmptyTitle}>Aún no hay negocios a {FEATURED_RADIUS_KM} km</Text>
+                        <Text style={styles.featuredEmptyText}>Prueba con un radio más amplio o registra el primero.</Text>
+                        <View style={styles.featuredEmptyActions}>
+                          <Button title="Ver todos" onPress={() => setMode('list')} style={styles.featuredEmptyButton} />
+                          <Button
+                            title="Registrar negocio"
+                            variant="secondary"
+                            onPress={() => router.push('/business/new')}
+                            style={styles.featuredEmptyButton}
+                          />
+                        </View>
+                      </View>
+                    ) : null}
                   </View>
                 ) : null}
               </>
@@ -594,12 +740,7 @@ export default function ExploreScreen() {
         onRetryLocation={requestLocation}
         openNow={openNow}
         onToggleOpenNow={setOpenNow}
-        onClear={() => {
-          setCategoryId(undefined);
-          setSubcategoryId(undefined);
-          setRadiusKm(null);
-          setOpenNow(false);
-        }}
+        onClear={clearAllFilters}
         onClose={() => setFiltersOpen(false)}
       />
     </View>
@@ -633,6 +774,43 @@ function FeaturedCard({ entity, onPress }: { entity: WithDistance; onPress: () =
   const src = resolveImageUrl(entity.profile_url);
   const distance = formatFeaturedDistance(entity.distanceKm);
   const hasRating = entity.review_count > 0;
+  const hasPhoto = !!src;
+  const statusLabel = entity.has_hours ? (entity.is_open_now ? 'Abierto' : 'Cerrado') : null;
+
+  // Sin foto: tarjeta compacta con ícono de categoría en vez de una miniatura vacía.
+  if (!hasPhoto) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Ver perfil de ${entity.name}`}
+        onPress={onPress}
+        style={({ pressed }) => [styles.featuredItemCompact, pressed && { opacity: 0.85 }]}
+      >
+        <View style={styles.featuredCompactIconWrap}>
+          <Ionicons
+            name={(entity.category_icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap}
+            size={22}
+            color={colors.primary}
+          />
+        </View>
+        <View style={styles.featuredCompactInfo}>
+          <Text style={styles.featuredName} numberOfLines={1}>
+            {entity.name}
+          </Text>
+          <Text style={styles.featuredDistance} numberOfLines={1}>
+            {distance ?? entity.category_name}
+          </Text>
+          {hasRating ? (
+            <View style={styles.featuredRating}>
+              <Ionicons name="star" size={11} color={colors.accent} />
+              <Text style={styles.featuredRatingText}>{entity.avg_rating.toFixed(1)}</Text>
+            </View>
+          ) : null}
+        </View>
+      </Pressable>
+    );
+  }
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -640,17 +818,14 @@ function FeaturedCard({ entity, onPress }: { entity: WithDistance; onPress: () =
       onPress={onPress}
       style={({ pressed }) => [styles.featuredItem, pressed && { opacity: 0.85 }]}
     >
-      {src ? (
+      <View>
         <Image source={{ uri: src }} style={styles.featuredImage} contentFit="cover" transition={150} />
-      ) : (
-        <View style={[styles.featuredImage, styles.featuredImageFallback]}>
-          <Ionicons
-            name={(entity.category_icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap}
-            size={26}
-            color={colors.primary}
-          />
-        </View>
-      )}
+        {statusLabel ? (
+          <View style={[styles.featuredStatusBadge, entity.is_open_now ? styles.featuredStatusOpen : styles.featuredStatusClosed]}>
+            <Text style={styles.featuredStatusText}>{statusLabel}</Text>
+          </View>
+        ) : null}
+      </View>
       <View style={styles.featuredInfo}>
         <Text style={styles.featuredName} numberOfLines={1}>
           {entity.name}
@@ -671,7 +846,9 @@ function FeaturedCard({ entity, onPress }: { entity: WithDistance; onPress: () =
 
 function formatFeaturedDistance(km: number | null): string | null {
   if (km === null) return null;
-  return km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
+  if (km < 1) return `${Math.round(km * 1000)} m`;
+  if (km < 10) return `${km.toFixed(1)} km`;
+  return `${Math.round(km)} km`;
 }
 
 function FiltersModal({
@@ -926,6 +1103,13 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink, height: '100%' },
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  resultsCount: {
+    fontSize: 12.5,
+    fontFamily: fonts.ui.medium,
+    color: colors.muted,
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.xs,
+  },
   filterScroll: { flex: 1 },
   filterScrollRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingRight: spacing.md },
   filtersButton: {
@@ -953,7 +1137,9 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 14, fontWeight: '600', fontFamily: fonts.ui.semibold, color: colors.ink },
   chipTextActive: { color: '#fff' },
-  activeChips: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexShrink: 1 },
+  activeChips: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  clearChip: { paddingHorizontal: spacing.xs, paddingVertical: 6 },
+  clearChipText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.primary },
   activeChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -976,6 +1162,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...shadow,
   },
+  modeToggle: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 2,
+    ...shadow,
+  },
+  modeToggleBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  modeToggleBtnActive: { backgroundColor: colors.primary },
+  pinWrap: { alignItems: 'center' },
+  pinOwnerLabel: {
+    backgroundColor: colors.accent,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radius.sm,
+    marginBottom: 3,
+  },
+  pinOwnerLabelText: { fontSize: 10, fontFamily: fonts.ui.bold, color: '#fff' },
   pin: {
     width: 34,
     height: 34,
@@ -987,6 +1191,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pinVerified: { backgroundColor: colors.verified },
+  pinOwner: { borderColor: colors.accent, borderWidth: 3 },
   cluster: {
     minWidth: 40,
     height: 40,
@@ -1055,19 +1260,50 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.lg,
     ...shadow,
   },
-  featuredHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.line, alignSelf: 'center' },
+  featuredHandleWrap: { paddingVertical: 6, alignSelf: 'stretch', alignItems: 'center' },
+  featuredHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.line },
+  featuredHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  featuredEmpty: { alignItems: 'center', gap: 6, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  featuredEmptyTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
+  featuredEmptyText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
+  featuredEmptyActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs, width: '100%' },
+  featuredEmptyButton: { flex: 1, paddingHorizontal: spacing.sm },
   featuredHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
   },
-  featuredTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink },
+  featuredTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink, flexShrink: 1, marginRight: spacing.sm },
   featuredSeeAll: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.primary },
   featuredList: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.md },
   featuredItem: { width: 144, borderRadius: radius.md, overflow: 'hidden', backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line },
   featuredImage: { width: '100%', height: 88, backgroundColor: colors.primarySoft },
   featuredImageFallback: { alignItems: 'center', justifyContent: 'center' },
+  featuredStatusBadge: { position: 'absolute', top: 6, left: 6, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.sm },
+  featuredStatusOpen: { backgroundColor: 'rgba(22, 163, 74, 0.92)' },
+  featuredStatusClosed: { backgroundColor: 'rgba(107, 114, 128, 0.92)' },
+  featuredStatusText: { fontSize: 10, fontFamily: fonts.ui.bold, color: '#fff' },
+  featuredItemCompact: {
+    width: 144,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  featuredCompactIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  featuredCompactInfo: { flex: 1, gap: 2 },
   featuredInfo: { padding: spacing.sm, gap: 4 },
   featuredName: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink },
   featuredMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

@@ -36,7 +36,7 @@ export default function ProfileScreen() {
   if (status !== 'signedIn' || !user) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <SignInPrompt title="Tu perfil" message="Inicia sesión para ver tu cuenta y administrar tus negocios." />
+        <SignInPrompt title="Tu perfil" message="Inicia sesión para ver tu cuenta y administrar tus negocios." variant="profile" />
       </View>
     );
   }

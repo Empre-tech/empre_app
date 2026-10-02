@@ -2,12 +2,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import * as Location from 'expo-location';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   KeyboardAvoidingView,
   Modal,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
   Platform,
   Pressable,
   ScrollView,
@@ -17,6 +21,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { categoriesApi, entitiesApi } from '@/api/endpoints';
 import type {
@@ -119,6 +124,39 @@ export function BusinessForm({ initial, draft }: Props) {
   const [subPickerOpen, setSubPickerOpen] = useState(false);
   const [address, setAddress] = useState(initial?.address ?? '');
   const [city, setCity] = useState(initial?.city ?? 'Cartagena');
+  // Evita que la auto-detección por GPS (más abajo) pise una ciudad que el
+  // dueño ya eligió a mano o que vino de ubicar el pin en el mapa.
+  const manualCityRef = useRef(Boolean(initial?.city));
+
+  // Negocio nuevo sin ciudad definida todavía: al abrir el formulario,
+  // intenta ubicar al dueño por GPS y preseleccionar la ciudad más cercana
+  // de la lista, en vez de arrancar siempre fijo en "Cartagena".
+  useEffect(() => {
+    if (initial) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const permission = await Location.requestForegroundPermissionsAsync();
+        if (cancelled || permission.status !== 'granted' || manualCityRef.current) return;
+        const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+        if (cancelled || manualCityRef.current) return;
+        const results = await Location.reverseGeocodeAsync({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+        const resolvedCity = results[0]?.city;
+        if (cancelled || !resolvedCity || manualCityRef.current) return;
+        const match = COLOMBIAN_CITIES.find((c) => c.toLowerCase() === resolvedCity.trim().toLowerCase());
+        if (match) setCity(match);
+      } catch {
+        // Sin permiso, sin GPS o sin conexión: se queda en el valor por defecto.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [contact, setContact] = useState(initial?.contact_info ?? '');
   const [coords, setCoords] = useState<Coords | null>(
     initial && hasLocation(initial) ? { latitude: initial.latitude, longitude: initial.longitude } : null,
@@ -133,6 +171,9 @@ export function BusinessForm({ initial, draft }: Props) {
   // con horarios distintos por día, o un horario con excepciones que ya armó
   // la IA), mostramos la lista completa.
   const [sameAllDays, setSameAllDays] = useState(() => allDaysEqual(defaultHours(initial?.hours ?? draft?.hours)));
+  // Selector de hora (en vez de texto libre): qué campo de qué control de
+  // horario está esperando que el dueño elija una hora de la lista.
+  const [timePicker, setTimePicker] = useState<{ value: string; onPick: (time: string) => void } | null>(null);
 
   const updateHour = (weekday: number, patch: Partial<BusinessHour>) => {
     setHours((prev) => prev.map((h) => (h.weekday === weekday ? { ...h, ...patch } : h)));
@@ -315,9 +356,19 @@ export function BusinessForm({ initial, draft }: Props) {
   // Cuando se confirma una ubicación (búsqueda, toque en el mapa o "Usar mi
   // ubicación actual"), autocompletamos la Dirección con lo que se pudo
   // resolver automáticamente (reverse geocoding), sin bloquear si falla.
-  const onLocationConfirmed = (point: Coords, resolvedAddress: string | null) => {
+  // También derivamos la Ciudad del mismo resultado: antes quedaba fija en el
+  // valor por defecto ("Cartagena") aunque el pin estuviera en otra ciudad
+  // (hallazgo de UI: dirección y pin en Santa Marta, pero Ciudad en Cartagena).
+  const onLocationConfirmed = (point: Coords, resolvedAddress: string | null, resolvedCity: string | null) => {
     setCoords(point);
     if (resolvedAddress) setAddress(resolvedAddress);
+    if (resolvedCity) {
+      const match = COLOMBIAN_CITIES.find((c) => c.toLowerCase() === resolvedCity.trim().toLowerCase());
+      if (match) {
+        setCity(match);
+        manualCityRef.current = true;
+      }
+    }
     setPickerOpen(false);
   };
 
@@ -429,25 +480,21 @@ export function BusinessForm({ initial, draft }: Props) {
       </View>
       {!h.closed && !h.is_24h ? (
         <View style={styles.hourTimes}>
-          <TextInput
-            value={h.open_time}
-            onChangeText={(v) => onChange({ open_time: v })}
-            placeholder="08:00"
-            placeholderTextColor={colors.muted}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setTimePicker({ value: h.open_time || '08:00', onPick: (time) => onChange({ open_time: time }) })}
             style={styles.hourTimeInput}
-            keyboardType="numbers-and-punctuation"
-            maxLength={5}
-          />
+          >
+            <Text style={styles.hourTimeInputText}>{h.open_time || '08:00'}</Text>
+          </Pressable>
           <Text style={styles.muted}>a</Text>
-          <TextInput
-            value={h.close_time}
-            onChangeText={(v) => onChange({ close_time: v })}
-            placeholder="18:00"
-            placeholderTextColor={colors.muted}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setTimePicker({ value: h.close_time || '18:00', onPick: (time) => onChange({ close_time: time }) })}
             style={styles.hourTimeInput}
-            keyboardType="numbers-and-punctuation"
-            maxLength={5}
-          />
+          >
+            <Text style={styles.hourTimeInputText}>{h.close_time || '18:00'}</Text>
+          </Pressable>
         </View>
       ) : null}
     </>
@@ -496,11 +543,23 @@ export function BusinessForm({ initial, draft }: Props) {
   const locationField = (
     <View style={styles.field}>
       <Text style={styles.label}>Ubicación en el mapa</Text>
-      <Text style={styles.muted}>
-        {coords
-          ? `Pin colocado (${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)})`
-          : 'Sin ubicación: el negocio solo aparecerá en la lista, no en el mapa.'}
-      </Text>
+      {coords ? (
+        <View style={styles.locationPreviewMap}>
+          <MapView
+            style={styles.locationPreviewMapInner}
+            pointerEvents="none"
+            scrollEnabled={false}
+            zoomEnabled={false}
+            rotateEnabled={false}
+            pitchEnabled={false}
+            region={{ ...coords, latitudeDelta: 0.01, longitudeDelta: 0.01 }}
+          >
+            <Marker coordinate={coords} />
+          </MapView>
+        </View>
+      ) : (
+        <Text style={styles.muted}>Sin ubicación: el negocio solo aparecerá en la lista, no en el mapa.</Text>
+      )}
       <Button title={coords ? 'Cambiar ubicación' : 'Elegir en el mapa'} variant="secondary" onPress={() => setPickerOpen(true)} />
     </View>
   );
@@ -512,6 +571,16 @@ export function BusinessForm({ initial, draft }: Props) {
         initial={coords}
         onCancel={() => setPickerOpen(false)}
         onConfirm={onLocationConfirmed}
+      />
+
+      <TimePickerModal
+        visible={!!timePicker}
+        initial={timePicker?.value ?? '08:00'}
+        onClose={() => setTimePicker(null)}
+        onPick={(time) => {
+          timePicker?.onPick(time);
+          setTimePicker(null);
+        }}
       />
 
       <CategoryPickerModal
@@ -538,6 +607,7 @@ export function BusinessForm({ initial, draft }: Props) {
         selected={city}
         onSelect={(value) => {
           setCity(value);
+          manualCityRef.current = true;
           setCityPickerOpen(false);
         }}
         onClose={() => setCityPickerOpen(false)}
@@ -614,7 +684,7 @@ export function BusinessForm({ initial, draft }: Props) {
           <TextField label="Dirección" value={address} onChangeText={setAddress} autoCapitalize="words" placeholder="Calle, barrio o referencia" />
           {cityField}
           <TextField
-            label="Contacto (teléfono, WhatsApp, redes)"
+            label="Teléfono de contacto"
             value={contact}
             onChangeText={setContact}
             placeholder="300 123 4567"
@@ -740,7 +810,7 @@ export function BusinessForm({ initial, draft }: Props) {
             <TextField label="Dirección" value={address} onChangeText={setAddress} autoCapitalize="words" placeholder="Calle, barrio o referencia" />
             {cityField}
             <TextField
-              label="Contacto (teléfono, WhatsApp, redes)"
+              label="Teléfono de contacto"
               value={contact}
               onChangeText={setContact}
               placeholder="300 123 4567"
@@ -790,6 +860,116 @@ export function BusinessForm({ initial, draft }: Props) {
 
       {modals}
     </KeyboardAvoidingView>
+  );
+}
+
+const WHEEL_ITEM_HEIGHT = 44;
+const WHEEL_VISIBLE_COUNT = 5;
+const WHEEL_HEIGHT = WHEEL_ITEM_HEIGHT * WHEEL_VISIBLE_COUNT;
+// Relleno arriba/abajo para que el primer y último valor también puedan
+// llegar al centro de la rueda (donde está la selección).
+const WHEEL_PADDING = WHEEL_ITEM_HEIGHT * Math.floor(WHEEL_VISIBLE_COUNT / 2);
+
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+const MINUTES = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
+
+/** Una rueda deslizable (como la de un reloj despertador) para elegir un
+ * valor de una lista corta: se desliza y el valor se "engancha" al llegar
+ * al centro, resaltado entre dos líneas guía. */
+function Wheel({ data, value, onChange }: { data: string[]; value: string; onChange: (v: string) => void }) {
+  const listRef = useRef<FlatList<string>>(null);
+  const index = Math.max(0, data.indexOf(value));
+
+  const snapToIndex = (i: number) => {
+    const clamped = Math.max(0, Math.min(data.length - 1, i));
+    const picked = data[clamped];
+    if (picked !== undefined && picked !== value) onChange(picked);
+  };
+
+  const onMomentumEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    snapToIndex(Math.round(event.nativeEvent.contentOffset.y / WHEEL_ITEM_HEIGHT));
+  };
+
+  return (
+    <View style={styles.wheel}>
+      <View pointerEvents="none" style={styles.wheelHighlight} />
+      <FlatList
+        ref={listRef}
+        data={data}
+        keyExtractor={(item) => item}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={WHEEL_ITEM_HEIGHT}
+        decelerationRate="fast"
+        getItemLayout={(_, i) => ({ length: WHEEL_ITEM_HEIGHT, offset: WHEEL_ITEM_HEIGHT * i, index: i })}
+        initialScrollIndex={index}
+        contentContainerStyle={{ paddingVertical: WHEEL_PADDING }}
+        onMomentumScrollEnd={onMomentumEnd}
+        renderItem={({ item }) => (
+          <Pressable
+            style={styles.wheelItem}
+            accessibilityRole="button"
+            onPress={() => {
+              const i = data.indexOf(item);
+              listRef.current?.scrollToIndex({ index: i, animated: true });
+              snapToIndex(i);
+            }}
+          >
+            <Text style={[styles.wheelItemText, item === value && styles.wheelItemTextActive]}>{item}</Text>
+          </Pressable>
+        )}
+      />
+    </View>
+  );
+}
+
+/** Selector de hora tipo "rueda" (como un reloj despertador), en vez de
+ * texto libre: evita horas inválidas como "25:99" que antes se podían
+ * escribir a mano, y es más rápido de usar que una lista larga. */
+function TimePickerModal({
+  visible,
+  initial,
+  onClose,
+  onPick,
+}: {
+  visible: boolean;
+  initial: string;
+  onClose: () => void;
+  onPick: (time: string) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [hh, mm] = initial.split(':');
+  const [hour, setHour] = useState(hh || '08');
+  const [minute, setMinute] = useState(mm || '00');
+  // Cambia en cada apertura (onShow) para forzar que las ruedas se vuelvan a
+  // montar con la posición de scroll correcta; si no, al reabrir con un
+  // valor distinto (p. ej. pasar de "Apertura" a "Cierre") se quedaban
+  // mostrando la posición de la vez anterior.
+  const [openId, setOpenId] = useState(0);
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+      onShow={() => {
+        const [h, m] = initial.split(':');
+        setHour(h || '08');
+        setMinute(m || '00');
+        setOpenId((id) => id + 1);
+      }}
+    >
+      <Pressable style={styles.modalBackdrop} onPress={onClose} />
+      <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
+        <Text style={styles.modalTitle}>Elige una hora</Text>
+        <View style={styles.wheelRow}>
+          <Wheel key={`h-${openId}`} data={HOURS} value={hour} onChange={setHour} />
+          <Text style={styles.wheelColon}>:</Text>
+          <Wheel key={`m-${openId}`} data={MINUTES} value={minute} onChange={setMinute} />
+        </View>
+        <Button title="Confirmar" onPress={() => onPick(`${hour}:${minute}`)} />
+      </View>
+    </Modal>
   );
 }
 
@@ -959,6 +1139,14 @@ function PhotoSlot({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
+  locationPreviewMap: {
+    height: 120,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  locationPreviewMapInner: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1109,12 +1297,11 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     borderRadius: radius.md,
     paddingHorizontal: spacing.sm,
-    fontSize: 15,
-    fontFamily: fonts.ui.medium,
-    color: colors.ink,
     backgroundColor: colors.bg,
-    textAlign: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  hourTimeInputText: { fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink },
   navRow: { flexDirection: 'row', gap: spacing.sm },
   navButton: { flex: 1 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
@@ -1128,6 +1315,29 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: 17, fontFamily: fonts.display.semibold, color: colors.ink },
   modalList: { marginVertical: spacing.sm },
+  wheelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginVertical: spacing.md,
+  },
+  wheel: { width: 88, height: WHEEL_HEIGHT },
+  wheelHighlight: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: WHEEL_PADDING,
+    height: WHEEL_ITEM_HEIGHT,
+    borderRadius: radius.md,
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  wheelItem: { height: WHEEL_ITEM_HEIGHT, alignItems: 'center', justifyContent: 'center' },
+  wheelItemText: { fontSize: 18, fontFamily: fonts.ui.medium, color: colors.muted },
+  wheelItemTextActive: { fontSize: 22, fontFamily: fonts.ui.bold, color: colors.primary },
+  wheelColon: { fontSize: 22, fontFamily: fonts.ui.bold, color: colors.ink },
   modalOption: {
     flexDirection: 'row',
     alignItems: 'center',

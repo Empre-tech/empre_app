@@ -22,6 +22,8 @@ import { colors, fonts, radius, spacing } from '@/theme';
 const GREETING =
   '¡Hola! Cuéntame de tu negocio con tus palabras — qué vendes, a quién, y lo que se te ocurra — y entre los dos armamos el perfil. ¿Empezamos?';
 
+const STARTER_SUGGESTIONS = ['Tengo una tienda de ropa', 'Vendo comida casera', 'Ofrezco un servicio a domicilio'];
+
 type DisplayMessage = AIChatMessage & { id: string };
 
 function mergeDraft(prev: BusinessDraft, incoming: AIBusinessDraft): BusinessDraft {
@@ -79,8 +81,8 @@ export default function AIBusinessAssistantScreen() {
     ...conversation.map((m, i) => ({ ...m, id: `m-${i}` })),
   ];
 
-  const send = async () => {
-    const content = input.trim();
+  const send = async (override?: string) => {
+    const content = (override ?? input).trim();
     if (!content || sending) return;
 
     const next = [...conversation, { role: 'user' as const, content }];
@@ -112,7 +114,7 @@ export default function AIBusinessAssistantScreen() {
   const canReview = hasAnyDraftInfo(draft);
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <Pressable
           accessibilityRole="button"
@@ -182,6 +184,24 @@ export default function AIBusinessAssistantScreen() {
             </View>
           ) : null
         }
+        // Lista invertida: el "footer" visualmente queda debajo del saludo,
+        // justo donde tiene sentido ofrecer por dónde empezar a escribir.
+        ListFooterComponent={
+          conversation.length === 0 && !sending ? (
+            <View style={styles.startersWrap}>
+              {STARTER_SUGGESTIONS.map((suggestion) => (
+                <Pressable
+                  key={suggestion}
+                  accessibilityRole="button"
+                  onPress={() => void send(suggestion)}
+                  style={({ pressed }) => [styles.starterChip, pressed && { opacity: 0.8 }]}
+                >
+                  <Text style={styles.starterChipText}>{suggestion}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null
+        }
       />
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -248,6 +268,16 @@ const styles = StyleSheet.create({
   title: { fontSize: 17, fontWeight: '700', fontFamily: fonts.ui.bold, color: colors.ink },
   subtitle: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
   messages: { padding: spacing.md, gap: spacing.sm },
+  startersWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingHorizontal: spacing.sm, paddingTop: spacing.sm },
+  starterChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    backgroundColor: '#fff',
+  },
+  starterChipText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.accent },
   bubbleRow: { flexDirection: 'row' },
   bubbleRowMine: { justifyContent: 'flex-end' },
   bubbleRowTheirs: { justifyContent: 'flex-start' },

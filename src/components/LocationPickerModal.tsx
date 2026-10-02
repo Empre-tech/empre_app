@@ -14,17 +14,40 @@ interface Props {
   /** Ubicación actual del negocio (si ya tiene una). */
   initial: Coords | null;
   onCancel: () => void;
-  /** `address` es la dirección resuelta automáticamente (reverse geocoding) para el punto elegido, si se pudo obtener. */
-  onConfirm: (coords: Coords, address: string | null) => void;
+  /** `address` es la dirección resuelta automáticamente (reverse geocoding) para el punto elegido, si se pudo obtener.
+   * `city` es la ciudad que arrojó ese mismo reverse geocoding (puede no calzar con ninguna opción del selector de
+   * ciudad, es solo una sugerencia best-effort). */
+  onConfirm: (coords: Coords, address: string | null, city: string | null) => void;
 }
 
-/** Arma un texto corto y legible a partir de un resultado de reverseGeocodeAsync. */
+/** Arma un texto corto y legible a partir de un resultado de reverseGeocodeAsync.
+ * En zonas como Cartagena, el geocoder suele devolver el mismo nombre (p. ej.
+ * "Cartagena de Indias") tanto en `district`/`subregion` como en `city`, lo
+ * que duplicaba el texto final ("...Cartagena de Indias, Cartagena de
+ * Indias"); por eso se quitan duplicados (sin distinguir mayúsculas/acentos)
+ * antes de unir las partes. */
 function formatAddress(place: Location.LocationGeocodedAddress): string {
-  const parts = [
+  const normalize = (s: string) =>
+    s
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '');
+
+  const rawParts = [
     [place.street, place.streetNumber].filter(Boolean).join(' '),
     place.district || place.subregion,
     place.city,
   ].filter((p): p is string => Boolean(p && p.trim()));
+
+  const seen = new Set<string>();
+  const parts = rawParts.filter((p) => {
+    const key = normalize(p);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
   return parts.length > 0 ? parts.join(', ') : 'Ubicación seleccionada';
 }
 
@@ -38,6 +61,7 @@ export function LocationPickerModal({ visible, initial, onCancel, onConfirm }: P
   const [message, setMessage] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [address, setAddress] = useState<string | null>(null);
+  const [resolvedCity, setResolvedCity] = useState<string | null>(null);
   // Mientras esto es true, `address` todavía no refleja el punto actual (p. ej.
   // justo después de tocar "Usar mi ubicación actual"): bloqueamos "Confirmar"
   // para que la dirección resuelta SIEMPRE viaje con las coordenadas, en vez de
@@ -51,6 +75,7 @@ export function LocationPickerModal({ visible, initial, onCancel, onConfirm }: P
       setMessage(null);
       setQuery('');
       setAddress(null);
+      setResolvedCity(null);
       setGeocoding(false);
     }
   }, [visible, initial]);
@@ -59,6 +84,7 @@ export function LocationPickerModal({ visible, initial, onCancel, onConfirm }: P
   useEffect(() => {
     if (!point) {
       setAddress(null);
+      setResolvedCity(null);
       setGeocoding(false);
       return;
     }
@@ -67,7 +93,10 @@ export function LocationPickerModal({ visible, initial, onCancel, onConfirm }: P
     (async () => {
       try {
         const results = await Location.reverseGeocodeAsync(point);
-        if (!cancelled && results[0]) setAddress(formatAddress(results[0]));
+        if (!cancelled && results[0]) {
+          setAddress(formatAddress(results[0]));
+          setResolvedCity(results[0].city ?? null);
+        }
       } catch {
         // Sin conexión o sin resultados: dejamos solo las coordenadas.
       } finally {
@@ -181,7 +210,7 @@ export function LocationPickerModal({ visible, initial, onCancel, onConfirm }: P
             <Button title="Cancelar" variant="secondary" onPress={onCancel} style={styles.flex} />
             <Button
               title="Confirmar"
-              onPress={() => point && onConfirm(point, address)}
+              onPress={() => point && onConfirm(point, address, resolvedCity)}
               disabled={!point || geocoding}
               loading={geocoding}
               style={styles.flex}

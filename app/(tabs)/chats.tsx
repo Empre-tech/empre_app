@@ -56,7 +56,7 @@ export default function ChatsScreen() {
   if (status !== 'signedIn') {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <SignInPrompt title="Tus mensajes" message="Inicia sesión para hablar con los negocios y ver tus conversaciones." />
+        <SignInPrompt title="Habla con los negocios" message="Pregunta por horarios, precios o envíos directo con cada negocio." variant="messages" />
       </View>
     );
   }

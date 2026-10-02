@@ -27,6 +27,19 @@ export interface OutgoingMessage {
 }
 
 type MessageListener = (message: ChatMessage) => void;
+/** `entityId` de la conversación cuyos mensajes (los que mandó quien escucha) se acaban de leer. */
+type ReadListener = (entityId: string) => void;
+
+/** Frame que NO es un mensaje de chat: un aviso de "ya te leyeron" para esa conversación.
+ * Se distingue de un ChatMessage porque trae `event` (los mensajes nunca lo tienen). */
+interface ReadReceiptFrame {
+  event: 'conversation_read';
+  entity_id: string;
+}
+
+function isReadReceipt(frame: ChatMessage | ReadReceiptFrame): frame is ReadReceiptFrame {
+  return (frame as ReadReceiptFrame).event === 'conversation_read';
+}
 
 interface ChatContextValue {
   status: SocketStatus;
@@ -34,6 +47,8 @@ interface ChatContextValue {
   send: (message: OutgoingMessage) => boolean;
   /** Recibe los mensajes entrantes; devuelve la función para cancelar la suscripción. */
   subscribe: (listener: MessageListener) => () => void;
+  /** Recibe avisos de "leído" en vivo; devuelve la función para cancelar la suscripción. */
+  subscribeRead: (listener: ReadListener) => () => void;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -51,6 +66,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<SocketStatus>('idle');
   const socketRef = useRef<WebSocket | null>(null);
   const listenersRef = useRef(new Set<MessageListener>());
+  const readListenersRef = useRef(new Set<ReadListener>());
 
   useEffect(() => {
     if (authStatus !== 'signedIn') return undefined;
@@ -85,8 +101,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       ws.onmessage = (event) => {
         for (const raw of splitJsonObjects(String(event.data))) {
           try {
-            const message = JSON.parse(raw) as ChatMessage;
-            listenersRef.current.forEach((listener) => listener(message));
+            const parsed = JSON.parse(raw) as ChatMessage | ReadReceiptFrame;
+            if (isReadReceipt(parsed)) {
+              readListenersRef.current.forEach((listener) => listener(parsed.entity_id));
+              continue;
+            }
+            listenersRef.current.forEach((listener) => listener(parsed));
           } catch {
             // frame inválido: lo ignoramos
           }
@@ -152,7 +172,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const value = useMemo(() => ({ status, send, subscribe }), [status, send, subscribe]);
+  const subscribeRead = useCallback((listener: ReadListener) => {
+    readListenersRef.current.add(listener);
+    return () => {
+      readListenersRef.current.delete(listener);
+    };
+  }, []);
+
+  const value = useMemo(
+    () => ({ status, send, subscribe, subscribeRead }),
+    [status, send, subscribe, subscribeRead],
+  );
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
 }
