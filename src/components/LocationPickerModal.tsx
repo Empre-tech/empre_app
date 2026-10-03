@@ -137,7 +137,7 @@ export function LocationPickerModal({ visible, initial, onCancel, onConfirm }: P
     setSearching(true);
     setMessage(null);
     try {
-      const results = await Location.geocodeAsync(`${text}, Cartagena, Colombia`);
+      const results = await Location.geocodeAsync(`${text}, Colombia`);
       if (results[0]) {
         movePoint({ latitude: results[0].latitude, longitude: results[0].longitude });
       } else {

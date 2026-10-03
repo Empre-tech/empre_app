@@ -123,14 +123,14 @@ export function BusinessForm({ initial, draft }: Props) {
   );
   const [subPickerOpen, setSubPickerOpen] = useState(false);
   const [address, setAddress] = useState(initial?.address ?? '');
-  const [city, setCity] = useState(initial?.city ?? 'Cartagena');
+  const [city, setCity] = useState(initial?.city ?? '');
   // Evita que la auto-detección por GPS (más abajo) pise una ciudad que el
   // dueño ya eligió a mano o que vino de ubicar el pin en el mapa.
   const manualCityRef = useRef(Boolean(initial?.city));
 
   // Negocio nuevo sin ciudad definida todavía: al abrir el formulario,
   // intenta ubicar al dueño por GPS y preseleccionar la ciudad más cercana
-  // de la lista, en vez de arrancar siempre fijo en "Cartagena".
+  // de la lista, en vez de dejarla vacía esperando a que el dueño la elija a mano.
   useEffect(() => {
     if (initial) return;
     let cancelled = false;
@@ -238,6 +238,9 @@ export function BusinessForm({ initial, draft }: Props) {
   const stepError = (target: number): string | null => {
     if (target > 0 && name.trim().length < 2) return 'Escribe el nombre del negocio.';
     if (target > 0 && !categoryId) return 'Elige una categoría.';
+    // Ya no hay una ciudad por defecto (antes arrancaba fija en "Cartagena"):
+    // se pide explícitamente para no asumir ninguna región por el dueño.
+    if (target > 1 && !city.trim()) return 'Elige una ciudad.';
     return null;
   };
 

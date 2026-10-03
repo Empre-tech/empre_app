@@ -33,13 +33,19 @@ export const API_URL = (
 /** Mismo host que la API pero con esquema ws(s)://. */
 export const WS_URL = API_URL.replace(/^http/, 'ws');
 
-/** Centro histórico de Cartagena: vista inicial del mapa. */
-export const CARTAGENA_CENTER = { latitude: 10.4236, longitude: -75.5511 };
-
+/**
+ * Vista inicial del mapa ANTES de tener la ubicación real del usuario: no
+ * favorece ninguna ciudad en particular (Empre no está atada a una región),
+ * así que muestra el país completo bien alejado en vez de arrancar ya
+ * centrado en alguna ciudad puntual. En cuanto el GPS resuelve la posición
+ * real, el mapa se recentra ahí (ver el `useEffect` que llama a
+ * `animateToRegion` con `userCoords` en app/(tabs)/index.tsx).
+ */
 export const DEFAULT_REGION = {
-  ...CARTAGENA_CENTER,
-  latitudeDelta: 0.07,
-  longitudeDelta: 0.07,
+  latitude: 4.0,
+  longitude: -73.0,
+  latitudeDelta: 14,
+  longitudeDelta: 14,
 };
 
 /** Máximo de caracteres de un mensaje de chat (el backend rechaza los más largos). */

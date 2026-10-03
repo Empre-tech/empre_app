@@ -102,7 +102,7 @@ export interface EntityListParams {
   /** metros */
   radius?: number;
   pageSize?: number;
-  /** Solo negocios abiertos en este momento (hora de Cartagena). */
+  /** Solo negocios abiertos en este momento (hora de Colombia). */
   openNow?: boolean;
 }
 

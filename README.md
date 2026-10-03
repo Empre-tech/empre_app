@@ -1,6 +1,6 @@
 # Empre — App móvil
 
-App móvil (React Native + Expo + TypeScript) para descubrir negocios locales de Cartagena en un mapa,
+App móvil (React Native + Expo + TypeScript) para descubrir negocios locales de Colombia en un mapa,
 ver su perfil, chatear en tiempo real y publicar tu propio negocio. Consume el backend
 [`empre_backend`](https://github.com/Empre-tech/empre_backend) (Go + Gin + Postgres).
 
@@ -124,7 +124,7 @@ habilitada — pídesela al equipo en vez de crear una propia, para no duplicar 
 ## Qué incluye
 
 - **Auth**: registro, login, recuperar contraseña; tokens en `expo-secure-store`, renovación automática del access token.
-- **Explorar**: mapa de Cartagena con pines agrupados según el zoom, filtro por categoría y subcategoría
+- **Explorar**: mapa centrado en tu ubicación real (sin ciudad fija por defecto) con pines agrupados según el zoom, filtro por categoría y subcategoría
   (se recentra en tu ubicación al aplicar un filtro), búsqueda por nombre/categoría, lista ordenada por
   distancia con calificación (estrellas y cantidad de reseñas) y vista previa al tocar un pin. Se puede explorar sin cuenta.
 - **Perfil de negocio** estilo Instagram: banner, foto, sello de verificado, calificación, descripción, cómo llegar

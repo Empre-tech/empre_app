@@ -1,41 +1,40 @@
 /**
  * Principales ciudades de Colombia para el selector de "Ciudad" del
- * formulario de negocio. Empre hoy está enfocada en Cartagena (mapa,
- * geocoding), por eso va primero; el resto son capitales de departamento y
- * otras ciudades importantes, por si el dueño registra un negocio en otra
- * parte del país.
+ * formulario de negocio: capitales de departamento y otras ciudades
+ * importantes, en orden alfabético. Empre no favorece ninguna ciudad en
+ * particular; qué ciudad se preselecciona (si acaso) depende de la
+ * ubicación real del dueño, no de un valor fijo en esta lista.
  */
 export const COLOMBIAN_CITIES = [
-  'Cartagena',
-  'Bogotá',
-  'Medellín',
-  'Cali',
+  'Arauca',
+  'Armenia',
   'Barranquilla',
+  'Bogotá',
   'Bucaramanga',
+  'Cali',
+  'Cartagena',
   'Cúcuta',
-  'Santa Marta',
-  'Pereira',
+  'Florencia',
   'Ibagué',
+  'Inírida',
+  'Leticia',
   'Manizales',
-  'Villavicencio',
+  'Mitú',
+  'Mocoa',
+  'Montería',
   'Neiva',
   'Pasto',
-  'Armenia',
-  'Valledupar',
-  'Montería',
-  'Sincelejo',
+  'Pereira',
   'Popayán',
-  'Tunja',
-  'Riohacha',
-  'Quibdó',
-  'Florencia',
-  'Yopal',
-  'Arauca',
-  'San Andrés',
-  'Leticia',
-  'Mocoa',
-  'Inírida',
   'Puerto Carreño',
+  'Quibdó',
+  'Riohacha',
+  'San Andrés',
   'San José del Guaviare',
-  'Mitú',
+  'Santa Marta',
+  'Sincelejo',
+  'Tunja',
+  'Valledupar',
+  'Villavicencio',
+  'Yopal',
 ] as const;
