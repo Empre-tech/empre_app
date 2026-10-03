@@ -6,8 +6,10 @@ import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   Modal,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -39,7 +41,14 @@ const RADIUS_OPTIONS: { label: string; km: number | null }[] = [
   { label: 'Menos de 5 km', km: 5 },
   { label: 'Menos de 10 km', km: 10 },
   { label: 'Menos de 20 km', km: 20 },
+  { label: 'Menos de 60 km', km: 60 },
 ];
+
+/** Radio por defecto al abrir la app: que "negocios cerca de ti" sea cierto
+ * de verdad (antes arrancaba en "cualquier distancia", mostrando negocios
+ * de cualquier parte del país). El dueño puede cambiarlo o quitarlo desde
+ * Filtros en cualquier momento. */
+const DEFAULT_RADIUS_KM = 60;
 
 /** "Buenos días/tardes/noches" según la hora del celular. */
 function greetingNow(): string {
@@ -72,17 +81,80 @@ export default function ExploreScreen() {
   const [subcategoryId, setSubcategoryId] = useState<string | undefined>();
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
   const [userCoords, setUserCoords] = useState<Coords | null>(null);
+  // Región con la que se monta el mapa la PRIMERA vez: null mientras no
+  // sabemos todavía si conviene arrancar ya centrados en el usuario (si ya
+  // había dado permiso antes) o mostrar la vista general de todo el país
+  // (si no, o si no hay una posición reciente a mano). Evita el "salto" de
+  // ver primero Colombia completa y luego animar hacia la ubicación real.
+  const [startupRegion, setStartupRegion] = useState<Region | null>(null);
   // Nombre del barrio/zona donde estás, solo para el saludo ("Negocios cerca
   // de Bocagrande"): mejor esfuerzo vía reverse geocoding, nunca bloquea nada
   // si falla — el saludo cae de vuelta a "cerca de ti".
   const [neighborhood, setNeighborhood] = useState<string | null>(null);
   const [selected, setSelected] = useState<EntityMap | null>(null);
   // Minimiza el panel de Destacados a solo su encabezado, para dejar ver más mapa.
+  // Sigue existiendo como estado "discreto" (para la etiqueta de accesibilidad,
+  // el ícono de la flechita y el link "Ver todos"); la altura real que se ve
+  // en pantalla la maneja featuredHeight de abajo, que es continua porque
+  // ahora el panel se puede arrastrar con el dedo, no solo con el botón.
   const [featuredMinimized, setFeaturedMinimized] = useState(false);
+  // Altura animada del panel de Destacados: arranca expandido. Un mismo
+  // Animated.Value controla tanto el alto del panel como el "bottom" del
+  // botón de ubicación (ver más abajo), así nunca quedan desincronizados
+  // (hallazgo de UI: el botón de ubicación quedaba tapado a medias).
+  const featuredHeight = useRef(new Animated.Value(FEATURED_CARD_HEIGHT)).current;
+  // Copia en JS plano del valor actual de featuredHeight: Animated.Value no
+  // se puede leer de forma síncrona, y la necesitamos para saber desde dónde
+  // arranca cada gesto de arrastre.
+  const featuredHeightRef = useRef(FEATURED_CARD_HEIGHT);
+  useEffect(() => {
+    const id = featuredHeight.addListener(({ value }) => {
+      featuredHeightRef.current = value;
+    });
+    return () => featuredHeight.removeListener(id);
+  }, [featuredHeight]);
+
+  const animateFeaturedTo = (target: number) => {
+    setFeaturedMinimized(target === FEATURED_CARD_MINIMIZED_HEIGHT);
+    Animated.spring(featuredHeight, { toValue: target, useNativeDriver: false, bounciness: 4 }).start();
+  };
+
+  const toggleFeatured = () => {
+    animateFeaturedTo(featuredMinimized ? FEATURED_CARD_HEIGHT : FEATURED_CARD_MINIMIZED_HEIGHT);
+  };
+
+  // Arrastrar la manija del panel de Destacados: sube/baja el alto en vivo
+  // con el dedo, y al soltar "engancha" al estado abierto o cerrado más
+  // cercano (hallazgo de UI: "que suba y baje arrastrando, no solo con botón").
+  const featuredPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderGrant: () => {
+        featuredHeight.stopAnimation();
+      },
+      onPanResponderMove: (_, gesture) => {
+        const next = featuredHeightRef.current - gesture.dy;
+        const clamped = Math.min(FEATURED_CARD_HEIGHT, Math.max(FEATURED_CARD_MINIMIZED_HEIGHT, next));
+        featuredHeight.setValue(clamped);
+      },
+      onPanResponderRelease: (_, gesture) => {
+        const current = featuredHeightRef.current;
+        const mid = (FEATURED_CARD_HEIGHT + FEATURED_CARD_MINIMIZED_HEIGHT) / 2;
+        // Un gesto rápido hacia arriba/abajo gana aunque no haya pasado la
+        // mitad todavía (más responsivo que esperar siempre a la posición).
+        let target: number;
+        if (gesture.vy < -0.5) target = FEATURED_CARD_HEIGHT;
+        else if (gesture.vy > 0.5) target = FEATURED_CARD_MINIMIZED_HEIGHT;
+        else target = current > mid ? FEATURED_CARD_HEIGHT : FEATURED_CARD_MINIMIZED_HEIGHT;
+        animateFeaturedTo(target);
+      },
+    }),
+  ).current;
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [radiusKm, setRadiusKm] = useState<number | null>(null);
+  const [radiusKm, setRadiusKm] = useState<number | null>(DEFAULT_RADIUS_KM);
   const [openNow, setOpenNow] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [locating, setLocating] = useState(false);
@@ -151,7 +223,47 @@ export default function ExploreScreen() {
     }
   };
 
+  // Antes de montar el mapa: si ya teníamos permiso de ubicación de una vez
+  // anterior, intenta arrancar YA centrados en el usuario usando una posición
+  // reciente en caché (getLastKnownPositionAsync es casi instantáneo, a
+  // diferencia de pedir un fix nuevo de GPS). Si no hay permiso, no hay
+  // posición en caché, o tarda más de lo razonable, cae de vuelta a la vista
+  // general del país — nunca se queda esperando para siempre.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const permission = await Location.getForegroundPermissionsAsync();
+        if (permission.status === 'granted') {
+          const last = await Promise.race([
+            Location.getLastKnownPositionAsync({ maxAge: 5 * 60_000 }),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 800)),
+          ]);
+          if (!active) return;
+          if (last) {
+            const coords = { latitude: last.coords.latitude, longitude: last.coords.longitude };
+            setUserCoords(coords);
+            setStartupRegion({ ...coords, latitudeDelta: 0.05, longitudeDelta: 0.05 });
+            // Ya arrancamos centrados en la posición real: que el efecto de
+            // abajo no la vuelva a animar encima cuando llegue el fix fresco.
+            didCenterRef.current = true;
+            return;
+          }
+        }
+      } catch {
+        // Sigue al fallback de abajo.
+      }
+      if (active) setStartupRegion(DEFAULT_REGION);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   // Pide la ubicación del usuario (permite centrar el mapa y ordenar/filtrar por distancia).
+  // Esto PIDE el permiso si todavía no se ha concedido, y en cualquier caso
+  // trae un fix fresco y preciso (el "last known" de arriba es solo para
+  // arrancar rápido, no reemplaza este fix).
   useEffect(() => {
     let active = true;
     (async () => {
@@ -285,7 +397,7 @@ export default function ExploreScreen() {
   const clearAllFilters = () => {
     setCategoryId(undefined);
     setSubcategoryId(undefined);
-    setRadiusKm(null);
+    setRadiusKm(DEFAULT_RADIUS_KM);
     setOpenNow(false);
   };
 
@@ -449,10 +561,18 @@ export default function ExploreScreen() {
       <View style={styles.content}>
         {mode === 'map' ? (
           <View style={styles.mapWrap}>
+            {startupRegion === null ? (
+              // Resolviendo si ya había permiso/posición para arrancar
+              // centrados de una (ver el useEffect de arriba): normalmente
+              // dura muy poco, así que esto casi nunca se alcanza a ver.
+              <View style={[styles.map, styles.mapStartupLoading]}>
+                <ActivityIndicator color={colors.primary} />
+              </View>
+            ) : (
             <MapView
               ref={mapRef}
               style={styles.map}
-              initialRegion={DEFAULT_REGION}
+              initialRegion={startupRegion}
               showsUserLocation
               showsMyLocationButton={false}
               // Oculta las etiquetas de lugares del mapa base de Google (cementerios,
@@ -536,79 +656,81 @@ export default function ExploreScreen() {
                 );
               })}
             </MapView>
+            )}
 
             {/* Botón de "mi ubicación" y tarjeta de Destacados: solo cuando no
                 hay un negocio seleccionado (esa vista previa ya ocupa la
                 misma zona inferior). */}
             {!selected ? (
               <>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Centrar en mi ubicación"
-                  onPress={() => {
-                    if (userCoords) {
-                      mapRef.current?.animateToRegion({ ...userCoords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 500);
-                    } else {
-                      void requestLocation();
-                    }
-                  }}
+                <Animated.View
                   style={[
-                    styles.locateButton,
+                    styles.locateButtonWrap,
                     {
                       bottom:
-                        (featured.length > 0 || featuredNearbyEmpty
-                          ? featuredMinimized
-                            ? FEATURED_CARD_MINIMIZED_HEIGHT
-                            : FEATURED_CARD_HEIGHT
-                          : spacing.lg) + insets.bottom,
+                        featured.length > 0 || featuredNearbyEmpty
+                          ? Animated.add(featuredHeight, insets.bottom)
+                          : spacing.lg + insets.bottom,
                     },
                   ]}
                 >
-                  {locating ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
-                  ) : (
-                    <Ionicons name="navigate" size={21} color={colors.primary} />
-                  )}
-                </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Centrar en mi ubicación"
+                    onPress={() => {
+                      if (userCoords) {
+                        mapRef.current?.animateToRegion({ ...userCoords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 500);
+                      } else {
+                        void requestLocation();
+                      }
+                    }}
+                    style={styles.locateButton}
+                  >
+                    {locating ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <Ionicons name="navigate" size={21} color={colors.primary} />
+                    )}
+                  </Pressable>
+                </Animated.View>
 
                 {featured.length > 0 || featuredNearbyEmpty ? (
-                  <View
+                  <Animated.View
                     style={[
                       styles.featuredCard,
-                      { paddingBottom: featuredMinimized ? spacing.xs : insets.bottom + spacing.sm },
+                      { height: featuredHeight, paddingBottom: featuredMinimized ? spacing.xs : insets.bottom + spacing.sm },
                     ]}
                   >
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={featuredMinimized ? 'Expandir Destacados' : 'Minimizar Destacados'}
-                      onPress={() => setFeaturedMinimized((v) => !v)}
-                      style={styles.featuredHandleWrap}
-                      hitSlop={8}
-                    >
-                      <View style={styles.featuredHandle} />
-                    </Pressable>
-                    <View style={styles.featuredHeader}>
-                      <Text style={styles.featuredTitle} numberOfLines={1}>
-                        {selectedCategory ? `Destacados en ${selectedCategory.name}` : 'Destacados cerca de ti'}
-                      </Text>
-                      <View style={styles.featuredHeaderActions}>
-                        {!featuredMinimized ? (
-                          <Pressable accessibilityRole="button" onPress={() => setMode('list')} hitSlop={8}>
-                            <Text style={styles.featuredSeeAll}>Ver todos</Text>
+                    {/* Manija + encabezado: arrastrables con el dedo para subir/bajar el
+                        panel (ver featuredPanResponder), y el botón de la flechita sigue
+                        funcionando para quien prefiera tocar en vez de arrastrar. */}
+                    <View {...featuredPanResponder.panHandlers}>
+                      <View style={styles.featuredHandleWrap}>
+                        <View style={styles.featuredHandle} />
+                      </View>
+                      <View style={styles.featuredHeader}>
+                        <Text style={styles.featuredTitle} numberOfLines={1}>
+                          {selectedCategory ? `Destacados en ${selectedCategory.name}` : 'Destacados cerca de ti'}
+                        </Text>
+                        <View style={styles.featuredHeaderActions}>
+                          {!featuredMinimized ? (
+                            <Pressable accessibilityRole="button" onPress={() => setMode('list')} hitSlop={8}>
+                              <Text style={styles.featuredSeeAll}>Ver todos</Text>
+                            </Pressable>
+                          ) : null}
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={featuredMinimized ? 'Expandir Destacados' : 'Minimizar Destacados'}
+                            onPress={toggleFeatured}
+                            hitSlop={8}
+                          >
+                            <Ionicons
+                              name={featuredMinimized ? 'chevron-up' : 'chevron-down'}
+                              size={18}
+                              color={colors.muted}
+                            />
                           </Pressable>
-                        ) : null}
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel={featuredMinimized ? 'Expandir Destacados' : 'Minimizar Destacados'}
-                          onPress={() => setFeaturedMinimized((v) => !v)}
-                          hitSlop={8}
-                        >
-                          <Ionicons
-                            name={featuredMinimized ? 'chevron-up' : 'chevron-down'}
-                            size={18}
-                            color={colors.muted}
-                          />
-                        </Pressable>
+                        </View>
                       </View>
                     </View>
 
@@ -646,7 +768,7 @@ export default function ExploreScreen() {
                         </View>
                       </View>
                     ) : null}
-                  </View>
+                  </Animated.View>
                 ) : null}
               </>
             ) : null}
@@ -1084,6 +1206,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E8EEF6',
   },
   map: { flex: 1 },
+  mapStartupLoading: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   greetingRow: { gap: 1, marginBottom: 2 },
   greetingKicker: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
   greetingTitle: { fontSize: 19, fontFamily: fonts.display.bold, color: colors.ink },
@@ -1237,9 +1360,11 @@ const styles = StyleSheet.create({
   },
   errorText: { color: colors.danger, fontSize: 14, fontFamily: fonts.ui.semibold },
   retry: { minHeight: 40 },
-  locateButton: {
+  locateButtonWrap: {
     position: 'absolute',
     right: spacing.md,
+  },
+  locateButton: {
     width: 46,
     height: 46,
     borderRadius: 23,
@@ -1258,6 +1383,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
+    overflow: 'hidden',
     ...shadow,
   },
   featuredHandleWrap: { paddingVertical: 6, alignSelf: 'stretch', alignItems: 'center' },

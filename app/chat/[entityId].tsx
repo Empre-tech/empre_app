@@ -62,6 +62,18 @@ export default function ChatScreen() {
     enabled: !sentByEntity && Boolean(entityId),
   });
 
+  // Si la otra persona de la conversación (el negocio, o el cliente cuando
+  // soy el dueño) tiene una sesión abierta ahora mismo. Se repite cada rato
+  // mientras el chat está en pantalla para que el estado no quede obsoleto.
+  const presence = useQuery({
+    queryKey: ['presence', entityId, customerId],
+    queryFn: () => chatApi.presence(entityId, userId),
+    enabled: authStatus === 'signedIn' && Boolean(entityId && customerId),
+    refetchInterval: 20_000,
+    refetchIntervalInBackground: false,
+  });
+  const otherOnline = presence.data?.online ?? false;
+
   const todayHours = useMemo(() => {
     const hours = business.data?.hours;
     if (!hours || hours.length === 0) return null;
@@ -100,7 +112,10 @@ export default function ChatScreen() {
   // la app pasó a segundo plano), esto trae los mensajes que el servidor no
   // pudo entregar en tiempo real.
   useEffect(() => {
-    if (chat.status === 'open') void history.refetch();
+    if (chat.status === 'open') {
+      void history.refetch();
+      void presence.refetch();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chat.status]);
 
@@ -219,15 +234,13 @@ export default function ChatScreen() {
         </Pressable>
         <View style={styles.headerAvatarWrap}>
           <Avatar uri={avatar} name={name ?? '?'} size={38} />
-          <View style={[styles.onlineDot, { backgroundColor: connected ? colors.success : colors.muted }]} />
         </View>
         <View style={styles.headerTitle}>
           <Text style={styles.title} numberOfLines={1}>
             {name ?? 'Chat'}
           </Text>
-          <Text style={[styles.status, { color: connected ? colors.success : colors.muted }]} numberOfLines={1}>
-            {connected ? 'Chat activo' : 'Conectando…'}
-            {business.data?.category.name ? ` · ${business.data.category.name}` : ''}
+          <Text style={[styles.status, connected && otherOnline && styles.statusOnline]} numberOfLines={1}>
+            {!connected ? 'Conectando…' : otherOnline ? 'En línea' : 'Desconectado'}
           </Text>
         </View>
         {!sentByEntity && hasPhone ? (
@@ -393,19 +406,10 @@ const styles = StyleSheet.create({
   },
   headerButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerAvatarWrap: { position: 'relative' },
-  onlineDot: {
-    position: 'absolute',
-    right: -1,
-    bottom: -1,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: colors.bg,
-  },
   headerTitle: { flex: 1 },
   title: { fontSize: 17, fontWeight: '700', fontFamily: fonts.ui.bold, color: colors.ink },
-  status: { fontSize: 12, fontFamily: fonts.ui.semibold },
+  status: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
+  statusOnline: { color: colors.success },
   headerActions: { flexDirection: 'row', gap: spacing.xs },
   headerActionBtn: {
     width: 36,

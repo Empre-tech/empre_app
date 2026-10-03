@@ -258,4 +258,12 @@ export const chatApi = {
     unwrapList<ChatMessage>(
       await request<unknown>(`/api/chat/history/${entityId}`, { query: { user_id: userId, pageSize: 50 } }),
     ),
+
+  /**
+   * Si la otra parte de la conversación (el negocio, o el cliente cuando
+   * pregunta el dueño) tiene una conexión en vivo ahora mismo. `userId` solo
+   * lo usa el dueño, igual que en `history`.
+   */
+  presence: (entityId: string, userId?: string) =>
+    request<{ online: boolean }>(`/api/chat/presence/${entityId}`, { query: { user_id: userId } }),
 };
