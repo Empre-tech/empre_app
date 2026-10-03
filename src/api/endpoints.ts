@@ -262,8 +262,12 @@ export const chatApi = {
   /**
    * Si la otra parte de la conversación (el negocio, o el cliente cuando
    * pregunta el dueño) tiene una conexión en vivo ahora mismo. `userId` solo
-   * lo usa el dueño, igual que en `history`.
+   * lo usa el dueño, igual que en `history`. `ownerId` es opcional: si el
+   * cliente ya lo tiene (por el detalle del negocio que ya cargó), evita que
+   * el backend tenga que consultarlo en cada sondeo.
    */
-  presence: (entityId: string, userId?: string) =>
-    request<{ online: boolean }>(`/api/chat/presence/${entityId}`, { query: { user_id: userId } }),
+  presence: (entityId: string, userId?: string, ownerId?: string) =>
+    request<{ online: boolean }>(`/api/chat/presence/${entityId}`, {
+      query: { user_id: userId, owner_id: userId ? undefined : ownerId },
+    }),
 };

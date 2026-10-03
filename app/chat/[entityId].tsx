@@ -67,8 +67,11 @@ export default function ChatScreen() {
   // mientras el chat está en pantalla para que el estado no quede obsoleto.
   const presence = useQuery({
     queryKey: ['presence', entityId, customerId],
-    queryFn: () => chatApi.presence(entityId, userId),
-    enabled: authStatus === 'signedIn' && Boolean(entityId && customerId),
+    queryFn: () => chatApi.presence(entityId, userId, business.data?.owner_id),
+    enabled:
+      authStatus === 'signedIn' &&
+      Boolean(entityId && customerId) &&
+      (sentByEntity || Boolean(business.data?.owner_id)),
     refetchInterval: 20_000,
     refetchIntervalInBackground: false,
   });

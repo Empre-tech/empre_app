@@ -44,11 +44,6 @@ const RADIUS_OPTIONS: { label: string; km: number | null }[] = [
   { label: 'Menos de 60 km', km: 60 },
 ];
 
-/** Radio por defecto al abrir la app: que "negocios cerca de ti" sea cierto
- * de verdad (antes arrancaba en "cualquier distancia", mostrando negocios
- * de cualquier parte del país). El dueño puede cambiarlo o quitarlo desde
- * Filtros en cualquier momento. */
-const DEFAULT_RADIUS_KM = 60;
 
 /** "Buenos días/tardes/noches" según la hora del celular. */
 function greetingNow(): string {
@@ -154,7 +149,7 @@ export default function ExploreScreen() {
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [radiusKm, setRadiusKm] = useState<number | null>(DEFAULT_RADIUS_KM);
+  const [radiusKm, setRadiusKm] = useState<number | null>(null);
   const [openNow, setOpenNow] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [locating, setLocating] = useState(false);
@@ -397,7 +392,7 @@ export default function ExploreScreen() {
   const clearAllFilters = () => {
     setCategoryId(undefined);
     setSubcategoryId(undefined);
-    setRadiusKm(DEFAULT_RADIUS_KM);
+    setRadiusKm(null);
     setOpenNow(false);
   };
 
