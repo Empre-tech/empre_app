@@ -23,6 +23,7 @@ import { entitiesApi, paymentsApi, reviewsApi } from '@/api/endpoints';
 import type { Photo } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { AIWritingAssist } from '@/components/AIWritingAssist';
+import { AgendaStrip } from '@/components/agenda/AgendaStrip';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { PostComposerSheet } from '@/components/PostComposerSheet';
@@ -495,6 +496,17 @@ export default function BusinessScreen() {
               </Pressable>
             ) : null}
             {!isOwner ? <Button title="Enviar mensaje" onPress={onMessage} /> : null}
+            {!isOwner ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
+            {isOwner ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => router.push({ pathname: '/business/agenda/[id]', params: { id: business.id } })}
+                style={({ pressed }) => [styles.subscriptionLink, pressed && styles.subscriptionLinkPressed]}
+              >
+                <Ionicons name="calendar-outline" size={16} color={colors.primary} />
+                <Text style={styles.subscriptionLinkText}>Agenda de citas</Text>
+              </Pressable>
+            ) : null}
             {isOwner ? (
               <Button
                 title="Editar negocio"

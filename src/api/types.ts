@@ -145,6 +145,9 @@ export interface ChatMessage {
   content: string;
   is_read: boolean;
   created_at: string;
+  /** "appointment" = tarjeta de una cita dentro del hilo (ver appointment_id). */
+  kind?: 'text' | 'appointment';
+  appointment_id?: string;
 }
 
 export interface ConversationParty {

@@ -37,8 +37,20 @@ interface ReadReceiptFrame {
   entity_id: string;
 }
 
-function isReadReceipt(frame: ChatMessage | ReadReceiptFrame): frame is ReadReceiptFrame {
+/** Una cita cambió de estado (la pidieron, se aceptó, venció...). */
+interface AppointmentUpdatedFrame {
+  event: 'appointment_updated';
+  appointment: { id: string; entity_id: string };
+}
+
+type Frame = ChatMessage | ReadReceiptFrame | AppointmentUpdatedFrame;
+
+function isReadReceipt(frame: Frame): frame is ReadReceiptFrame {
   return (frame as ReadReceiptFrame).event === 'conversation_read';
+}
+
+function isAppointmentUpdate(frame: Frame): frame is AppointmentUpdatedFrame {
+  return (frame as AppointmentUpdatedFrame).event === 'appointment_updated';
 }
 
 interface ChatContextValue {
@@ -101,7 +113,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       ws.onmessage = (event) => {
         for (const raw of splitJsonObjects(String(event.data))) {
           try {
-            const parsed = JSON.parse(raw) as ChatMessage | ReadReceiptFrame;
+            const parsed = JSON.parse(raw) as Frame;
+            if (isAppointmentUpdate(parsed)) {
+              const { id, entity_id: entityId } = parsed.appointment;
+              void queryClient.invalidateQueries({ queryKey: ['appointment', id] });
+              void queryClient.invalidateQueries({ queryKey: ['appointments'] });
+              void queryClient.invalidateQueries({ queryKey: ['agenda', entityId] });
+              void queryClient.invalidateQueries({ queryKey: ['agenda-summary', entityId] });
+              void queryClient.invalidateQueries({ queryKey: ['availability', entityId] });
+              continue;
+            }
             if (isReadReceipt(parsed)) {
               readListenersRef.current.forEach((listener) => listener(parsed.entity_id));
               continue;
