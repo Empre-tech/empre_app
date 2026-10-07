@@ -27,6 +27,7 @@ export default function NewOfferScreen() {
   const [type, setType] = useState<OfferType>('HORAS');
   const [title, setTitle] = useState('');
   const [price, setPrice] = useState('');
+  const [normalPrice, setNormalPrice] = useState('');
   const [slots, setSlots] = useState('10');
   const [hours, setHours] = useState(DEFAULT_HOURS.HORAS);
   const [loading, setLoading] = useState(false);
@@ -61,6 +62,7 @@ export default function NewOfferScreen() {
         type,
         title: title.trim(),
         price: price.trim(),
+        normal_price: normalPrice.trim() || undefined,
         ends_at: endsAt,
         total_slots: totalSlots,
       });
@@ -106,6 +108,13 @@ export default function NewOfferScreen() {
           placeholder="$30.000"
           value={price}
           onChangeText={setPrice}
+          keyboardType="numeric"
+        />
+        <TextField
+          label="Valor normal (opcional)"
+          placeholder="$45.000"
+          value={normalPrice}
+          onChangeText={setNormalPrice}
           keyboardType="numeric"
         />
         <TextField

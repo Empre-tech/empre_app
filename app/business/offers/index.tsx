@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Offer } from '@/api/types';
 import { offersApi } from '@/api/offers';
 import { Button } from '@/components/Button';
-import { offerTypeLabel, formatOfferEndsAt } from '@/lib/offer';
+import { offerTypeLabel, formatOfferEndsAt, formatCurrency, formatSlotsLeft } from '@/lib/offer';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 /**
@@ -102,7 +102,7 @@ function OfferCard({
         <View style={styles.cardInfo}>
           <Text style={styles.cardTitle}>{offer.title}</Text>
           <Text style={styles.cardMeta}>
-            {offerTypeLabel(offer.type)} · {offer.price ? `${offer.price} · ` : ''}hasta{' '}
+            {offerTypeLabel(offer.type)} · {offer.price ? `${formatCurrency(offer.price)} · ` : ''}hasta{' '}
             {formatOfferEndsAt(offer.ends_at)}
           </Text>
         </View>
@@ -111,9 +111,7 @@ function OfferCard({
         </View>
       </View>
 
-      <Text style={styles.slots}>
-        {offer.slots_left} de {offer.total_slots} cupos disponibles
-      </Text>
+      <Text style={styles.slots}>{formatSlotsLeft(offer.slots_left)}</Text>
 
       {active ? (
         <View style={styles.actions}>

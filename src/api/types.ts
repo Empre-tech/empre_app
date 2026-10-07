@@ -329,6 +329,8 @@ export interface Offer {
   type: OfferType;
   title: string;
   price: string;
+  /** Valor habitual (opcional) para mostrar el ahorro. */
+  normal_price?: string;
   conditions?: string;
   starts_at: string;
   ends_at: string;
@@ -363,6 +365,7 @@ export interface OfferInput {
   type: OfferType;
   title: string;
   price?: string;
+  normal_price?: string;
   conditions?: string;
   ends_at: string;
   total_slots: number;

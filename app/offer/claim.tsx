@@ -1,12 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { OfferClaim } from '@/api/types';
+import { entitiesApi } from '@/api/endpoints';
 import { claimsApi } from '@/api/offers';
+import type { OfferClaim } from '@/api/types';
 import { Button } from '@/components/Button';
+import { formatCurrency } from '@/lib/offer';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 function countdownLabel(expiresAt: string): string {
@@ -43,6 +46,19 @@ export default function ClaimScreen() {
   const expired = claim ? new Date(claim.expires_at).getTime() <= now : false;
 
   const remaining = useMemo(() => (claim ? countdownLabel(claim.expires_at) : ''), [claim, now]);
+
+  // Nombre y ubicación del negocio para el contexto y "Cómo llegar".
+  const entity = useQuery({
+    queryKey: ['entity', claim?.offer?.entity_id],
+    queryFn: () => entitiesApi.get(claim!.offer!.entity_id),
+    enabled: Boolean(claim?.offer?.entity_id),
+  });
+
+  const onDirections = () => {
+    const e = entity.data;
+    if (!e) return;
+    void Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${e.latitude},${e.longitude}`);
+  };
 
   const onClaim = async () => {
     setLoading(true);
@@ -92,7 +108,8 @@ export default function ClaimScreen() {
         ) : (
           <>
             <Text style={styles.offerTitle}>{claim.offer?.title ?? ''}</Text>
-            {claim.offer?.price ? <Text style={styles.price}>{claim.offer.price}</Text> : null}
+            {claim.offer?.price ? <Text style={styles.price}>{formatCurrency(claim.offer.price)}</Text> : null}
+            {claim.offer?.conditions ? <Text style={styles.note}>{claim.offer.conditions}</Text> : null}
 
             <View style={styles.codeCard}>
               <QRCode value={claim.id} size={180} color={colors.ink} backgroundColor="#ffffff" />
@@ -104,7 +121,11 @@ export default function ClaimScreen() {
               </View>
             </View>
 
-            <Text style={styles.note}>El negocio escanea el QR o ingresa el código corto para canjear tu oferta.</Text>
+            <Text style={styles.note}>Muestra este código en {entity.data?.name ?? 'el negocio'}.</Text>
+
+            {entity.data ? (
+              <Button title="Cómo llegar" variant="secondary" onPress={onDirections} />
+            ) : null}
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 

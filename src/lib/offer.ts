@@ -25,3 +25,19 @@ export function formatOfferEndsAt(iso: string): string {
   if (sameDay) return date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
   return date.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
 }
+
+/**
+ * Formatea un precio como moneda colombiana: "40000" o "$40000" → "$40.000".
+ * Si el valor no es numérico, lo devuelve tal cual.
+ */
+export function formatCurrency(value?: string | null): string {
+  if (!value) return '';
+  const digits = value.replace(/[^\d]/g, '');
+  if (!digits) return value;
+  return `$${Number(digits).toLocaleString('es-CO')}`;
+}
+
+/** Singular/plural de cupos: "Queda 1 cupo" / "Quedan 3 cupos". */
+export function formatSlotsLeft(n: number): string {
+  return n === 1 ? 'Queda 1 cupo' : `Quedan ${n} cupos`;
+}

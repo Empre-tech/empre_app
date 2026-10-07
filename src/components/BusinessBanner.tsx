@@ -2,25 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { entitiesApi } from '@/api/endpoints';
-import { statusApi } from '@/api/offers';
 import type { BusinessHour, DiscoveryItem } from '@/api/types';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
-import { categoryColor } from '@/lib/categoryColor';
 import { formatDistance } from '@/lib/format';
-import { formatOfferEndsAt, offerTypeLabel } from '@/lib/offer';
+import { formatOfferEndsAt } from '@/lib/offer';
 import { colors, fonts, radius, spacing } from '@/theme';
-
-/** Horario de hoy del negocio, en una línea ("Cerrado hoy", "24 horas", "8:00 – 18:00"). */
-function todaysHoursLabel(hours: BusinessHour[]): string | null {
-  const today = new Date().getDay();
-  const h = hours.find((x) => x.weekday === today);
-  if (!h) return null;
-  if (h.closed) return 'Cerrado hoy';
-  if (h.is_24h) return 'Abierto 24 horas';
-  if (!h.open_time || !h.close_time) return null;
-  return `${h.open_time} – ${h.close_time}`;
-}
 
 export interface BannerEntity extends DiscoveryItem {
   distanceKm: number | null;
@@ -37,10 +24,21 @@ interface Props {
   onPublishOffer?: () => void;
 }
 
+/** Horario de hoy del negocio, en una línea ("Cerrado hoy", "24 horas", "8:00 – 18:00"). */
+function todaysHoursLabel(hours: BusinessHour[]): string | null {
+  const today = new Date().getDay();
+  const h = hours.find((x) => x.weekday === today);
+  if (!h) return null;
+  if (h.closed) return 'Cerrado hoy';
+  if (h.is_24h) return 'Abierto 24 horas';
+  if (!h.open_time || !h.close_time) return null;
+  return `${h.open_time} – ${h.close_time}`;
+}
+
 /**
- * Banner que aparece al tocar un negocio (reemplaza al panel de Destacados,
- * nunca se apilan). Resumen + acciones rápidas + franja de oferta. Es la única
- * vía al perfil ("Ver perfil").
+ * Tarjeta ligera que aparece al tocar un negocio (reemplaza a Destacados).
+ * Nivel 1: nombre + una línea (categoría · estado · hoy) + chip de oferta.
+ * El cuerpo abre el perfil; el chip de oferta abre el reclamo.
  */
 export function BusinessBanner({
   entity,
@@ -52,101 +50,56 @@ export function BusinessBanner({
   onScan,
   onPublishOffer,
 }: Props) {
-  const cat = categoryColor(entity.category_color);
   const distance = formatDistance(entity.distanceKm);
   const hasRating = entity.review_count > 0;
   const statusLabel = entity.has_hours ? (entity.is_open_now ? 'Abierto' : 'Cerrado') : null;
   const offer = entity.has_active_offer ? entity.active_offer : undefined;
 
-  // Detalle (horario) y disponibilidad en tiempo real: se cargan al abrir el
-  // banner (no vienen en el resultado de descubrimiento).
   const detail = useQuery({
     queryKey: ['entity', entity.id],
     queryFn: () => entitiesApi.get(entity.id),
     staleTime: 60_000,
   });
-  const status = useQuery({
-    queryKey: ['entity-status', entity.id],
-    queryFn: () => statusApi.get(entity.id),
-    staleTime: 60_000,
-  });
   const today = detail.data?.hours && detail.data.hours.length > 0 ? todaysHoursLabel(detail.data.hours) : null;
-  const availability = status.data?.availability?.trim() || null;
+
+  const meta = [entity.category_name, statusLabel, distance && `a ${distance}`, today ? `hoy ${today}` : null]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <View style={styles.wrap}>
       <View style={styles.headerRow}>
-        <Avatar uri={entity.profile_url} name={entity.name} size={52} />
-        <View style={styles.info}>
+        <Avatar uri={entity.profile_url} name={entity.name} size={48} />
+        <Pressable style={styles.info} onPress={onProfile}>
           <Text style={styles.name} numberOfLines={1}>
             {entity.name}
           </Text>
           <Text style={styles.meta} numberOfLines={1}>
-            {entity.category_name}
-            {distance ? ` · ${distance}` : ''}
+            {meta}
           </Text>
-          <View style={styles.badgesRow}>
-            {hasRating ? (
-              <View style={styles.rating}>
-                <Ionicons name="star" size={12} color={colors.accent} />
-                <Text style={styles.ratingText}>{entity.avg_rating.toFixed(1)}</Text>
-              </View>
-            ) : null}
-            {statusLabel ? (
-              <View style={[styles.statusPill, entity.is_open_now ? styles.statusOpen : styles.statusClosed]}>
-                <View style={[styles.dot, entity.is_open_now ? styles.dotOpen : styles.dotClosed]} />
-                <Text style={[styles.statusText, entity.is_open_now ? styles.statusTextOpen : styles.statusTextClosed]}>
-                  {statusLabel}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-        </View>
+          {hasRating ? (
+            <View style={styles.rating}>
+              <Ionicons name="star" size={12} color={colors.accent} />
+              <Text style={styles.ratingText}>{entity.avg_rating.toFixed(1)}</Text>
+            </View>
+          ) : null}
+        </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} hitSlop={10} style={styles.close}>
           <Ionicons name="close" size={20} color={colors.muted} />
         </Pressable>
       </View>
 
-      {today || availability ? (
-        <View style={styles.detailRow}>
-          {today ? (
-            <View style={styles.detailItem}>
-              <Ionicons name="time-outline" size={14} color={colors.muted} />
-              <Text style={styles.detailText} numberOfLines={1}>
-                Hoy {today}
-              </Text>
-            </View>
-          ) : null}
-          {availability ? (
-            <View style={styles.detailItem}>
-              <Ionicons name="people-outline" size={14} color={colors.primary} />
-              <Text style={styles.detailText} numberOfLines={1}>
-                {availability}
-              </Text>
-            </View>
-          ) : null}
-        </View>
-      ) : null}
-
       {offer ? (
         <Pressable
           accessibilityRole="button"
           onPress={() => onClaimOffer(offer.id, offer.title)}
-          style={({ pressed }) => [styles.offerStrip, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.offerChip, pressed && styles.pressed]}
         >
-          <View style={styles.offerIcon}>
-            <Ionicons name="flash" size={14} color="#fff" />
-          </View>
-          <View style={styles.offerInfo}>
-            <Text style={styles.offerTitle} numberOfLines={1}>
-              {offer.title}
-            </Text>
-            <Text style={styles.offerMeta} numberOfLines={1}>
-              {offer.price ? `${offer.price} · ` : ''}
-              {offerTypeLabel(offer.type)} · hasta {formatOfferEndsAt(offer.ends_at)} · quedan {offer.slots_left} cupos
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color="#fff" />
+          <Ionicons name="flash" size={14} color={colors.accent} />
+          <Text style={styles.offerChipText} numberOfLines={1}>
+            {offer.title} · termina {formatOfferEndsAt(offer.ends_at)}
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.accent} />
         </Pressable>
       ) : null}
 
@@ -189,35 +142,19 @@ const styles = StyleSheet.create({
   info: { flex: 1, gap: 2 },
   name: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
   meta: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
-  badgesRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 2 },
-  rating: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  rating: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 },
   ratingText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
-  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill },
-  statusOpen: { backgroundColor: colors.verifiedSoft },
-  statusClosed: { backgroundColor: colors.bg },
-  dot: { width: 6, height: 6, borderRadius: 3 },
-  dotOpen: { backgroundColor: colors.verified },
-  dotClosed: { backgroundColor: colors.muted },
-  statusText: { fontSize: 12, fontFamily: fonts.ui.bold },
-  statusTextOpen: { color: colors.verified },
-  statusTextClosed: { color: colors.muted },
   close: { padding: 4 },
-  detailRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.md },
-  detailItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  detailText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
-  offerStrip: {
+  offerChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.accentSoft,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
-  offerIcon: { width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
-  offerInfo: { flex: 1, gap: 1 },
-  offerTitle: { fontSize: 14.5, fontFamily: fonts.ui.bold, color: '#fff' },
-  offerMeta: { fontSize: 12, fontFamily: fonts.ui.medium, color: '#fff' },
+  offerChipText: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.semibold, color: colors.ink },
   pressed: { opacity: 0.85 },
   actions: { flexDirection: 'row', gap: spacing.sm },
   action: { flex: 1, paddingHorizontal: spacing.sm, minHeight: 44 },
