@@ -14,9 +14,14 @@ function list<T>(res: { data?: T[] | null }): T[] {
 }
 
 export interface DiscoveryParams {
+  /** Rectángulo visible del mapa. */
+  min_lat?: number;
+  max_lat?: number;
+  min_lng?: number;
+  max_lng?: number;
+  /** Ubicación del usuario (referencia para la distancia). */
   lat?: number;
   long?: number;
-  radius?: number;
   category?: string;
   subcategory?: string;
   q?: string;
@@ -25,10 +30,20 @@ export interface DiscoveryParams {
   limit?: number;
 }
 
+export interface DiscoveryResponse {
+  items: DiscoveryItem[];
+  total: number;
+}
+
 export const discoveryApi = {
-  /** Negocios rankeados y diversificados para el área visible (público). */
-  discover: async (params: DiscoveryParams = {}): Promise<DiscoveryItem[]> =>
-    list(await request<{ data?: DiscoveryItem[] | null }>('/api/discovery', { auth: false, query: { ...params } })),
+  /** Negocios rankeados y diversificados para el área visible + total (público). */
+  discover: async (params: DiscoveryParams = {}): Promise<DiscoveryResponse> => {
+    const res = await request<{ items?: DiscoveryItem[] | null; total?: number }>('/api/discovery', {
+      auth: false,
+      query: { ...params },
+    });
+    return { items: res.items ?? [], total: res.total ?? 0 };
+  },
 };
 
 export const offersApi = {

@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Animated,
   FlatList,
+  Linking,
   Modal,
   PanResponder,
   Pressable,
@@ -22,14 +23,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { categoriesApi, entitiesApi } from '@/api/endpoints';
 import { discoveryApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
-import type { Category, DiscoveryItem, EntityMap } from '@/api/types';
+import type { Category, DiscoveryItem } from '@/api/types';
 import { BusinessRow } from '@/components/BusinessRow';
+import { BusinessBanner } from '@/components/BusinessBanner';
 import { Button } from '@/components/Button';
 import { DEFAULT_REGION } from '@/config';
 import { categoryColor } from '@/lib/categoryColor';
 import { clusterItems } from '@/lib/cluster';
 import { distanceKm, hasLocation, type Coords } from '@/lib/geo';
 import { resolveImageUrl } from '@/lib/image';
+import { MAP_STYLE } from '@/lib/mapStyle';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 type WithDistance = DiscoveryItem & { distanceKm: number | null };
@@ -56,10 +59,6 @@ function greetingNow(): string {
 
 // Cuántos negocios mostrar en el carrusel de Destacados.
 const FEATURED_COUNT = 8;
-// Radio dentro del cual "Destacados cerca de ti" considera negocios. Evita
-// mostrar como "cerca" algo que está en otra ciudad (ver hallazgo de UI:
-// Destacados mostraba negocios a 171 km bajo ese título).
-const FEATURED_RADIUS_KM = 15;
 // Alto de la barra de Destacados cuando está minimizada (solo el handle + el
 // encabezado), para que el botón de "mi ubicación" no quede tapado.
 const FEATURED_CARD_MINIMIZED_HEIGHT = 56;
@@ -69,10 +68,13 @@ const FEATURED_CARD_HEIGHT = 190;
 
 type ZoomTier = 'far' | 'mid' | 'near';
 
-/** Nivel de zoom según el delta de latitud de la región visible del mapa. */
+/** Nivel de zoom según el delta de latitud de la región visible del mapa.
+ * La imagen del negocio solo aparece de cerca; al alejarte se reduce a un
+ * punto de color que no estorba (con muchos negocios, las imágenes grandes
+ * serían un estorbo). */
 function zoomTier(region: Region): ZoomTier {
-  if (region.latitudeDelta < 0.012) return 'near';
-  if (region.latitudeDelta < 0.06) return 'mid';
+  if (region.latitudeDelta < 0.008) return 'near';
+  if (region.latitudeDelta < 0.02) return 'mid';
   return 'far';
 }
 
@@ -96,7 +98,9 @@ export default function ExploreScreen() {
   // de Bocagrande"): mejor esfuerzo vía reverse geocoding, nunca bloquea nada
   // si falla — el saludo cae de vuelta a "cerca de ti".
   const [neighborhood, setNeighborhood] = useState<string | null>(null);
-  const [selected, setSelected] = useState<EntityMap | null>(null);
+  // Negocio seleccionado (tocar un pin abre su banner; el banner reemplaza a
+  // Destacados y es la única vía al perfil).
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   // Minimiza el panel de Destacados a solo su encabezado, para dejar ver más mapa.
   // Sigue existiendo como estado "discreto" (para la etiqueta de accesibilidad,
   // el ícono de la flechita y el link "Ver todos"); la altura real que se ve
@@ -231,15 +235,17 @@ export default function ExploreScreen() {
   // Antes de montar el mapa: si ya teníamos permiso de ubicación de una vez
   // anterior, intenta arrancar YA centrados en el usuario usando una posición
   // reciente en caché (getLastKnownPositionAsync es casi instantáneo, a
-  // diferencia de pedir un fix nuevo de GPS). Si no hay permiso, no hay
-  // posición en caché, o tarda más de lo razonable, cae de vuelta a la vista
-  // general del país — nunca se queda esperando para siempre.
+  // diferencia de pedir un fix nuevo de GPS). Con permiso pero sin caché,
+  // dejamos el loading y el fix fresco recentra en cuanto llega; solo si NO
+  // hay permiso caemos a la vista del país (no hay cómo ubicar al usuario).
   useEffect(() => {
     let active = true;
     (async () => {
+      let granted = false;
       try {
         const permission = await Location.getForegroundPermissionsAsync();
-        if (permission.status === 'granted') {
+        granted = permission.status === 'granted';
+        if (granted) {
           const last = await Promise.race([
             Location.getLastKnownPositionAsync({ maxAge: 5 * 60_000 }),
             new Promise<null>((resolve) => setTimeout(() => resolve(null), 800)),
@@ -258,12 +264,23 @@ export default function ExploreScreen() {
       } catch {
         // Sigue al fallback de abajo.
       }
-      if (active) setStartupRegion(DEFAULT_REGION);
+      // Sin permiso concedido: no hay forma de centrar en el usuario.
+      if (active && !granted) setStartupRegion(DEFAULT_REGION);
     })();
     return () => {
       active = false;
     };
   }, []);
+
+  // Con permiso concedido pero sin posición en caché, el mapa espera (loading)
+  // al fix fresco: en cuanto llega, arranca centrado en el usuario (nunca la
+  // vista del país completo).
+  useEffect(() => {
+    if (startupRegion === null && userCoords) {
+      setStartupRegion({ ...userCoords, latitudeDelta: 0.03, longitudeDelta: 0.03 });
+      didCenterRef.current = true;
+    }
+  }, [startupRegion, userCoords]);
 
   // Pide la ubicación del usuario (permite centrar el mapa y ordenar/filtrar por distancia).
   // Esto PIDE el permiso si todavía no se ha concedido, y en cualquier caso
@@ -333,6 +350,23 @@ export default function ExploreScreen() {
   // (hallazgo de UI: el pin del propio negocio se ve igual que cualquier otro).
   const myEntityIds = useMemo(() => new Set((myEntities.data ?? []).map((e) => e.id)), [myEntities.data]);
 
+  // Rectángulo visible del mapa (para la consulta por zona) y si el mapa está
+  // centrado en el usuario (para el título del encabezado).
+  const bbox = useMemo(() => {
+    const halfLat = region.latitudeDelta / 2;
+    const halfLng = region.longitudeDelta / 2;
+    return {
+      min_lat: +(region.latitude - halfLat).toFixed(5),
+      max_lat: +(region.latitude + halfLat).toFixed(5),
+      min_lng: +(region.longitude - halfLng).toFixed(5),
+      max_lng: +(region.longitude + halfLng).toFixed(5),
+    };
+  }, [region]);
+  const centeredOnUser = useMemo(() => {
+    if (!reference) return false;
+    return distanceKm(reference, { latitude: region.latitude, longitude: region.longitude }) < 1;
+  }, [reference, region]);
+
   const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 5 * 60_000 });
   const entities = useQuery({
     queryKey: [
@@ -340,28 +374,26 @@ export default function ExploreScreen() {
       categoryId ?? 'all',
       subcategoryId ?? 'all',
       debouncedSearch,
-      radiusKm ?? 'any',
-      radiusKm && reference ? `${reference.latitude.toFixed(3)},${reference.longitude.toFixed(3)}` : 'no-ref',
-      openNow,
+      bbox.min_lat,
+      bbox.min_lng,
+      bbox.max_lat,
+      bbox.max_lng,
     ],
     queryFn: () =>
       discoveryApi.discover({
+        ...bbox,
+        // Referencia del usuario para la distancia; 0/0 = sin señal.
+        lat: reference?.latitude,
+        long: reference?.longitude,
         category: categoryId,
         subcategory: subcategoryId,
         q: debouncedSearch || undefined,
-        // Con radio, el backend filtra por caja y devuelve la distancia exacta
-        // (distance_meters); sin radio, igual rankea por cercanía al usuario.
-        ...(radiusKm && reference
-          ? { lat: reference.latitude, long: reference.longitude, radius: radiusKm * 1000 }
-          : reference
-            ? { lat: reference.latitude, long: reference.longitude }
-            : {}),
-        limit: 100,
+        limit: 15,
       }),
   });
 
   const items = useMemo<WithDistance[]>(() => {
-    const withDistance = (entities.data ?? []).map((entity) => ({
+    const withDistance = (entities.data?.items ?? []).map((entity) => ({
       ...entity,
       distanceKm: entity.distance_meters > 0 ? entity.distance_meters / 1000 : null,
     }));
@@ -378,26 +410,16 @@ export default function ExploreScreen() {
   const mapped = useMemo(() => items.filter(hasLocation), [items]);
   const clusters = useMemo(() => clusterItems(mapped, region), [mapped, region]);
   const tier = zoomTier(region);
+  const total = entities.data?.total ?? 0;
 
-  // Destacados: los mejor calificados primero dentro de FEATURED_RADIUS_KM; si
-  // todavía nadie tiene reseñas (una ciudad/categoría recién empezando),
-  // mostramos los más cercanos en su lugar — `items` ya viene ordenado por
-  // distancia. Sin ubicación del usuario no hay cómo saber qué es "cerca",
-  // así que en ese caso no acotamos por radio.
-  const nearby = useMemo(() => {
-    if (!reference) return items;
-    return items.filter((entity) => entity.distanceKm !== null && entity.distanceKm <= FEATURED_RADIUS_KM);
-  }, [items, reference]);
-  const featured = useMemo(() => {
-    if (nearby.length === 0) return [];
-    const rated = nearby
-      .filter((entity) => entity.review_count > 0)
-      .sort((a, b) => b.avg_rating - a.avg_rating || b.review_count - a.review_count);
-    return (rated.length > 0 ? rated : nearby).slice(0, FEATURED_COUNT);
-  }, [nearby]);
-  // Hay negocios en general, pero ninguno a menos de FEATURED_RADIUS_KM: así
-  // distinguimos "todavía no hay nada" de "no hay nada cerca" para el estado vacío.
-  const featuredNearbyEmpty = featured.length === 0 && items.length > 0 && Boolean(reference);
+  // Destacados salen de la misma respuesta que los pines (área visible): los
+  // primeros resultados, sin el negocio propio.
+  const featured = useMemo(
+    () => items.filter((entity) => !myEntityIds.has(entity.id)).slice(0, FEATURED_COUNT),
+    [items, myEntityIds],
+  );
+  // Hay negocios, pero todos son el propio: mensaje "solo está tu negocio".
+  const onlyMine = items.length > 0 && featured.length === 0;
 
   // Emergente: al escribir en el buscador, Destacados se recoge para no
   // quitarle espacio a la búsqueda (prioridad absoluta). El usuario puede
@@ -410,6 +432,29 @@ export default function ExploreScreen() {
   }, [debouncedSearch]);
 
   const openBusiness = (id: string) => router.push({ pathname: '/business/[id]', params: { id } });
+
+  const selectedEntity = useMemo(
+    () => (selectedId ? items.find((e) => e.id === selectedId) ?? null : null),
+    [items, selectedId],
+  );
+
+  // Toca un pin: selecciona y centra dejando espacio abajo para que el banner
+  // no tape el pin (el centro queda un poco al sur del negocio).
+  const selectBusiness = (id: string, coords: { latitude: number; longitude: number }) => {
+    setSelectedId(id);
+    mapRef.current?.animateToRegion(
+      { latitude: coords.latitude - 0.0016, longitude: coords.longitude, latitudeDelta: 0.008, longitudeDelta: 0.008 },
+      400,
+    );
+  };
+
+  const directionsTo = (latitude: number, longitude: number) => {
+    void Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`);
+  };
+
+  const claimOffer = (offerId: string, title: string) => {
+    router.push({ pathname: '/offer/claim', params: { offerId, title } });
+  };
 
   const clearAllFilters = () => {
     setCategoryId(undefined);
@@ -437,7 +482,9 @@ export default function ExploreScreen() {
       <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]}>
         <View style={styles.greetingRow}>
           <Text style={styles.greetingKicker}>{greetingNow()}</Text>
-          <Text style={styles.greetingTitle}>Negocios cerca de {neighborhood ?? 'ti'}</Text>
+          <Text style={styles.greetingTitle}>
+            {centeredOnUser ? `Negocios cerca de ${neighborhood ?? 'ti'}` : 'Negocios en esta zona'}
+          </Text>
         </View>
 
         <View style={styles.searchRow}>
@@ -464,7 +511,6 @@ export default function ExploreScreen() {
               accessibilityState={{ selected: mode === 'map' }}
               accessibilityLabel="Ver en el mapa"
               onPress={() => {
-                setSelected(null);
                 setMode('map');
               }}
               style={[styles.modeToggleBtn, mode === 'map' && styles.modeToggleBtnActive]}
@@ -476,7 +522,6 @@ export default function ExploreScreen() {
               accessibilityState={{ selected: mode === 'list' }}
               accessibilityLabel="Ver como lista"
               onPress={() => {
-                setSelected(null);
                 setMode('list');
               }}
               style={[styles.modeToggleBtn, mode === 'list' && styles.modeToggleBtnActive]}
@@ -567,7 +612,8 @@ export default function ExploreScreen() {
 
         {!entities.isLoading ? (
           <Text style={styles.resultsCount}>
-            {items.length} {items.length === 1 ? 'negocio' : 'negocios'}
+            {total} en esta zona
+            {total > items.length ? ` · mostrando los mejores ${items.length}` : ''}
           </Text>
         ) : null}
       </View>
@@ -597,9 +643,10 @@ export default function ExploreScreen() {
               // los negocios de Empre y solo generan ruido visual (hallazgo de UI:
               // "el mapa conserva etiquetas ajenas al filtro").
               showsPointsOfInterests={false}
+              customMapStyle={MAP_STYLE}
               onMapReady={() => setMapReady(true)}
               onRegionChangeComplete={setRegion}
-              onPress={() => setSelected(null)}
+              onPress={() => setSelectedId(null)}
             >
               {radiusKm && reference ? (
                 <Circle
@@ -616,51 +663,61 @@ export default function ExploreScreen() {
 
                 if (cluster.items.length === 1 && only) {
                   const isMine = myEntityIds.has(only.id);
+                  const isSelected = only.id === selectedId;
                   const cat = categoryColor(only.category_color);
                   const open = only.has_hours ? only.is_open_now : true;
                   const icon = (only.category_icon || 'storefront') as keyof typeof Ionicons.glyphMap;
+                  const thumb = only.profile_url ? resolveImageUrl(only.profile_url) : null;
+                  // Borde: ámbar si hay ofertas, azul si está seleccionado, blanco si no.
+                  const hasOffer = only.has_active_offer;
+                  const showRayo = hasOffer && (only.active_offer?.type === 'HORAS' || only.active_offer?.type === 'DIA');
+                  const borderColor = isSelected ? colors.primary : hasOffer ? colors.accent : '#ffffff';
+                  const statusColor = open ? '#2E9E5B' : '#9AA7B5';
                   return (
                     <Marker
                       key={cluster.key}
                       coordinate={coordinate}
+                      zIndex={isSelected ? 1000 : 1}
                       onPress={(event) => {
                         event.stopPropagation();
-                        setSelected(only);
+                        selectBusiness(only.id, coordinate);
                       }}
                     >
-                      <View style={styles.pinWrap}>
+                      <View collapsable={false} style={[styles.pinWrap, isSelected && styles.pinWrapSelected]}>
                         {isMine ? (
                           <View style={styles.pinOwnerLabel}>
                             <Text style={styles.pinOwnerLabelText}>Tu negocio</Text>
                           </View>
                         ) : null}
-                        {only.has_active_offer ? (
+                        {showRayo ? (
                           <View style={styles.offerBadge}>
                             <Ionicons name="flash" size={11} color="#fff" />
                           </View>
                         ) : null}
                         {tier === 'near' ? (
-                          <View style={[styles.pinNear, { borderColor: open ? colors.verified : colors.muted }]}>
-                            <View style={[styles.pinNearIcon, { backgroundColor: cat.bg }]}>
-                              <Ionicons name={icon} size={16} color={cat.fg} />
-                            </View>
-                            <Text style={styles.pinNearText} numberOfLines={1}>
-                              {only.name}
-                            </Text>
+                          <View style={[styles.pinNearImg, { borderColor }]}>
+                            {thumb ? (
+                              <Image source={{ uri: thumb }} style={styles.pinNearThumb} contentFit="cover" transition={120} />
+                            ) : (
+                              <View style={[styles.pinNearFallback, { backgroundColor: cat.bg }]}>
+                                <Ionicons name={icon} size={20} color={cat.fg} />
+                              </View>
+                            )}
+                            {only.has_hours ? <View style={[styles.statusDot, { backgroundColor: statusColor }]} /> : null}
                           </View>
                         ) : tier === 'mid' ? (
-                          <View
-                            style={[
-                              styles.pinMid,
-                              { backgroundColor: cat.bg, borderColor: open ? colors.verified : colors.muted },
-                            ]}
-                          >
-                            <Ionicons name={icon} size={20} color={cat.fg} />
+                          <View style={[styles.pinMid, { borderColor }]}>
+                            {thumb ? (
+                              <Image source={{ uri: thumb }} style={styles.pinMidThumb} contentFit="cover" transition={120} />
+                            ) : (
+                              <View style={[styles.pinMidFallback, { backgroundColor: cat.bg }]}>
+                                <Ionicons name={icon} size={16} color={cat.fg} />
+                              </View>
+                            )}
+                            {only.has_hours ? <View style={[styles.statusDot, { backgroundColor: statusColor }]} /> : null}
                           </View>
                         ) : (
-                          <View style={[styles.pinFar, { backgroundColor: cat.fg }]}>
-                            <Ionicons name={icon} size={13} color="#fff" />
-                          </View>
+                          <View style={[styles.pinFar, { backgroundColor: cat.fg }, isSelected && styles.pinFarSelected]} />
                         )}
                       </View>
                     </Marker>
@@ -688,9 +745,15 @@ export default function ExploreScreen() {
                       );
                     }}
                   >
-                    <View style={styles.clusterStack}>
-                      <View style={[styles.clusterMini, { backgroundColor: c2 }]} />
-                      <View style={[styles.clusterMini, styles.clusterMiniSecond, { backgroundColor: c1 }]} />
+                    <View collapsable={false} style={styles.pinWrap}>
+                      {tier === 'far' ? (
+                        <View style={[styles.pinFar, { backgroundColor: c1 }]} />
+                      ) : (
+                        <View style={styles.clusterStack}>
+                          <View style={[styles.clusterMini, { backgroundColor: c2 }]} />
+                          <View style={[styles.clusterMini, styles.clusterMiniSecond, { backgroundColor: c1 }]} />
+                        </View>
+                      )}
                     </View>
                   </Marker>
                 );
@@ -698,17 +761,16 @@ export default function ExploreScreen() {
             </MapView>
             )}
 
-            {/* Botón de "mi ubicación" y tarjeta de Destacados: solo cuando no
-                hay un negocio seleccionado (esa vista previa ya ocupa la
-                misma zona inferior). */}
-            {!selected ? (
+            {/* Botón de "mi ubicación" y tarjeta de Destacados (ocultos
+                mientras hay un negocio seleccionado: el banner los reemplaza). */}
+            {!selectedEntity ? (
               <>
                 <Animated.View
                   style={[
                     styles.locateButtonWrap,
                     {
                       bottom:
-                        featured.length > 0 || featuredNearbyEmpty
+                        featured.length > 0 || onlyMine
                           ? Animated.add(featuredHeight, insets.bottom)
                           : spacing.lg + insets.bottom,
                     },
@@ -734,7 +796,7 @@ export default function ExploreScreen() {
                   </Pressable>
                 </Animated.View>
 
-                {featured.length > 0 || featuredNearbyEmpty ? (
+                {featured.length > 0 || onlyMine ? (
                   <Animated.View
                     style={[
                       styles.featuredCard,
@@ -780,32 +842,15 @@ export default function ExploreScreen() {
                           <FeaturedCard
                             key={entity.id}
                             entity={entity}
-                            onPress={() => {
-                              setSelected(entity);
-                              if (hasLocation(entity)) {
-                                mapRef.current?.animateToRegion(
-                                  { latitude: entity.latitude, longitude: entity.longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 },
-                                  400,
-                                );
-                              }
-                            }}
+                            onPress={() => openBusiness(entity.id)}
                           />
                         ))}
                       </ScrollView>
-                    ) : !featuredMinimized && featuredNearbyEmpty ? (
+                    ) : !featuredMinimized && onlyMine ? (
                       <View style={styles.featuredEmpty}>
-                        <Ionicons name="search" size={22} color={colors.muted} />
-                        <Text style={styles.featuredEmptyTitle}>Aún no hay negocios a {FEATURED_RADIUS_KM} km</Text>
-                        <Text style={styles.featuredEmptyText}>Prueba con un radio más amplio o registra el primero.</Text>
-                        <View style={styles.featuredEmptyActions}>
-                          <Button title="Ver todos" onPress={() => setMode('list')} style={styles.featuredEmptyButton} />
-                          <Button
-                            title="Registrar negocio"
-                            variant="secondary"
-                            onPress={() => router.push('/business/new')}
-                            style={styles.featuredEmptyButton}
-                          />
-                        </View>
+                        <Text style={styles.featuredEmptyTitle}>Por ahora solo está tu negocio</Text>
+                        <Text style={styles.featuredEmptyText}>Cuando haya más cerca, aparecerán aquí.</Text>
+                        <Button title="Ver todos" onPress={() => setMode('list')} style={styles.featuredEmptyButton} />
                       </View>
                     ) : null}
                   </Animated.View>
@@ -813,16 +858,19 @@ export default function ExploreScreen() {
               </>
             ) : null}
 
-            {/* Vista previa del negocio seleccionado (solo mapa) */}
-            {selected ? (
-              <View style={styles.preview}>
-                <BusinessRow
-                  entity={selected}
-                  distanceKm={reference && hasLocation(selected) ? distanceKm(reference, selected) : null}
-                  onPress={() => openBusiness(selected.id)}
-                />
-                <Button title="Ver perfil" onPress={() => openBusiness(selected.id)} style={styles.previewButton} />
-              </View>
+            {selectedEntity ? (
+              <BusinessBanner
+                entity={selectedEntity}
+                isMine={myEntityIds.has(selectedEntity.id)}
+                onClose={() => setSelectedId(null)}
+                onDirections={() => directionsTo(selectedEntity.latitude, selectedEntity.longitude)}
+                onProfile={() => openBusiness(selectedEntity.id)}
+                onClaimOffer={claimOffer}
+                onScan={() => router.push('/business/scan')}
+                onPublishOffer={() =>
+                  router.push({ pathname: '/business/offers', params: { entityId: selectedEntity.id } })
+                }
+              />
             ) : null}
           </View>
         ) : (
@@ -1334,9 +1382,17 @@ const styles = StyleSheet.create({
   },
   modeToggleBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   modeToggleBtnActive: { backgroundColor: colors.primary },
-  pinWrap: { alignItems: 'center' },
+  pinWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 44,
+    minHeight: 44,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  pinWrapSelected: { transform: [{ scale: 1.15 }] },
   pinOwnerLabel: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.primaryDark,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: radius.sm,
@@ -1352,7 +1408,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1.5,
     borderColor: '#fff',
-    marginBottom: -4,
+    marginBottom: -2,
   },
   pin: {
     width: 34,
@@ -1366,22 +1422,33 @@ const styles = StyleSheet.create({
   },
   pinVerified: { backgroundColor: colors.verified },
   pinOwner: { borderColor: colors.accent, borderWidth: 3 },
-  pinFar: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  pinMid: { width: 44, height: 44, borderRadius: 22, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
-  pinNear: {
-    flexDirection: 'row',
+  pinFar: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: '#fff' },
+  pinFarSelected: { borderColor: colors.primary, borderWidth: 3 },
+  pinMid: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 3,
+    overflow: 'hidden',
     alignItems: 'center',
-    gap: 6,
-    paddingRight: 12,
-    paddingVertical: 4,
-    paddingLeft: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    maxWidth: 180,
+    justifyContent: 'center',
+    backgroundColor: colors.bg,
   },
-  pinNearIcon: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  pinNearText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.ink, flexShrink: 1 },
+  pinMidThumb: { width: 28, height: 28, borderRadius: 14 },
+  pinMidFallback: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  pinNearImg: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 3,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bg,
+  },
+  pinNearThumb: { width: 40, height: 40, borderRadius: 20 },
+  pinNearFallback: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  statusDot: { position: 'absolute', right: 1, bottom: 1, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#fff' },
   clusterStack: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   clusterMini: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: '#fff' },
   clusterMiniSecond: { marginLeft: -10 },
