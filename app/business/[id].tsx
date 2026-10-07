@@ -26,6 +26,7 @@ import { AIWritingAssist } from '@/components/AIWritingAssist';
 import { AgendaStrip } from '@/components/agenda/AgendaStrip';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
+import { OfferBanner } from '@/components/OfferBanner';
 import { PostComposerSheet } from '@/components/PostComposerSheet';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -496,6 +497,7 @@ export default function BusinessScreen() {
               </Pressable>
             ) : null}
             {!isOwner ? <Button title="Enviar mensaje" onPress={onMessage} /> : null}
+            <OfferBanner entityId={business.id} isOwner={isOwner} />
             {!isOwner ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
             {isOwner ? (
               <Pressable
@@ -512,6 +514,16 @@ export default function BusinessScreen() {
                 title="Editar negocio"
                 onPress={() => router.push({ pathname: '/business/edit/[id]', params: { id: business.id } })}
               />
+            ) : null}
+            {isOwner ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => router.push('/business/scan')}
+                style={({ pressed }) => [styles.subscriptionLink, pressed && styles.subscriptionLinkPressed]}
+              >
+                <Ionicons name="scan-outline" size={16} color={colors.primary} />
+                <Text style={styles.subscriptionLinkText}>Escanear canje</Text>
+              </Pressable>
             ) : null}
             {isOwner ? (
               <Pressable

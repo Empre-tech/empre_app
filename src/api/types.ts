@@ -46,6 +46,8 @@ export interface Category {
   name: string;
   /** Nombre de ícono de Ionicons (ej. "restaurant-outline"), usado en el mapa. */
   icon: string;
+  /** Color de marca (hex) para teñir el portal/glifo en el mapa. */
+  color?: string;
   subcategories?: Subcategory[];
 }
 
@@ -56,6 +58,8 @@ export interface EntityMap {
   category_id: string;
   category_name: string;
   category_icon: string;
+  /** Color de marca (hex) de la categoría para el portal. */
+  category_color?: string;
   profile_url: string;
   latitude: number;
   longitude: number;
@@ -309,4 +313,73 @@ export interface SubscriptionCheckout {
   currency: string;
   signature: string;
   redirect_url: string;
+}
+
+// ---------------------------------------------------------------------------
+// Ofertas y canje (empre_backend/internal/dtos/offer_dto.go y claim_dto.go)
+// ---------------------------------------------------------------------------
+
+export type OfferType = 'HORAS' | 'DIA' | 'SEMANA';
+export type ClaimStatus = 'RECLAMADO' | 'CANJEADO' | 'EXPIRADO' | 'CANCELADO';
+export type RepeatPolicy = 'once' | 'daily';
+
+export interface Offer {
+  id: string;
+  entity_id: string;
+  type: OfferType;
+  title: string;
+  price: string;
+  conditions?: string;
+  starts_at: string;
+  ends_at: string;
+  total_slots: number;
+  used_slots: number;
+  slots_left: number;
+  radius_meters: number;
+  repeat_policy: RepeatPolicy;
+}
+
+export interface OfferClaim {
+  id: string;
+  offer_id: string;
+  status: ClaimStatus;
+  token: string;
+  short_code: string;
+  claimed_at: string;
+  expires_at: string;
+  offer?: Offer;
+}
+
+export interface RedeemResult {
+  valid: boolean;
+  reason?: string;
+  claim_id?: string;
+  entity_name?: string;
+  offer_title?: string;
+  client_name?: string;
+}
+
+export interface OfferInput {
+  type: OfferType;
+  title: string;
+  price?: string;
+  conditions?: string;
+  ends_at: string;
+  total_slots: number;
+  radius_meters?: number;
+  repeat_policy?: RepeatPolicy;
+}
+
+export type QuickAction = 'extend' | 'radius' | 'slots';
+
+/** Resultado de descubrimiento (GET /api/discovery): EntityMap + distancia + oferta. */
+export interface DiscoveryItem extends EntityMap {
+  distance_meters: number;
+  has_active_offer: boolean;
+  active_offer?: Offer;
+}
+
+export interface BusinessStatus {
+  availability: string;
+  updated_at?: string;
 }

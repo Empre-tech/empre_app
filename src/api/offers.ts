@@ -1,0 +1,85 @@
+import { request } from './client';
+import type {
+  BusinessStatus,
+  DiscoveryItem,
+  Offer,
+  OfferClaim,
+  OfferInput,
+  QuickAction,
+  RedeemResult,
+} from './types';
+
+function list<T>(res: { data?: T[] | null }): T[] {
+  return res?.data ?? [];
+}
+
+export interface DiscoveryParams {
+  lat?: number;
+  long?: number;
+  radius?: number;
+  category?: string;
+  subcategory?: string;
+  q?: string;
+  /** "", "now", "today", "week" */
+  offer?: string;
+  limit?: number;
+}
+
+export const discoveryApi = {
+  /** Negocios rankeados y diversificados para el área visible (público). */
+  discover: async (params: DiscoveryParams = {}): Promise<DiscoveryItem[]> =>
+    list(await request<{ data?: DiscoveryItem[] | null }>('/api/discovery', { auth: false, query: { ...params } })),
+};
+
+export const offersApi = {
+  /** Publica una oferta (dueño). */
+  publish: (entityId: string, input: OfferInput) =>
+    request<Offer>(`/api/entities/${entityId}/offers`, { method: 'POST', body: input }),
+
+  /** Ofertas del negocio (dueño). */
+  list: async (entityId: string): Promise<Offer[]> =>
+    list(await request<{ data?: Offer[] | null }>(`/api/entities/${entityId}/offers`)),
+
+  /** Oferta activa de un negocio (público). */
+  active: (entityId: string) => request<{ data: Offer | null }>(`/api/entities/${entityId}/offer`, { auth: false }),
+
+  /** Acción rápida: extend (minutos), radius (metros) o slots (cantidad a sumar). */
+  quickAction: (offerId: string, action: QuickAction, value: number) =>
+    request<Offer>(`/api/offers/${offerId}`, { method: 'PATCH', body: { action, value } }),
+
+  /** Clona una oferta como publicación nueva. */
+  republish: (offerId: string, input: OfferInput) =>
+    request<Offer>(`/api/offers/${offerId}/republish`, { method: 'POST', body: input }),
+};
+
+export const claimsApi = {
+  /** Reclama una oferta (reserva cupo, devuelve QR). */
+  claim: (offerId: string, latitude?: number, longitude?: number) =>
+    request<OfferClaim>(`/api/offers/${offerId}/claim`, { method: 'POST', body: { latitude, longitude } }),
+
+  /** Mi reclamo (QR + tiempo restante). */
+  get: (claimId: string) => request<OfferClaim>(`/api/claims/${claimId}`),
+
+  /** Libera el cupo. */
+  cancel: (claimId: string) => request<{ message: string }>(`/api/claims/${claimId}`, { method: 'DELETE' }),
+
+  /** El negocio escanea por id (token decodificado del QR). */
+  redeem: (claimId: string, device?: string) =>
+    request<RedeemResult>(`/api/claims/${claimId}/redeem`, { method: 'POST', body: { device } }),
+
+  /** El negocio canjea por código corto. */
+  redeemCode: (code: string, device?: string) =>
+    request<RedeemResult>('/api/claims/redeem-code', { method: 'POST', body: { code, device } }),
+
+  /** El cliente confirma el canje (antifraude). */
+  confirm: (claimId: string) => request<{ message: string }>(`/api/claims/${claimId}/confirm`, { method: 'POST' }),
+};
+
+export const statusApi = {
+  /** Disponibilidad en tiempo real de un negocio (público). */
+  get: (entityId: string) => request<BusinessStatus>(`/api/entities/${entityId}/status`, { auth: false }),
+
+  /** Actualiza la disponibilidad (dueño). */
+  update: (entityId: string, availability: string) =>
+    request<BusinessStatus>(`/api/entities/${entityId}/status`, { method: 'PATCH', body: { availability } }),
+};

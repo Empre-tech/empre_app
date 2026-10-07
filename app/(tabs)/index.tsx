@@ -20,8 +20,9 @@ import {
 import MapView, { Circle, Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { categoriesApi, entitiesApi } from '@/api/endpoints';
+import { discoveryApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
-import type { Category, EntityMap } from '@/api/types';
+import type { Category, DiscoveryItem, EntityMap } from '@/api/types';
 import { BusinessRow } from '@/components/BusinessRow';
 import { Button } from '@/components/Button';
 import { DEFAULT_REGION } from '@/config';
@@ -31,7 +32,7 @@ import { distanceKm, hasLocation, type Coords } from '@/lib/geo';
 import { resolveImageUrl } from '@/lib/image';
 import { colors, fonts, radius, spacing } from '@/theme';
 
-type WithDistance = EntityMap & { distanceKm: number | null };
+type WithDistance = DiscoveryItem & { distanceKm: number | null };
 
 /** Opciones del filtro "cerca de mí". `null` = sin límite de distancia. */
 const RADIUS_OPTIONS: { label: string; km: number | null }[] = [
@@ -65,6 +66,15 @@ const FEATURED_CARD_MINIMIZED_HEIGHT = 56;
 // Alto aproximado de la tarjeta de Destacados flotando sobre el mapa —
 // se usa para no tapar el botón de "mi ubicación" ni el pin seleccionado.
 const FEATURED_CARD_HEIGHT = 190;
+
+type ZoomTier = 'far' | 'mid' | 'near';
+
+/** Nivel de zoom según el delta de latitud de la región visible del mapa. */
+function zoomTier(region: Region): ZoomTier {
+  if (region.latitudeDelta < 0.012) return 'near';
+  if (region.latitudeDelta < 0.06) return 'mid';
+  return 'far';
+}
 
 export default function ExploreScreen() {
   const router = useRouter();
@@ -326,7 +336,7 @@ export default function ExploreScreen() {
   const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 5 * 60_000 });
   const entities = useQuery({
     queryKey: [
-      'entities',
+      'discovery',
       categoryId ?? 'all',
       subcategoryId ?? 'all',
       debouncedSearch,
@@ -335,37 +345,39 @@ export default function ExploreScreen() {
       openNow,
     ],
     queryFn: () =>
-      entitiesApi.list({
+      discoveryApi.discover({
         category: categoryId,
         subcategory: subcategoryId,
         q: debouncedSearch || undefined,
-        // El backend filtra por caja (aproximado); el radio exacto lo afinamos abajo con Haversine.
+        // Con radio, el backend filtra por caja y devuelve la distancia exacta
+        // (distance_meters); sin radio, igual rankea por cercanía al usuario.
         ...(radiusKm && reference
           ? { lat: reference.latitude, long: reference.longitude, radius: radiusKm * 1000 }
-          : {}),
-        openNow,
+          : reference
+            ? { lat: reference.latitude, long: reference.longitude }
+            : {}),
+        limit: 100,
       }),
   });
 
   const items = useMemo<WithDistance[]>(() => {
     const withDistance = (entities.data ?? []).map((entity) => ({
       ...entity,
-      distanceKm: reference && hasLocation(entity) ? distanceKm(reference, entity) : null,
+      distanceKm: entity.distance_meters > 0 ? entity.distance_meters / 1000 : null,
     }));
     const filtered =
       radiusKm && reference
         ? withDistance.filter((entity) => entity.distanceKm !== null && entity.distanceKm <= radiusKm)
         : withDistance;
-    return filtered.sort((a, b) => {
-      if (a.distanceKm !== null && b.distanceKm !== null) return a.distanceKm - b.distanceKm;
-      if (a.distanceKm !== null) return -1;
-      if (b.distanceKm !== null) return 1;
-      return a.name.localeCompare(b.name);
-    });
-  }, [entities.data, reference, radiusKm]);
+    // El "abiertos ahora" se aplica acá (el descubrimiento ya los pone primero).
+    const openFiltered = openNow ? filtered.filter((e) => e.is_open_now) : filtered;
+    // Sin reordenar: el backend devuelve el orden correcto (ranking + diversificación).
+    return openFiltered;
+  }, [entities.data, reference, radiusKm, openNow]);
 
   const mapped = useMemo(() => items.filter(hasLocation), [items]);
   const clusters = useMemo(() => clusterItems(mapped, region), [mapped, region]);
+  const tier = zoomTier(region);
 
   // Destacados: los mejor calificados primero dentro de FEATURED_RADIUS_KM; si
   // todavía nadie tiene reseñas (una ciudad/categoría recién empezando),
@@ -386,6 +398,16 @@ export default function ExploreScreen() {
   // Hay negocios en general, pero ninguno a menos de FEATURED_RADIUS_KM: así
   // distinguimos "todavía no hay nada" de "no hay nada cerca" para el estado vacío.
   const featuredNearbyEmpty = featured.length === 0 && items.length > 0 && Boolean(reference);
+
+  // Emergente: al escribir en el buscador, Destacados se recoge para no
+  // quitarle espacio a la búsqueda (prioridad absoluta). El usuario puede
+  // volver a expandirlo arrastrando la manija o tocando la flechita.
+  useEffect(() => {
+    if (debouncedSearch) {
+      animateFeaturedTo(FEATURED_CARD_MINIMIZED_HEIGHT);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
 
   const openBusiness = (id: string) => router.push({ pathname: '/business/[id]', params: { id } });
 
@@ -594,6 +616,9 @@ export default function ExploreScreen() {
 
                 if (cluster.items.length === 1 && only) {
                   const isMine = myEntityIds.has(only.id);
+                  const cat = categoryColor(only.category_color);
+                  const open = only.has_hours ? only.is_open_now : true;
+                  const icon = (only.category_icon || 'storefront') as keyof typeof Ionicons.glyphMap;
                   return (
                     <Marker
                       key={cluster.key}
@@ -609,25 +634,44 @@ export default function ExploreScreen() {
                             <Text style={styles.pinOwnerLabelText}>Tu negocio</Text>
                           </View>
                         ) : null}
-                        <View
-                          style={[
-                            styles.pin,
-                            { backgroundColor: categoryColor(only.category_id).fg },
-                            only.is_verified && styles.pinVerified,
-                            isMine && styles.pinOwner,
-                          ]}
-                        >
-                          <Ionicons
-                            name={(only.category_icon || 'storefront') as keyof typeof Ionicons.glyphMap}
-                            size={16}
-                            color="#fff"
-                          />
-                        </View>
+                        {only.has_active_offer ? (
+                          <View style={styles.offerBadge}>
+                            <Ionicons name="flash" size={11} color="#fff" />
+                          </View>
+                        ) : null}
+                        {tier === 'near' ? (
+                          <View style={[styles.pinNear, { borderColor: open ? colors.verified : colors.muted }]}>
+                            <View style={[styles.pinNearIcon, { backgroundColor: cat.bg }]}>
+                              <Ionicons name={icon} size={16} color={cat.fg} />
+                            </View>
+                            <Text style={styles.pinNearText} numberOfLines={1}>
+                              {only.name}
+                            </Text>
+                          </View>
+                        ) : tier === 'mid' ? (
+                          <View
+                            style={[
+                              styles.pinMid,
+                              { backgroundColor: cat.bg, borderColor: open ? colors.verified : colors.muted },
+                            ]}
+                          >
+                            <Ionicons name={icon} size={20} color={cat.fg} />
+                          </View>
+                        ) : (
+                          <View style={[styles.pinFar, { backgroundColor: cat.fg }]}>
+                            <Ionicons name={icon} size={13} color="#fff" />
+                          </View>
+                        )}
                       </View>
                     </Marker>
                   );
                 }
 
+                // Varios negocios en el mismo punto: miniaturas apiladas, nunca un número.
+                const first = cluster.items[0];
+                const second = cluster.items[1] ?? cluster.items[0];
+                const c1 = categoryColor(first.category_color).fg;
+                const c2 = categoryColor(second.category_color).fg;
                 return (
                   <Marker
                     key={cluster.key}
@@ -644,8 +688,9 @@ export default function ExploreScreen() {
                       );
                     }}
                   >
-                    <View style={styles.cluster}>
-                      <Text style={styles.clusterText}>{cluster.items.length}</Text>
+                    <View style={styles.clusterStack}>
+                      <View style={[styles.clusterMini, { backgroundColor: c2 }]} />
+                      <View style={[styles.clusterMini, styles.clusterMiniSecond, { backgroundColor: c1 }]} />
                     </View>
                   </Marker>
                 );
@@ -1298,6 +1343,17 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   pinOwnerLabelText: { fontSize: 10, fontFamily: fonts.ui.bold, color: '#fff' },
+  offerBadge: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#fff',
+    marginBottom: -4,
+  },
   pin: {
     width: 34,
     height: 34,
@@ -1310,6 +1366,25 @@ const styles = StyleSheet.create({
   },
   pinVerified: { backgroundColor: colors.verified },
   pinOwner: { borderColor: colors.accent, borderWidth: 3 },
+  pinFar: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  pinMid: { width: 44, height: 44, borderRadius: 22, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
+  pinNear: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingRight: 12,
+    paddingVertical: 4,
+    paddingLeft: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    maxWidth: 180,
+  },
+  pinNearIcon: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  pinNearText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.ink, flexShrink: 1 },
+  clusterStack: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  clusterMini: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: '#fff' },
+  clusterMiniSecond: { marginLeft: -10 },
   cluster: {
     minWidth: 40,
     height: 40,

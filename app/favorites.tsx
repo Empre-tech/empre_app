@@ -80,7 +80,7 @@ export default function FavoritesScreen() {
 function FavoriteRow({ entity, onPress }: { entity: EntityMap; onPress: () => void }) {
   const queryClient = useQueryClient();
   const [removing, setRemoving] = useState(false);
-  const { bg, fg } = categoryColor(entity.category_id);
+  const { bg, fg } = categoryColor(entity.category_color);
 
   const onUnfavorite = async () => {
     setRemoving(true);
