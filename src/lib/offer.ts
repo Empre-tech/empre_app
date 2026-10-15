@@ -66,3 +66,53 @@ export function formatDiscount(value?: string | null): string {
   const n = Number(digits);
   return digits && n >= 1 && n <= 100 ? `${n}%` : '';
 }
+
+/** Qué tan urgente es una oferta según el tiempo que le queda. */
+export type OfferUrgency = 'calm' | 'warn' | 'hot' | 'ended';
+
+const MINUTE = 60_000;
+
+/** Milisegundos que faltan para `endsAt` (negativo si ya terminó; 0 si la fecha no es válida). */
+export function timeLeftMs(endsAt: string, now: number = Date.now()): number {
+  const end = new Date(endsAt).getTime();
+  return Number.isNaN(end) ? 0 : end - now;
+}
+
+/** Calma > 1 h · aviso < 1 h · «última llamada» < 15 min · terminada. */
+export function offerUrgency(ms: number): OfferUrgency {
+  if (ms <= 0) return 'ended';
+  if (ms < 15 * MINUTE) return 'hot';
+  if (ms < 60 * MINUTE) return 'warn';
+  return 'calm';
+}
+
+/**
+ * Tiempo restante en texto relativo, no como hora absoluta:
+ * «Termina en 3 días», «Termina en 2 h 30 min», «Termina en 42 min»,
+ * «Última llamada · 9 min», «Terminó».
+ */
+export function timeLeftLabel(ms: number): string {
+  if (ms <= 0) return 'Terminó';
+  const minutes = Math.ceil(ms / MINUTE);
+  if (ms < 15 * MINUTE) {
+    return ms < MINUTE ? 'Última llamada · menos de 1 min' : `Última llamada · ${minutes} min`;
+  }
+  if (minutes >= 24 * 60) {
+    const days = Math.floor(minutes / (24 * 60));
+    return `Termina en ${days} ${days === 1 ? 'día' : 'días'}`;
+  }
+  if (minutes >= 60) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `Termina en ${h} h${m ? ` ${m} min` : ''}`;
+  }
+  return `Termina en ${minutes} min`;
+}
+
+/** «Ahorras $10.000» cuando hay un valor normal mayor que el precio; vacío si no. */
+export function formatSavings(price?: string | null, normalPrice?: string | null): string {
+  const now = Number((price ?? '').replace(/[^\d]/g, ''));
+  const was = Number((normalPrice ?? '').replace(/[^\d]/g, ''));
+  if (!now || !was || was <= now) return '';
+  return `Ahorras $${(was - now).toLocaleString('es-CO')}`;
+}

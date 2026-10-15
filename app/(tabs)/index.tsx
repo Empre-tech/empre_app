@@ -23,8 +23,8 @@ import { discoveryApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
 import type { Category } from '@/api/types';
 import { BusinessRow } from '@/components/BusinessRow';
-import { BusinessBanner } from '@/components/BusinessBanner';
 import { Button } from '@/components/Button';
+import { BusinessSheet } from '@/components/explore/BusinessSheet';
 import { FeaturedSheet } from '@/components/explore/FeaturedSheet';
 import { type WithDistance } from '@/components/explore/FeaturedCard';
 import { ModeFab } from '@/components/explore/ModeFab';
@@ -737,7 +737,7 @@ export default function ExploreScreen() {
             ) : null}
 
             {selectedEntity ? (
-              <BusinessBanner
+              <BusinessSheet
                 entity={selectedEntity}
                 isMine={myEntityIds.has(selectedEntity.id)}
                 onClose={() => setSelectedId(null)}
