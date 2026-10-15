@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi, paymentsApi, reviewsApi } from '@/api/endpoints';
+import { novedadesApi } from '@/api/novedades';
 import type { Photo, Review } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { AIWritingAssist } from '@/components/AIWritingAssist';
@@ -86,6 +87,11 @@ export default function BusinessScreen() {
     enabled: isOwner && Boolean(business?.id),
   });
   const requiresPayment = subscriptionQuery.data?.requires_payment ?? false;
+  const followers = useQuery({
+    queryKey: ['followers', business?.id],
+    queryFn: () => novedadesApi.followers(business!.id),
+    enabled: isOwner && Boolean(business?.id),
+  });
 
   // Publicaciones y Reseñas viven en pestañas (como Instagram: grilla /
   // etiquetados), no apiladas una tras otra, para que se entienda de un
@@ -126,10 +132,11 @@ export default function BusinessScreen() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['entity', id] }),
         queryClient.invalidateQueries({ queryKey: ['my-favorites'] }),
+        queryClient.invalidateQueries({ queryKey: ['novedades'] }),
       ]);
     } catch (e) {
       setIsFavorite(!next);
-      Alert.alert('No pudimos actualizar tus favoritos', e instanceof Error ? e.message : 'Intenta de nuevo.');
+      Alert.alert('No pudimos actualizar lo que sigues', e instanceof Error ? e.message : 'Intenta de nuevo.');
     } finally {
       setFavoriting(false);
     }
@@ -343,16 +350,20 @@ export default function BusinessScreen() {
   const favoriteButton = !isOwner ? (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+      accessibilityLabel={isFavorite ? 'Dejar de seguir' : 'Seguir este negocio'}
       accessibilityState={{ selected: isFavorite }}
       onPress={() => void toggleFavorite()}
       disabled={favoriting}
-      style={[styles.back, styles.favoriteButton, { top: insets.top + spacing.sm }]}
+      hitSlop={6}
+      style={[styles.followButton, isFavorite && styles.followButtonOn, { top: insets.top + spacing.sm }]}
     >
       {favoriting ? (
-        <ActivityIndicator size="small" color={colors.primary} />
+        <ActivityIndicator size="small" color={isFavorite ? '#fff' : colors.primary} />
       ) : (
-        <Ionicons name={isFavorite ? 'heart' : 'heart-outline'} size={20} color={isFavorite ? colors.primary : colors.ink} />
+        <>
+          <Ionicons name={isFavorite ? 'checkmark' : 'add'} size={16} color={isFavorite ? '#fff' : colors.primary} />
+          <Text style={[styles.followText, isFavorite && styles.followTextOn]}>{isFavorite ? 'Siguiendo' : 'Seguir'}</Text>
+        </>
       )}
     </Pressable>
   ) : null;
@@ -418,6 +429,14 @@ export default function BusinessScreen() {
               </View>
             ) : null}
           </View>
+          {isOwner && (followers.data ?? 0) > 0 ? (
+            <View style={styles.followersChip}>
+              <Ionicons name="people-outline" size={14} color={colors.primaryDark} />
+              <Text style={styles.followersText}>
+                {followers.data} {followers.data === 1 ? 'seguidor' : 'seguidores'}
+              </Text>
+            </View>
+          ) : null}
           <StatusChips entityId={business.id} hasHours={Boolean(business.hours && business.hours.length > 0)} isOpen={Boolean(business.is_open_now)} />
           {business.is_verified ? (
             <View style={styles.verifiedNoteRow}>
@@ -1008,7 +1027,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  favoriteButton: { left: undefined, right: spacing.md },
+  followButton: { position: 'absolute', right: spacing.md, minWidth: 96, height: 40, paddingHorizontal: spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.94)', borderWidth: 1.5, borderColor: colors.primary },
+  followButtonOn: { backgroundColor: colors.primary },
+  followText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.primary },
+  followTextOn: { color: '#fff' },
+  followersChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.pill, backgroundColor: colors.primarySoft },
+  followersText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.primaryDark },
   bannerWrap: { width: '100%', height: 160 },
   banner: { width: '100%', height: 160, backgroundColor: colors.surface },
   photoCountPill: {

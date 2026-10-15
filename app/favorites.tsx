@@ -39,23 +39,23 @@ export default function FavoritesScreen() {
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         {back}
-        <Text style={styles.headerTitle}>Mis favoritos</Text>
+        <Text style={styles.headerTitle}>Negocios que sigo</Text>
       </View>
 
       {status !== 'signedIn' ? (
-        <SignInPrompt title="Tus favoritos" message="Inicia sesión para guardar y ver tus negocios favoritos." />
+        <SignInPrompt title="Negocios que sigues" message="Inicia sesión para seguir negocios y enterarte de sus novedades." />
       ) : favorites.isLoading ? (
         <ActivityIndicator color={colors.primary} style={styles.centered} />
       ) : favorites.isError ? (
         <View style={styles.centered}>
-          <Text style={styles.empty}>No pudimos cargar tus favoritos.</Text>
+          <Text style={styles.empty}>No pudimos cargar los negocios que sigues.</Text>
           <Button title="Reintentar" variant="secondary" onPress={() => void favorites.refetch()} />
         </View>
       ) : (favorites.data ?? []).length === 0 ? (
         <View style={styles.centered}>
           <Ionicons name="heart-outline" size={32} color={colors.muted} />
           <Text style={styles.empty}>
-            Todavía no tienes negocios favoritos. Toca el corazón en el perfil de un negocio para guardarlo aquí.
+            Todavía no sigues ningún negocio. Toca «Seguir» en su perfil y verás aquí sus novedades.
           </Text>
         </View>
       ) : (
@@ -89,6 +89,7 @@ function FavoriteRow({ entity, onPress }: { entity: EntityMap; onPress: () => vo
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['my-favorites'] }),
         queryClient.invalidateQueries({ queryKey: ['entity', entity.id] }),
+        queryClient.invalidateQueries({ queryKey: ['novedades'] }),
       ]);
     } catch {
       setRemoving(false);
@@ -117,7 +118,7 @@ function FavoriteRow({ entity, onPress }: { entity: EntityMap; onPress: () => vo
       </View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Quitar de favoritos"
+        accessibilityLabel="Dejar de seguir"
         onPress={() => void onUnfavorite()}
         disabled={removing}
         hitSlop={8}

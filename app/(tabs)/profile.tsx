@@ -91,7 +91,7 @@ export default function ProfileScreen() {
         <View style={styles.adminCardIcon}>
           <Ionicons name="heart-outline" size={19} color={colors.primary} />
         </View>
-        <Text style={styles.adminCardText}>Mis favoritos</Text>
+        <Text style={styles.adminCardText}>Negocios que sigo</Text>
         <Ionicons name="chevron-forward" size={18} color={colors.muted} />
       </Pressable>
 

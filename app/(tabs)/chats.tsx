@@ -9,6 +9,7 @@ import type { Conversation, EntityOwnerItem } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
+import { NovedadesStrip } from '@/components/novedades/NovedadesStrip';
 import { SignInPrompt } from '@/components/SignInPrompt';
 import { formatMessageTime } from '@/lib/format';
 import { colors, fonts, radius, spacing } from '@/theme';
@@ -99,6 +100,8 @@ export default function ChatsScreen() {
           <Text style={[styles.tabText, tab === 'business' && styles.tabTextActive]}>Mis negocios</Text>
         </Pressable>
       </View>
+
+      {tab === 'personal' ? <NovedadesStrip /> : null}
 
       {tab === 'personal' ? (
         <ConversationList
