@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 import type { OfferClaim } from '@/api/types';
 import { Button } from '@/components/Button';
+import { ReviewAfterClaim } from '@/components/claim/ReviewAfterClaim';
 import { formatClock, formatCurrency } from '@/lib/offer';
 import { colors, fonts, radius, spacing } from '@/theme';
 
@@ -57,6 +58,8 @@ export function ClaimRedeemed({ claim, busy, message, onConfirm }: Props) {
           <Button title="Sí, me atendieron" onPress={onConfirm} loading={busy} />
         </>
       )}
+
+      {verified && offer?.entity_id ? <ReviewAfterClaim entityId={offer.entity_id} claimId={claim.id} entityName={claim.entity_name} /> : null}
     </>
   );
 }

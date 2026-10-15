@@ -20,15 +20,19 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi, paymentsApi, reviewsApi } from '@/api/endpoints';
-import type { Photo } from '@/api/types';
+import type { Photo, Review } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { AIWritingAssist } from '@/components/AIWritingAssist';
 import { AgendaStrip } from '@/components/agenda/AgendaStrip';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
-import { OfferBanner } from '@/components/OfferBanner';
+import { OfferBanner, OffersTab, useActiveOffers } from '@/components/OfferBanner';
 import { PromotionsSection } from '@/components/PromotionsSection';
 import { PostComposerSheet } from '@/components/PostComposerSheet';
+import { ActionBar } from '@/components/profile/ActionBar';
+import { LatestStrip } from '@/components/profile/LatestStrip';
+import { ReviewsSummary, VerifiedStamp } from '@/components/profile/ReviewsSummary';
+import { StatusChips } from '@/components/profile/StatusChips';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { hasLocation } from '@/lib/geo';
@@ -86,7 +90,11 @@ export default function BusinessScreen() {
   // Publicaciones y Reseñas viven en pestañas (como Instagram: grilla /
   // etiquetados), no apiladas una tras otra, para que se entienda de un
   // vistazo que son dos cosas distintas.
-  const [activeTab, setActiveTab] = useState<'posts' | 'reviews'>('posts');
+  const [activeTab, setActiveTab] = useState<'posts' | 'offers' | 'reviews'>('posts');
+  // Con una sola oferta basta el boleto destacado; la pestaña Ofertas aparece desde la segunda.
+  const activeOffers = useActiveOffers(id);
+  const offerCount = activeOffers.data?.length ?? 0;
+  const showOffersTab = offerCount >= 2;
   const [showHours, setShowHours] = useState(false);
 
   // Descripción: se trunca a 3 líneas con un "Ver más" cuando es larga, en
@@ -328,6 +336,9 @@ export default function BusinessScreen() {
   const contact = business.contact_info?.trim();
   const location = [business.address, business.city].filter(Boolean).join(', ');
   const activePhoto = openIndex !== null ? photos[currentIndex] : null;
+  const serviceMode = business.service_mode ? SERVICE_MODE_LABELS[business.service_mode]?.text : undefined;
+  const infoLine = [location, serviceMode].filter(Boolean).join(' · ');
+  const canCall = Boolean(contact && PHONE_RE.test(contact));
 
   const favoriteButton = !isOwner ? (
     <Pressable
@@ -365,9 +376,9 @@ export default function BusinessScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xxl }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + (isOwner ? spacing.xxl : 96) }}>
         <View style={styles.bannerWrap}>
-          {bannerUrl ? <Image accessible={false} source={{ uri: bannerUrl }} style={styles.banner} contentFit="cover" /> : <View style={[styles.banner, styles.bannerEmpty]} />}
+          {bannerUrl ? <Image accessible={false} source={{ uri: bannerUrl }} style={styles.banner} contentFit="cover" /> : <View style={[styles.banner, styles.bannerEmpty]}><Ionicons name="storefront-outline" size={44} color={colors.primary} /></View>}
           {photos.length > 0 ? (
             <View style={styles.photoCountPill}>
               <Ionicons name="images" size={12} color="#fff" />
@@ -379,7 +390,7 @@ export default function BusinessScreen() {
         </View>
 
         <View style={styles.body}>
-          <View style={styles.avatarWrap}>
+          <View style={[styles.avatarWrap, offerCount > 0 && styles.avatarRing]}>
             <Avatar uri={business.profile_url} name={business.name} size={88} />
           </View>
 
@@ -406,15 +417,8 @@ export default function BusinessScreen() {
                 </Text>
               </View>
             ) : null}
-            {business.hours && business.hours.length > 0 ? (
-              <View style={[styles.openBadge, business.is_open_now ? styles.openBadgeOpen : styles.openBadgeClosed]}>
-                <View style={[styles.openDot, business.is_open_now ? styles.openDotOpen : styles.openDotClosed]} />
-                <Text style={[styles.openBadgeText, business.is_open_now ? styles.openBadgeTextOpen : styles.openBadgeTextClosed]}>
-                  {business.is_open_now ? 'Abierto ahora' : 'Cerrado ahora'}
-                </Text>
-              </View>
-            ) : null}
           </View>
+          <StatusChips entityId={business.id} hasHours={Boolean(business.hours && business.hours.length > 0)} isOpen={Boolean(business.is_open_now)} />
           {business.is_verified ? (
             <View style={styles.verifiedNoteRow}>
               <Ionicons name="shield-checkmark" size={14} color={colors.verified} />
@@ -444,14 +448,8 @@ export default function BusinessScreen() {
           ) : null}
 
           <View style={styles.infoBlock}>
-            {location ? <InfoRow icon="location-outline" text={location} /> : null}
-            {contact ? <InfoRow icon="call-outline" text={contact} /> : null}
-            {business.service_mode && SERVICE_MODE_LABELS[business.service_mode] ? (
-              <InfoRow
-                icon={SERVICE_MODE_LABELS[business.service_mode].icon}
-                text={SERVICE_MODE_LABELS[business.service_mode].text}
-              />
-            ) : null}
+            {infoLine ? <InfoRow icon="location-outline" text={infoLine} /> : null}
+            {contact && (isOwner || !PHONE_RE.test(contact)) ? <InfoRow icon="call-outline" text={contact} /> : null}
           </View>
 
           {business.hours && business.hours.length > 0 ? (
@@ -497,8 +495,7 @@ export default function BusinessScreen() {
                 <Ionicons name="chevron-forward" size={18} color={colors.muted} />
               </Pressable>
             ) : null}
-            {!isOwner ? <Button title="Enviar mensaje" onPress={onMessage} /> : null}
-            <OfferBanner entityId={business.id} isOwner={isOwner} />
+            <OfferBanner entityId={business.id} isOwner={isOwner} onSeeMore={() => setActiveTab('offers')} />
             <PromotionsSection entityId={business.id} />
             {!isOwner ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
             {isOwner ? (
@@ -538,7 +535,7 @@ export default function BusinessScreen() {
                 {requiresPayment ? <View style={styles.subscriptionLinkDot} /> : null}
               </Pressable>
             ) : null}
-            {hasLocation(business) || (contact && PHONE_RE.test(contact)) ? (
+            {isOwner && (hasLocation(business) || canCall) ? (
               <View style={styles.secondaryActions}>
                 {hasLocation(business) ? (
                   <Pressable
@@ -566,6 +563,13 @@ export default function BusinessScreen() {
           </View>
         </View>
 
+        <LatestStrip
+          photos={photos}
+          offers={activeOffers.data ?? []}
+          reviews={reviews.data?.data ?? []}
+          onPress={(item) => setActiveTab(item.kind === 'post' ? 'posts' : item.kind === 'offer' && showOffersTab ? 'offers' : item.kind === 'review' ? 'reviews' : activeTab)}
+        />
+
         <View style={styles.tabBar}>
           <Pressable
             accessibilityRole="button"
@@ -578,6 +582,17 @@ export default function BusinessScreen() {
               Publicaciones{photos.length > 0 ? ` (${photos.length})` : ''}
             </Text>
           </Pressable>
+          {showOffersTab ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: activeTab === 'offers' }}
+              onPress={() => setActiveTab('offers')}
+              style={[styles.tabItem, activeTab === 'offers' && styles.tabItemActive]}
+            >
+              <Ionicons name="flash-outline" size={18} color={activeTab === 'offers' ? colors.ink : colors.muted} />
+              <Text style={[styles.tabLabel, activeTab === 'offers' && styles.tabLabelActive]}>Ofertas ({offerCount})</Text>
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ selected: activeTab === 'reviews' }}
@@ -591,7 +606,9 @@ export default function BusinessScreen() {
           </Pressable>
         </View>
 
-        {activeTab === 'posts' ? (
+        {activeTab === 'offers' && showOffersTab ? (
+          <OffersTab entityId={business.id} />
+        ) : activeTab === 'posts' ? (
           <View style={styles.tabContent}>
             {photos.length > 0 || isOwner ? (
               <View style={styles.grid}>
@@ -675,25 +692,17 @@ export default function BusinessScreen() {
               </View>
             ) : null}
 
+            {reviews.data?.summary ? <ReviewsSummary summary={reviews.data.summary} /> : null}
             {reviews.isLoading ? (
               <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.md }} />
             ) : (reviews.data?.data.length ?? 0) > 0 ? (
               <View style={styles.reviewsList}>
-                {reviews.data!.data.map((review) => (
-                  <View key={review.id} style={styles.reviewCard}>
-                    <View style={styles.reviewHeader}>
-                      <Avatar uri={review.user.profile_picture_url} name={review.user.name} size={36} />
-                      <View style={styles.reviewHeaderInfo}>
-                        <Text style={styles.reviewName} numberOfLines={1}>
-                          {review.user.name}
-                        </Text>
-                        <StarRow rating={review.rating} size={12} />
-                      </View>
-                      <Text style={styles.reviewDate}>{formatReviewDate(review.created_at)}</Text>
-                    </View>
-                    {review.comment ? <Text style={styles.reviewComment}>{review.comment}</Text> : null}
-                  </View>
-                ))}
+                {myReview.data ? <ReviewItem review={myReview.data} mine /> : null}
+                {reviews.data!.data
+                  .filter((review) => review.id !== myReview.data?.id)
+                  .map((review) => (
+                    <ReviewItem key={review.id} review={review} />
+                  ))}
               </View>
             ) : (
               <View style={styles.emptyPosts}>
@@ -711,6 +720,13 @@ export default function BusinessScreen() {
       </ScrollView>
       {back}
       {favoriteButton}
+      {!isOwner ? (
+        <ActionBar
+          onMessage={onMessage}
+          onDirections={hasLocation(business) ? onDirections : undefined}
+          onCall={canCall ? () => void Linking.openURL(`tel:${(contact ?? '').replace(/[^\d+]/g, '')}`) : undefined}
+        />
+      ) : null}
 
       <Modal visible={openIndex !== null} animationType="slide" onRequestClose={closeViewer} presentationStyle="pageSheet">
         <View style={styles.viewer}>
@@ -924,6 +940,25 @@ function ViewerVideoSlide({ uri, active }: { uri: string; active: boolean }) {
   );
 }
 
+function ReviewItem({ review, mine = false }: { review: Review; mine?: boolean }) {
+  return (
+    <View style={[styles.reviewCard, mine && styles.reviewCardMine]}>
+      <View style={styles.reviewHeader}>
+        <Avatar uri={review.user.profile_picture_url} name={review.user.name} size={36} />
+        <View style={styles.reviewHeaderInfo}>
+          <Text style={styles.reviewName} numberOfLines={1}>
+            {mine ? 'Tu reseña' : review.user.name}
+          </Text>
+          <StarRow rating={review.rating} size={12} />
+        </View>
+        <Text style={styles.reviewDate}>{formatReviewDate(review.created_at)}</Text>
+      </View>
+      {review.comment ? <Text style={styles.reviewComment}>{review.comment}</Text> : null}
+      {review.verified ? <VerifiedStamp /> : null}
+    </View>
+  );
+}
+
 function InfoRow({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
   return (
     <View style={styles.infoRow}>
@@ -989,7 +1024,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(22,35,58,0.55)',
   },
   photoCountPillText: { fontSize: 11, fontFamily: fonts.ui.bold, color: '#fff' },
-  bannerEmpty: { backgroundColor: colors.line },
+  bannerEmpty: { backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  avatarRing: { borderColor: colors.accent },
+  reviewCardMine: { borderWidth: 1.5, borderColor: colors.primary },
   body: { paddingHorizontal: spacing.lg, gap: spacing.sm },
   avatarWrap: {
     marginTop: -44,

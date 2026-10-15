@@ -65,6 +65,16 @@ export const offersApi = {
   /** Oferta activa de un negocio (público). */
   active: (entityId: string) => request<{ data: Offer | null }>(`/api/entities/${entityId}/offer`, { auth: false }),
 
+  /** Todas las ofertas vigentes y con cupos de un negocio, la que termina antes primero (público). */
+  activeList: async (entityId: string): Promise<Offer[]> =>
+    list(await request<{ data?: Offer[] | null }>(`/api/entities/${entityId}/offers/active`, { auth: false })),
+
+  /** Canjes confirmados del negocio en la última semana (prueba social, público). */
+  activity: async (entityId: string): Promise<number> => {
+    const res = await request<{ verified_redemptions_week?: number }>(`/api/entities/${entityId}/activity`, { auth: false });
+    return res.verified_redemptions_week ?? 0;
+  },
+
   /** Acción rápida: extend (minutos), radius (metros) o slots (cantidad a sumar). */
   quickAction: (offerId: string, action: QuickAction, value: number) =>
     request<Offer>(`/api/offers/${offerId}`, { method: 'PATCH', body: { action, value } }),

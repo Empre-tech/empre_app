@@ -224,17 +224,24 @@ export interface Review {
   created_at: string;
   updated_at: string;
   user: ReviewUser;
+  /** True si la respalda un canje confirmado en este negocio. */
+  verified?: boolean;
 }
 
 export interface ReviewSummary {
   average: number;
   count: number;
+  /** Cantidad de reseñas por estrellas; índice 0 = 1 estrella. */
+  distribution?: number[];
+  verified_count?: number;
 }
 
 /** Cuerpo de POST /api/entities/:id/reviews (crea o reemplaza mi reseña). */
 export interface ReviewInput {
   rating: number;
   comment: string;
+  /** Canje confirmado que respalda la reseña (la marca como verificada). */
+  claim_id?: string;
 }
 
 // ---------------------------------------------------------------------------
