@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
   back: { left: 0, top: 14, opacity: 0.8, transform: [{ scale: 0.88 }] },
   middle: { left: 10, top: 8, opacity: 0.92, transform: [{ scale: 0.94 }] },
   top: { left: 20, top: 0 },
-  face: { width: '100%', height: '100%' },
+  face: { width: '100%', height: '100%', backgroundColor: colors.primarySoft },
   fallback: { alignItems: 'center', justifyContent: 'center' },
   bolt: {
     position: 'absolute',

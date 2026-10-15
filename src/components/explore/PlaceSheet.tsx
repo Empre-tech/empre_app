@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   avatar: { width: 44, height: 44, borderRadius: 22, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  avatarImage: { width: '100%', height: '100%' },
+  avatarImage: { width: '100%', height: '100%', backgroundColor: colors.primarySoft },
   text: { flex: 1, gap: 2 },
   name: { fontSize: 14, fontFamily: fonts.display.bold, color: colors.ink },
   meta: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },

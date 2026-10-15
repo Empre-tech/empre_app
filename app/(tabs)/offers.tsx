@@ -3,12 +3,13 @@ import { useQuery } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { categoriesApi } from '@/api/endpoints';
 import { offersApi } from '@/api/offers';
 import type { PromotionListItem, RelampagoListItem } from '@/api/types';
 import { Button } from '@/components/Button';
+import { SkeletonRows } from '@/components/Skeleton';
 import { formatCurrency, formatDiscount, formatOfferEndsAt, formatSlotsLeft, offerTypeLabel } from '@/lib/offer';
 import { formatDistance } from '@/lib/format';
 import { colors, fonts, radius, spacing } from '@/theme';
@@ -84,7 +85,7 @@ export default function OffersScreen() {
       </ScrollView>
 
       {feed.isLoading ? (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xl }} />
+        <SkeletonRows count={4} />
       ) : view === 'relampagos' ? (
         <FlatList
           data={feed.data?.relampagos ?? []}

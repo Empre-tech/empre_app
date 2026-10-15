@@ -2,12 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi, usersApi } from '@/api/endpoints';
 import type { EntityMap } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/Button';
+import { EmptyState } from '@/components/EmptyState';
+import { SkeletonRows } from '@/components/Skeleton';
 import { SignInPrompt } from '@/components/SignInPrompt';
 import { categoryColor } from '@/lib/categoryColor';
 import { colors, fonts, radius, spacing } from '@/theme';
@@ -45,7 +47,7 @@ export default function FavoritesScreen() {
       {status !== 'signedIn' ? (
         <SignInPrompt title="Negocios que sigues" message="Inicia sesión para seguir negocios y enterarte de sus novedades." />
       ) : favorites.isLoading ? (
-        <ActivityIndicator color={colors.primary} style={styles.centered} />
+        <SkeletonRows count={5} />
       ) : favorites.isError ? (
         <View style={styles.centered}>
           <Text style={styles.empty}>No pudimos cargar los negocios que sigues.</Text>
@@ -53,10 +55,12 @@ export default function FavoritesScreen() {
         </View>
       ) : (favorites.data ?? []).length === 0 ? (
         <View style={styles.centered}>
-          <Ionicons name="heart-outline" size={32} color={colors.muted} />
-          <Text style={styles.empty}>
-            Todavía no sigues ningún negocio. Toca «Seguir» en su perfil y verás aquí sus novedades.
-          </Text>
+          <EmptyState
+            icon="people-outline"
+            title="Todavía no sigues ningún negocio"
+            body="Toca «Seguir» en su perfil y verás aquí sus novedades."
+            action={{ title: 'Descubrir negocios', onPress: () => router.push('/(tabs)') }}
+          />
         </View>
       ) : (
         <FlatList

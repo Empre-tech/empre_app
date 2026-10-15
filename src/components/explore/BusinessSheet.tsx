@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     ...shadow,
   },
-  fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.primarySoft },
   hero: { height: 128, justifyContent: 'space-between', padding: spacing.md },
   heroIconWrap: { alignItems: 'center', justifyContent: 'center' },
   scrim: { backgroundColor: 'rgba(10, 20, 40, 0.30)' },

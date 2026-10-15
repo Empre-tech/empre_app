@@ -2,12 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef } from 'react';
-import { ActivityIndicator, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
+import { Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { novedadesApi } from '@/api/novedades';
 import { useAuth } from '@/auth/AuthContext';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
+import { EmptyState } from '@/components/EmptyState';
+import { SkeletonRows } from '@/components/Skeleton';
 import { SignInPrompt } from '@/components/SignInPrompt';
 import { useNow } from '@/lib/useNow';
 import { groupByDay, novedadText, type NovedadItem } from '@/lib/novedades';
@@ -55,7 +57,7 @@ export default function NovedadesScreen() {
       {status !== 'signedIn' ? (
         <SignInPrompt title="Novedades" message="Inicia sesión para ver lo nuevo de los negocios que sigues." />
       ) : novedades.isLoading ? (
-        <ActivityIndicator color={colors.primary} style={styles.centered} />
+        <SkeletonRows count={5} />
       ) : novedades.isError ? (
         <View style={styles.centered}>
           <Text style={styles.empty}>No pudimos cargar las novedades.</Text>
@@ -63,8 +65,12 @@ export default function NovedadesScreen() {
         </View>
       ) : sections.length === 0 ? (
         <View style={styles.centered}>
-          <Ionicons name="notifications-outline" size={32} color={colors.muted} />
-          <Text style={styles.empty}>Todavía no hay novedades. Aquí aparece lo que los negocios que sigues publiquen desde ahora.</Text>
+          <EmptyState
+            icon="notifications-outline"
+            title="Todavía no hay novedades"
+            body="Aquí aparece lo que los negocios que sigues publiquen desde ahora."
+            action={{ title: 'Descubrir negocios', onPress: () => router.push('/(tabs)') }}
+          />
         </View>
       ) : (
         <SectionList

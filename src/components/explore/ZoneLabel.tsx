@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
+import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
 
 interface Props {
@@ -15,10 +16,11 @@ interface Props {
  */
 export function ZoneLabel({ text, visible }: Props) {
   const [opacity] = useState(() => new Animated.Value(visible ? 1 : 0));
+  const reduce = useReduceMotion();
 
   useEffect(() => {
-    Animated.timing(opacity, { toValue: visible ? 1 : 0, duration: 160, useNativeDriver: true }).start();
-  }, [visible, opacity]);
+    Animated.timing(opacity, { toValue: visible ? 1 : 0, duration: reduce ? 0 : 160, useNativeDriver: true }).start();
+  }, [visible, opacity, reduce]);
 
   if (!text) return null;
 

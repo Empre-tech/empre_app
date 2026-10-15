@@ -27,6 +27,7 @@ import { AIWritingAssist } from '@/components/AIWritingAssist';
 import { AgendaStrip } from '@/components/agenda/AgendaStrip';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
+import { SkeletonProfile } from '@/components/Skeleton';
 import { OfferBanner, OffersTab, useActiveOffers } from '@/components/OfferBanner';
 import { PromotionsSection } from '@/components/PromotionsSection';
 import { PostComposerSheet } from '@/components/PostComposerSheet';
@@ -322,9 +323,9 @@ export default function BusinessScreen() {
 
   if (query.isLoading) {
     return (
-      <View style={styles.center}>
+      <View style={styles.screen}>
+        <SkeletonProfile />
         {back}
-        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }

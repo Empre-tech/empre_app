@@ -8,7 +8,9 @@ import type { ClaimStatus } from '@/api/types';
 import { claimsApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
 import { loadSavedClaims } from '@/claims/claimStore';
+import { EmptyState } from '@/components/EmptyState';
 import { SignInPrompt } from '@/components/SignInPrompt';
+import { SkeletonRows } from '@/components/Skeleton';
 import { effectiveClaimStatus, mergeClaims } from '@/lib/claims';
 import { formatClock } from '@/lib/offer';
 import { useNow } from '@/lib/useNow';
@@ -64,8 +66,15 @@ export default function ClaimsScreen() {
           refreshing={mine.isRefetching}
           onRefresh={() => void mine.refetch()}
           ListEmptyComponent={
-            mine.isLoading || saved.isLoading ? null : (
-              <Text style={styles.empty}>Todavía no has reclamado ofertas. Cuando lo hagas, tu QR quedará aquí.</Text>
+            mine.isLoading || saved.isLoading ? (
+              <SkeletonRows count={3} />
+            ) : (
+              <EmptyState
+                icon="ticket-outline"
+                title="Todavía no has reclamado ofertas"
+                body="Cuando lo hagas, tu QR quedará aquí, aunque no tengas conexión."
+                action={{ title: 'Ver ofertas', onPress: () => router.push('/(tabs)/offers') }}
+              />
             )
           }
           renderItem={({ item }) => {

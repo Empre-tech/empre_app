@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder } from 'react-native';
+import { useReduceMotion } from '@/lib/useReduceMotion';
 
 /**
  * Destacados como hoja emergente con cuatro anclajes:
@@ -58,6 +59,11 @@ export function useFeaturedSheet(fullHeight: number) {
   const anchorRef = useRef<FeaturedAnchor>('peek');
   const valueRef = useRef(FEATURED_PEEK);
   const fullRef = useRef(full);
+  const reduceRef = useRef(false);
+  const reduceMotion = useReduceMotion();
+  useEffect(() => {
+    reduceRef.current = reduceMotion;
+  }, [reduceMotion]);
   useEffect(() => {
     fullRef.current = full;
   }, [full]);
@@ -72,7 +78,10 @@ export function useFeaturedSheet(fullHeight: number) {
     (next: FeaturedAnchor) => {
       anchorRef.current = next;
       setAnchor(next);
-      Animated.spring(height, { toValue: heightFor(next, fullRef.current), useNativeDriver: false, bounciness: 4 }).start();
+      const target = heightFor(next, fullRef.current);
+      // Con «Reducir movimiento» la hoja salta al anclaje, sin resorte.
+      if (reduceRef.current) height.setValue(target);
+      else Animated.spring(height, { toValue: target, useNativeDriver: false, bounciness: 4 }).start();
     },
     [height],
   );
