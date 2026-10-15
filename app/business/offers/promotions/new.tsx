@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { promotionsApi } from '@/api/offers';
 import { Button } from '@/components/Button';
 import { TextField } from '@/components/TextField';
+import { formatDiscount } from '@/lib/offer';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 /** Pantalla de creación de promoción: título, descripción, precio o descuento,
@@ -35,6 +36,10 @@ export default function NewPromotionScreen() {
       setError('Indica un precio o un descuento');
       return;
     }
+    if (discount.trim() && !formatDiscount(discount)) {
+      setError('El descuento debe estar entre 1 y 100');
+      return;
+    }
     const durationDays = parseFloat(days);
     if (!durationDays || durationDays <= 0) {
       setError('Vigencia inválida');
@@ -49,7 +54,7 @@ export default function NewPromotionScreen() {
         title: title.trim(),
         description: description.trim(),
         price: price.trim(),
-        discount: discount.trim(),
+        discount: String(Number(discount) || ''),
         normal_price: normalPrice.trim(),
         ends_at: endsAt,
         conditions: conditions.trim(),
@@ -76,7 +81,14 @@ export default function NewPromotionScreen() {
         <TextField label="Título" placeholder="Tapizado con 20% de descuento" value={title} onChangeText={setTitle} />
         <TextField label="Descripción (opcional)" placeholder="Una o dos líneas" value={description} onChangeText={setDescription} multiline />
         <TextField label="Precio" placeholder="$25.000" value={price} onChangeText={setPrice} keyboardType="numeric" />
-        <TextField label="Descuento (%)" placeholder="20" value={discount} onChangeText={setDiscount} keyboardType="numeric" />
+        <TextField
+          label="Descuento (%)"
+          placeholder="20"
+          value={discount}
+          onChangeText={(t) => setDiscount(t.replace(/\D/g, '').slice(0, 3))}
+          keyboardType="numeric"
+          maxLength={3}
+        />
         <TextField label="Valor normal (opcional)" placeholder="$30.000" value={normalPrice} onChangeText={setNormalPrice} keyboardType="numeric" />
         <TextField label="Vigencia (días)" placeholder="7" value={days} onChangeText={setDays} keyboardType="number-pad" />
         <TextField label="Condiciones (opcional)" placeholder="Válido de lunes a viernes" value={conditions} onChangeText={setConditions} />

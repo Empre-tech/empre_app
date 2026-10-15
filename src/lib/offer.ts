@@ -55,3 +55,14 @@ export function formatAgo(iso?: string | null, now: number = Date.now()): string
   const days = Math.floor(hours / 24);
   return `hace ${days} ${days === 1 ? 'día' : 'días'}`;
 }
+
+/**
+ * Descuento como porcentaje: "15", "15%" o " 15 % " → "15%". Se queda solo con
+ * los dígitos para no mostrar "15%%" cuando quien publicó escribió el signo.
+ * Devuelve '' si no hay un valor entre 1 y 100.
+ */
+export function formatDiscount(value?: string | null): string {
+  const digits = (value ?? '').replace(/\D/g, '');
+  const n = Number(digits);
+  return digits && n >= 1 && n <= 100 ? `${n}%` : '';
+}

@@ -9,7 +9,7 @@ import { categoriesApi } from '@/api/endpoints';
 import { offersApi } from '@/api/offers';
 import type { PromotionListItem, RelampagoListItem } from '@/api/types';
 import { Button } from '@/components/Button';
-import { formatCurrency, formatOfferEndsAt, formatSlotsLeft, offerTypeLabel } from '@/lib/offer';
+import { formatCurrency, formatDiscount, formatOfferEndsAt, formatSlotsLeft, offerTypeLabel } from '@/lib/offer';
 import { formatDistance } from '@/lib/format';
 import { colors, fonts, radius, spacing } from '@/theme';
 
@@ -163,7 +163,7 @@ function RelampagoCard({ item, onPress }: { item: RelampagoListItem; onPress: ()
 
 function PromotionCard({ item, onPress }: { item: PromotionListItem; onPress: () => void }) {
   const distance = item.distance_meters > 0 ? formatDistance(item.distance_meters / 1000) : null;
-  const value = item.discount ? `${item.discount}%` : formatCurrency(item.price);
+  const value = formatDiscount(item.discount) || formatCurrency(item.price);
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}>
       <View style={styles.cardHeader}>

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { StyleSheet, Text, View } from 'react-native';
 import { promotionsApi } from '@/api/offers';
-import { formatCurrency, formatOfferEndsAt } from '@/lib/offer';
+import { formatCurrency, formatDiscount, formatOfferEndsAt } from '@/lib/offer';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 /**
@@ -21,7 +21,7 @@ export function PromotionsSection({ entityId }: { entityId: string }) {
     <View style={styles.section}>
       <Text style={styles.title}>Promociones</Text>
       {(promotions.data ?? []).map((p) => {
-        const value = p.discount ? `${p.discount}%` : formatCurrency(p.price);
+        const value = formatDiscount(p.discount) || formatCurrency(p.price);
         return (
           <View key={p.id} style={styles.card}>
             <View style={styles.cardTop}>

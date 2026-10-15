@@ -6,7 +6,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Offer, Promotion, PromotionStatus } from '@/api/types';
 import { offersApi, promotionsApi } from '@/api/offers';
-import { offerTypeLabel, formatOfferEndsAt, formatCurrency, formatSlotsLeft } from '@/lib/offer';
+import { offerTypeLabel, formatOfferEndsAt, formatCurrency, formatDiscount, formatSlotsLeft } from '@/lib/offer';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 /**
@@ -179,7 +179,7 @@ function PromotionCard({
   onFinish: () => void;
 }) {
   const active = promotion.status === 'active';
-  const value = promotion.discount ? `${promotion.discount}%` : formatCurrency(promotion.price);
+  const value = formatDiscount(promotion.discount) || formatCurrency(promotion.price);
   return (
     <View style={styles.card}>
       <View style={styles.cardTop}>
