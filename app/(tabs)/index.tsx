@@ -10,7 +10,6 @@ import {
   FlatList,
   Linking,
   Modal,
-  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -22,12 +21,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { categoriesApi, entitiesApi } from '@/api/endpoints';
 import { discoveryApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
-import type { Category, DiscoveryItem } from '@/api/types';
+import type { Category } from '@/api/types';
 import { BusinessRow } from '@/components/BusinessRow';
 import { BusinessBanner } from '@/components/BusinessBanner';
 import { Button } from '@/components/Button';
+import { FeaturedSheet } from '@/components/explore/FeaturedSheet';
+import { type WithDistance } from '@/components/explore/FeaturedCard';
 import { ModeFab } from '@/components/explore/ModeFab';
 import { SearchBar } from '@/components/explore/SearchBar';
+import { useFeaturedSheet } from '@/components/explore/useFeaturedSheet';
 import { ZoneLabel } from '@/components/explore/ZoneLabel';
 import { DEFAULT_REGION } from '@/config';
 import { categoryColor } from '@/lib/categoryColor';
@@ -36,8 +38,6 @@ import { distanceKm, hasLocation, type Coords } from '@/lib/geo';
 import { resolveImageUrl } from '@/lib/image';
 import { MAP_STYLE } from '@/lib/mapStyle';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
-
-type WithDistance = DiscoveryItem & { distanceKm: number | null };
 
 /** Opciones del filtro "cerca de mí". `null` = sin límite de distancia. */
 const RADIUS_OPTIONS: { label: string; km: number | null }[] = [
@@ -53,13 +53,6 @@ const RADIUS_OPTIONS: { label: string; km: number | null }[] = [
 
 // Cuántos negocios mostrar en el carrusel de Destacados.
 const FEATURED_COUNT = 8;
-// Alto de la barra de Destacados cuando está minimizada (solo el handle + el
-// encabezado), para que el botón de "mi ubicación" no quede tapado.
-const FEATURED_CARD_MINIMIZED_HEIGHT = 56;
-// Alto aproximado de la tarjeta de Destacados flotando sobre el mapa —
-// se usa para no tapar el botón de "mi ubicación" ni el pin seleccionado.
-const FEATURED_CARD_HEIGHT = 190;
-
 type ZoomTier = 'far' | 'mid' | 'near';
 
 /** Nivel de zoom según el delta de latitud de la región visible del mapa.
@@ -107,69 +100,40 @@ export default function ExploreScreen() {
     [],
   );
   const onMapDrag = () => {
+    if (riseTimer.current) clearTimeout(riseTimer.current);
+    if (sheet.getAnchor() !== 'hidden') sheet.snapTo('hidden');
     setMapMoving(true);
     if (moveTimer.current) clearTimeout(moveTimer.current);
     moveTimer.current = setTimeout(() => setMapMoving(false), 1500);
   };
-  // Minimiza el panel de Destacados a solo su encabezado, para dejar ver más mapa.
-  // Sigue existiendo como estado "discreto" (para la etiqueta de accesibilidad,
-  // el ícono de la flechita y el link "Ver todos"); la altura real que se ve
-  // en pantalla la maneja featuredHeight de abajo, que es continua porque
-  // ahora el panel se puede arrastrar con el dedo, no solo con el botón.
-  const [featuredMinimized, setFeaturedMinimized] = useState(false);
-  // Altura animada del panel de Destacados: arranca expandido. Un mismo
-  // Animated.Value controla tanto el alto del panel como el "bottom" del
-  // botón de ubicación (ver más abajo), así nunca quedan desincronizados
-  // (hallazgo de UI: el botón de ubicación quedaba tapado a medias).
-  const featuredHeight = useRef(new Animated.Value(FEATURED_CARD_HEIGHT)).current;
-  // Copia en JS plano del valor actual de featuredHeight: Animated.Value no
-  // se puede leer de forma síncrona, y la necesitamos para saber desde dónde
-  // arranca cada gesto de arrastre.
-  const featuredHeightRef = useRef(FEATURED_CARD_HEIGHT);
-  useEffect(() => {
-    const id = featuredHeight.addListener(({ value }) => {
-      featuredHeightRef.current = value;
-    });
-    return () => featuredHeight.removeListener(id);
-  }, [featuredHeight]);
-
-  const animateFeaturedTo = (target: number) => {
-    setFeaturedMinimized(target === FEATURED_CARD_MINIMIZED_HEIGHT);
-    Animated.spring(featuredHeight, { toValue: target, useNativeDriver: false, bounciness: 4 }).start();
+  // Si todo queda quieto ~1 s, Destacados sube solo de la píldora a «peek».
+  const scheduleRise = () => {
+    if (riseTimer.current) clearTimeout(riseTimer.current);
+    riseTimer.current = setTimeout(() => {
+      if (canRise.current && sheet.getAnchor() === 'hidden') sheet.snapTo('peek');
+    }, 1000);
   };
-
-  const toggleFeatured = () => {
-    animateFeaturedTo(featuredMinimized ? FEATURED_CARD_HEIGHT : FEATURED_CARD_MINIMIZED_HEIGHT);
+  // El mapa terminó de moverse: se actualiza la región y vuelve la etiqueta de zona.
+  const onMapSettled = (next: Region) => {
+    setRegion(next);
+    if (moveTimer.current) clearTimeout(moveTimer.current);
+    setMapMoving(false);
+    scheduleRise();
   };
-
-  // Arrastrar la manija del panel de Destacados: sube/baja el alto en vivo
-  // con el dedo, y al soltar "engancha" al estado abierto o cerrado más
-  // cercano (hallazgo de UI: "que suba y baje arrastrando, no solo con botón").
-  const featuredPanResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
-      onPanResponderGrant: () => {
-        featuredHeight.stopAnimation();
-      },
-      onPanResponderMove: (_, gesture) => {
-        const next = featuredHeightRef.current - gesture.dy;
-        const clamped = Math.min(FEATURED_CARD_HEIGHT, Math.max(FEATURED_CARD_MINIMIZED_HEIGHT, next));
-        featuredHeight.setValue(clamped);
-      },
-      onPanResponderRelease: (_, gesture) => {
-        const current = featuredHeightRef.current;
-        const mid = (FEATURED_CARD_HEIGHT + FEATURED_CARD_MINIMIZED_HEIGHT) / 2;
-        // Un gesto rápido hacia arriba/abajo gana aunque no haya pasado la
-        // mitad todavía (más responsivo que esperar siempre a la posición).
-        let target: number;
-        if (gesture.vy < -0.5) target = FEATURED_CARD_HEIGHT;
-        else if (gesture.vy > 0.5) target = FEATURED_CARD_MINIMIZED_HEIGHT;
-        else target = current > mid ? FEATURED_CARD_HEIGHT : FEATURED_CARD_MINIMIZED_HEIGHT;
-        animateFeaturedTo(target);
-      },
-    }),
-  ).current;
+  // Destacados: hoja con cuatro anclajes (oculto, peek, medio, completo). El
+  // anclaje completo ocupa ~60 % del contenido, que se mide con onLayout.
+  const [contentHeight, setContentHeight] = useState(0);
+  const sheet = useFeaturedSheet(contentHeight * 0.6);
+  // Cuando el mapa queda quieto ~1 s, Destacados vuelve solo a «peek» (si no se
+  // está buscando ni hay un negocio seleccionado).
+  const riseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const canRise = useRef(false);
+  useEffect(
+    () => () => {
+      if (riseTimer.current) clearTimeout(riseTimer.current);
+    },
+    [],
+  );
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -436,16 +400,9 @@ export default function ExploreScreen() {
   );
   // Hay negocios, pero todos son el propio: mensaje "solo está tu negocio".
   const onlyMine = items.length > 0 && featured.length === 0;
-
-  // Emergente: al escribir en el buscador, Destacados se recoge para no
-  // quitarle espacio a la búsqueda (prioridad absoluta). El usuario puede
-  // volver a expandirlo arrastrando la manija o tocando la flechita.
   useEffect(() => {
-    if (debouncedSearch) {
-      animateFeaturedTo(FEATURED_CARD_MINIMIZED_HEIGHT);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch]);
+    canRise.current = !search && !selectedId && (featured.length > 0 || onlyMine);
+  });
 
   const openBusiness = (id: string) => router.push({ pathname: '/business/[id]', params: { id } });
 
@@ -505,7 +462,9 @@ export default function ExploreScreen() {
   // Los botones flotantes se apilan sobre el panel de Destacados: el de ubicación
   // va pegado a él y «Lista» queda justo encima, sin taparse entre sí.
   const locateBottom =
-    featured.length > 0 || onlyMine ? Animated.add(featuredHeight, insets.bottom) : spacing.lg + insets.bottom;
+    featured.length > 0 || onlyMine
+      ? Animated.add(sheet.buttonsBase, insets.bottom + spacing.md)
+      : spacing.lg + insets.bottom;
   const modeFabBottom = typeof locateBottom === 'number' ? locateBottom + 56 : Animated.add(locateBottom, 56);
 
   return (
@@ -515,7 +474,16 @@ export default function ExploreScreen() {
           y chips de categoría. El contexto y el cambio mapa/lista flotan sobre
           el mapa. */}
       <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]}>
-        <SearchBar value={search} onChangeText={setSearch} onOpenFilters={openFilters} filterCount={activeFilterCount} />
+        <SearchBar
+          value={search}
+          onChangeText={(text) => {
+            setSearch(text);
+            if (text && sheet.getAnchor() !== 'hidden') sheet.snapTo('hidden');
+            if (!text) scheduleRise();
+          }}
+          onOpenFilters={openFilters}
+          filterCount={activeFilterCount}
+        />
 
         <ScrollView
           horizontal
@@ -578,7 +546,7 @@ export default function ExploreScreen() {
       {/* Zona de contenido: mapa (con esquinas redondeadas arriba, como el
           mockup) o lista, con el loading/error flotando sobre lo que sea
           que esté activo. */}
-      <View style={styles.content}>
+      <View style={styles.content} onLayout={(e) => setContentHeight(e.nativeEvent.layout.height)}>
         {mode === 'map' ? (
           <View style={styles.mapWrap}>
             {startupRegion === null ? (
@@ -603,11 +571,7 @@ export default function ExploreScreen() {
               customMapStyle={MAP_STYLE}
               onMapReady={() => setMapReady(true)}
               onPanDrag={onMapDrag}
-              onRegionChangeComplete={(next) => {
-                setRegion(next);
-                if (moveTimer.current) clearTimeout(moveTimer.current);
-                setMapMoving(false);
-              }}
+              onRegionChangeComplete={onMapSettled}
               onPress={() => setSelectedId(null)}
             >
               {radiusKm && reference ? (
@@ -753,65 +717,15 @@ export default function ExploreScreen() {
                   </Pressable>
                 </Animated.View>
 
-                {featured.length > 0 || onlyMine ? (
-                  <Animated.View
-                    style={[
-                      styles.featuredCard,
-                      { height: featuredHeight, paddingBottom: featuredMinimized ? spacing.xs : insets.bottom + spacing.sm },
-                    ]}
-                  >
-                    {/* Manija + encabezado: arrastrables con el dedo para subir/bajar el
-                        panel (ver featuredPanResponder), y el botón de la flechita sigue
-                        funcionando para quien prefiera tocar en vez de arrastrar. */}
-                    <View {...featuredPanResponder.panHandlers}>
-                      <View style={styles.featuredHandleWrap}>
-                        <View style={styles.featuredHandle} />
-                      </View>
-                      <View style={styles.featuredHeader}>
-                        <Text style={styles.featuredTitle} numberOfLines={1}>
-                          {selectedCategory ? `Destacados en ${selectedCategory.name}` : 'Destacados cerca de ti'}
-                        </Text>
-                        <View style={styles.featuredHeaderActions}>
-                          {!featuredMinimized ? (
-                            <Pressable accessibilityRole="button" onPress={() => setMode('list')} hitSlop={8}>
-                              <Text style={styles.featuredSeeAll}>Ver todos</Text>
-                            </Pressable>
-                          ) : null}
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={featuredMinimized ? 'Expandir Destacados' : 'Minimizar Destacados'}
-                            onPress={toggleFeatured}
-                            hitSlop={8}
-                          >
-                            <Ionicons
-                              name={featuredMinimized ? 'chevron-up' : 'chevron-down'}
-                              size={18}
-                              color={colors.muted}
-                            />
-                          </Pressable>
-                        </View>
-                      </View>
-                    </View>
-
-                    {!featuredMinimized && featured.length > 0 ? (
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.featuredList}>
-                        {featured.map((entity) => (
-                          <FeaturedCard
-                            key={entity.id}
-                            entity={entity}
-                            onPress={() => openBusiness(entity.id)}
-                          />
-                        ))}
-                      </ScrollView>
-                    ) : !featuredMinimized && onlyMine ? (
-                      <View style={styles.featuredEmpty}>
-                        <Text style={styles.featuredEmptyTitle}>Por ahora solo está tu negocio</Text>
-                        <Text style={styles.featuredEmptyText}>Cuando haya más cerca, aparecerán aquí.</Text>
-                        <Button title="Ver todos" onPress={() => setMode('list')} style={styles.featuredEmptyButton} />
-                      </View>
-                    ) : null}
-                  </Animated.View>
-                ) : null}
+                <FeaturedSheet
+                  sheet={sheet}
+                  featured={featured}
+                  onlyMine={onlyMine}
+                  title={selectedCategory ? `Destacados en ${selectedCategory.name}` : 'Destacados cerca de ti'}
+                  bottomInset={insets.bottom}
+                  onOpenBusiness={openBusiness}
+                  onSeeList={() => setMode('list')}
+                />
               </>
             ) : null}
 
@@ -944,88 +858,6 @@ function ActiveChip({
       </Pressable>
     </View>
   );
-}
-
-/** Una tarjeta del carrusel de Destacados: miniatura cuadrada + nombre, distancia y rating. */
-function FeaturedCard({ entity, onPress }: { entity: WithDistance; onPress: () => void }) {
-  const src = resolveImageUrl(entity.profile_url);
-  const distance = formatFeaturedDistance(entity.distanceKm);
-  const hasRating = entity.review_count > 0;
-  const hasPhoto = !!src;
-  const statusLabel = entity.has_hours ? (entity.is_open_now ? 'Abierto' : 'Cerrado') : null;
-
-  // Sin foto: tarjeta compacta con ícono de categoría en vez de una miniatura vacía.
-  if (!hasPhoto) {
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Ver perfil de ${entity.name}`}
-        onPress={onPress}
-        style={({ pressed }) => [styles.featuredItemCompact, pressed && { opacity: 0.85 }]}
-      >
-        <View style={styles.featuredCompactIconWrap}>
-          <Ionicons
-            name={(entity.category_icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap}
-            size={22}
-            color={colors.primary}
-          />
-        </View>
-        <View style={styles.featuredCompactInfo}>
-          <Text style={styles.featuredName} numberOfLines={1}>
-            {entity.name}
-          </Text>
-          <Text style={styles.featuredDistance} numberOfLines={1}>
-            {distance ?? entity.category_name}
-          </Text>
-          {hasRating ? (
-            <View style={styles.featuredRating}>
-              <Ionicons name="star" size={11} color={colors.accent} />
-              <Text style={styles.featuredRatingText}>{entity.avg_rating.toFixed(1)}</Text>
-            </View>
-          ) : null}
-        </View>
-      </Pressable>
-    );
-  }
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Ver perfil de ${entity.name}`}
-      onPress={onPress}
-      style={({ pressed }) => [styles.featuredItem, pressed && { opacity: 0.85 }]}
-    >
-      <View>
-        <Image accessible={false} source={{ uri: src }} style={styles.featuredImage} contentFit="cover" transition={150} />
-        {statusLabel ? (
-          <View style={[styles.featuredStatusBadge, entity.is_open_now ? styles.featuredStatusOpen : styles.featuredStatusClosed]}>
-            <Text style={styles.featuredStatusText}>{statusLabel}</Text>
-          </View>
-        ) : null}
-      </View>
-      <View style={styles.featuredInfo}>
-        <Text style={styles.featuredName} numberOfLines={1}>
-          {entity.name}
-        </Text>
-        <View style={styles.featuredMetaRow}>
-          <Text style={styles.featuredDistance}>{distance ?? entity.category_name}</Text>
-          {hasRating ? (
-            <View style={styles.featuredRating}>
-              <Ionicons name="star" size={11} color={colors.accent} />
-              <Text style={styles.featuredRatingText}>{entity.avg_rating.toFixed(1)}</Text>
-            </View>
-          ) : null}
-        </View>
-      </View>
-    </Pressable>
-  );
-}
-
-function formatFeaturedDistance(km: number | null): string | null {
-  if (km === null) return null;
-  if (km < 1) return `${Math.round(km * 1000)} m`;
-  if (km < 10) return `${km.toFixed(1)} km`;
-  return `${Math.round(km)} km`;
 }
 
 function FiltersModal({
@@ -1413,69 +1245,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...shadow,
   },
-  featuredCard: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingTop: spacing.sm,
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    overflow: 'hidden',
-    ...shadow,
-  },
-  featuredHandleWrap: { paddingVertical: 6, alignSelf: 'stretch', alignItems: 'center' },
-  featuredHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.line },
-  featuredHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  featuredEmpty: { alignItems: 'center', gap: 6, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
-  featuredEmptyTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
-  featuredEmptyText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
-  featuredEmptyActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs, width: '100%' },
-  featuredEmptyButton: { flex: 1, paddingHorizontal: spacing.sm },
-  featuredHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-  },
-  featuredTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink, flexShrink: 1, marginRight: spacing.sm },
-  featuredSeeAll: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.primary },
-  featuredList: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.md },
-  featuredItem: { width: 144, borderRadius: radius.md, overflow: 'hidden', backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line },
-  featuredImage: { width: '100%', height: 88, backgroundColor: colors.primarySoft },
-  featuredImageFallback: { alignItems: 'center', justifyContent: 'center' },
-  featuredStatusBadge: { position: 'absolute', top: 6, left: 6, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.sm },
-  featuredStatusOpen: { backgroundColor: 'rgba(22, 163, 74, 0.92)' },
-  featuredStatusClosed: { backgroundColor: 'rgba(107, 114, 128, 0.92)' },
-  featuredStatusText: { fontSize: 10, fontFamily: fonts.ui.bold, color: '#fff' },
-  featuredItemCompact: {
-    width: 144,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    padding: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.bg,
-    borderWidth: 1,
-    borderColor: colors.line,
-  },
-  featuredCompactIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.sm,
-    backgroundColor: colors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  featuredCompactInfo: { flex: 1, gap: 2 },
-  featuredInfo: { padding: spacing.sm, gap: 4 },
-  featuredName: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink },
-  featuredMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  featuredDistance: { fontSize: 11, fontFamily: fonts.ui.medium, color: colors.muted, flexShrink: 1 },
-  featuredRating: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  featuredRatingText: { fontSize: 11, fontFamily: fonts.ui.bold, color: colors.ink },
   preview: {
     position: 'absolute',
     left: spacing.md,
