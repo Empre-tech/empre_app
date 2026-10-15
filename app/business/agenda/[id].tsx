@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
   },
   reqWhen: { fontSize: 20, fontFamily: fonts.ui.extrabold, color: colors.ink },
   reqMeta: { fontSize: 13.5, fontFamily: fonts.ui.medium, color: colors.muted },
-  reqExpiry: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.accentDark, marginTop: 2 },
+  reqExpiry: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.accentInk, marginTop: 2 },
   reqActions: { flexDirection: 'row', gap: spacing.sm },
   freeDay: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line },
   freeDayText: { flex: 1, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted },

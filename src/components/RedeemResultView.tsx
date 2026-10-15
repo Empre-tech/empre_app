@@ -226,7 +226,7 @@ function initials(name: string): string {
 const TONES: Record<Tone, { bg: ViewStyle; icon: ViewStyle; glyph: string }> = {
   ok: { bg: { backgroundColor: OK_GREEN }, icon: { backgroundColor: 'rgba(255,255,255,0.22)' }, glyph: '#fff' },
   bad: { bg: { backgroundColor: '#FBEDED' }, icon: { backgroundColor: '#F6CFCF' }, glyph: colors.danger },
-  warn: { bg: { backgroundColor: colors.accentSoft }, icon: { backgroundColor: '#FAD9B8' }, glyph: colors.accentDark },
+  warn: { bg: { backgroundColor: colors.accentSoft }, icon: { backgroundColor: '#FAD9B8' }, glyph: colors.accentInk },
   grey: { bg: { backgroundColor: '#EDF1F6' }, icon: { backgroundColor: '#D7DFEA' }, glyph: '#4A5A70' },
 };
 

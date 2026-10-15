@@ -10,6 +10,9 @@ export const colors = {
   primarySoft: '#E8F0FB', // fondo suave para chips/estados activos en azul
   accent: '#F58220', // naranja "RE": calidez, destacados, insignias
   accentDark: '#D96A0C',
+  // Ámbar oscuro para TEXTO: 7,1:1 sobre blanco y 6,4:1 sobre accentSoft. El
+  // accent (2,6:1) y el accentDark (3,5:1) no llegan a AA como texto pequeño.
+  accentInk: '#8F4300',
   accentSoft: '#FFF1E3',
   ink: '#16233A', // azul tinta, no negro puro
   muted: '#66768D', // gris azulado para texto secundario

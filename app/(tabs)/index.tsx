@@ -488,6 +488,10 @@ export default function ExploreScreen() {
   const selectedCategory = (categories.data ?? []).find((c) => c.id === categoryId) ?? null;
   const selectedSubcategory = (selectedCategory?.subcategories ?? []).find((s) => s.id === subcategoryId) ?? null;
   const radiusLabel = radiusKm ? `< ${radiusKm} km` : null;
+  // El chip de la categoría elegida va primero, para que siempre se vea y se pueda quitar.
+  const orderedCategories = [...(categories.data ?? [])].sort(
+    (a, b) => Number(b.id === categoryId) - Number(a.id === categoryId),
+  );
 
   // Etiqueta flotante sobre el mapa: reemplaza al saludo, al título y al contador.
   const zoneText = !entities.data
@@ -520,18 +524,8 @@ export default function ExploreScreen() {
           contentContainerStyle={styles.filterScrollRow}
           style={styles.filterScroll}
         >
-          {selectedCategory || selectedSubcategory || radiusLabel || openNow ? (
+          {selectedSubcategory || radiusLabel || openNow ? (
             <View style={styles.activeChips}>
-              {selectedCategory ? (
-                <ActiveChip
-                  icon={(selectedCategory.icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap}
-                  label={selectedCategory.name}
-                  onRemove={() => {
-                    setCategoryId(undefined);
-                    setSubcategoryId(undefined);
-                  }}
-                />
-              ) : null}
               {selectedSubcategory ? (
                 <ActiveChip
                   icon="pricetag-outline"
@@ -541,16 +535,18 @@ export default function ExploreScreen() {
               ) : null}
               {radiusLabel ? <ActiveChip icon="navigate" label={radiusLabel} onRemove={() => setRadiusKm(null)} /> : null}
               {openNow ? <ActiveChip icon="time-outline" label="Abiertos ahora" onRemove={() => setOpenNow(false)} /> : null}
-              <Pressable accessibilityRole="button" accessibilityLabel="Limpiar todos los filtros" onPress={clearAllFilters} style={styles.clearChip}>
-                <Text style={styles.clearChipText}>Limpiar</Text>
-              </Pressable>
+              {activeFilterCount >= 2 ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Limpiar todos los filtros" onPress={clearAllFilters} hitSlop={8} style={styles.clearChip}>
+                  <Text style={styles.clearChipText}>Limpiar</Text>
+                </Pressable>
+              ) : null}
             </View>
           ) : null}
 
           {/* Atajos de categoría: explorar con un toque, sin abrir Filtros.
               También están dentro de Filtros (con subcategorías), pero acá
               quedan a la vista para no tener que abrir el modal siempre. */}
-          {(categories.data ?? []).map((category) => {
+          {orderedCategories.map((category) => {
             const active = categoryId === category.id;
             return (
               <Pressable
@@ -558,10 +554,12 @@ export default function ExploreScreen() {
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
                 accessibilityLabel={`Categoría ${category.name}`}
+                accessibilityHint={active ? 'Toca para quitar el filtro' : undefined}
                 onPress={() => {
                   setCategoryId(active ? undefined : category.id);
                   setSubcategoryId(undefined);
                 }}
+                hitSlop={4}
                 style={[styles.categoryChip, active && styles.chipActive]}
               >
                 <Ionicons
@@ -570,6 +568,7 @@ export default function ExploreScreen() {
                   color={active ? '#fff' : colors.primary}
                 />
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>{category.name}</Text>
+                {active ? <Ionicons name="close" size={14} color="#fff" /> : null}
               </Pressable>
             );
           })}
@@ -654,7 +653,7 @@ export default function ExploreScreen() {
                         ) : null}
                         {showRayo ? (
                           <View style={styles.offerBadge}>
-                            <Ionicons name="flash" size={11} color="#fff" />
+                            <Ionicons name="flash" size={11} color={colors.ink} />
                           </View>
                         ) : null}
                         {tier === 'near' ? (
@@ -1256,7 +1255,7 @@ const styles = StyleSheet.create({
   map: { flex: 1 },
   mapStartupLoading: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  filterScroll: { flex: 1 },
+  filterScroll: { flexGrow: 0, flexShrink: 0 },
   filterScrollRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingRight: spacing.md },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 14, fontWeight: '600', fontFamily: fonts.ui.semibold, color: colors.ink },
@@ -1269,7 +1268,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: spacing.sm,
-    height: 30,
+    height: 36,
     borderRadius: radius.pill,
     backgroundColor: colors.bg,
     borderWidth: 1,

@@ -66,7 +66,12 @@ export default function OffersScreen() {
         <OrderButton label="Lo más buscado" active={order === 'trending'} onPress={() => setOrder('trending')} />
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.chipsScroll}
+        contentContainerStyle={styles.chipsRow}
+      >
         <CategoryChip label="Todas" active={!categoryId} onPress={() => setCategoryId(undefined)} />
         {(categories.data ?? []).map((c) => (
           <CategoryChip
@@ -135,7 +140,13 @@ function OrderButton({ label, active, onPress }: { label: string; active: boolea
 
 function CategoryChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={[styles.chip, active && styles.chipActive]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      hitSlop={4}
+      style={[styles.chip, active && styles.chipActive]}
+    >
       <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
     </Pressable>
   );
@@ -192,8 +203,10 @@ const styles = StyleSheet.create({
   orderBtnActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
   orderText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
   orderTextActive: { color: colors.primary },
-  chipsRow: { gap: spacing.sm, paddingVertical: spacing.sm },
-  chip: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  // Sin flexGrow/flexShrink en 0 el ScrollView horizontal se estira o se recorta.
+  chipsScroll: { flexGrow: 0, flexShrink: 0 },
+  chipsRow: { gap: spacing.sm, paddingVertical: spacing.sm, alignItems: 'center' },
+  chip: { height: 36, paddingHorizontal: spacing.md, justifyContent: 'center', borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   chipTextActive: { color: '#fff' },
@@ -202,7 +215,7 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
   cardTitle: { flex: 1, fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
   cardMeta: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
-  cardPrice: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.accent },
+  cardPrice: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.accentInk },
   promoValue: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.primary },
   empty: { alignItems: 'center', gap: spacing.sm, paddingTop: spacing.xxl },
   emptyTitle: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },

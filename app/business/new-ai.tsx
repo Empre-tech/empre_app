@@ -277,7 +277,7 @@ const styles = StyleSheet.create({
     borderColor: colors.accent,
     backgroundColor: '#fff',
   },
-  starterChipText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.accent },
+  starterChipText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.accentInk },
   bubbleRow: { flexDirection: 'row' },
   bubbleRowMine: { justifyContent: 'flex-end' },
   bubbleRowTheirs: { justifyContent: 'flex-start' },
@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
   progressChipDone: { backgroundColor: colors.accentSoft, borderColor: colors.accentSoft },
   progressChipDot: { width: 6, height: 6, borderRadius: 3, borderWidth: 1.5, borderColor: colors.line },
   progressLabel: { fontSize: 11, fontFamily: fonts.ui.bold, color: colors.muted },
-  progressLabelDone: { color: colors.accent },
+  progressLabelDone: { color: colors.accentInk },
   error: { color: colors.danger, fontSize: 13, paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
   reviewButton: {
     flexDirection: 'row',

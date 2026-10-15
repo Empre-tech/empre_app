@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
   statusActive: { backgroundColor: colors.verifiedSoft },
   statusInactive: { backgroundColor: colors.bg },
   statusText: { fontSize: 12, fontFamily: fonts.ui.bold },
-  slots: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.accent },
+  slots: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.accentInk },
   progressTrack: { height: 6, borderRadius: 3, backgroundColor: colors.bg, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: colors.accent },
   progressText: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },

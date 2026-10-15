@@ -69,9 +69,9 @@ const styles = StyleSheet.create({
   },
   bannerTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   bannerInfo: { flex: 1, gap: 2 },
-  bannerLabel: { fontSize: 10, fontFamily: fonts.ui.bold, color: colors.accent, letterSpacing: 1.2 },
+  bannerLabel: { fontSize: 10, fontFamily: fonts.ui.bold, color: colors.accentInk, letterSpacing: 1.2 },
   bannerTitle: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
-  bannerPrice: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.accent },
+  bannerPrice: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.accentInk },
   bannerMeta: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
   cta: {
     backgroundColor: colors.primary,

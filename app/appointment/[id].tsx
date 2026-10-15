@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     padding: spacing.md,
   },
-  expiryText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.accentDark, flex: 1 },
+  expiryText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.accentInk, flex: 1 },
   warn: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.warning },
   actions: { flexDirection: 'row', gap: spacing.md },
   question: { fontSize: 16, fontFamily: fonts.ui.bold, color: colors.ink, marginBottom: spacing.xs },

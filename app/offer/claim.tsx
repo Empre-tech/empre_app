@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
   backIcon: { position: 'absolute', left: 10, zIndex: 1 },
   title: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
   offerTitle: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
-  price: { fontSize: 16, fontFamily: fonts.ui.semibold, color: colors.accent, textAlign: 'center' },
+  price: { fontSize: 16, fontFamily: fonts.ui.semibold, color: colors.accentInk, textAlign: 'center' },
   hint: { fontSize: 14, fontFamily: fonts.ui.regular, color: colors.muted, textAlign: 'center' },
   error: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.danger, textAlign: 'center' },
   cta: { marginTop: spacing.sm },
@@ -177,6 +177,6 @@ const styles = StyleSheet.create({
   codeLabel: { fontSize: 11, fontFamily: fonts.ui.bold, color: colors.muted, letterSpacing: 1.5 },
   code: { fontSize: 40, fontFamily: fonts.display.bold, color: colors.ink, letterSpacing: 6 },
   countdownRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  countdown: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.accent },
+  countdown: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.accentInk },
   note: { fontSize: 13, fontFamily: fonts.ui.regular, color: colors.muted, textAlign: 'center' },
 });
