@@ -15,7 +15,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import MapView, { Circle, Marker, type Region } from 'react-native-maps';
@@ -27,13 +26,16 @@ import type { Category, DiscoveryItem } from '@/api/types';
 import { BusinessRow } from '@/components/BusinessRow';
 import { BusinessBanner } from '@/components/BusinessBanner';
 import { Button } from '@/components/Button';
+import { ModeFab } from '@/components/explore/ModeFab';
+import { SearchBar } from '@/components/explore/SearchBar';
+import { ZoneLabel } from '@/components/explore/ZoneLabel';
 import { DEFAULT_REGION } from '@/config';
 import { categoryColor } from '@/lib/categoryColor';
 import { clusterItems } from '@/lib/cluster';
 import { distanceKm, hasLocation, type Coords } from '@/lib/geo';
 import { resolveImageUrl } from '@/lib/image';
 import { MAP_STYLE } from '@/lib/mapStyle';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { colors, fonts, radius, shadow, spacing } from '@/theme';
 
 type WithDistance = DiscoveryItem & { distanceKm: number | null };
 
@@ -48,14 +50,6 @@ const RADIUS_OPTIONS: { label: string; km: number | null }[] = [
   { label: 'Menos de 60 km', km: 60 },
 ];
 
-
-/** "Buenos días/tardes/noches" según la hora del celular. */
-function greetingNow(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Buenos días';
-  if (hour < 19) return 'Buenas tardes';
-  return 'Buenas noches';
-}
 
 // Cuántos negocios mostrar en el carrusel de Destacados.
 const FEATURED_COUNT = 8;
@@ -94,13 +88,29 @@ export default function ExploreScreen() {
   // (si no, o si no hay una posición reciente a mano). Evita el "salto" de
   // ver primero Colombia completa y luego animar hacia la ubicación real.
   const [startupRegion, setStartupRegion] = useState<Region | null>(null);
-  // Nombre del barrio/zona donde estás, solo para el saludo ("Negocios cerca
-  // de Bocagrande"): mejor esfuerzo vía reverse geocoding, nunca bloquea nada
-  // si falla — el saludo cae de vuelta a "cerca de ti".
+  // Nombre del barrio/zona donde estás, solo para la etiqueta sobre el mapa
+  // ("12 negocios cerca de Bocagrande"): mejor esfuerzo vía reverse geocoding,
+  // nunca bloquea nada si falla — la etiqueta cae de vuelta a "cerca de ti".
   const [neighborhood, setNeighborhood] = useState<string | null>(null);
   // Negocio seleccionado (tocar un pin abre su banner; el banner reemplaza a
   // Destacados y es la única vía al perfil).
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Mientras el usuario arrastra el mapa se oculta la etiqueta de zona.
+  const [mapMoving, setMapMoving] = useState(false);
+  // Respaldo: si el arrastre termina sin que cambie la región, onRegionChangeComplete
+  // no se dispara y la etiqueta se quedaría oculta; este temporizador la devuelve.
+  const moveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (moveTimer.current) clearTimeout(moveTimer.current);
+    },
+    [],
+  );
+  const onMapDrag = () => {
+    setMapMoving(true);
+    if (moveTimer.current) clearTimeout(moveTimer.current);
+    moveTimer.current = setTimeout(() => setMapMoving(false), 1500);
+  };
   // Minimiza el panel de Destacados a solo su encabezado, para dejar ver más mapa.
   // Sigue existiendo como estado "discreto" (para la etiqueta de accesibilidad,
   // el ícono de la flechita y el link "Ver todos"); la altura real que se ve
@@ -479,87 +489,37 @@ export default function ExploreScreen() {
   const selectedSubcategory = (selectedCategory?.subcategories ?? []).find((s) => s.id === subcategoryId) ?? null;
   const radiusLabel = radiusKm ? `< ${radiusKm} km` : null;
 
+  // Etiqueta flotante sobre el mapa: reemplaza al saludo, al título y al contador.
+  const zoneText = !entities.data
+    ? null
+    : total === 0
+      ? 'Sin negocios en esta zona'
+      : `${total} ${total === 1 ? 'negocio' : 'negocios'} ${
+          centeredOnUser ? `cerca de ${neighborhood ?? 'ti'}` : 'en esta zona'
+        }${total > items.length ? ` · los mejores ${items.length}` : ''}`;
+
+  // Los botones flotantes se apilan sobre el panel de Destacados: el de ubicación
+  // va pegado a él y «Lista» queda justo encima, sin taparse entre sí.
+  const locateBottom =
+    featured.length > 0 || onlyMine ? Animated.add(featuredHeight, insets.bottom) : spacing.lg + insets.bottom;
+  const modeFabBottom = typeof locateBottom === 'number' ? locateBottom + 56 : Animated.add(locateBottom, 56);
+
   return (
     <View style={styles.screen}>
       {/* Barra superior: siempre sólida y en el flujo normal (nunca "flota"
-          transparente sobre el mapa) — así el status bar y el saludo nunca
-          dependen de qué haya pintado el mapa debajo, y el mapa queda como
-          protagonista con esquinas redondeadas arriba, tal como el mockup. */}
+          transparente sobre el mapa). Dos filas: buscador (con Filtros dentro)
+          y chips de categoría. El contexto y el cambio mapa/lista flotan sobre
+          el mapa. */}
       <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]}>
-        <View style={styles.greetingRow}>
-          <Text style={styles.greetingKicker}>{greetingNow()}</Text>
-          <Text style={styles.greetingTitle}>
-            {centeredOnUser ? `Negocios cerca de ${neighborhood ?? 'ti'}` : 'Negocios en esta zona'}
-          </Text>
-        </View>
+        <SearchBar value={search} onChangeText={setSearch} onOpenFilters={openFilters} filterCount={activeFilterCount} />
 
-        <View style={styles.searchRow}>
-          <View style={styles.searchBox}>
-            <Ionicons name="search" size={18} color={colors.muted} />
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Busca un negocio, categoría o barrio"
-              placeholderTextColor={colors.muted}
-              style={styles.searchInput}
-              returnKeyType="search"
-              autoCorrect={false}
-            />
-            {search ? (
-              <Pressable accessibilityRole="button" accessibilityLabel="Borrar búsqueda" onPress={() => setSearch('')} hitSlop={8}>
-                <Ionicons name="close-circle" size={18} color={colors.muted} />
-              </Pressable>
-            ) : null}
-          </View>
-          <View style={styles.modeToggle}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ selected: mode === 'map' }}
-              accessibilityLabel="Ver en el mapa"
-              onPress={() => {
-                setMode('map');
-              }}
-              style={[styles.modeToggleBtn, mode === 'map' && styles.modeToggleBtnActive]}
-            >
-              <Ionicons name="map" size={18} color={mode === 'map' ? '#fff' : colors.muted} />
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ selected: mode === 'list' }}
-              accessibilityLabel="Ver como lista"
-              onPress={() => {
-                setMode('list');
-              }}
-              style={[styles.modeToggleBtn, mode === 'list' && styles.modeToggleBtnActive]}
-            >
-              <Ionicons name="list" size={18} color={mode === 'list' ? '#fff' : colors.muted} />
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.filterRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Abrir filtros"
-            onPress={openFilters}
-            style={[styles.filtersButton, activeFilterCount > 0 && styles.chipActive]}
-          >
-            <Ionicons name="options-outline" size={16} color={activeFilterCount > 0 ? '#fff' : colors.ink} />
-            <Text style={[styles.chipText, activeFilterCount > 0 && styles.chipTextActive]}>Filtros</Text>
-            {activeFilterCount > 0 ? (
-              <View style={styles.filtersBadge}>
-                <Text style={styles.filtersBadgeText}>{activeFilterCount}</Text>
-              </View>
-            ) : null}
-          </Pressable>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={styles.filterScrollRow}
-            style={styles.filterScroll}
-          >
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.filterScrollRow}
+          style={styles.filterScroll}
+        >
           {selectedCategory || selectedSubcategory || radiusLabel || openNow ? (
             <View style={styles.activeChips}>
               {selectedCategory ? (
@@ -613,15 +573,7 @@ export default function ExploreScreen() {
               </Pressable>
             );
           })}
-          </ScrollView>
-        </View>
-
-        {entities.data ? (
-          <Text style={styles.resultsCount}>
-            {total} en esta zona
-            {total > items.length ? ` · mostrando los mejores ${items.length}` : ''}
-          </Text>
-        ) : null}
+        </ScrollView>
       </View>
 
       {/* Zona de contenido: mapa (con esquinas redondeadas arriba, como el
@@ -651,7 +603,12 @@ export default function ExploreScreen() {
               showsPointsOfInterests={false}
               customMapStyle={MAP_STYLE}
               onMapReady={() => setMapReady(true)}
-              onRegionChangeComplete={setRegion}
+              onPanDrag={onMapDrag}
+              onRegionChangeComplete={(next) => {
+                setRegion(next);
+                if (moveTimer.current) clearTimeout(moveTimer.current);
+                setMapMoving(false);
+              }}
               onPress={() => setSelectedId(null)}
             >
               {radiusKm && reference ? (
@@ -774,12 +731,7 @@ export default function ExploreScreen() {
                 <Animated.View
                   style={[
                     styles.locateButtonWrap,
-                    {
-                      bottom:
-                        featured.length > 0 || onlyMine
-                          ? Animated.add(featuredHeight, insets.bottom)
-                          : spacing.lg + insets.bottom,
-                    },
+                    { bottom: locateBottom },
                   ]}
                 >
                   <Pressable
@@ -916,6 +868,16 @@ export default function ExploreScreen() {
             }
           />
         )}
+
+        {mode === 'map' && startupRegion !== null ? <ZoneLabel text={zoneText} visible={!mapMoving} /> : null}
+
+        {mode === 'list' || !selectedEntity ? (
+          <ModeFab
+            mode={mode}
+            onPress={() => setMode(mode === 'map' ? 'list' : 'map')}
+            bottom={mode === 'map' ? modeFabBottom : spacing.lg + insets.bottom}
+          />
+        ) : null}
 
         {entities.isLoading && !entities.data ? (
           <View style={styles.loading} pointerEvents="none">
@@ -1276,20 +1238,12 @@ function CategoryGridItem({
   );
 }
 
-const shadow = {
-  shadowColor: '#000',
-  shadowOpacity: 0.15,
-  shadowRadius: 8,
-  shadowOffset: { width: 0, height: 2 },
-  elevation: 4,
-} as const;
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   // Barra superior: siempre en el flujo normal (nunca "flota" transparente
   // sobre el mapa), como en el mockup — el mapa queda como protagonista,
   // con esquinas redondeadas arriba, debajo de este bloque sólido.
-  topBar: { gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.sm, backgroundColor: colors.bg },
+  topBar: { gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.xs, backgroundColor: colors.bg },
   content: { flex: 1, position: 'relative' },
   mapWrap: {
     flex: 1,
@@ -1301,56 +1255,9 @@ const styles = StyleSheet.create({
   },
   map: { flex: 1 },
   mapStartupLoading: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  greetingRow: { gap: 1, marginBottom: 2 },
-  greetingKicker: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
-  greetingTitle: { fontSize: 19, fontFamily: fonts.display.bold, color: colors.ink },
-  searchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  searchBox: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    height: 44,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
-    ...shadow,
-  },
-  searchInput: { flex: 1, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink, height: '100%' },
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  resultsCount: {
-    fontSize: 12.5,
-    fontFamily: fonts.ui.medium,
-    color: colors.muted,
-    paddingHorizontal: spacing.md,
-    marginTop: spacing.xs,
-  },
   filterScroll: { flex: 1 },
   filterScrollRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingRight: spacing.md },
-  filtersButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: spacing.md,
-    height: 36,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
-    ...shadow,
-  },
-  filtersBadge: {
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  filtersBadgeText: { fontSize: 10, fontFamily: fonts.ui.bold, color: colors.primary },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 14, fontWeight: '600', fontFamily: fonts.ui.semibold, color: colors.ink },
   chipTextActive: { color: '#fff' },
@@ -1379,15 +1286,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...shadow,
   },
-  modeToggle: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 2,
-    ...shadow,
-  },
-  modeToggleBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  modeToggleBtnActive: { backgroundColor: colors.primary },
   pinWrap: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1470,7 +1368,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   clusterText: { color: '#fff', fontWeight: '700', fontFamily: fonts.ui.bold, fontSize: 14 },
-  list: { padding: spacing.md, paddingBottom: spacing.xxl },
+  list: { padding: spacing.md, paddingBottom: spacing.xxl + 64 },
   listRow: {},
   separator: { height: spacing.md },
   listHeader: { marginBottom: spacing.md, gap: 2 },
