@@ -352,13 +352,30 @@ export interface OfferClaim {
   offer?: Offer;
 }
 
+/** Causa de un rechazo al canjear. Un servidor anterior puede no enviarla. */
+export type RedeemReasonCode = 'ALREADY_REDEEMED' | 'EXPIRED' | 'CANCELED' | 'WRONG_BUSINESS' | 'NOT_FOUND';
+
+/**
+ * Resultado del escáner. Un rechazo es un resultado normal (HTTP 200 con
+ * `valid: false`), no un error. Los campos de contexto solo vienen para
+ * reclamos del propio negocio: con WRONG_BUSINESS y NOT_FOUND llegan vacíos.
+ */
 export interface RedeemResult {
   valid: boolean;
   reason?: string;
+  reason_code?: RedeemReasonCode;
   claim_id?: string;
   entity_name?: string;
   offer_title?: string;
+  offer_price?: string;
+  offer_conditions?: string;
+  /** Nombre y la inicial del apellido, p. ej. "María P.". */
   client_name?: string;
+  claimed_at?: string;
+  expires_at?: string;
+  redeemed_at?: string;
+  slots_left?: number;
+  slots_total?: number;
 }
 
 export interface OfferInput {
@@ -371,6 +388,55 @@ export interface OfferInput {
   total_slots: number;
   radius_meters?: number;
   repeat_policy?: RepeatPolicy;
+}
+
+export type PromotionStatus = 'active' | 'paused' | 'finished';
+
+/** Oferta sostenida (sin cupos ni QR), editable y con vigencia. */
+export interface Promotion {
+  id: string;
+  entity_id: string;
+  title: string;
+  description?: string;
+  price?: string;
+  discount?: string;
+  normal_price?: string;
+  starts_at: string;
+  ends_at: string;
+  conditions?: string;
+  tags: string[];
+  status: PromotionStatus;
+}
+
+export interface PromotionInput {
+  title: string;
+  description?: string;
+  price?: string;
+  discount?: string;
+  normal_price?: string;
+  ends_at: string;
+  conditions?: string;
+  /** Etiquetas separadas por coma. */
+  tags?: string;
+}
+
+/** Relámpago en el listado de la pestaña Ofertas (con negocio/categoría/distancia). */
+export interface RelampagoListItem extends Offer {
+  distance_meters: number;
+  entity_name: string;
+  category_name: string;
+}
+
+/** Promoción en el listado de la pestaña Ofertas. */
+export interface PromotionListItem extends Promotion {
+  distance_meters: number;
+  entity_name: string;
+  category_name: string;
+}
+
+export interface OffersFeed {
+  relampagos: RelampagoListItem[];
+  promotions: PromotionListItem[];
 }
 
 export type QuickAction = 'extend' | 'radius' | 'slots';

@@ -10,7 +10,7 @@ import { TextField } from '@/components/TextField';
 import { offerTypeLabel } from '@/lib/offer';
 import { colors, fonts, radius, spacing } from '@/theme';
 
-const TYPES: OfferType[] = ['HORAS', 'DIA', 'SEMANA'];
+const TYPES: OfferType[] = ['HORAS', 'DIA'];
 
 const DEFAULT_HOURS: Record<OfferType, string> = {
   HORAS: '2',

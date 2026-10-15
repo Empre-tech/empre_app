@@ -4,8 +4,10 @@ import { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RedeemResult } from '@/api/types';
+import { ApiError } from '@/api/client';
 import { claimsApi } from '@/api/offers';
 import { Button } from '@/components/Button';
+import { RedeemResultView } from '@/components/RedeemResultView';
 import { TextField } from '@/components/TextField';
 import { colors, fonts, radius, spacing } from '@/theme';
 
@@ -24,51 +26,63 @@ export default function ScanScreen() {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<RedeemResult | null>(null);
+  const [offline, setOffline] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const scanningRef = useRef(false);
+  const busyRef = useRef(false);
+  const lastScanRef = useRef<{ data: string; at: number } | null>(null);
+  const lastAttemptRef = useRef<(() => Promise<RedeemResult>) | null>(null);
 
-  const applyResult = (res: RedeemResult) => {
-    setResult(res);
-    setError(null);
-  };
-
-  const onRedeemId = async (claimId: string) => {
-    if (scanningRef.current) return;
-    scanningRef.current = true;
+  // Un rechazo es un resultado normal (HTTP 200, valid=false) y se muestra
+  // igual que un canje. Solo "sin conexión" y los fallos reales son otra cosa.
+  const run = async (attempt: () => Promise<RedeemResult>) => {
+    lastAttemptRef.current = attempt;
     setLoading(true);
     setError(null);
+    setResult(null);
+    setOffline(false);
     try {
-      const res = await claimsApi.redeem(claimId);
-      applyResult(res);
+      setResult(await attempt());
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No pudimos validar el código');
+      if (e instanceof ApiError && e.status === 0) setOffline(true);
+      else setError(e instanceof Error ? e.message : 'No pudimos validar el código');
     } finally {
       setLoading(false);
-      // Pequeña pausa para no volver a escanear el mismo código al instante.
-      setTimeout(() => (scanningRef.current = false), 1500);
     }
   };
 
-  const onRedeemCode = async () => {
+  const onScan = (claimId: string) => {
+    // Con un resultado en pantalla la cámara sigue activa debajo: sin esta
+    // guarda volvería a leer el mismo QR y taparía el canje con "ya canjeado".
+    if (busyRef.current || result || offline) return;
+    const last = lastScanRef.current;
+    if (last && last.data === claimId && Date.now() - last.at < 4000) return;
+    lastScanRef.current = { data: claimId, at: Date.now() };
+    busyRef.current = true;
+    void run(() => claimsApi.redeem(claimId)).finally(() => {
+      busyRef.current = false;
+    });
+  };
+
+  const onRedeemCode = () => {
     const normalized = code.trim().toUpperCase();
     if (normalized.length < 4) {
       setError('Ingresa el código completo');
       return;
     }
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    try {
-      const res = await claimsApi.redeemCode(normalized);
-      applyResult(res);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'No pudimos validar el código');
-    } finally {
-      setLoading(false);
-    }
+    void run(() => claimsApi.redeemCode(normalized));
   };
 
-  const clearResult = () => setResult(null);
+  const onRetry = () => {
+    const attempt = lastAttemptRef.current;
+    if (attempt) void run(attempt);
+  };
+
+  const onNext = () => {
+    setResult(null);
+    setOffline(false);
+    setError(null);
+    setCode('');
+  };
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + spacing.md }]}>
@@ -93,7 +107,7 @@ export default function ScanScreen() {
                   style={styles.camera}
                   barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
                   onBarcodeScanned={({ data }) => {
-                    if (data) onRedeemId(data);
+                    if (data) onScan(data);
                   }}
                 />
                 <View style={styles.overlay}>
@@ -125,27 +139,9 @@ export default function ScanScreen() {
 
         {mode === 'manual' ? <Button title="Canjear" onPress={onRedeemCode} loading={loading} /> : null}
 
-        {result ? (
-          <View style={[styles.result, result.valid ? styles.resultOk : styles.resultBad]}>
-            <Ionicons
-              name={result.valid ? 'checkmark-circle' : 'close-circle'}
-              size={40}
-              color={result.valid ? colors.success : colors.danger}
-            />
-            <Text style={styles.resultTitle}>{result.valid ? 'Válido' : 'No válido'}</Text>
-            {result.valid ? (
-              <>
-                <Text style={styles.resultLine}>{result.offer_title}</Text>
-                <Text style={styles.resultMuted}>Cliente: {result.client_name}</Text>
-                <Text style={styles.resultMuted}>Negocio: {result.entity_name}</Text>
-              </>
-            ) : (
-              <Text style={styles.resultMuted}>{result.reason}</Text>
-            )}
-            <Button title="Escanear otro" variant="secondary" onPress={clearResult} style={styles.again} />
-          </View>
-        ) : null}
       </ScrollView>
+
+      <RedeemResultView result={result} offline={offline} onNext={onNext} onRetry={onRetry} />
     </View>
   );
 }
@@ -174,11 +170,4 @@ const styles = StyleSheet.create({
   codeInput: { textAlign: 'center', fontSize: 24, letterSpacing: 8 },
   hint: { fontSize: 14, fontFamily: fonts.ui.regular, color: colors.muted, textAlign: 'center' },
   error: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.danger, textAlign: 'center' },
-  result: { marginTop: spacing.md, borderRadius: radius.lg, padding: spacing.xl, alignItems: 'center', gap: spacing.xs, borderWidth: 1 },
-  resultOk: { backgroundColor: colors.verifiedSoft, borderColor: colors.verified },
-  resultBad: { backgroundColor: colors.bg, borderColor: colors.line },
-  resultTitle: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
-  resultLine: { fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink, textAlign: 'center' },
-  resultMuted: { fontSize: 14, fontFamily: fonts.ui.regular, color: colors.muted, textAlign: 'center' },
-  again: { marginTop: spacing.sm },
 });

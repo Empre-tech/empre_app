@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { entitiesApi } from '@/api/endpoints';
+import { promotionsApi } from '@/api/offers';
 import type { BusinessHour, DiscoveryItem } from '@/api/types';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
@@ -60,6 +61,11 @@ export function BusinessBanner({
     queryFn: () => entitiesApi.get(entity.id),
     staleTime: 60_000,
   });
+  const promotions = useQuery({
+    queryKey: ['promotions-active', entity.id],
+    queryFn: () => promotionsApi.active(entity.id),
+    staleTime: 60_000,
+  });
   const today = detail.data?.hours && detail.data.hours.length > 0 ? todaysHoursLabel(detail.data.hours) : null;
 
   const meta = [entity.category_name, statusLabel, distance && `a ${distance}`, today ? `hoy ${today}` : null]
@@ -70,7 +76,7 @@ export function BusinessBanner({
     <View style={styles.wrap}>
       <View style={styles.headerRow}>
         <Avatar uri={entity.profile_url} name={entity.name} size={48} />
-        <Pressable style={styles.info} onPress={onProfile}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Ver perfil de ${entity.name}`} style={styles.info} onPress={onProfile}>
           <Text style={styles.name} numberOfLines={1}>
             {entity.name}
           </Text>
@@ -100,6 +106,20 @@ export function BusinessBanner({
             {offer.title} · termina {formatOfferEndsAt(offer.ends_at)}
           </Text>
           <Ionicons name="chevron-forward" size={16} color={colors.accent} />
+        </Pressable>
+      ) : null}
+
+      {promotions.data && promotions.data.length > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onProfile}
+          style={({ pressed }) => [styles.promoChip, pressed && styles.pressed]}
+        >
+          <Ionicons name="pricetag" size={14} color={colors.primary} />
+          <Text style={styles.promoChipText} numberOfLines={1}>
+            {promotions.data.length} {promotions.data.length === 1 ? 'promoción' : 'promociones'}
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.primary} />
         </Pressable>
       ) : null}
 
@@ -155,6 +175,16 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   offerChipText: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.semibold, color: colors.ink },
+  promoChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  promoChipText: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.semibold, color: colors.ink },
   pressed: { opacity: 0.85 },
   actions: { flexDirection: 'row', gap: spacing.sm },
   action: { flex: 1, paddingHorizontal: spacing.sm, minHeight: 44 },

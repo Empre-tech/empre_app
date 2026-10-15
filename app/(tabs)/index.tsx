@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
@@ -73,8 +73,8 @@ type ZoomTier = 'far' | 'mid' | 'near';
  * punto de color que no estorba (con muchos negocios, las imágenes grandes
  * serían un estorbo). */
 function zoomTier(region: Region): ZoomTier {
-  if (region.latitudeDelta < 0.008) return 'near';
-  if (region.latitudeDelta < 0.02) return 'mid';
+  if (region.latitudeDelta < 0.012) return 'near';
+  if (region.latitudeDelta < 0.05) return 'mid';
   return 'far';
 }
 
@@ -378,6 +378,7 @@ export default function ExploreScreen() {
       bbox.min_lng,
       bbox.max_lat,
       bbox.max_lng,
+      reference ? `${reference.latitude.toFixed(3)},${reference.longitude.toFixed(3)}` : 'no-ref',
     ],
     queryFn: () =>
       discoveryApi.discover({
@@ -388,8 +389,13 @@ export default function ExploreScreen() {
         category: categoryId,
         subcategory: subcategoryId,
         q: debouncedSearch || undefined,
-        limit: 15,
+        // Suficiente para poblar el mapa; el orden sigue siendo el ranking.
+        limit: 50,
       }),
+    // Al mover el mapa el bbox cambia (queryKey nuevo): mantenemos los
+    // resultados anteriores mientras llegan los de la nueva zona, para no
+    // parpadear ni mostrar el spinner en cada movimiento.
+    placeholderData: keepPreviousData,
   });
 
   const items = useMemo<WithDistance[]>(() => {
@@ -610,7 +616,7 @@ export default function ExploreScreen() {
           </ScrollView>
         </View>
 
-        {!entities.isLoading ? (
+        {entities.data ? (
           <Text style={styles.resultsCount}>
             {total} en esta zona
             {total > items.length ? ` · mostrando los mejores ${items.length}` : ''}
@@ -697,7 +703,7 @@ export default function ExploreScreen() {
                         {tier === 'near' ? (
                           <View style={[styles.pinNearImg, { borderColor }]}>
                             {thumb ? (
-                              <Image source={{ uri: thumb }} style={styles.pinNearThumb} contentFit="cover" transition={120} />
+                              <Image accessible={false} source={{ uri: thumb }} style={styles.pinNearThumb} contentFit="cover" transition={120} />
                             ) : (
                               <View style={[styles.pinNearFallback, { backgroundColor: cat.bg }]}>
                                 <Ionicons name={icon} size={20} color={cat.fg} />
@@ -708,7 +714,7 @@ export default function ExploreScreen() {
                         ) : tier === 'mid' ? (
                           <View style={[styles.pinMid, { borderColor }]}>
                             {thumb ? (
-                              <Image source={{ uri: thumb }} style={styles.pinMidThumb} contentFit="cover" transition={120} />
+                              <Image accessible={false} source={{ uri: thumb }} style={styles.pinMidThumb} contentFit="cover" transition={120} />
                             ) : (
                               <View style={[styles.pinMidFallback, { backgroundColor: cat.bg }]}>
                                 <Ionicons name={icon} size={16} color={cat.fg} />
@@ -911,7 +917,7 @@ export default function ExploreScreen() {
           />
         )}
 
-        {entities.isLoading ? (
+        {entities.isLoading && !entities.data ? (
           <View style={styles.loading} pointerEvents="none">
             <ActivityIndicator color={colors.primary} />
           </View>
@@ -1029,7 +1035,7 @@ function FeaturedCard({ entity, onPress }: { entity: WithDistance; onPress: () =
       style={({ pressed }) => [styles.featuredItem, pressed && { opacity: 0.85 }]}
     >
       <View>
-        <Image source={{ uri: src }} style={styles.featuredImage} contentFit="cover" transition={150} />
+        <Image accessible={false} source={{ uri: src }} style={styles.featuredImage} contentFit="cover" transition={150} />
         {statusLabel ? (
           <View style={[styles.featuredStatusBadge, entity.is_open_now ? styles.featuredStatusOpen : styles.featuredStatusClosed]}>
             <Text style={styles.featuredStatusText}>{statusLabel}</Text>
@@ -1422,7 +1428,7 @@ const styles = StyleSheet.create({
   },
   pinVerified: { backgroundColor: colors.verified },
   pinOwner: { borderColor: colors.accent, borderWidth: 3 },
-  pinFar: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: '#fff' },
+  pinFar: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: '#fff' },
   pinFarSelected: { borderColor: colors.primary, borderWidth: 3 },
   pinMid: {
     width: 34,

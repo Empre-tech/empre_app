@@ -38,7 +38,7 @@ export default function LoginScreen() {
   return (
     <AuthLayout
       title="Bienvenido de vuelta"
-      subtitle="Inicia sesión para escribirle a los negocios y ver tus mensajes."
+      subtitle="Inicia sesión para reclamar ofertas, guardar favoritos y escribirle a los negocios."
       markIcon="storefront"
       onBack={router.canGoBack() ? () => router.back() : undefined}
     >

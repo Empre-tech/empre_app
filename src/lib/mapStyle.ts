@@ -7,8 +7,8 @@
  *    los pines.
  */
 export const MAP_STYLE = [
-  // Suavizado general.
-  { elementType: 'geometry', stylers: [{ saturation: -45 }] },
+  // Suavizado suave (no tan lavado como antes) para que los pines destaquen.
+  { elementType: 'geometry', stylers: [{ saturation: -20 }] },
   { elementType: 'labels.text.fill', stylers: [{ color: '#5b6b7d' }] },
   { elementType: 'labels.text.stroke', stylers: [{ color: '#f5f8fc' }] },
   // La etiqueta de ciudad aparece muy grande y compite con los pines: aclararla.

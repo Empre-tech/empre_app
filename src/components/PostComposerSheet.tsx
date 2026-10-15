@@ -140,7 +140,7 @@ export function PostComposerSheet({ visible, onClose, entityId, businessName, ca
                 {isVideo ? (
                   <ComposerVideoPreview uri={media.uri} />
                 ) : (
-                  <Image source={{ uri: media.uri }} style={styles.previewMedia} contentFit="cover" />
+                  <Image accessible={false} source={{ uri: media.uri }} style={styles.previewMedia} contentFit="cover" />
                 )}
 
                 {publishing ? (

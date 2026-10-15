@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { offersApi } from '@/api/offers';
-import { formatOfferEndsAt, offerTypeLabel } from '@/lib/offer';
+import { formatCurrency, formatOfferEndsAt, offerTypeLabel } from '@/lib/offer';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 /**
@@ -41,7 +41,7 @@ export function OfferBanner({ entityId, isOwner }: { entityId: string; isOwner: 
         <View style={styles.bannerInfo}>
           <Text style={styles.bannerLabel}>OFERTA ACTIVA</Text>
           <Text style={styles.bannerTitle}>{active.title}</Text>
-          {active.price ? <Text style={styles.bannerPrice}>{active.price}</Text> : null}
+          {active.price ? <Text style={styles.bannerPrice}>{formatCurrency(active.price)}</Text> : null}
           <Text style={styles.bannerMeta}>
             {offerTypeLabel(active.type)} · hasta {formatOfferEndsAt(active.ends_at)} · quedan {active.slots_left} cupos
           </Text>
@@ -60,24 +60,26 @@ export function OfferBanner({ entityId, isOwner }: { entityId: string; isOwner: 
 
 const styles = StyleSheet.create({
   banner: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.accentSoft,
     borderRadius: radius.lg,
     padding: spacing.lg,
     gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.accent,
   },
   bannerTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   bannerInfo: { flex: 1, gap: 2 },
-  bannerLabel: { fontSize: 10, fontFamily: fonts.ui.bold, color: '#fff', letterSpacing: 1.2, opacity: 0.9 },
-  bannerTitle: { fontSize: 17, fontFamily: fonts.display.bold, color: '#fff' },
-  bannerPrice: { fontSize: 15, fontFamily: fonts.ui.bold, color: '#fff' },
-  bannerMeta: { fontSize: 12, fontFamily: fonts.ui.medium, color: '#fff', opacity: 0.95 },
+  bannerLabel: { fontSize: 10, fontFamily: fonts.ui.bold, color: colors.accent, letterSpacing: 1.2 },
+  bannerTitle: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
+  bannerPrice: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.accent },
+  bannerMeta: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
   cta: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.primary,
     borderRadius: radius.pill,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
   },
-  ctaText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.accent },
+  ctaText: { fontSize: 14, fontFamily: fonts.ui.bold, color: '#fff' },
   ownerLink: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
   ownerLinkText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.primary },
   pressed: { opacity: 0.8 },

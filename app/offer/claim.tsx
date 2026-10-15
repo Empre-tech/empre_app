@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi } from '@/api/endpoints';
 import { claimsApi } from '@/api/offers';
 import type { OfferClaim } from '@/api/types';
+import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/Button';
 import { formatCurrency } from '@/lib/offer';
 import { colors, fonts, radius, spacing } from '@/theme';
@@ -32,6 +33,7 @@ export default function ClaimScreen() {
   const offerId = params.offerId ?? '';
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { status } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [claim, setClaim] = useState<OfferClaim | null>(null);
@@ -103,7 +105,14 @@ export default function ClaimScreen() {
               Al reclamar reservas un cupo por tiempo limitado. Presenta el código al negocio para canjearlo.
             </Text>
             {error ? <Text style={styles.error}>{error}</Text> : null}
-            <Button title="Reclamar oferta" onPress={onClaim} loading={loading} style={styles.cta} />
+            {status === 'signedIn' ? (
+              <Button title="Reclamar oferta" onPress={onClaim} loading={loading} style={styles.cta} />
+            ) : (
+              <>
+                <Text style={styles.hint}>Inicia sesión para reclamar esta oferta.</Text>
+                <Button title="Iniciar sesión" onPress={() => router.push('/(auth)/login')} style={styles.cta} />
+              </>
+            )}
           </>
         ) : (
           <>

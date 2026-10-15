@@ -1125,7 +1125,7 @@ function PhotoSlot({
     >
       {uri ? (
         <>
-          <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+          <Image accessible={false} source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
           <View style={styles.editBadge}>
             <Ionicons name="pencil" size={14} color="#fff" />
           </View>

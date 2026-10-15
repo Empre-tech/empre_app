@@ -161,6 +161,14 @@ export default function ProfileScreen() {
             </View>
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel={`Gestionar ofertas de ${entity.name}`}
+              hitSlop={8}
+              onPress={() => router.push({ pathname: '/business/offers', params: { entityId: entity.id } })}
+            >
+              <Ionicons name="flash-outline" size={22} color={colors.primary} />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
               accessibilityLabel={`Editar ${entity.name}`}
               hitSlop={8}
               onPress={() => router.push({ pathname: '/business/edit/[id]', params: { id: entity.id } })}

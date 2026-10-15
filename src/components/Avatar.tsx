@@ -22,7 +22,7 @@ export function Avatar({ uri, name, size = 48 }: Props) {
     );
   }
 
-  return <Image source={{ uri: src }} style={[styles.image, dimension]} contentFit="cover" transition={150} />;
+  return <Image accessible={false} source={{ uri: src }} style={[styles.image, dimension]} contentFit="cover" transition={150} />;
 }
 
 const styles = StyleSheet.create({

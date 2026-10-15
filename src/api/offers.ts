@@ -5,6 +5,10 @@ import type {
   Offer,
   OfferClaim,
   OfferInput,
+  OffersFeed,
+  Promotion,
+  PromotionInput,
+  PromotionStatus,
   QuickAction,
   RedeemResult,
 } from './types';
@@ -38,11 +42,14 @@ export interface DiscoveryResponse {
 export const discoveryApi = {
   /** Negocios rankeados y diversificados para el área visible + total (público). */
   discover: async (params: DiscoveryParams = {}): Promise<DiscoveryResponse> => {
-    const res = await request<{ items?: DiscoveryItem[] | null; total?: number }>('/api/discovery', {
-      auth: false,
-      query: { ...params },
-    });
-    return { items: res.items ?? [], total: res.total ?? 0 };
+    const res = await request<{ items?: DiscoveryItem[] | null; data?: DiscoveryItem[] | null; total?: number }>(
+      '/api/discovery',
+      { auth: false, query: { ...params } },
+    );
+    // Acepta tanto { items } (contrato nuevo) como { data } (contrato anterior),
+    // por si el backend todavía no se reinició con el cambio.
+    const items = res.items ?? res.data ?? [];
+    return { items, total: res.total ?? 0 };
   },
 };
 
@@ -65,6 +72,17 @@ export const offersApi = {
   /** Clona una oferta como publicación nueva. */
   republish: (offerId: string, input: OfferInput) =>
     request<Offer>(`/api/offers/${offerId}/republish`, { method: 'POST', body: input }),
+
+  /** Pestaña Ofertas: relámpagos y promociones activos (público). */
+  feed: async (
+    params: { lat?: number; long?: number; category?: string; order?: 'near' | 'trending' } = {},
+  ): Promise<OffersFeed> => {
+    const res = await request<{
+      relampagos?: OffersFeed['relampagos'] | null;
+      promotions?: OffersFeed['promotions'] | null;
+    }>('/api/offers', { auth: false, query: { ...params } });
+    return { relampagos: res.relampagos ?? [], promotions: res.promotions ?? [] };
+  },
 };
 
 export const claimsApi = {
@@ -97,4 +115,22 @@ export const statusApi = {
   /** Actualiza la disponibilidad (dueño). */
   update: (entityId: string, availability: string) =>
     request<BusinessStatus>(`/api/entities/${entityId}/status`, { method: 'PATCH', body: { availability } }),
+};
+
+export const promotionsApi = {
+  /** Publica una promoción (dueño). */
+  publish: (entityId: string, input: PromotionInput) =>
+    request<Promotion>(`/api/entities/${entityId}/promotions`, { method: 'POST', body: input }),
+
+  /** Promociones del negocio (dueño). */
+  list: async (entityId: string): Promise<Promotion[]> =>
+    list(await request<{ data?: Promotion[] | null }>(`/api/entities/${entityId}/promotions`)),
+
+  /** Promociones activas de un negocio (público). */
+  active: async (entityId: string): Promise<Promotion[]> =>
+    list(await request<{ data?: Promotion[] | null }>(`/api/entities/${entityId}/promotions/active`, { auth: false })),
+
+  /** Edita o cambia el estado de una promoción (dueño). */
+  update: (promotionId: string, input: Partial<PromotionInput> & { status?: PromotionStatus }) =>
+    request<Promotion>(`/api/promotions/${promotionId}`, { method: 'PATCH', body: input }),
 };

@@ -41,3 +41,17 @@ export function formatCurrency(value?: string | null): string {
 export function formatSlotsLeft(n: number): string {
   return n === 1 ? 'Queda 1 cupo' : `Quedan ${n} cupos`;
 }
+
+/** Tiempo transcurrido corto: "hace un momento", "hace 12 min", "hace 2 h". */
+export function formatAgo(iso?: string | null, now: number = Date.now()): string {
+  if (!iso) return '';
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '';
+  const minutes = Math.max(0, Math.floor((now - t) / 60000));
+  if (minutes < 1) return 'hace un momento';
+  if (minutes < 60) return `hace ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `hace ${hours} h`;
+  const days = Math.floor(hours / 24);
+  return `hace ${days} ${days === 1 ? 'día' : 'días'}`;
+}

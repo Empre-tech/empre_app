@@ -27,6 +27,7 @@ import { AgendaStrip } from '@/components/agenda/AgendaStrip';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { OfferBanner } from '@/components/OfferBanner';
+import { PromotionsSection } from '@/components/PromotionsSection';
 import { PostComposerSheet } from '@/components/PostComposerSheet';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -366,7 +367,7 @@ export default function BusinessScreen() {
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xxl }}>
         <View style={styles.bannerWrap}>
-          {bannerUrl ? <Image source={{ uri: bannerUrl }} style={styles.banner} contentFit="cover" /> : <View style={[styles.banner, styles.bannerEmpty]} />}
+          {bannerUrl ? <Image accessible={false} source={{ uri: bannerUrl }} style={styles.banner} contentFit="cover" /> : <View style={[styles.banner, styles.bannerEmpty]} />}
           {photos.length > 0 ? (
             <View style={styles.photoCountPill}>
               <Ionicons name="images" size={12} color="#fff" />
@@ -498,6 +499,7 @@ export default function BusinessScreen() {
             ) : null}
             {!isOwner ? <Button title="Enviar mensaje" onPress={onMessage} /> : null}
             <OfferBanner entityId={business.id} isOwner={isOwner} />
+            <PromotionsSection entityId={business.id} />
             {!isOwner ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
             {isOwner ? (
               <Pressable
