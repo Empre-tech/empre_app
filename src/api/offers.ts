@@ -90,6 +90,10 @@ export const claimsApi = {
   claim: (offerId: string, latitude?: number, longitude?: number) =>
     request<OfferClaim>(`/api/offers/${offerId}/claim`, { method: 'POST', body: { latitude, longitude } }),
 
+  /** Mis reclamos recientes (QR + estado), los más nuevos primero. */
+  mine: async (): Promise<OfferClaim[]> =>
+    list(await request<{ data?: OfferClaim[] | null }>('/api/claims/mine')),
+
   /** Mi reclamo (QR + tiempo restante). */
   get: (claimId: string) => request<OfferClaim>(`/api/claims/${claimId}`),
 

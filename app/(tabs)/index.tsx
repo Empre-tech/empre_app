@@ -457,8 +457,8 @@ export default function ExploreScreen() {
     void Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`);
   };
 
-  const claimOffer = (offerId: string, title: string) => {
-    router.push({ pathname: '/offer/claim', params: { offerId, title } });
+  const claimOffer = (offerId: string, title: string, entityId: string) => {
+    router.push({ pathname: '/offer/claim', params: { offerId, entityId, title } });
   };
 
   const clearAllFilters = () => {

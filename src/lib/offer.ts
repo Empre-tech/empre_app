@@ -116,3 +116,40 @@ export function formatSavings(price?: string | null, normalPrice?: string | null
   if (!now || !was || was <= now) return '';
   return `Ahorras $${(was - now).toLocaleString('es-CO')}`;
 }
+
+/**
+ * Tiempo restante en dos partes cortas para el centro del anillo:
+ * {3, DÍAS}, {2 h, 30 MIN}, {42, MIN}, {9:05, MIN}.
+ */
+export function timeLeftShort(ms: number): { value: string; unit: string } {
+  if (ms <= 0) return { value: '—', unit: '' };
+  const minutes = Math.ceil(ms / MINUTE);
+  if (minutes >= 24 * 60) {
+    const days = Math.floor(minutes / (24 * 60));
+    return { value: String(days), unit: days === 1 ? 'DÍA' : 'DÍAS' };
+  }
+  if (minutes >= 60) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return { value: `${h} h`, unit: m ? `${m} MIN` : '' };
+  }
+  if (ms < 10 * MINUTE) {
+    const total = Math.ceil(ms / 1000);
+    return { value: `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`, unit: 'MIN' };
+  }
+  return { value: String(minutes), unit: 'MIN' };
+}
+
+/** Duración de la ventana del reclamo en texto: «30 min», «3 h», «24 h», «3 días». */
+export function formatWindow(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  if (minutes <= 48 * 60) return `${Math.round(minutes / 60)} h`;
+  return `${Math.round(minutes / (24 * 60))} días`;
+}
+
+/** Hora del día en formato local corto: «3:42 p. m.». Vacío si la fecha no es válida. */
+export function formatClock(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
+}

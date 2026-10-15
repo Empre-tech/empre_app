@@ -339,6 +339,8 @@ export interface Offer {
   slots_left: number;
   radius_meters: number;
   repeat_policy: RepeatPolicy;
+  /** Cuánto dura un reclamo de esta oferta antes de expirar. */
+  claim_window_minutes?: number;
 }
 
 export interface OfferClaim {
@@ -350,6 +352,11 @@ export interface OfferClaim {
   claimed_at: string;
   expires_at: string;
   offer?: Offer;
+  /** Nombre del negocio, para mostrar el QR sin otra consulta. */
+  entity_name?: string;
+  redeemed_at?: string;
+  /** El cliente confirmó que lo atendieron (canje verificado). */
+  verified_by_client?: boolean;
 }
 
 /** Causa de un rechazo al canjear. Un servidor anterior puede no enviarla. */

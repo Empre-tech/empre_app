@@ -21,7 +21,7 @@ interface Props {
   onClose: () => void;
   onDirections: () => void;
   onProfile: () => void;
-  onClaimOffer: (offerId: string, title: string) => void;
+  onClaimOffer: (offerId: string, title: string, entityId: string) => void;
   onScan?: () => void;
   onPublishOffer?: () => void;
 }
@@ -183,7 +183,7 @@ export function BusinessSheet({
           </>
         ) : live ? (
           <>
-            <Button title="Ver oferta" onPress={() => onClaimOffer(live.id, live.title)} style={styles.main} />
+            <Button title="Ver oferta" onPress={() => onClaimOffer(live.id, live.title, entity.id)} style={styles.main} />
             <Button title="Cómo llegar" variant="secondary" onPress={onDirections} style={styles.action} />
             <Pressable
               accessibilityRole="button"
