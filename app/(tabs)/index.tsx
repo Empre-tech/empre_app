@@ -28,12 +28,14 @@ import { Button } from '@/components/Button';
 import { FeaturedSheet } from '@/components/explore/FeaturedSheet';
 import { type WithDistance } from '@/components/explore/FeaturedCard';
 import { ModeFab } from '@/components/explore/ModeFab';
+import { PlaceSheet } from '@/components/explore/PlaceSheet';
+import { StackMarker } from '@/components/explore/StackMarker';
 import { SearchBar } from '@/components/explore/SearchBar';
 import { useFeaturedSheet } from '@/components/explore/useFeaturedSheet';
 import { ZoneLabel } from '@/components/explore/ZoneLabel';
 import { DEFAULT_REGION } from '@/config';
 import { categoryColor } from '@/lib/categoryColor';
-import { clusterItems } from '@/lib/cluster';
+import { allWithinMeters, clusterByScreenDistance, type Cluster } from '@/lib/cluster';
 import { distanceKm, hasLocation, type Coords } from '@/lib/geo';
 import { resolveImageUrl } from '@/lib/image';
 import { MAP_STYLE } from '@/lib/mapStyle';
@@ -90,6 +92,8 @@ export default function ExploreScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Mientras el usuario arrastra el mapa se oculta la etiqueta de zona.
   const [mapMoving, setMapMoving] = useState(false);
+  // Negocios de una pila que comparten un mismo punto: se abren en «En este lugar».
+  const [placeItems, setPlaceItems] = useState<WithDistance[] | null>(null);
   // Respaldo: si el arrastre termina sin que cambie la región, onRegionChangeComplete
   // no se dispara y la etiqueta se quedaría oculta; este temporizador la devuelve.
   const moveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -122,8 +126,8 @@ export default function ExploreScreen() {
   };
   // Destacados: hoja con cuatro anclajes (oculto, peek, medio, completo). El
   // anclaje completo ocupa ~60 % del contenido, que se mide con onLayout.
-  const [contentHeight, setContentHeight] = useState(0);
-  const sheet = useFeaturedSheet(contentHeight * 0.6);
+  const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
+  const sheet = useFeaturedSheet(mapSize.height * 0.6);
   // Cuando el mapa queda quieto ~1 s, Destacados vuelve solo a «peek» (si no se
   // está buscando ni hay un negocio seleccionado).
   const riseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -388,8 +392,15 @@ export default function ExploreScreen() {
   }, [entities.data, reference, radiusKm, openNow]);
 
   const mapped = useMemo(() => items.filter(hasLocation), [items]);
-  const clusters = useMemo(() => clusterItems(mapped, region), [mapped, region]);
   const tier = zoomTier(region);
+  // Lejos los pines son puntos de 18 pt; de cerca, portales de ~44 pt: el umbral
+  // de agrupación acompaña. Al acercar el zoom los negocios se alejan en pantalla
+  // y la pila se abre sola.
+  const clusterPx = tier === 'far' ? 22 : 44;
+  const clusters = useMemo(
+    () => clusterByScreenDistance(mapped, region, mapSize, clusterPx),
+    [mapped, region, mapSize, clusterPx],
+  );
   const total = entities.data?.total ?? 0;
 
   // Destacados salen de la misma respuesta que los pines (área visible): los
@@ -415,9 +426,30 @@ export default function ExploreScreen() {
   // no tape el pin (el centro queda un poco al sur del negocio).
   const selectBusiness = (id: string, coords: { latitude: number; longitude: number }) => {
     setSelectedId(id);
+    setPlaceItems(null);
     mapRef.current?.animateToRegion(
       { latitude: coords.latitude - 0.0016, longitude: coords.longitude, latitudeDelta: 0.008, longitudeDelta: 0.008 },
       400,
+    );
+  };
+
+  // Tocar una pila: si sus negocios comparten punto (≤ 50 m) o ya no se puede
+  // acercar más, se abre «En este lugar»; si no, se acerca el mapa y la pila se
+  // abre sola.
+  const onStackPress = (cluster: Cluster<WithDistance>) => {
+    setSelectedId(null);
+    if (allWithinMeters(cluster.items, 50) || region.latitudeDelta < 0.002) {
+      setPlaceItems(cluster.items);
+      return;
+    }
+    mapRef.current?.animateToRegion(
+      {
+        latitude: cluster.latitude,
+        longitude: cluster.longitude,
+        latitudeDelta: region.latitudeDelta / 2.5,
+        longitudeDelta: region.longitudeDelta / 2.5,
+      },
+      300,
     );
   };
 
@@ -546,7 +578,7 @@ export default function ExploreScreen() {
       {/* Zona de contenido: mapa (con esquinas redondeadas arriba, como el
           mockup) o lista, con el loading/error flotando sobre lo que sea
           que esté activo. */}
-      <View style={styles.content} onLayout={(e) => setContentHeight(e.nativeEvent.layout.height)}>
+      <View style={styles.content} onLayout={(e) => setMapSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}>
         {mode === 'map' ? (
           <View style={styles.mapWrap}>
             {startupRegion === null ? (
@@ -572,7 +604,10 @@ export default function ExploreScreen() {
               onMapReady={() => setMapReady(true)}
               onPanDrag={onMapDrag}
               onRegionChangeComplete={onMapSettled}
-              onPress={() => setSelectedId(null)}
+              onPress={() => {
+                setSelectedId(null);
+                setPlaceItems(null);
+              }}
             >
               {radiusKm && reference ? (
                 <Circle
@@ -650,38 +685,10 @@ export default function ExploreScreen() {
                   );
                 }
 
-                // Varios negocios en el mismo punto: miniaturas apiladas, nunca un número.
-                const first = cluster.items[0];
-                const second = cluster.items[1] ?? cluster.items[0];
-                const c1 = categoryColor(first.category_color).fg;
-                const c2 = categoryColor(second.category_color).fg;
+                // Varios negocios muy juntos: pila de miniaturas, nunca un número. El
+                // nivel de zoom va en la key para que el marcador se vuelva a dibujar.
                 return (
-                  <Marker
-                    key={cluster.key}
-                    coordinate={coordinate}
-                    onPress={(event) => {
-                      event.stopPropagation();
-                      mapRef.current?.animateToRegion(
-                        {
-                          ...coordinate,
-                          latitudeDelta: region.latitudeDelta / 2.5,
-                          longitudeDelta: region.longitudeDelta / 2.5,
-                        },
-                        300,
-                      );
-                    }}
-                  >
-                    <View collapsable={false} style={styles.pinWrap}>
-                      {tier === 'far' ? (
-                        <View style={[styles.pinFar, { backgroundColor: c1 }]} />
-                      ) : (
-                        <View style={styles.clusterStack}>
-                          <View style={[styles.clusterMini, { backgroundColor: c2 }]} />
-                          <View style={[styles.clusterMini, styles.clusterMiniSecond, { backgroundColor: c1 }]} />
-                        </View>
-                      )}
-                    </View>
-                  </Marker>
+                  <StackMarker key={`${cluster.key}-${tier}`} cluster={cluster} tier={tier} onPress={() => onStackPress(cluster)} />
                 );
               })}
             </MapView>
@@ -689,7 +696,7 @@ export default function ExploreScreen() {
 
             {/* Botón de "mi ubicación" y tarjeta de Destacados (ocultos
                 mientras hay un negocio seleccionado: el banner los reemplaza). */}
-            {!selectedEntity ? (
+            {!selectedEntity && !placeItems ? (
               <>
                 <Animated.View
                   style={[
@@ -743,6 +750,15 @@ export default function ExploreScreen() {
                 }
               />
             ) : null}
+
+            {placeItems ? (
+              <PlaceSheet
+                items={placeItems}
+                bottomInset={insets.bottom}
+                onSelect={(entity) => selectBusiness(entity.id, { latitude: entity.latitude, longitude: entity.longitude })}
+                onClose={() => setPlaceItems(null)}
+              />
+            ) : null}
           </View>
         ) : (
           <FlatList
@@ -784,7 +800,7 @@ export default function ExploreScreen() {
 
         {mode === 'map' && startupRegion !== null ? <ZoneLabel text={zoneText} visible={!mapMoving} /> : null}
 
-        {mode === 'list' || !selectedEntity ? (
+        {mode === 'list' || (!selectedEntity && !placeItems) ? (
           <ModeFab
             mode={mode}
             onPress={() => setMode(mode === 'map' ? 'list' : 'map')}
@@ -1184,21 +1200,6 @@ const styles = StyleSheet.create({
   pinNearThumb: { width: 40, height: 40, borderRadius: 20 },
   pinNearFallback: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   statusDot: { position: 'absolute', right: 1, bottom: 1, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#fff' },
-  clusterStack: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  clusterMini: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: '#fff' },
-  clusterMiniSecond: { marginLeft: -10 },
-  cluster: {
-    minWidth: 40,
-    height: 40,
-    borderRadius: 20,
-    paddingHorizontal: 6,
-    backgroundColor: colors.ink,
-    borderWidth: 2,
-    borderColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  clusterText: { color: '#fff', fontWeight: '700', fontFamily: fonts.ui.bold, fontSize: 14 },
   list: { padding: spacing.md, paddingBottom: spacing.xxl + 64 },
   listRow: {},
   separator: { height: spacing.md },

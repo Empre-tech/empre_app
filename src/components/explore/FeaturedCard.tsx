@@ -82,7 +82,7 @@ export function FeaturedCard({ entity, onPress }: { entity: WithDistance; onPres
   );
 }
 
-function formatFeaturedDistance(km: number | null): string | null {
+export function formatFeaturedDistance(km: number | null): string | null {
   if (km === null) return null;
   if (km < 1) return `${Math.round(km * 1000)} m`;
   if (km < 10) return `${km.toFixed(1)} km`;
