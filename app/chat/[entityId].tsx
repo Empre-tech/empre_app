@@ -23,7 +23,7 @@ import { useChat } from '@/chat/ChatProvider';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { AppointmentCard } from '@/components/agenda/AppointmentCard';
-import { CHAT_MAX_CONTENT_BYTES, CHAT_MAX_CONTENT_CHARS } from '@/config';
+import { CHAT_MAX_CONTENT_BYTES, CHAT_MAX_CONTENT_CHARS, FEATURES } from '@/config';
 import { formatDayLabel, formatMessageTime } from '@/lib/format';
 import { utf8Length } from '@/lib/text';
 import { colors, fonts, radius, spacing } from '@/theme';
@@ -317,7 +317,7 @@ export default function ChatScreen() {
                     <Text style={styles.daySeparatorText}>{formatDayLabel(item.created_at)}</Text>
                   </View>
                 ) : null}
-                {item.kind === 'appointment' && item.appointment_id ? (
+                {FEATURES.agenda && item.kind === 'appointment' && item.appointment_id ? (
                   <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
                     <AppointmentCard appointmentId={item.appointment_id} />
                   </View>

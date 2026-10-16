@@ -48,6 +48,16 @@ export const DEFAULT_REGION = {
   longitudeDelta: 14,
 };
 
+/**
+ * Funciones que existen en la app pero todavía no están listas de extremo a extremo. En `false`
+ * quedan sin ninguna entrada visible (el código se conserva para reactivarlas).
+ * - agenda: citas y agenda de negocios. La app las tiene, pero el backend de esta rama no tiene
+ *   modelo ni rutas de citas, así que cualquier toque terminaría en un error.
+ */
+export const FEATURES = {
+  agenda: false,
+} as const;
+
 /** Máximo de caracteres de un mensaje de chat (el backend rechaza los más largos). */
 export const CHAT_MAX_CONTENT_CHARS = 1000;
 

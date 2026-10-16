@@ -25,6 +25,7 @@ import type { Photo, Review } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { AIWritingAssist } from '@/components/AIWritingAssist';
 import { AgendaStrip } from '@/components/agenda/AgendaStrip';
+import { FEATURES } from '@/config';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { SkeletonProfile } from '@/components/Skeleton';
@@ -543,8 +544,8 @@ export default function BusinessScreen() {
             ) : null}
             <OffersFicha entityId={business.id} isOwner={isOwner} initialOfferId={offerParam} />
             <PromotionsSection entityId={business.id} />
-            {!isOwner ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
-            {isOwner ? (
+            {FEATURES.agenda && !isOwner ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
+            {FEATURES.agenda && isOwner ? (
               <Pressable
                 accessibilityRole="button"
                 onPress={() => router.push({ pathname: '/business/agenda/[id]', params: { id: business.id } })}

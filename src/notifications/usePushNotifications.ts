@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { agendaApi } from '@/api/agenda';
+import { FEATURES } from '@/config';
 import { usersApi } from '@/api/endpoints';
 import { useAuth } from '@/auth/AuthContext';
 import { getExpoPushToken } from './registerPushToken';
@@ -94,7 +95,7 @@ export function usePushNotifications() {
   // Citas: tocar la notificación abre la cita; el botón Aceptar la acepta.
   // useLastNotificationResponse también cubre la app que arrancó desde la notificación.
   useEffect(() => {
-    if (!lastResponse) return;
+    if (!lastResponse || !FEATURES.agenda) return;
     const data = lastResponse.notification.request.content.data as NotificationData;
     if (!data?.type?.startsWith('appointment_') || !data.appointment_id) return;
     const key = `${lastResponse.notification.request.identifier}:${lastResponse.actionIdentifier}`;

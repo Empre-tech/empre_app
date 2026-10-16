@@ -9,6 +9,7 @@ import type { VerificationStatus } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
+import { FEATURES } from '@/config';
 import { SignInPrompt } from '@/components/SignInPrompt';
 import { verificationLabel } from '@/lib/format';
 import { pickImage } from '@/lib/images';
@@ -107,17 +108,19 @@ export default function ProfileScreen() {
         <Ionicons name="chevron-forward" size={18} color={colors.muted} />
       </Pressable>
 
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.push('/appointments')}
-        style={({ pressed }) => [styles.adminCard, pressed && { opacity: 0.85 }]}
-      >
-        <View style={styles.adminCardIcon}>
-          <Ionicons name="calendar-outline" size={19} color={colors.primary} />
-        </View>
-        <Text style={styles.adminCardText}>Mis citas</Text>
-        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-      </Pressable>
+      {FEATURES.agenda ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/appointments')}
+          style={({ pressed }) => [styles.adminCard, pressed && { opacity: 0.85 }]}
+        >
+          <View style={styles.adminCardIcon}>
+            <Ionicons name="calendar-outline" size={19} color={colors.primary} />
+          </View>
+          <Text style={styles.adminCardText}>Mis citas</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+        </Pressable>
+      ) : null}
 
       {user.role === 'admin' && (
         <Pressable
