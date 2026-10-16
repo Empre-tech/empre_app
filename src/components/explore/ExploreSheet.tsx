@@ -245,15 +245,22 @@ function Body(p: Props) {
         </View>
       );
     }
+    // Los cercanos arriba; los lejanos (si hay) van aparte, bajo «Más lejos», y no en el carrusel.
+    const nearItems = r.items.filter((m) => !m.far);
+    const farItems = r.items.filter((m) => m.far);
     if (mid) {
       return (
         <View style={styles.body}>
           {tabs}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hscroll} contentContainerStyle={styles.hrow}>
-            {r.items.map((m) => <MiniCard key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
+            {nearItems.map((m) => <MiniCard key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
           </ScrollView>
           <Pressable accessibilityRole="button" onPress={() => p.sheet.snapTo('full')} style={styles.more}>
-            <Text style={styles.link}>Ver los {r.items.length}{r.related.length ? ' y recomendaciones' : ''}</Text>
+            <Text style={styles.link}>
+              Ver los {nearItems.length}
+              {farItems.length ? ` y ${farItems.length} más lejos` : ''}
+              {r.related.length ? ' y recomendaciones' : ''}
+            </Text>
           </Pressable>
         </View>
       );
@@ -261,8 +268,14 @@ function Body(p: Props) {
     return (
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
         {tabs}
-        <Group title="Coinciden con tu búsqueda" count={r.items.length} />
-        {r.items.map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
+        <Group title="Coinciden con tu búsqueda" count={nearItems.length} />
+        {nearItems.map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
+        {farItems.length ? (
+          <>
+            <Group title="Más lejos" count={farItems.length} />
+            {farItems.map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
+          </>
+        ) : null}
         {r.related.length ? (
           <>
             <Group title="También podría interesarte" count={r.related.length} />

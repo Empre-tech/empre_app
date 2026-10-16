@@ -28,6 +28,8 @@ export interface CardModel {
   mine?: boolean;
   /** Distancia destacada: solo los resultados más cercanos de una búsqueda (F11). */
   nearChip?: string | null;
+  /** Resultado lejano (más allá del radio cercano): va aparte, bajo «Más lejos». */
+  far?: boolean;
 }
 
 function NearChip({ text }: { text?: string | null }) {

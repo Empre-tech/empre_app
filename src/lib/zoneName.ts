@@ -4,6 +4,7 @@
 // Orden: zona configurada → barrio del teléfono → ciudad. Las zonas son datos por ciudad
 // (llegan del servidor); una ciudad sin zonas funciona igual, solo sin «Explora por zona».
 
+import { formatDistance } from './format';
 import { distanceKm, type Coords } from './geo';
 
 export interface Zone extends Coords {
@@ -26,13 +27,18 @@ export const ZONE_HYSTERESIS = 0.85;
 /** El mapa «está en ti» si su centro queda a menos de esto de la persona. */
 export const NEAR_ME_M = 1000;
 
-export type ZoneReason = 'inside' | 'held' | 'district' | 'no-permission' | 'view-away' | 'other-city';
+/** Una zona a menos de esto da el nombre «Cerca de …» cuando el punto queda fuera de todas. */
+export const NEAR_ZONE_M = 3000;
+
+export type ZoneReason = 'inside' | 'held' | 'district' | 'near-zone' | 'city' | 'no-permission' | 'view-away' | 'other-city';
 
 export interface ZoneName {
   title: string;
   /** Ciudad que acompaña al título; null si el título ya es la ciudad. */
   city: string | null;
   sub: string;
+  /** Aclaración corta para la cápsula («a 4,2 km de ti», «sin ubicación»); null si no hace falta. */
+  note: string | null;
   reason: ZoneReason;
   /** Zona configurada que da el nombre (para recordarla como «anterior»); null si no hay. */
   zone: Zone | null;
@@ -58,10 +64,25 @@ const meters = (a: Coords, b: Coords) => distanceKm(a, b) * 1000;
 const sameCity = (a?: string | null, b?: string | null) =>
   !!a && !!b && a.trim().toLocaleLowerCase('es') === b.trim().toLocaleLowerCase('es');
 
-function kmLabel(m: number): string {
-  const km = m / 1000;
-  if (km < 1) return `${Math.round(m)} m`;
-  return `${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
+const kmLabel = (m: number): string => formatDistance(m / 1000) ?? '';
+
+/**
+ * Nombre de un punto que no cae en ninguna zona: el barrio que da el teléfono; si no, «Cerca de»
+ * la zona más próxima (a menos de 3 km); si no, la ciudad.
+ */
+function outsideName(zones: Zone[], p: Coords, district: string | null, city: string): { title: string; reason: ZoneReason } {
+  if (district) return { title: district, reason: 'district' };
+  let best: Zone | null = null;
+  let bestD = Infinity;
+  for (const z of zones) {
+    const d = meters(p, z);
+    if (d < bestD) {
+      bestD = d;
+      best = z;
+    }
+  }
+  if (best && bestD <= NEAR_ZONE_M) return { title: `Cerca de ${best.name}`, reason: 'near-zone' };
+  return { title: city, reason: 'city' };
 }
 
 /** Zona que contiene el punto. Con `prevId` se queda en ella salvo que otra esté mucho más cerca. */
@@ -117,6 +138,7 @@ export function resolveZoneName(input: ZoneInput): ZoneName {
       title: city ?? district ?? 'Cerca de ti',
       city: null,
       sub: user ? (near ? 'Cerca de ti' : 'En esta zona') : 'En esta zona',
+      note: null,
       reason: 'other-city',
       zone: null,
       zoneExplore: false,
@@ -124,14 +146,14 @@ export function resolveZoneName(input: ZoneInput): ZoneName {
   }
 
   const ownCity = zoneCity as string;
-  const fallback = district ?? ownCity;
 
   if (!user) {
     const z = zoneAt(zones, view);
     return {
-      title: z ? z.zone.name : fallback,
+      title: z ? z.zone.name : outsideName(zones, view, district, ownCity).title,
       city: ownCity,
       sub: 'En esta zona · activa tu ubicación para ver distancias',
+      note: 'sin ubicación',
       reason: 'no-permission',
       zone: z ? z.zone : null,
       zoneExplore: true,
@@ -141,9 +163,10 @@ export function resolveZoneName(input: ZoneInput): ZoneName {
   if (!near) {
     const z = zoneAt(zones, view, prevZoneId);
     return {
-      title: z ? z.zone.name : fallback,
+      title: z ? z.zone.name : outsideName(zones, view, district, ownCity).title,
       city: ownCity,
       sub: `En esta zona · a ${kmLabel(meters(user, view))} de ti`,
+      note: `a ${kmLabel(meters(user, view))} de ti`,
       reason: 'view-away',
       zone: z ? z.zone : null,
       zoneExplore: true,
@@ -152,7 +175,8 @@ export function resolveZoneName(input: ZoneInput): ZoneName {
 
   const z = zoneAt(zones, user, prevZoneId);
   if (z) {
-    return { title: z.zone.name, city: ownCity, sub: 'Cerca de ti', reason: z.held ? 'held' : 'inside', zone: z.zone, zoneExplore: true };
+    return { title: z.zone.name, city: ownCity, sub: 'Cerca de ti', note: null, reason: z.held ? 'held' : 'inside', zone: z.zone, zoneExplore: true };
   }
-  return { title: fallback, city: ownCity, sub: 'Cerca de ti', reason: 'district', zone: null, zoneExplore: true };
+  const out = outsideName(zones, user, district, ownCity);
+  return { title: out.title, city: ownCity, sub: 'Cerca de ti', note: null, reason: out.reason, zone: null, zoneExplore: true };
 }

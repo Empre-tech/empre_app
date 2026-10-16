@@ -9,6 +9,8 @@ export const BIG_COUNT = 3;
 export const MID_COUNT = 10;
 /** Cuántos de los más cercanos encuadra la cámara. */
 export const CAMERA_COUNT = 5;
+/** La cámara solo encuadra resultados a menos de esto; más lejos no alejan el mapa. */
+export const CAMERA_REACH_M = 1500;
 
 export type EmphasisTier = 'big' | 'mid' | 'dot' | 'far';
 
@@ -16,6 +18,8 @@ export interface Emphasized<T> {
   item: T;
   /** Posición por cercanía (0 = el más cercano). */
   rank: number;
+  /** Distancia en metros; null si no se sabe dónde está la persona. */
+  distanceM: number | null;
   tier: EmphasisTier;
 }
 
@@ -44,19 +48,25 @@ export function emphasize<T extends { distanceKm: number | null }>(items: T[]): 
       if (db === null) return -1;
       return da - db || a.order - b.order;
     })
-    .map(({ item }, rank) => ({
-      item,
-      rank,
-      tier: emphasisTier(rank, item.distanceKm === null ? null : item.distanceKm * 1000),
-    }));
+    .map(({ item }, rank) => {
+      const distanceM = item.distanceKm === null ? null : item.distanceKm * 1000;
+      return { item, rank, distanceM, tier: emphasisTier(rank, distanceM) };
+    });
 }
 
 /**
- * Los resultados que encuadra la cámara: los más cercanos dentro del radio, nunca los lejanos.
- * Si no hay ninguno dentro del radio (todo quedó lejos), los más cercanos que haya, para que
- * el mapa no se quede donde estaba.
+ * Los resultados que encuadra la cámara: los más cercanos a menos de 1,5 km, máximo 5. Un
+ * resultado lejano no debe alejar el mapa: si ninguno cabe cerca devuelve vacío y quien llama
+ * deja el mapa en la zona de la persona.
  */
-export function cameraTargets<T>(plan: Emphasized<T>[], count = CAMERA_COUNT): T[] {
-  const near = plan.filter((p) => p.tier === 'big' || p.tier === 'mid' || p.tier === 'dot');
-  return (near.length > 0 ? near : plan).slice(0, count).map((p) => p.item);
+export function cameraTargets<T>(plan: Emphasized<T>[], count = CAMERA_COUNT, reachM = CAMERA_REACH_M): T[] {
+  return plan
+    .filter((p) => p.distanceM !== null && p.distanceM <= reachM)
+    .slice(0, count)
+    .map((p) => p.item);
+}
+
+/** Resultados más lejos que el radio de búsqueda cercana, cuando además hay alguno cerca. */
+export function isFarResult(distanceM: number | null, hasNear: boolean): boolean {
+  return hasNear && distanceM !== null && distanceM > NEAR_RESULT_M;
 }

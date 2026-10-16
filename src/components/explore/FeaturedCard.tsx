@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { DiscoveryItem } from '@/api/types';
+import { formatDistance } from '@/lib/format';
 import { resolveImageUrl } from '@/lib/image';
 import { colors, fonts, radius, spacing } from '@/theme';
 
@@ -82,11 +83,9 @@ export function FeaturedCard({ entity, onPress }: { entity: WithDistance; onPres
   );
 }
 
+/** Misma distancia en el pin, la tarjeta y la cápsula de zona: un solo formateador. */
 export function formatFeaturedDistance(km: number | null): string | null {
-  if (km === null) return null;
-  if (km < 1) return `${Math.round(km * 1000)} m`;
-  if (km < 10) return `${km.toFixed(1)} km`;
-  return `${Math.round(km)} km`;
+  return formatDistance(km);
 }
 
 const styles = StyleSheet.create({

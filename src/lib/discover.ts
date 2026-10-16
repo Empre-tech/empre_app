@@ -78,13 +78,10 @@ export interface HeaderInput {
   scope: SearchScope;
   zoneCount: number;
   categoryName?: string | null;
-  /** Dónde está la persona (F11). Sin esto el encabezado queda como antes. */
-  zone?: { title: string; city: string | null; sub: string };
 }
 
 /** Título y subtítulo del panel: Descubre sin búsqueda, la consulta con búsqueda. */
 export function sheetHeader(h: HeaderInput): { title: string; subtitle: string } {
-  if (h.zone) return zoneHeader(h, h.zone);
   if (!h.searching) {
     return {
       title: `Descubre cerca de ti${h.categoryName ? ` en ${h.categoryName}` : ''}`,
@@ -100,24 +97,6 @@ export function sheetHeader(h: HeaderInput): { title: string; subtitle: string }
           ? 'Sin resultados'
           : `${h.results} ${h.results === 1 ? 'resultado' : 'resultados'} · ${scopeText(h.scope)}`;
   return { title: `«${h.query}»`, subtitle };
-}
-
-/** Encabezado con la zona: «Centro Histórico · Santa Marta» y debajo dónde estás y qué se ve. */
-function zoneHeader(h: HeaderInput, zone: { title: string; city: string | null; sub: string }): { title: string; subtitle: string } {
-  const title = zone.city && zone.city !== zone.title ? `${zone.title} · ${zone.city}` : zone.title;
-  if (!h.searching) {
-    const count = `${h.zoneCount} ${h.zoneCount === 1 ? 'negocio' : 'negocios'}${h.categoryName ? ` en ${h.categoryName}` : ' en esta zona'}`;
-    return { title, subtitle: `${zone.sub} · ${count}` };
-  }
-  const status =
-    h.status === 'loading'
-      ? 'Buscando…'
-      : h.status === 'error'
-        ? 'No se pudo cargar'
-        : h.results === 0
-          ? 'Sin resultados'
-          : `${h.results} ${h.results === 1 ? 'resultado' : 'resultados'}`;
-  return { title, subtitle: `«${h.query}» · ${status} · ${zone.sub}` };
 }
 
 interface WithSubs {

@@ -28,6 +28,7 @@ import { type WithDistance } from '@/components/explore/FeaturedCard';
 import { PinMarker } from '@/components/explore/PinMarker';
 import { useMapMarkers } from '@/components/explore/useMapMarkers';
 import { useZoneName } from '@/components/explore/useZoneName';
+import { ZoneCapsule } from '@/components/explore/ZoneCapsule';
 import { PlaceSheet } from '@/components/explore/PlaceSheet';
 import { StackMarker } from '@/components/explore/StackMarker';
 import { SearchBar } from '@/components/explore/SearchBar';
@@ -42,7 +43,7 @@ import { useReduceMotion } from '@/lib/useReduceMotion';
 import { allWithinMeters, type Cluster } from '@/lib/cluster';
 import { FETCH_FACTOR, mergePins, needsRefetch, padBox, visibleInOrder, type Box } from '@/lib/mapArea';
 import { hasLocation, type Coords } from '@/lib/geo';
-import { cameraTargets, emphasize } from '@/lib/proximity';
+import { cameraTargets, emphasize, isFarResult } from '@/lib/proximity';
 import { MAP_STYLE } from '@/lib/mapStyle';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
 
@@ -400,6 +401,7 @@ export default function ExploreScreen() {
   // Con búsqueda, del más cercano al más lejano (F11): ese orden es el del énfasis del mapa.
   const plan = useMemo(() => (searching ? emphasize(fetched) : null), [searching, fetched]);
   const items = useMemo(() => (plan ? plan.map((p) => p.item) : visibleInOrder(pins.store, fetched, bbox)), [plan, fetched, pins.store, bbox]);
+  const hasNearResults = useMemo(() => (plan ?? []).some((p) => p.tier !== 'far' && p.distanceM !== null), [plan]);
   const closestIds = useMemo(() => new Set((plan ?? []).filter((p) => p.tier === 'big').map((p) => p.item.id)), [plan]);
   const known = useMemo(() => (searching ? fetched : [...pins.store.values()]), [searching, fetched, pins.store]);
   const { tier, markers } = useMapMarkers({ known, region, mapSize, selectedId, myEntityIds, searching });
@@ -434,8 +436,12 @@ export default function ExploreScreen() {
     if (fittedRef.current === key) return;
     fittedRef.current = key;
     if (sheet.getAnchor() === 'peek') sheet.snapTo('medium');
-    // La cámara encuadra los más cercanos, no todos: los lejanos no deben alejar el mapa.
+    // La cámara encuadra los más cercanos (a menos de 1,5 km), no todos: los lejanos no deben alejar el mapa.
     const coords = (plan ? cameraTargets(plan) : []).filter(hasLocation).map((e) => ({ latitude: e.latitude, longitude: e.longitude }));
+    // Si ninguno cabe cerca, el mapa se queda en la zona de la persona.
+    if (coords.length === 0 && searchScope !== 'zone' && userCoords) {
+      mapRef.current?.animateToRegion({ ...userCoords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 500);
+    }
     // Se encuadra lo encontrado cerca o más lejos; si la persona eligió la zona, el mapa no se mueve.
     if (coords.length > 0 && searchScope !== 'zone') {
       mapRef.current?.fitToCoordinates(coords, {
@@ -443,7 +449,7 @@ export default function ExploreScreen() {
         animated: true,
       });
     }
-  }, [searching, resultsStatus, debouncedSearch, categoryId, searchScope, plan, sheet]);
+  }, [searching, resultsStatus, debouncedSearch, categoryId, searchScope, plan, sheet, userCoords]);
 
   const openBusiness = (id: string) => router.push({ pathname: '/business/[id]', params: { id } });
 
@@ -548,7 +554,6 @@ export default function ExploreScreen() {
     scope: searchScope,
     zoneCount: items.length,
     categoryName: selectedCategory?.name,
-    zone: zoneName ? { title: zoneName.title, city: zoneName.city, sub: zoneName.sub } : undefined,
   });
   const sections = sectionsQuery.data ?? [];
   const avatars = (sections[0]?.items ?? []).slice(0, 3).map((it) => ({ key: it.entity_id, color: categoryColor(it.category_color).fg, letter: it.name.charAt(0) }));
@@ -694,7 +699,13 @@ export default function ExploreScreen() {
               zone={{ status: entities.isError ? 'error' : entities.isLoading ? 'loading' : 'ok', items: zoneModels }}
               results={{
                 status: resultsStatus,
-                items: searching ? items.map((e) => ({ ...toModel(e), nearChip: closestIds.has(e.id) ? formatDistance(e.distanceKm) : null })) : [],
+                items: searching
+                  ? items.map((e) => ({
+                      ...toModel(e),
+                      nearChip: closestIds.has(e.id) ? formatDistance(e.distanceKm) : null,
+                      far: isFarResult(e.distanceKm === null ? null : e.distanceKm * 1000, hasNearResults),
+                    }))
+                  : [],
                 related: related.map((e) => toModel({ ...e, distanceKm: e.distance_meters > 0 ? e.distance_meters / 1000 : null })),
                 relatedLabel: topCategory ? `Misma categoría: ${items[0]?.category_name ?? ''}` : '',
                 scope: searchScope,
@@ -733,6 +744,8 @@ export default function ExploreScreen() {
         {/* Buscador y chips flotan sobre el mapa (sin barra sólida). */}
         <Animated.View style={[styles.topBar, { paddingTop: insets.top + spacing.sm, opacity: topFade }]} pointerEvents={mapMoving ? 'none' : 'box-none'}>
           <SearchBar value={search} onChangeText={setSearch} onOpenFilters={openFilters} filterCount={activeFilterCount} />
+
+          {zoneName && !tall && !selectedEntity ? <ZoneCapsule name={zoneName} /> : null}
 
           {tall || selectedEntity ? null : (
             <ScrollView
