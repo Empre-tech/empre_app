@@ -27,8 +27,9 @@ import { type CardModel } from '@/components/explore/ExploreCards';
 import { ExploreSheet } from '@/components/explore/ExploreSheet';
 import { type WithDistance } from '@/components/explore/FeaturedCard';
 import { PinMarker } from '@/components/explore/PinMarker';
-import { useMapMarkers } from '@/components/explore/useMapMarkers';
-import { useZoneName } from '@/components/explore/useZoneName';
+import { BubbleMarker } from '@/components/explore/BubbleMarker';
+import { useMapLevel, useMapMarkers } from '@/components/explore/useMapMarkers';
+import { useZoneName, useZones } from '@/components/explore/useZoneName';
 import { ContextRow } from '@/components/explore/ContextRow';
 import { ZoneCapsule } from '@/components/explore/ZoneCapsule';
 import { PlaceSheet } from '@/components/explore/PlaceSheet';
@@ -46,6 +47,7 @@ import { allWithinMeters, type Cluster } from '@/lib/cluster';
 import { FETCH_FACTOR, mergePins, needsRefetch, padBox, visibleInOrder, type Box } from '@/lib/mapArea';
 import { hasLocation, type Coords } from '@/lib/geo';
 import { contextChips, removedAnnouncement, type FilterId } from '@/lib/context';
+import { isBubbleLevel } from '@/lib/mapLevels';
 import { cameraTargets, emphasize, isFarResult } from '@/lib/proximity';
 import { MAP_STYLE } from '@/lib/mapStyle';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
@@ -355,6 +357,20 @@ export default function ExploreScreen() {
     placeholderData: keepPreviousData,
   });
 
+  // Niveles 1 y 2 del mapa (F10): sin búsqueda ni filtros que el servidor no conozca, los negocios
+  // llegan agrupados en casillas con su conteo en vez de uno por uno. Con «abiertos ahora» o un radio
+  // el conteo del servidor no coincidiría, así que se vuelve a los pines.
+  const level = useMapLevel(region.latitudeDelta);
+  const bubbleMode = !searching && isBubbleLevel(level) && radiusKm === null && !openNow;
+  const cellsQuery = useQuery({
+    queryKey: ['cells', categoryId ?? 'all', subcategoryId ?? 'all', bbox.min_lat, bbox.min_lng, bbox.max_lat, bbox.max_lng, Math.round(Math.log2(region.latitudeDelta) * 4)],
+    queryFn: () => discoveryApi.cells({ ...bbox, lat_delta: region.latitudeDelta, category: categoryId, subcategory: subcategoryId }),
+    enabled: bubbleMode && startupRegion !== null,
+    // Al mover el mapa se muestran las burbujas anteriores hasta que lleguen las nuevas.
+    placeholderData: keepPreviousData,
+  });
+  const zones = useZones();
+
   // Descubre: lo arma el servidor para la zona visible (también se ve durante una búsqueda).
   const sectionsQuery = useQuery({
     queryKey: ['discover-sections', categoryId ?? 'all', subcategoryId ?? 'all', bbox.min_lat, bbox.min_lng, bbox.max_lat, bbox.max_lng, refKey],
@@ -410,7 +426,18 @@ export default function ExploreScreen() {
   const hasNearResults = useMemo(() => (plan ?? []).some((p) => p.tier !== 'far' && p.distanceM !== null), [plan]);
   const closestIds = useMemo(() => new Set((plan ?? []).filter((p) => p.tier === 'big').map((p) => p.item.id)), [plan]);
   const known = useMemo(() => (searching ? fetched : [...pins.store.values()]), [searching, fetched, pins.store]);
-  const { tier, markers } = useMapMarkers({ known, region, mapSize, selectedId, myEntityIds, searching });
+  const { tier, markers } = useMapMarkers({
+    known,
+    region,
+    mapSize,
+    selectedId,
+    myEntityIds,
+    searching,
+    level,
+    // En modo burbujas, vacío mientras llegan (nunca los puntos sueltos por un instante).
+    cells: bubbleMode ? cellsQuery.data ?? [] : null,
+    zones,
+  });
 
   // En qué zona está la persona (o qué zona mira el mapa): nombre del encabezado del panel.
   const viewPoint = useMemo(() => ({ latitude: region.latitude, longitude: region.longitude }), [region.latitude, region.longitude]);
@@ -492,6 +519,15 @@ export default function ExploreScreen() {
         longitudeDelta: region.longitudeDelta / 2.5,
       },
       300,
+    );
+  };
+
+  // Tocar una burbuja acerca el mapa hacia ella; los negocios salen al llegar al siguiente nivel.
+  const onBubblePress = (latitude: number, longitude: number) => {
+    setSelectedId(null);
+    mapRef.current?.animateToRegion(
+      { latitude, longitude, latitudeDelta: region.latitudeDelta / 2.5, longitudeDelta: region.longitudeDelta / 2.5 },
+      400,
     );
   };
 
@@ -660,7 +696,18 @@ export default function ExploreScreen() {
                 />
               ) : null}
               {markers.map((m) =>
-                m.kind === 'business' ? (
+                m.kind === 'bubble' ? (
+                  <BubbleMarker
+                    key={m.key}
+                    latitude={m.latitude}
+                    longitude={m.longitude}
+                    count={m.count}
+                    hasOffer={m.hasOffer}
+                    color={categoryColor(categories.data?.find((c) => c.id === m.categoryId)?.color).fg}
+                    label={m.label}
+                    onPress={() => onBubblePress(m.latitude, m.longitude)}
+                  />
+                ) : m.kind === 'business' ? (
                   <PinMarker
                     key={m.key}
                     entity={m.entity}

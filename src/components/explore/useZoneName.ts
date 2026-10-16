@@ -7,6 +7,12 @@ import { distanceKm, type Coords } from '@/lib/geo';
 import { NEAR_ME_M, pickCityZones, resolveZoneName, type GeoName, type ZoneName } from '@/lib/zoneName';
 
 const NO_ZONES: never[] = [];
+
+/** Las zonas de la ciudad (se descargan una vez y se comparten con el nombre de la zona). */
+export function useZones() {
+  const q = useQuery({ queryKey: ['zones'], queryFn: () => zonesApi.list(), staleTime: 6 * 60 * 60_000 });
+  return q.data ?? NO_ZONES;
+}
 const keyOf = (p: Coords) => `${p.latitude.toFixed(3)},${p.longitude.toFixed(3)}`;
 
 /**
@@ -16,8 +22,7 @@ const keyOf = (p: Coords) => `${p.latitude.toFixed(3)},${p.longitude.toFixed(3)}
  * Devuelve null mientras no se sepa nada, para que el panel use su texto de siempre.
  */
 export function useZoneName({ user, view }: { user: Coords | null; view: Coords }): ZoneName | null {
-  const zonesQuery = useQuery({ queryKey: ['zones'], queryFn: () => zonesApi.list(), staleTime: 6 * 60 * 60_000 });
-  const all = zonesQuery.data ?? NO_ZONES;
+  const all = useZones();
 
   // El nombre es el del lugar de la persona si el mapa está sobre ella; si no, el del mapa.
   const onUser = user !== null && distanceKm(user, view) * 1000 < NEAR_ME_M;

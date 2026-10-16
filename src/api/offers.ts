@@ -37,6 +37,26 @@ export interface DiscoveryParams {
   limit?: number;
 }
 
+/** Una casilla del mapa lejano: cuántos negocios hay, si alguno tiene oferta y la categoría que más se repite. */
+export interface ApiCell {
+  latitude: number;
+  longitude: number;
+  count: number;
+  has_offer: boolean;
+  category_id?: string;
+}
+
+export interface CellsParams {
+  min_lat: number;
+  max_lat: number;
+  min_lng: number;
+  max_lng: number;
+  /** Lo que muestra el mapa a lo alto (grados): decide el tamaño de casilla. */
+  lat_delta: number;
+  category?: string;
+  subcategory?: string;
+}
+
 export interface DiscoveryResponse {
   items: DiscoveryItem[];
   total: number;
@@ -53,6 +73,11 @@ export const discoveryApi = {
     // por si el backend todavía no se reinició con el cambio.
     const items = res.items ?? res.data ?? [];
     return { items, total: res.total ?? 0 };
+  },
+  /** Negocios agrupados en casillas para el mapa lejano (público). */
+  cells: async (params: CellsParams): Promise<ApiCell[]> => {
+    const res = await request<{ items?: ApiCell[] | null }>('/api/discovery/cells', { auth: false, query: { ...params } });
+    return res.items ?? [];
   },
 };
 

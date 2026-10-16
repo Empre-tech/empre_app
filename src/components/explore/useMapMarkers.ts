@@ -1,9 +1,12 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { Region } from 'react-native-maps';
 
 import { clusterByScreenDistance, type Cluster } from '@/lib/cluster';
+import type { ApiCell } from '@/api/offers';
 import { hasLocation } from '@/lib/geo';
+import { levelOf, MAX_DRAWN, type MapLevel } from '@/lib/mapLevels';
 import { emphasize, type EmphasisTier } from '@/lib/proximity';
+import { zoneAt, type Zone } from '@/lib/zoneName';
 import { formatFeaturedDistance, type WithDistance } from './FeaturedCard';
 
 export type ZoomTier = 'far' | 'mid' | 'near';
@@ -18,8 +21,27 @@ export function zoomTier(region: Region): ZoomTier {
   return 'far';
 }
 
-/** Lo que el mapa dibuja: un negocio o una pila de negocios muy juntos. */
+/** Nivel del mapa según el zoom, con holgura para que no salte en el límite entre dos niveles (F10). */
+export function useMapLevel(latitudeDelta: number): MapLevel {
+  const [level, setLevel] = useState<MapLevel>(() => levelOf(latitudeDelta, null));
+  const next = levelOf(latitudeDelta, level);
+  if (next !== level) setLevel(next);
+  return next;
+}
+
+/** Lo que el mapa dibuja: un negocio, una pila de negocios muy juntos o una burbuja con conteo. */
 export type MarkerModel =
+  | {
+      kind: 'bubble';
+      key: string;
+      latitude: number;
+      longitude: number;
+      count: number;
+      hasOffer: boolean;
+      categoryId?: string;
+      /** Nombre de la zona (nivel 1) cuando el centro de la burbuja cae en una. */
+      label: string | null;
+    }
   | {
       kind: 'business';
       key: string;
@@ -43,6 +65,11 @@ type Args = {
   myEntityIds: Set<string>;
   /** Con búsqueda los resultados no se agrupan: se destacan por cercanía (F11). */
   searching: boolean;
+  /** Nivel del mapa por zoom (F10). Sin búsqueda, en los niveles 1 y 2 se dibujan burbujas. */
+  level: MapLevel;
+  /** Casillas del servidor para los niveles 1 y 2 (null mientras no llegan o en otro nivel). */
+  cells: ApiCell[] | null;
+  zones: Zone[];
 };
 
 /**
@@ -50,7 +77,7 @@ type Args = {
  * pantalla solo los pinte; los niveles por zoom (F10) y el énfasis por cercanía
  * (F11) se añaden aquí sin tocar la pantalla.
  */
-export function useMapMarkers({ known, region, mapSize, selectedId, myEntityIds, searching }: Args) {
+export function useMapMarkers({ known, region, mapSize, selectedId, myEntityIds, searching, level, cells, zones }: Args) {
   const mapped = useMemo(() => known.filter(hasLocation), [known]);
   const tier = zoomTier(region);
   // Lejos los pines son puntos de 18 pt; de cerca, portales de ~44 pt: el umbral
@@ -65,8 +92,31 @@ export function useMapMarkers({ known, region, mapSize, selectedId, myEntityIds,
   // Búsqueda (F11): un pin por resultado, el más cercano primero. Los lejanos salen tenues.
   const emphasized = useMemo(() => (searching ? emphasize(mapped) : null), [searching, mapped]);
 
+  // Niveles 1 y 2 (sin búsqueda): burbujas con el conteo de cada casilla, las más pobladas primero y
+  // nunca más de MAX_DRAWN. El nivel 1 nombra la burbuja cuyo centro cae en una zona configurada.
+  const bubbles = useMemo<MarkerModel[] | null>(() => {
+    if (searching || level > 2 || cells === null) return null;
+    return [...cells]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, MAX_DRAWN)
+      .map((c): MarkerModel => {
+        const label = level === 1 ? zoneAt(zones, c)?.zone.name ?? null : null;
+        return {
+          kind: 'bubble',
+          key: `b${level}-${c.latitude.toFixed(4)},${c.longitude.toFixed(4)}-${c.count}-${c.has_offer ? 'o' : ''}-${label ?? ''}`,
+          latitude: c.latitude,
+          longitude: c.longitude,
+          count: c.count,
+          hasOffer: c.has_offer,
+          categoryId: c.category_id,
+          label,
+        };
+      });
+  }, [searching, level, cells, zones]);
+
   const markers = useMemo<MarkerModel[]>(
     () => {
+      if (bubbles) return bubbles;
       if (emphasized) {
         return emphasized.map(({ item, tier: emphasis }): MarkerModel => {
           const selected = item.id === selectedId;
@@ -101,7 +151,7 @@ export function useMapMarkers({ known, region, mapSize, selectedId, myEntityIds,
         return { kind: 'stack', key: `${cluster.key}-${tier}`, cluster };
       });
     },
-    [emphasized, clusters, tier, selectedId, myEntityIds],
+    [bubbles, emphasized, clusters, tier, selectedId, myEntityIds],
   );
 
   return { tier, markers };
