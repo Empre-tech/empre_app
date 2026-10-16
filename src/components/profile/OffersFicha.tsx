@@ -118,6 +118,11 @@ export function OffersFicha({ entityId, isOwner, initialOfferId }: Props) {
       ) : null}
 
       <OfferTicket offer={selected} cta={cta} showPrice={false} />
+      {selected.items && selected.items.length > 0 ? (
+        <Text style={styles.includes} accessibilityLabel={`Incluye: ${selected.items.map((i) => i.name).join(', ')}`}>
+          Incluye: {selected.items.map((i) => i.name).join(' · ')}
+        </Text>
+      ) : null}
 
       <View style={styles.indic}>
         {offerIndications(selected).map((row) => (
@@ -157,6 +162,7 @@ const styles = StyleSheet.create({
   indicRow: { flexDirection: 'row', gap: spacing.md, paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
   indicLabel: { width: 96, fontSize: 11.5, fontFamily: fonts.ui.extrabold, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.muted },
   indicValue: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.ink },
+  includes: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
   ownerLink: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
   ownerLinkText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.primary },
 });

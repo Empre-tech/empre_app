@@ -352,6 +352,13 @@ export interface Offer {
   repeat_policy: RepeatPolicy;
   /** Cuánto dura un reclamo de esta oferta antes de expirar. */
   claim_window_minutes?: number;
+  /** Precio temporal propio de la oferta y la referencia congelada al publicar (precio habitual de lo incluido). */
+  special_price?: number;
+  reference_price?: number;
+  /** Solo existe con referencia y precio especial menor. */
+  saving?: number;
+  /** Servicios del catálogo incluidos, tal como estaban al publicar. */
+  items?: { name: string; price?: number }[];
 }
 
 export interface OfferClaim {
@@ -406,6 +413,9 @@ export interface OfferInput {
   total_slots: number;
   radius_meters?: number;
   repeat_policy?: RepeatPolicy;
+  /** Servicios del catálogo que incluye la oferta (hasta 5) y su precio especial propio. */
+  service_item_ids?: string[];
+  special_price?: number;
 }
 
 export type PromotionStatus = 'active' | 'paused' | 'finished';

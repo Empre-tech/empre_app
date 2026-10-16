@@ -50,6 +50,24 @@ export function freshnessNote(items: ServiceItem[], now: number): string | null 
   return `Precios habituales · actualizados hace ${days} ${days === 1 ? 'día' : 'días'}`;
 }
 
+/** Qué se sabe del precio de una oferta a partir de los servicios elegidos y su precio especial. */
+export interface OfferPreview {
+  /** Suma del precio habitual de lo incluido; null si no hay servicios o alguno no tiene precio (no se inventa). */
+  reference: number | null;
+  /** Referencia menos precio especial; solo si hay ambos y el especial es menor. */
+  saving: number | null;
+  /** Mensaje para el dueño cuando el precio especial no es válido frente a la referencia. */
+  error: string | null;
+}
+
+export function offerPreview(items: Pick<ServiceItem, 'price'>[], special: number | null): OfferPreview {
+  const priced = items.length > 0 && items.every((i) => i.price !== null);
+  const reference = priced ? items.reduce((sum, i) => sum + (i.price as number), 0) : null;
+  if (reference === null || reference <= 0 || special === null) return { reference: reference !== null && reference > 0 ? reference : null, saving: null, error: null };
+  if (special >= reference) return { reference, saving: null, error: `El precio especial debe ser menor al habitual de lo incluido (${formatPesos(reference)})` };
+  return { reference, saving: reference - special, error: null };
+}
+
 /** Texto de accesibilidad de un servicio: nombre, descripción y precio (o que no hay precio publicado). */
 export function serviceLabel(item: ServiceItem): string {
   const price = priceText(item);
