@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { track } from '@/analytics/track';
 import { claimsApi } from '@/api/offers';
 import type { OfferClaim } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
@@ -37,6 +38,11 @@ export function OffersFicha({ entityId, isOwner, initialOfferId }: Props) {
   const [picked, setPicked] = useState<string | undefined>(initialOfferId);
 
   const list = offers.data ?? [];
+  // Medición: la oferta que se ve (la pedida, o la primera) cuenta una vez al verla; no la del propio dueño.
+  const viewedOfferId = picked ?? list[0]?.id;
+  useEffect(() => {
+    if (!isOwner && viewedOfferId) track('offer_viewed', entityId, { offer_id: viewedOfferId });
+  }, [isOwner, entityId, viewedOfferId]);
   if (list.length === 0) {
     return isOwner ? (
       <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/offers', params: { entityId } })} style={styles.ownerLink}>

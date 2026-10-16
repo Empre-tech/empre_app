@@ -1,14 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi, usersApi } from '@/api/endpoints';
 import type { VerificationStatus } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
+import { initAnalytics, isAnalyticsEnabled, setAnalyticsEnabled } from '@/analytics/track';
 import { FEATURES } from '@/config';
 import { SignInPrompt } from '@/components/SignInPrompt';
 import { verificationLabel } from '@/lib/format';
@@ -23,6 +24,11 @@ const STATUS_STYLE: Record<VerificationStatus, { fg: string; bg: string; icon: k
 
 export default function ProfileScreen() {
   const { status, user, signOut, refreshUser } = useAuth();
+  // Medición anónima de uso (se puede apagar; al apagarla se cambia el identificador de la instalación).
+  const [analyticsOn, setAnalyticsOn] = useState(true);
+  useEffect(() => {
+    void initAnalytics().then(() => setAnalyticsOn(isAnalyticsEnabled()));
+  }, []);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -121,6 +127,26 @@ export default function ProfileScreen() {
           <Ionicons name="chevron-forward" size={18} color={colors.muted} />
         </Pressable>
       ) : null}
+
+      <View style={styles.adminCard}>
+        <View style={styles.adminCardIcon}>
+          <Ionicons name="analytics-outline" size={19} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.adminCardText}>Medición anónima de uso</Text>
+          <Text style={{ fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted }}>
+            Ayuda a mejorar Empre sin identificarte. Puedes apagarla.
+          </Text>
+        </View>
+        <Switch
+          value={analyticsOn}
+          onValueChange={(on) => {
+            setAnalyticsOn(on);
+            void setAnalyticsEnabled(on);
+          }}
+          accessibilityLabel="Medición anónima de uso"
+        />
+      </View>
 
       {user.role === 'admin' && (
         <Pressable

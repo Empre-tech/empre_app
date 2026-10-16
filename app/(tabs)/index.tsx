@@ -30,6 +30,7 @@ import { PinMarker } from '@/components/explore/PinMarker';
 import { BubbleMarker } from '@/components/explore/BubbleMarker';
 import { useMapLevel, useMapMarkers } from '@/components/explore/useMapMarkers';
 import { useZoneName, useZones } from '@/components/explore/useZoneName';
+import { track } from '@/analytics/track';
 import { ContextRow } from '@/components/explore/ContextRow';
 import { LoadingChip } from '@/components/explore/LoadingChip';
 import { ZoneCapsule } from '@/components/explore/ZoneCapsule';
@@ -527,7 +528,33 @@ export default function ExploreScreen() {
     }
   }, [searching, resultsStatus, debouncedSearch, categoryId, searchScope, plan, sheet, userCoords]);
 
-  const openBusiness = (id: string) => router.push({ pathname: '/business/[id]', params: { id } });
+  // Medición (anónima): una búsqueda cuenta una vez por consulta y alcance, cuando llegan los resultados.
+  const trackedSearch = useRef('');
+  useEffect(() => {
+    if (!searching) {
+      trackedSearch.current = '';
+      return;
+    }
+    if (resultsStatus !== 'ok') return;
+    const key = `${debouncedSearch}|${searchScope}`;
+    if (trackedSearch.current === key) return;
+    trackedSearch.current = key;
+    track('search_submitted', undefined, { query: debouncedSearch, results: items.length, scope: searchScope });
+    if (items.length === 0) track('search_no_results', undefined, { query: debouncedSearch, scope: searchScope });
+  }, [searching, resultsStatus, debouncedSearch, searchScope, items.length]);
+
+  // Un filtro cuenta cuando se aplica (no al quitarlo ni al arrancar).
+  const prevFilters = useRef({ categoryId, subcategoryId, radiusKm, openNow });
+  useEffect(() => {
+    const p = prevFilters.current;
+    if (categoryId && categoryId !== p.categoryId) track('filter_applied', undefined, { filter: 'category' });
+    if (subcategoryId && subcategoryId !== p.subcategoryId) track('filter_applied', undefined, { filter: 'subcategory' });
+    if (radiusKm !== null && radiusKm !== p.radiusKm) track('filter_applied', undefined, { filter: 'radius' });
+    if (openNow && !p.openNow) track('filter_applied', undefined, { filter: 'open' });
+    prevFilters.current = { categoryId, subcategoryId, radiusKm, openNow };
+  }, [categoryId, subcategoryId, radiusKm, openNow]);
+
+  const openBusiness = (id: string) => router.push({ pathname: '/business/[id]', params: { id, src: searching ? 'search' : 'map' } });
 
   const selectedEntity = useMemo(
     () => (selectedId ? known.find((e) => e.id === selectedId) ?? null : null),
@@ -875,7 +902,10 @@ export default function ExploreScreen() {
               isMine={myEntityIds.has(selectedEntity.id)}
               qrOfferId={qrByEntity.get(selectedEntity.id) ?? null}
               onClose={() => setSelectedId(null)}
-              onDirections={() => directionsTo(selectedEntity.latitude, selectedEntity.longitude)}
+              onDirections={() => {
+                track('directions_tapped', selectedEntity.id, { origin: 'map' });
+                directionsTo(selectedEntity.latitude, selectedEntity.longitude);
+              }}
               onProfile={(offerId) =>
                 router.push({ pathname: '/business/[id]', params: offerId ? { id: selectedEntity.id, offer: offerId } : { id: selectedEntity.id } })
               }

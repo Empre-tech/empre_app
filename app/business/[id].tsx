@@ -25,6 +25,7 @@ import type { Photo, Review } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { AIWritingAssist } from '@/components/AIWritingAssist';
 import { AgendaStrip } from '@/components/agenda/AgendaStrip';
+import { track } from '@/analytics/track';
 import { FEATURES } from '@/config';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
@@ -63,7 +64,7 @@ function formatHourRow(h: { closed: boolean; is_24h: boolean; open_time: string;
 
 export default function BusinessScreen() {
   // `offer`: la oferta con la que abrir la ficha (al venir de la franja del mapa).
-  const { id, offer: offerParam } = useLocalSearchParams<{ id: string; offer?: string }>();
+  const { id, offer: offerParam, src } = useLocalSearchParams<{ id: string; offer?: string; src?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -96,6 +97,14 @@ export default function BusinessScreen() {
     queryFn: () => novedadesApi.followers(business!.id),
     enabled: isOwner && Boolean(business?.id),
   });
+
+  // Medición: un perfil abierto cuenta una vez por negocio (no el del propio dueño). `src` dice de dónde vino.
+  const trackedProfile = useRef('');
+  useEffect(() => {
+    if (!business?.id || isOwner || trackedProfile.current === business.id) return;
+    trackedProfile.current = business.id;
+    track('profile_opened', business.id, { origin: src ?? 'direct' });
+  }, [business?.id, isOwner, src]);
 
   // Publicaciones y Reseñas viven en pestañas (como Instagram: grilla /
   // etiquetados), no apiladas una tras otra, para que se entienda de un
@@ -132,6 +141,7 @@ export default function BusinessScreen() {
     setFavoriting(true);
     try {
       await (next ? entitiesApi.favorite(business.id) : entitiesApi.unfavorite(business.id));
+      track('follow_toggled', business.id, { following: next });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['entity', id] }),
         queryClient.invalidateQueries({ queryKey: ['my-favorites'] }),
@@ -355,10 +365,12 @@ export default function BusinessScreen() {
       router.push('/(auth)/login');
       return;
     }
+    track('contact_started', business.id);
     router.push({ pathname: '/chat/[entityId]', params: { entityId: business.id, name: business.name, avatar: business.profile_url } });
   };
 
   const onDirections = () => {
+    track('directions_tapped', business.id, { origin: 'profile' });
     const { latitude, longitude } = business;
     const url = Platform.select({
       ios: `http://maps.apple.com/?daddr=${latitude},${longitude}`,
@@ -543,7 +555,7 @@ export default function BusinessScreen() {
               />
             ) : null}
             <OffersFicha entityId={business.id} isOwner={isOwner} initialOfferId={offerParam} />
-            <PromotionsSection entityId={business.id} />
+            <PromotionsSection entityId={business.id} trackViews={!isOwner} />
             {FEATURES.agenda && !isOwner ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
             {FEATURES.agenda && isOwner ? (
               <Pressable

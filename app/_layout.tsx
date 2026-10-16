@@ -14,6 +14,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { initAnalytics } from '@/analytics/track';
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
 import { ChatProvider } from '@/chat/ChatProvider';
 import { usePushNotifications } from '@/notifications/usePushNotifications';
@@ -65,6 +66,11 @@ export default function RootLayout() {
     Nunito_700Bold,
     Nunito_800ExtraBold,
   });
+
+  // Medición anónima: lee (o crea) el identificador y la preferencia; no bloquea nada.
+  useEffect(() => {
+    void initAnalytics();
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded || fontError) void SplashScreen.hideAsync();
