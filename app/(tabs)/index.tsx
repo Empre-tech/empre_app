@@ -40,7 +40,7 @@ import { useFeaturedSheet } from '@/components/explore/useFeaturedSheet';
 import { DEFAULT_REGION } from '@/config';
 import { categoryColor } from '@/lib/categoryColor';
 import { effectiveClaimStatus } from '@/lib/claims';
-import { boxAround, openLine, reasonPill, relatedFrom, SEARCH_NEAR_KM, sheetHeader } from '@/lib/discover';
+import { boxAround, EXTRAS_MAX, openLine, pickExtras, reasonPill, relatedFrom, SEARCH_NEAR_KM, sheetHeader } from '@/lib/discover';
 import { formatDistance } from '@/lib/format';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
@@ -51,6 +51,7 @@ import { contextChips, removedAnnouncement, type FilterId } from '@/lib/context'
 import { sameIds } from '@/lib/pinsCache';
 import { loadPinsCache, savePinsCache } from '@/lib/pinsCacheStore';
 import { isBubbleLevel } from '@/lib/mapLevels';
+import { zoneAt } from '@/lib/zoneName';
 import { cameraTargets, emphasize, isFarResult } from '@/lib/proximity';
 import { MAP_STYLE } from '@/lib/mapStyle';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
@@ -646,6 +647,9 @@ export default function ExploreScreen() {
     line,
     pill: e.has_active_offer && e.active_offer ? reasonPill({ kind: 'offer', ends_at: e.active_offer.ends_at }, now) : null,
     mine: qrByEntity.has(e.id),
+    rating: e.avg_rating,
+    reviews: e.review_count,
+    tagline: e.tagline || undefined,
   });
   const discoverModel = (it: DiscoverItem, sectionId: DiscoverSectionId): CardModel => ({
     id: it.entity_id,
@@ -664,6 +668,21 @@ export default function ExploreScreen() {
     mine: qrByEntity.has(it.entity_id),
   });
   const zoneModels = searching ? [] : items.map((e) => toModel(e));
+  // Adicionales: los pines acumulados que están cerca pero fuera de la zona que se ve, con el nombre de su zona.
+  const extraModels = useMemo(
+    () => (searching ? [] : pickExtras(known, bbox, EXTRAS_MAX)),
+    [searching, known, bbox],
+  ).map((e) => ({ ...toModel(e), zoneLabel: zoneAt(zones, e)?.zone.name ?? null }));
+  const widenMap = () =>
+    mapRef.current?.animateToRegion(
+      {
+        latitude: region.latitude,
+        longitude: region.longitude,
+        latitudeDelta: Math.max(region.latitudeDelta * 4, 0.2),
+        longitudeDelta: Math.max(region.longitudeDelta * 4, 0.2),
+      },
+      500,
+    );
   const header = sheetHeader({
     searching,
     query: debouncedSearch,
@@ -672,6 +691,8 @@ export default function ExploreScreen() {
     scope: searchScope,
     zoneCount: items.length,
     categoryName: selectedCategory?.name,
+    view,
+    extraCount: extraModels.length,
   });
   const sections = sectionsQuery.data ?? [];
   const avatars = (sections[0]?.items ?? []).slice(0, 3).map((it) => ({ key: it.entity_id, color: categoryColor(it.category_color).fg, letter: it.name.charAt(0) }));
@@ -825,7 +846,10 @@ export default function ExploreScreen() {
                 sheet.snapTo('full');
               }}
               onClearSection={() => setSectionFilter(null)}
-              zone={{ status: entities.isError ? 'error' : entities.isLoading ? 'loading' : 'ok', items: zoneModels }}
+              zone={{ status: entities.isError ? 'error' : entities.isLoading ? 'loading' : 'ok', items: zoneModels, extras: extraModels, filterActive: activeFilterCount > 0 }}
+              onOpenProfile={openBusiness}
+              onClearFilters={clearAllFilters}
+              onWiden={widenMap}
               results={{
                 status: resultsStatus,
                 items: searching

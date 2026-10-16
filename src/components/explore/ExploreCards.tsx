@@ -30,6 +30,13 @@ export interface CardModel {
   nearChip?: string | null;
   /** Resultado lejano (más allá del radio cercano): va aparte, bajo «Más lejos». */
   far?: boolean;
+  /** Calificación promedio y cantidad de reseñas (ficha de «En esta zona»). */
+  rating?: number | null;
+  reviews?: number;
+  /** Frase corta del negocio. */
+  tagline?: string;
+  /** Zona del negocio cuando es un adicional (cerca, fuera de tu zona). */
+  zoneLabel?: string | null;
 }
 
 function NearChip({ text }: { text?: string | null }) {

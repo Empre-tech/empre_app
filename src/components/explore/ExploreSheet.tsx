@@ -7,6 +7,7 @@ import { scopeText, type SearchScope } from '@/lib/discover';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
 import { DiscoverCard, MiniCard, MiniRow, type CardModel } from './ExploreCards';
+import { ZoneAll, ZoneDiscover } from './ZonePanel';
 import type { FeaturedSheetState } from './useFeaturedSheet';
 
 type Status = 'loading' | 'error' | 'ok';
@@ -30,8 +31,17 @@ interface Props {
   sectionFilter: { id: DiscoverSectionId; title: string; status: Status; items: CardModel[] } | null;
   onSeeSection: (id: DiscoverSectionId) => void;
   onClearSection: () => void;
-  /** Todos los negocios de la zona (sin búsqueda). */
-  zone: { status: Status; items: CardModel[] };
+  /**
+   * Sin búsqueda: los destacados (negocios directamente en tu zona) y los adicionales (cerca, fuera de tu
+   * zona). Todos suma los dos; Descubre, con pocos negocios, muestra los destacados como fichas.
+   */
+  zone: { status: Status; items: CardModel[]; extras: CardModel[]; filterActive: boolean };
+  /** Abre el perfil de un negocio (la franja de oferta de una ficha). */
+  onOpenProfile: (id: string) => void;
+  /** Quita los filtros activos (categoría, distancia, «abiertos ahora»). */
+  onClearFilters: () => void;
+  /** Aleja el mapa para ver más negocios de la ciudad. */
+  onWiden: () => void;
   /** Búsqueda. */
   results: { status: Status; items: CardModel[]; related: CardModel[]; relatedLabel: string; scope: SearchScope; onRetry: () => void; onClear: () => void; onSearchCity: () => void };
 }
@@ -137,7 +147,7 @@ function Hint({ text, action, onAction, warn }: { text: string; action: string; 
 function Body(p: Props) {
   const anchor = p.sheet.anchor;
   const mid = anchor === 'medium';
-  const count = p.searching ? p.results.items.length : p.zone.items.length;
+  const count = p.searching ? p.results.items.length : p.zone.items.length + p.zone.extras.length;
   const tabs = <Tabs searching={p.searching} view={p.view} onView={p.onView} count={count} />;
 
   // ---- Descubre ----
@@ -166,14 +176,19 @@ function Body(p: Props) {
         </>
       );
     } else if (data.length === 0) {
+      // Ninguna sección llega a 3 negocios: «En esta zona» con una ficha por negocio (nunca un callejón sin salida).
       content = (
-        <View style={styles.state}>
-          <Text style={styles.stateTitle}>Hay pocos negocios en esta zona</Text>
-          <Text style={styles.stateText}>Mueve el mapa o mira la lista completa.</Text>
-          <Pressable accessibilityRole="button" onPress={() => p.onView('results')} style={styles.primary}>
-            <Text style={styles.primaryText}>Ver todos</Text>
-          </Pressable>
-        </View>
+        <ZoneDiscover
+          items={p.zone.items}
+          extras={p.zone.extras}
+          filterActive={p.zone.filterActive}
+          selectedId={p.selectedId}
+          onSelect={p.onSelect}
+          onOpenProfile={p.onOpenProfile}
+          onClearFilters={p.onClearFilters}
+          onWiden={p.onWiden}
+          onSeeAll={() => p.onView('results')}
+        />
       );
     } else {
       const shown = mid ? data.slice(0, 1) : data;
@@ -292,7 +307,9 @@ function Body(p: Props) {
   const filterHint = filter ? <Hint text={`Mostrando: ${filter.title}`} action="Quitar" onAction={p.onClearSection} /> : null;
   const loading = filter ? filter.status === 'loading' && list.length === 0 : p.zone.status === 'loading' && list.length === 0;
   if (loading) return <View style={styles.body}>{tabs}{filterHint}<SkeletonRows count={3} /></View>;
-  if (list.length === 0) {
+  const extras = filter ? [] : p.zone.extras;
+  const everything = [...list, ...extras];
+  if (everything.length === 0 && filter) {
     return (
       <View style={styles.body}>
         {tabs}
@@ -310,12 +327,30 @@ function Body(p: Props) {
         {tabs}
         {filterHint}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hscroll} contentContainerStyle={styles.hrow}>
-          {list.map((m) => <MiniCard key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
+          {everything.map((m) => <MiniCard key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
         </ScrollView>
         <Pressable accessibilityRole="button" onPress={() => p.sheet.snapTo('full')} style={styles.more}>
-          <Text style={styles.link}>Ver los {list.length}</Text>
+          <Text style={styles.link}>Ver los {everything.length}</Text>
         </Pressable>
       </View>
+    );
+  }
+  if (!filter) {
+    return (
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
+        {tabs}
+        <ZoneAll
+          items={list}
+          extras={extras}
+          filterActive={p.zone.filterActive}
+          selectedId={p.selectedId}
+          onSelect={p.onSelect}
+          onOpenProfile={p.onOpenProfile}
+          onClearFilters={p.onClearFilters}
+          onWiden={p.onWiden}
+          onSeeAll={() => p.onView('results')}
+        />
+      </ScrollView>
     );
   }
   return (
