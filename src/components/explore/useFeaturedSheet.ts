@@ -3,39 +3,44 @@ import { Animated, PanResponder } from 'react-native';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 
 /**
- * Destacados como hoja emergente con cuatro anclajes:
- * - hidden: solo una píldora «N destacados cerca» (cuando se busca o se arrastra el mapa).
- * - peek: asa y título (reposo con resultados).
- * - medium: una fila de tarjetas.
- * - full: lista vertical (~60 % del contenido).
+ * El panel de explorar: una sola hoja con tres anclajes (más «hidden» mientras
+ * hay un negocio seleccionado):
+ * - peek: compacto, asa y una línea (Descubre o la búsqueda). El mapa manda.
+ * - medium: intermedio, una fila de tarjetas.
+ * - full: expandido, la lista completa con una franja de mapa arriba.
  */
 export type FeaturedAnchor = 'hidden' | 'peek' | 'medium' | 'full';
 
-export const FEATURED_PEEK = 64;
-export const FEATURED_MEDIUM = 190;
-/** Mínimo de la altura completa, por si todavía no se midió el contenido. */
-const FEATURED_FULL_MIN = FEATURED_MEDIUM + 80;
+export const FEATURED_PEEK = 84;
+/** Mínimos por si todavía no se midió el contenido. */
+const MEDIUM_MIN = 240;
+const FULL_MIN = MEDIUM_MIN + 120;
 
-function heightFor(anchor: FeaturedAnchor, full: number): number {
+interface Heights {
+  medium: number;
+  full: number;
+}
+
+function heightFor(anchor: FeaturedAnchor, h: Heights): number {
   switch (anchor) {
     case 'hidden':
       return 0;
     case 'peek':
       return FEATURED_PEEK;
     case 'medium':
-      return FEATURED_MEDIUM;
+      return h.medium;
     default:
-      return full;
+      return h.full;
   }
 }
 
-/** Anclaje más cercano a una altura (con la inercia del gesto ya aplicada). */
-function nearestAnchor(value: number, full: number): FeaturedAnchor {
-  const anchors: FeaturedAnchor[] = ['hidden', 'peek', 'medium', 'full'];
+/** Anclaje más cercano a una altura (con la inercia del gesto ya aplicada). Nunca «hidden»: el usuario no lo esconde arrastrando. */
+function nearestAnchor(value: number, h: Heights): FeaturedAnchor {
+  const anchors: FeaturedAnchor[] = ['peek', 'medium', 'full'];
   let best: FeaturedAnchor = 'peek';
   let bestDistance = Infinity;
   for (const anchor of anchors) {
-    const distance = Math.abs(value - heightFor(anchor, full));
+    const distance = Math.abs(value - heightFor(anchor, h));
     if (distance < bestDistance) {
       best = anchor;
       bestDistance = distance;
@@ -45,28 +50,36 @@ function nearestAnchor(value: number, full: number): FeaturedAnchor {
 }
 
 /**
- * Estado y gesto de la hoja de Destacados. Un solo Animated.Value controla el
- * alto de la hoja y, recortado a `medium`, la posición de los botones
- * flotantes, así nunca quedan desincronizados ni la hoja los tapa.
+ * Estado y gesto del panel. Un solo Animated.Value controla el alto y, recortado
+ * a `medium`, la posición de los botones flotantes, así nunca quedan
+ * desincronizados ni el panel los tapa.
  *
- * @param fullHeight alto del anclaje «full» (p. ej. el 60 % del contenido).
+ * @param contentHeight alto del área del mapa (se mide con onLayout).
  */
-export function useFeaturedSheet(fullHeight: number) {
-  const full = Math.max(fullHeight, FEATURED_FULL_MIN);
+export function useFeaturedSheet(contentHeight: number) {
+  const heights = useMemo<Heights>(() => {
+    const medium = Math.max(MEDIUM_MIN, Math.min(Math.round(contentHeight * 0.52), 380));
+    // Expandido deja una franja de mapa arriba con el buscador encima.
+    const full = Math.max(FULL_MIN, Math.round(contentHeight - 190), medium + 60);
+    return { medium, full };
+  }, [contentHeight]);
+
   const [anchor, setAnchor] = useState<FeaturedAnchor>('peek');
   const [height] = useState(() => new Animated.Value(FEATURED_PEEK));
 
   const anchorRef = useRef<FeaturedAnchor>('peek');
   const valueRef = useRef(FEATURED_PEEK);
-  const fullRef = useRef(full);
+  const heightsRef = useRef(heights);
   const reduceRef = useRef(false);
   const reduceMotion = useReduceMotion();
   useEffect(() => {
     reduceRef.current = reduceMotion;
   }, [reduceMotion]);
   useEffect(() => {
-    fullRef.current = full;
-  }, [full]);
+    heightsRef.current = heights;
+    // Si cambia el tamaño de la pantalla, el anclaje actual se recoloca.
+    height.setValue(heightFor(anchorRef.current, heights));
+  }, [heights, height]);
   useEffect(() => {
     const id = height.addListener(({ value }) => {
       valueRef.current = value;
@@ -78,16 +91,16 @@ export function useFeaturedSheet(fullHeight: number) {
     (next: FeaturedAnchor) => {
       anchorRef.current = next;
       setAnchor(next);
-      const target = heightFor(next, fullRef.current);
+      const target = heightFor(next, heightsRef.current);
       // Con «Reducir movimiento» la hoja salta al anclaje, sin resorte.
       if (reduceRef.current) height.setValue(target);
-      else Animated.spring(height, { toValue: target, useNativeDriver: false, bounciness: 4 }).start();
+      else Animated.spring(height, { toValue: target, useNativeDriver: false, bounciness: 3 }).start();
     },
     [height],
   );
 
   // Arrastrar el asa mueve la hoja en vivo; al soltar encaja en el anclaje más
-  // cercano, con la inercia del dedo (un gesto rápido llega más lejos).
+  // cercano, con la inercia del dedo. Un toque sin arrastre alterna compacto ⇄ intermedio.
   // eslint-disable-next-line react-hooks/refs -- los callbacks del gesto corren por eventos del dedo, nunca durante el render
   const [panResponder] = useState(() => {
     let startValue = 0;
@@ -99,29 +112,28 @@ export function useFeaturedSheet(fullHeight: number) {
         startValue = valueRef.current;
       },
       onPanResponderMove: (_, g) => {
-        height.setValue(Math.min(fullRef.current, Math.max(0, startValue - g.dy)));
+        height.setValue(Math.min(heightsRef.current.full, Math.max(FEATURED_PEEK, startValue - g.dy)));
       },
-      onPanResponderRelease: (_, g) => snapTo(nearestAnchor(valueRef.current - g.vy * 120, fullRef.current)),
-      onPanResponderTerminate: () => snapTo(nearestAnchor(valueRef.current, fullRef.current)),
+      onPanResponderRelease: (_, g) => snapTo(nearestAnchor(valueRef.current - g.vy * 120, heightsRef.current)),
+      onPanResponderTerminate: () => snapTo(nearestAnchor(valueRef.current, heightsRef.current)),
     });
   });
 
-  // Posición base de los botones flotantes: sigue a la hoja hasta `medium` y no
-  // sube más, para que con la hoja completa no queden flotando a media pantalla.
+  // Base de los botones flotantes: sigue a la hoja hasta `medium` y no sube más.
   const buttonsBase = useMemo(
     () =>
       height.interpolate({
-        inputRange: [0, FEATURED_MEDIUM, FEATURED_MEDIUM + 1],
-        outputRange: [0, FEATURED_MEDIUM, FEATURED_MEDIUM],
+        inputRange: [0, heights.medium, heights.medium + 1],
+        outputRange: [0, heights.medium, heights.medium],
         extrapolate: 'clamp',
       }),
-    [height],
+    [height, heights.medium],
   );
 
-  /** Anclaje actual sin provocar un render (para temporizadores). */
+  /** Anclaje actual sin provocar un render (para temporizadores y gestos del mapa). */
   const getAnchor = useCallback(() => anchorRef.current, []);
 
-  return { anchor, height, buttonsBase, snapTo, getAnchor, panHandlers: panResponder.panHandlers };
+  return { anchor, height, heights, buttonsBase, snapTo, getAnchor, panHandlers: panResponder.panHandlers };
 }
 
 export type FeaturedSheetState = ReturnType<typeof useFeaturedSheet>;

@@ -7,7 +7,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
-  FlatList,
   Linking,
   Modal,
   Pressable,
@@ -19,24 +18,27 @@ import {
 import MapView, { Circle, Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { categoriesApi, entitiesApi } from '@/api/endpoints';
-import { discoveryApi } from '@/api/offers';
+import { claimsApi, discoverApi, discoveryApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
-import type { Category } from '@/api/types';
-import { BusinessRow } from '@/components/BusinessRow';
+import type { Category, DiscoverItem, DiscoverSectionId } from '@/api/types';
 import { Button } from '@/components/Button';
 import { BusinessSheet } from '@/components/explore/BusinessSheet';
-import { FeaturedSheet } from '@/components/explore/FeaturedSheet';
+import { type CardModel } from '@/components/explore/ExploreCards';
+import { ExploreSheet } from '@/components/explore/ExploreSheet';
 import { type WithDistance } from '@/components/explore/FeaturedCard';
-import { ModeFab } from '@/components/explore/ModeFab';
 import { PlaceSheet } from '@/components/explore/PlaceSheet';
 import { StackMarker } from '@/components/explore/StackMarker';
 import { SearchBar } from '@/components/explore/SearchBar';
 import { useFeaturedSheet } from '@/components/explore/useFeaturedSheet';
-import { ZoneLabel } from '@/components/explore/ZoneLabel';
 import { DEFAULT_REGION } from '@/config';
 import { categoryColor } from '@/lib/categoryColor';
+import { effectiveClaimStatus } from '@/lib/claims';
+import { openLine, reasonPill, relatedFrom, sheetHeader } from '@/lib/discover';
+import { formatDistance } from '@/lib/format';
+import { useNow } from '@/lib/useNow';
+import { useReduceMotion } from '@/lib/useReduceMotion';
 import { allWithinMeters, clusterByScreenDistance, type Cluster } from '@/lib/cluster';
-import { distanceKm, hasLocation, type Coords } from '@/lib/geo';
+import { hasLocation, type Coords } from '@/lib/geo';
 import { resolveImageUrl } from '@/lib/image';
 import { MAP_STYLE } from '@/lib/mapStyle';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
@@ -53,8 +55,6 @@ const RADIUS_OPTIONS: { label: string; km: number | null }[] = [
 ];
 
 
-// Cuántos negocios mostrar en el carrusel de Destacados.
-const FEATURED_COUNT = 8;
 type ZoomTier = 'far' | 'mid' | 'near';
 
 /** Nivel de zoom según el delta de latitud de la región visible del mapa.
@@ -72,7 +72,6 @@ export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
 
-  const [mode, setMode] = useState<'map' | 'list'>('map');
   const [categoryId, setCategoryId] = useState<string | undefined>();
   const [subcategoryId, setSubcategoryId] = useState<string | undefined>();
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
@@ -83,19 +82,24 @@ export default function ExploreScreen() {
   // (si no, o si no hay una posición reciente a mano). Evita el "salto" de
   // ver primero Colombia completa y luego animar hacia la ubicación real.
   const [startupRegion, setStartupRegion] = useState<Region | null>(null);
-  // Nombre del barrio/zona donde estás, solo para la etiqueta sobre el mapa
-  // ("12 negocios cerca de Bocagrande"): mejor esfuerzo vía reverse geocoding,
-  // nunca bloquea nada si falla — la etiqueta cae de vuelta a "cerca de ti".
-  const [neighborhood, setNeighborhood] = useState<string | null>(null);
-  // Negocio seleccionado (tocar un pin abre su banner; el banner reemplaza a
-  // Destacados y es la única vía al perfil).
+  // Negocio seleccionado: tocar un pin o una tarjeta abre su detalle (franja, Ver perfil, Cómo llegar).
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // Mientras el usuario arrastra el mapa se oculta la etiqueta de zona.
+  // Mientras el dedo mueve el mapa: el panel compacto baja un poco y el buscador se desvanece.
   const [mapMoving, setMapMoving] = useState(false);
   // Negocios de una pila que comparten un mismo punto: se abren en «En este lugar».
   const [placeItems, setPlaceItems] = useState<WithDistance[] | null>(null);
+  // Vista del panel: Descubre (por defecto) o la lista (Todos / Resultados).
+  const [view, setView] = useState<'discover' | 'results'>('discover');
+  // «Ver más» de una sección de Descubre: la lista filtrada por esa sección.
+  const [sectionFilter, setSectionFilter] = useState<DiscoverSectionId | null>(null);
+  // Alcance de la búsqueda: null = toda la ciudad (por defecto); un rectángulo tras «Buscar en esta zona».
+  const [searchArea, setSearchArea] = useState<{ min_lat: number; max_lat: number; min_lng: number; max_lng: number } | null>(null);
+  // Con una búsqueda activa, mover el mapa no busca solo: aparece «Buscar en esta zona».
+  const [areaDirty, setAreaDirty] = useState(false);
+  // Distingue un arrastre del usuario de un movimiento hecho por la app (centrar, encuadrar).
+  const userMovedRef = useRef(false);
   // Respaldo: si el arrastre termina sin que cambie la región, onRegionChangeComplete
-  // no se dispara y la etiqueta se quedaría oculta; este temporizador la devuelve.
+  // no se dispara y el panel se quedaría bajado; este temporizador lo devuelve.
   const moveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
@@ -104,40 +108,22 @@ export default function ExploreScreen() {
     [],
   );
   const onMapDrag = () => {
-    if (riseTimer.current) clearTimeout(riseTimer.current);
-    if (sheet.getAnchor() !== 'hidden') sheet.snapTo('hidden');
-    setMapMoving(true);
+    userMovedRef.current = true;
+    if (!mapMoving) setMapMoving(true);
     if (moveTimer.current) clearTimeout(moveTimer.current);
     moveTimer.current = setTimeout(() => setMapMoving(false), 1500);
   };
-  // Si todo queda quieto ~1 s, Destacados sube solo de la píldora a «peek».
-  const scheduleRise = () => {
-    if (riseTimer.current) clearTimeout(riseTimer.current);
-    riseTimer.current = setTimeout(() => {
-      if (canRise.current && sheet.getAnchor() === 'hidden') sheet.snapTo('peek');
-    }, 1000);
-  };
-  // El mapa terminó de moverse: se actualiza la región y vuelve la etiqueta de zona.
+  // El mapa terminó de moverse: sin búsqueda se actualiza la zona (y Descubre);
+  // con búsqueda solo se ofrece buscar en la zona nueva. El panel no cambia de estado.
   const onMapSettled = (next: Region) => {
     setRegion(next);
     if (moveTimer.current) clearTimeout(moveTimer.current);
     setMapMoving(false);
-    scheduleRise();
+    if (userMovedRef.current && debouncedSearch) setAreaDirty(true);
+    userMovedRef.current = false;
   };
-  // Destacados: hoja con cuatro anclajes (oculto, peek, medio, completo). El
-  // anclaje completo ocupa ~60 % del contenido, que se mide con onLayout.
   const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
-  const sheet = useFeaturedSheet(mapSize.height * 0.6);
-  // Cuando el mapa queda quieto ~1 s, Destacados vuelve solo a «peek» (si no se
-  // está buscando ni hay un negocio seleccionado).
-  const riseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const canRise = useRef(false);
-  useEffect(
-    () => () => {
-      if (riseTimer.current) clearTimeout(riseTimer.current);
-    },
-    [],
-  );
+  const sheet = useFeaturedSheet(mapSize.height);
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -159,24 +145,6 @@ export default function ExploreScreen() {
     const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 350);
     return () => clearTimeout(timeout);
   }, [search]);
-
-  useEffect(() => {
-    if (!userCoords) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const results = await Location.reverseGeocodeAsync(userCoords);
-        const place = results[0];
-        const name = place?.district || place?.subregion || place?.city;
-        if (!cancelled && name) setNeighborhood(name);
-      } catch {
-        // Sin conexión o sin resultados: el saludo se queda en "cerca de ti".
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [userCoords]);
 
   const requestLocation = async () => {
     setLocating(true);
@@ -299,25 +267,32 @@ export default function ExploreScreen() {
   // donde ya no hay resultados relevantes. Comparamos contra el valor anterior
   // "a mano" (en vez de solo listar las deps) para no disparar esto también en
   // el primer render, que ya lo cubre el efecto de centrado inicial de arriba.
-  const previousFiltersRef = useRef({ categoryId, subcategoryId, debouncedSearch });
+  const previousFiltersRef = useRef({ categoryId, subcategoryId });
   useEffect(() => {
     const previous = previousFiltersRef.current;
-    const changed =
-      previous.categoryId !== categoryId ||
-      previous.subcategoryId !== subcategoryId ||
-      previous.debouncedSearch !== debouncedSearch;
-    previousFiltersRef.current = { categoryId, subcategoryId, debouncedSearch };
-    if (!changed || !userCoords) return;
-    setMode('map');
+    const changed = previous.categoryId !== categoryId || previous.subcategoryId !== subcategoryId;
+    previousFiltersRef.current = { categoryId, subcategoryId };
+    // Con búsqueda el mapa se encuadra en los resultados (más abajo), no en el usuario.
+    if (!changed || !userCoords || debouncedSearch) return;
     mapRef.current?.animateToRegion({ ...userCoords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 500);
   }, [categoryId, subcategoryId, debouncedSearch, userCoords]);
+
+  // Una búsqueda nueva empieza en toda la ciudad, en la vista de resultados; borrarla vuelve a Descubre.
+  const [lastSearch, setLastSearch] = useState('');
+  if (lastSearch !== debouncedSearch) {
+    setLastSearch(debouncedSearch);
+    setSearchArea(null);
+    setAreaDirty(false);
+    setSectionFilter(null);
+    setView(debouncedSearch ? 'results' : 'discover');
+  }
 
   // Ordenamos/filtramos por distancia con la ubicación real del usuario, esté donde
   // esté: alguien probando la app desde otra ciudad (o viajando) también debe poder
   // usar "cerca de mí", aunque el resultado sea que todo quede lejos.
   const reference = userCoords;
-
   const { status: authStatus } = useAuth();
+
   const myEntities = useQuery({
     queryKey: ['my-entities'],
     queryFn: entitiesApi.mine,
@@ -340,27 +315,23 @@ export default function ExploreScreen() {
       max_lng: +(region.longitude + halfLng).toFixed(5),
     };
   }, [region]);
-  const centeredOnUser = useMemo(() => {
-    if (!reference) return false;
-    return distanceKm(reference, { latitude: region.latitude, longitude: region.longitude }) < 1;
-  }, [reference, region]);
-
   const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 5 * 60_000 });
+  const searching = debouncedSearch.length > 0;
+  // Sin búsqueda: la zona visible. Con búsqueda: toda la ciudad, o la zona que el usuario pidió.
+  const scope = searching ? searchArea : bbox;
+  const refKey = reference ? `${reference.latitude.toFixed(3)},${reference.longitude.toFixed(3)}` : 'no-ref';
   const entities = useQuery({
     queryKey: [
       'discovery',
       categoryId ?? 'all',
       subcategoryId ?? 'all',
       debouncedSearch,
-      bbox.min_lat,
-      bbox.min_lng,
-      bbox.max_lat,
-      bbox.max_lng,
-      reference ? `${reference.latitude.toFixed(3)},${reference.longitude.toFixed(3)}` : 'no-ref',
+      scope ? `${scope.min_lat},${scope.min_lng},${scope.max_lat},${scope.max_lng}` : 'ciudad',
+      refKey,
     ],
     queryFn: () =>
       discoveryApi.discover({
-        ...bbox,
+        ...(scope ?? {}),
         // Referencia del usuario para la distancia; 0/0 = sin señal.
         lat: reference?.latitude,
         long: reference?.longitude,
@@ -375,6 +346,30 @@ export default function ExploreScreen() {
     // parpadear ni mostrar el spinner en cada movimiento.
     placeholderData: keepPreviousData,
   });
+
+  // Descubre: lo arma el servidor para la zona visible (también se ve durante una búsqueda).
+  const sectionsQuery = useQuery({
+    queryKey: ['discover-sections', categoryId ?? 'all', subcategoryId ?? 'all', bbox.min_lat, bbox.min_lng, bbox.max_lat, bbox.max_lng, refKey],
+    queryFn: () => discoverApi.sections({ ...bbox, lat: reference?.latitude, long: reference?.longitude, category: categoryId, subcategory: subcategoryId }),
+    enabled: startupRegion !== null,
+    placeholderData: keepPreviousData,
+  });
+  // «Ver más» de una sección: la misma regla, con más negocios.
+  const sectionMoreQuery = useQuery({
+    queryKey: ['discover-section', sectionFilter, categoryId ?? 'all', subcategoryId ?? 'all', bbox.min_lat, bbox.min_lng, bbox.max_lat, bbox.max_lng, refKey],
+    queryFn: () => discoverApi.sections({ ...bbox, lat: reference?.latitude, long: reference?.longitude, category: categoryId, subcategory: subcategoryId, section: sectionFilter ?? undefined, limit: 50 }),
+    enabled: sectionFilter !== null,
+  });
+  // Reclamos con QR activo: su negocio muestra «Tu QR» en vez de la pastilla de la oferta.
+  const claimsQuery = useQuery({ queryKey: ['claims-mine'], queryFn: claimsApi.mine, enabled: authStatus === 'signedIn', staleTime: 30_000 });
+  const now = useNow(30_000);
+  const qrByEntity = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of claimsQuery.data ?? []) {
+      if (c.offer?.entity_id && effectiveClaimStatus(c, now) === 'RECLAMADO') map.set(c.offer.entity_id, c.offer_id);
+    }
+    return map;
+  }, [claimsQuery.data, now]);
 
   const items = useMemo<WithDistance[]>(() => {
     const withDistance = (entities.data?.items ?? []).map((entity) => ({
@@ -403,17 +398,40 @@ export default function ExploreScreen() {
   );
   const total = entities.data?.total ?? 0;
 
-  // Destacados salen de la misma respuesta que los pines (área visible): los
-  // primeros resultados, sin el negocio propio.
-  const featured = useMemo(
-    () => items.filter((entity) => !myEntityIds.has(entity.id)).slice(0, FEATURED_COUNT),
-    [items, myEntityIds],
-  );
-  // Hay negocios, pero todos son el propio: mensaje "solo está tu negocio".
-  const onlyMine = items.length > 0 && featured.length === 0;
-  useEffect(() => {
-    canRise.current = !search && !selectedId && (featured.length > 0 || onlyMine);
+  // Resultados de búsqueda: mientras llega una consulta nueva se muestra «Buscando…», no la anterior.
+  const resultsStatus: 'loading' | 'error' | 'ok' = entities.isError ? 'error' : entities.isLoading || entities.isPlaceholderData ? 'loading' : 'ok';
+  // «También podría interesarte»: misma categoría que el primer resultado, otras subcategorías.
+  const topCategory = searching && resultsStatus === 'ok' ? items[0]?.category_id : undefined;
+  const relatedQuery = useQuery({
+    queryKey: ['discovery-related', topCategory, scope ? `${scope.min_lat},${scope.min_lng}` : 'ciudad', refKey],
+    queryFn: () => discoveryApi.discover({ ...(scope ?? {}), lat: reference?.latitude, long: reference?.longitude, category: topCategory, limit: 30 }),
+    enabled: Boolean(topCategory),
   });
+  const related = useMemo(
+    () => (topCategory ? relatedFrom(items, relatedQuery.data?.items ?? []) : []),
+    [topCategory, items, relatedQuery.data],
+  );
+
+  // Al llegar los resultados de una búsqueda, el mapa los encuadra y el panel compacto pasa a intermedio.
+  const fittedRef = useRef('');
+  useEffect(() => {
+    if (!searching) {
+      fittedRef.current = '';
+      return;
+    }
+    if (resultsStatus !== 'ok') return;
+    const key = `${debouncedSearch}|${categoryId}|${searchArea ? 'zona' : 'ciudad'}`;
+    if (fittedRef.current === key) return;
+    fittedRef.current = key;
+    if (sheet.getAnchor() === 'peek') sheet.snapTo('medium');
+    const coords = items.filter(hasLocation).slice(0, 20).map((e) => ({ latitude: e.latitude, longitude: e.longitude }));
+    if (coords.length > 0 && !searchArea) {
+      mapRef.current?.fitToCoordinates(coords, {
+        edgePadding: { top: 150, right: 48, bottom: sheet.heights.medium + 40, left: 48 },
+        animated: true,
+      });
+    }
+  }, [searching, resultsStatus, debouncedSearch, categoryId, searchArea, items, sheet]);
 
   const openBusiness = (id: string) => router.push({ pathname: '/business/[id]', params: { id } });
 
@@ -457,10 +475,6 @@ export default function ExploreScreen() {
     void Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`);
   };
 
-  const claimOffer = (offerId: string, title: string, entityId: string) => {
-    router.push({ pathname: '/offer/claim', params: { offerId, entityId, title } });
-  };
-
   const clearAllFilters = () => {
     setCategoryId(undefined);
     setSubcategoryId(undefined);
@@ -482,113 +496,82 @@ export default function ExploreScreen() {
     (a, b) => Number(b.id === categoryId) - Number(a.id === categoryId),
   );
 
-  // Etiqueta flotante sobre el mapa: reemplaza al saludo, al título y al contador.
-  const zoneText = !entities.data
-    ? null
-    : total === 0
-      ? 'Sin negocios en esta zona'
-      : `${total} ${total === 1 ? 'negocio' : 'negocios'} ${
-          centeredOnUser ? `cerca de ${neighborhood ?? 'ti'}` : 'en esta zona'
-        }${total > items.length ? ` · los mejores ${items.length}` : ''}`;
+  const toModel = (e: WithDistance, line?: string): CardModel => ({
+    id: e.id,
+    name: e.name,
+    latitude: e.latitude,
+    longitude: e.longitude,
+    image: e.profile_url,
+    color: categoryColor(e.category_color),
+    icon: e.category_icon || 'storefront',
+    open: e.has_hours ? e.is_open_now : null,
+    distance: formatDistance(e.distanceKm),
+    sub: e.subcategory || e.category_name,
+    line,
+    pill: e.has_active_offer && e.active_offer ? reasonPill({ kind: 'offer', ends_at: e.active_offer.ends_at }, now) : null,
+    mine: qrByEntity.has(e.id),
+  });
+  const discoverModel = (it: DiscoverItem, sectionId: DiscoverSectionId): CardModel => ({
+    id: it.entity_id,
+    name: it.name,
+    latitude: it.latitude,
+    longitude: it.longitude,
+    image: it.profile_url,
+    cover: it.cover_url,
+    color: categoryColor(it.category_color),
+    icon: it.category_icon || 'storefront',
+    open: it.is_open_now,
+    distance: formatDistance(it.distance_meters > 0 ? it.distance_meters / 1000 : null),
+    sub: it.subcategory || it.category_name,
+    line: sectionId === 'open' ? openLine(it.closes_at) : it.tagline || undefined,
+    pill: reasonPill(it.reason, now),
+    mine: qrByEntity.has(it.entity_id),
+  });
+  const zoneModels = searching ? [] : items.map((e) => toModel(e));
+  const header = sheetHeader({
+    searching,
+    query: debouncedSearch,
+    status: resultsStatus,
+    results: items.length,
+    areaOnly: Boolean(searchArea),
+    zoneCount: total,
+    categoryName: selectedCategory?.name,
+  });
+  const sections = sectionsQuery.data ?? [];
+  const avatars = (sections[0]?.items ?? []).slice(0, 3).map((it) => ({ key: it.entity_id, color: categoryColor(it.category_color).fg, letter: it.name.charAt(0) }));
+  const sectionTitle = sections.find((sec) => sec.id === sectionFilter)?.title ?? '';
+  const onSelectCard = (m: CardModel) => {
+    // Si el negocio está entre los pines, se selecciona en el mapa; si no, se abre su perfil.
+    if (items.some((e) => e.id === m.id)) selectBusiness(m.id, { latitude: m.latitude, longitude: m.longitude });
+    else openBusiness(m.id);
+  };
+  const clearSearch = () => {
+    setSearch('');
+    setDebouncedSearch('');
+  };
 
-  // Los botones flotantes se apilan sobre el panel de Destacados: el de ubicación
-  // va pegado a él y «Lista» queda justo encima, sin taparse entre sí.
-  const locateBottom =
-    featured.length > 0 || onlyMine
-      ? Animated.add(sheet.buttonsBase, insets.bottom + spacing.md)
-      : spacing.lg + insets.bottom;
-  const modeFabBottom = typeof locateBottom === 'number' ? locateBottom + 56 : Animated.add(locateBottom, 56);
+  // El buscador y los chips se desvanecen mientras el dedo mueve el mapa, y los chips
+  // se esconden con el panel expandido (queda una franja de mapa con el buscador).
+  const reduceMotion = useReduceMotion();
+  const [topFade] = useState(() => new Animated.Value(1));
+  useEffect(() => {
+    const to = mapMoving ? 0 : 1;
+    if (reduceMotion) topFade.setValue(to);
+    else Animated.timing(topFade, { toValue: to, duration: 150, useNativeDriver: true }).start();
+  }, [mapMoving, reduceMotion, topFade]);
+  const tall = sheet.anchor === 'full';
+  const locateBottom = Animated.add(sheet.buttonsBase, spacing.md);
 
   return (
     <View style={styles.screen}>
-      {/* Barra superior: siempre sólida y en el flujo normal (nunca "flota"
-          transparente sobre el mapa). Dos filas: buscador (con Filtros dentro)
-          y chips de categoría. El contexto y el cambio mapa/lista flotan sobre
-          el mapa. */}
-      <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]}>
-        <SearchBar
-          value={search}
-          onChangeText={(text) => {
-            setSearch(text);
-            if (text && sheet.getAnchor() !== 'hidden') sheet.snapTo('hidden');
-            if (!text) scheduleRise();
-          }}
-          onOpenFilters={openFilters}
-          filterCount={activeFilterCount}
-        />
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={styles.filterScrollRow}
-          style={styles.filterScroll}
-        >
-          {selectedSubcategory || radiusLabel || openNow ? (
-            <View style={styles.activeChips}>
-              {selectedSubcategory ? (
-                <ActiveChip
-                  icon="pricetag-outline"
-                  label={selectedSubcategory.name}
-                  onRemove={() => setSubcategoryId(undefined)}
-                />
-              ) : null}
-              {radiusLabel ? <ActiveChip icon="navigate" label={radiusLabel} onRemove={() => setRadiusKm(null)} /> : null}
-              {openNow ? <ActiveChip icon="time-outline" label="Abiertos ahora" onRemove={() => setOpenNow(false)} /> : null}
-              {activeFilterCount >= 2 ? (
-                <Pressable accessibilityRole="button" accessibilityLabel="Limpiar todos los filtros" onPress={clearAllFilters} hitSlop={8} style={styles.clearChip}>
-                  <Text style={styles.clearChipText}>Limpiar</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
-
-          {/* Atajos de categoría: explorar con un toque, sin abrir Filtros.
-              También están dentro de Filtros (con subcategorías), pero acá
-              quedan a la vista para no tener que abrir el modal siempre. */}
-          {orderedCategories.map((category) => {
-            const active = categoryId === category.id;
-            return (
-              <Pressable
-                key={category.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                accessibilityLabel={`Categoría ${category.name}`}
-                accessibilityHint={active ? 'Toca para quitar el filtro' : undefined}
-                onPress={() => {
-                  setCategoryId(active ? undefined : category.id);
-                  setSubcategoryId(undefined);
-                }}
-                hitSlop={4}
-                style={[styles.categoryChip, active && styles.chipActive]}
-              >
-                <Ionicons
-                  name={(category.icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap}
-                  size={16}
-                  color={active ? '#fff' : colors.primary}
-                />
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{category.name}</Text>
-                {active ? <Ionicons name="close" size={14} color="#fff" /> : null}
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Zona de contenido: mapa (con esquinas redondeadas arriba, como el
-          mockup) o lista, con el loading/error flotando sobre lo que sea
-          que esté activo. */}
       <View style={styles.content} onLayout={(e) => setMapSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}>
-        {mode === 'map' ? (
-          <View style={styles.mapWrap}>
-            {startupRegion === null ? (
-              // Resolviendo si ya había permiso/posición para arrancar
-              // centrados de una (ver el useEffect de arriba): normalmente
-              // dura muy poco, así que esto casi nunca se alcanza a ver.
-              <View style={[styles.map, styles.mapStartupLoading]}>
-                <ActivityIndicator color={colors.primary} />
-              </View>
-            ) : (
+        <View style={styles.mapWrap}>
+          {startupRegion === null ? (
+            // Resolviendo si ya había permiso/posición para arrancar centrados de una.
+            <View style={[styles.map, styles.mapStartupLoading]}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : (
             <MapView
               ref={mapRef}
               style={styles.map}
@@ -692,130 +675,173 @@ export default function ExploreScreen() {
                 );
               })}
             </MapView>
-            )}
+          )}
 
-            {/* Botón de "mi ubicación" y tarjeta de Destacados (ocultos
-                mientras hay un negocio seleccionado: el banner los reemplaza). */}
-            {!selectedEntity && !placeItems ? (
-              <>
-                <Animated.View
-                  style={[
-                    styles.locateButtonWrap,
-                    { bottom: locateBottom },
-                  ]}
-                >
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Centrar en mi ubicación"
-                    onPress={() => {
-                      if (userCoords) {
-                        mapRef.current?.animateToRegion({ ...userCoords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 500);
-                      } else {
-                        void requestLocation();
-                      }
-                    }}
-                    style={styles.locateButton}
-                  >
-                    {locating ? (
-                      <ActivityIndicator size="small" color={colors.primary} />
-                    ) : (
-                      <Ionicons name="navigate" size={21} color={colors.primary} />
-                    )}
-                  </Pressable>
-                </Animated.View>
+          {/* Botón de ubicación pegado al borde del panel (no con el panel expandido ni con un negocio abierto). */}
+          {!selectedEntity && !placeItems && !tall ? (
+            <Animated.View style={[styles.locateButtonWrap, { bottom: locateBottom }]}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Centrar en mi ubicación"
+                onPress={() => {
+                  if (userCoords) {
+                    mapRef.current?.animateToRegion({ ...userCoords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 500);
+                  } else {
+                    void requestLocation();
+                  }
+                }}
+                style={styles.locateButton}
+              >
+                {locating ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="navigate" size={21} color={colors.primary} />}
+              </Pressable>
+            </Animated.View>
+          ) : null}
 
-                <FeaturedSheet
-                  sheet={sheet}
-                  featured={featured}
-                  onlyMine={onlyMine}
-                  title={selectedCategory ? `Destacados en ${selectedCategory.name}` : 'Destacados cerca de ti'}
-                  bottomInset={insets.bottom}
-                  onOpenBusiness={openBusiness}
-                  onSeeList={() => setMode('list')}
-                />
-              </>
-            ) : null}
+          {!selectedEntity && !placeItems ? (
+            <ExploreSheet
+              sheet={sheet}
+              bottomInset={0}
+              tucked={mapMoving}
+              header={header}
+              avatars={avatars}
+              searching={searching}
+              query={debouncedSearch}
+              view={view}
+              onView={(v) => {
+                setView(v);
+                if (v === 'discover') setSectionFilter(null);
+              }}
+              selectedId={selectedId}
+              onSelect={onSelectCard}
+              sections={{
+                status: sectionsQuery.isError ? 'error' : sectionsQuery.isLoading ? 'loading' : 'ok',
+                data: sections,
+                models: discoverModel,
+                onRetry: () => void sectionsQuery.refetch(),
+              }}
+              sectionFilter={
+                sectionFilter
+                  ? {
+                      id: sectionFilter,
+                      title: sectionTitle,
+                      status: sectionMoreQuery.isError ? 'error' : sectionMoreQuery.isLoading ? 'loading' : 'ok',
+                      items: (sectionMoreQuery.data?.[0]?.items ?? []).map((it) => discoverModel(it, sectionFilter)),
+                    }
+                  : null
+              }
+              onSeeSection={(id) => {
+                setSectionFilter(id);
+                setView('results');
+                sheet.snapTo('full');
+              }}
+              onClearSection={() => setSectionFilter(null)}
+              zone={{ status: entities.isError ? 'error' : entities.isLoading ? 'loading' : 'ok', items: zoneModels }}
+              results={{
+                status: resultsStatus,
+                items: searching ? items.map((e) => toModel(e)) : [],
+                related: related.map((e) => toModel({ ...e, distanceKm: e.distance_meters > 0 ? e.distance_meters / 1000 : null })),
+                relatedLabel: topCategory ? `Misma categoría: ${items[0]?.category_name ?? ''}` : '',
+                areaOnly: Boolean(searchArea),
+                onRetry: () => void entities.refetch(),
+                onClear: clearSearch,
+                onSearchCity: () => setSearchArea(null),
+              }}
+            />
+          ) : null}
 
-            {selectedEntity ? (
-              <BusinessSheet
-                entity={selectedEntity}
-                isMine={myEntityIds.has(selectedEntity.id)}
-                onClose={() => setSelectedId(null)}
-                onDirections={() => directionsTo(selectedEntity.latitude, selectedEntity.longitude)}
-                onProfile={() => openBusiness(selectedEntity.id)}
-                onClaimOffer={claimOffer}
-                onScan={() => router.push('/business/scan')}
-                onPublishOffer={() =>
-                  router.push({ pathname: '/business/offers', params: { entityId: selectedEntity.id } })
-                }
-              />
-            ) : null}
+          {selectedEntity ? (
+            <BusinessSheet
+              entity={selectedEntity}
+              isMine={myEntityIds.has(selectedEntity.id)}
+              qrOfferId={qrByEntity.get(selectedEntity.id) ?? null}
+              onClose={() => setSelectedId(null)}
+              onDirections={() => directionsTo(selectedEntity.latitude, selectedEntity.longitude)}
+              onProfile={(offerId) =>
+                router.push({ pathname: '/business/[id]', params: offerId ? { id: selectedEntity.id, offer: offerId } : { id: selectedEntity.id } })
+              }
+              onScan={() => router.push('/business/scan')}
+              onPublishOffer={() => router.push({ pathname: '/business/offers', params: { entityId: selectedEntity.id } })}
+            />
+          ) : null}
 
-            {placeItems ? (
-              <PlaceSheet
-                items={placeItems}
-                bottomInset={insets.bottom}
-                onSelect={(entity) => selectBusiness(entity.id, { latitude: entity.latitude, longitude: entity.longitude })}
-                onClose={() => setPlaceItems(null)}
-              />
-            ) : null}
-          </View>
-        ) : (
-          <FlatList
-            data={items}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.list}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-            renderItem={({ item }) => (
-              <BusinessRow entity={item} distanceKm={item.distanceKm} onPress={() => openBusiness(item.id)} style={styles.listRow} />
-            )}
-            refreshing={entities.isRefetching}
-            onRefresh={() => {
-              void entities.refetch();
-            }}
-            ListHeaderComponent={
-              items.length > 0 ? (
-                <View style={styles.listHeader}>
-                  <Text style={styles.listTitle}>{reference ? 'Cerca de ti' : 'Negocios'}</Text>
-                  <Text style={styles.listHint}>
-                    {items.length} {items.length === 1 ? 'negocio' : 'negocios'}
-                    {reference ? ' · los más cercanos primero' : ''}
-                  </Text>
+          {placeItems ? (
+            <PlaceSheet
+              items={placeItems}
+              bottomInset={insets.bottom}
+              onSelect={(entity) => selectBusiness(entity.id, { latitude: entity.latitude, longitude: entity.longitude })}
+              onClose={() => setPlaceItems(null)}
+            />
+          ) : null}
+        </View>
+
+        {/* Buscador y chips flotan sobre el mapa (sin barra sólida). */}
+        <Animated.View style={[styles.topBar, { paddingTop: insets.top + spacing.sm, opacity: topFade }]} pointerEvents={mapMoving ? 'none' : 'box-none'}>
+          <SearchBar value={search} onChangeText={setSearch} onOpenFilters={openFilters} filterCount={activeFilterCount} />
+
+          {tall || selectedEntity ? null : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.filterScrollRow}
+              style={styles.filterScroll}
+            >
+              {selectedSubcategory || radiusLabel || openNow ? (
+                <View style={styles.activeChips}>
+                  {selectedSubcategory ? (
+                    <ActiveChip icon="pricetag-outline" label={selectedSubcategory.name} onRemove={() => setSubcategoryId(undefined)} />
+                  ) : null}
+                  {radiusLabel ? <ActiveChip icon="navigate" label={radiusLabel} onRemove={() => setRadiusKm(null)} /> : null}
+                  {openNow ? <ActiveChip icon="time-outline" label="Abiertos ahora" onRemove={() => setOpenNow(false)} /> : null}
+                  {activeFilterCount >= 2 ? (
+                    <Pressable accessibilityRole="button" accessibilityLabel="Limpiar todos los filtros" onPress={clearAllFilters} hitSlop={8} style={styles.clearChip}>
+                      <Text style={styles.clearChipText}>Limpiar</Text>
+                    </Pressable>
+                  ) : null}
                 </View>
-              ) : null
-            }
-            ListEmptyComponent={
-              entities.isLoading ? null : (
-                <Text style={styles.empty}>
-                  {entities.isError
-                    ? 'No pudimos cargar los negocios.'
-                    : debouncedSearch || radiusKm
-                      ? 'No encontramos negocios con esos filtros.'
-                      : 'Todavía no hay negocios en esta categoría.'}
-                </Text>
-              )
-            }
-          />
-        )}
+              ) : null}
+              {orderedCategories.map((category) => {
+                const active = categoryId === category.id;
+                return (
+                  <Pressable
+                    key={category.id}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={`Categoría ${category.name}`}
+                    accessibilityHint={active ? 'Toca para quitar el filtro' : undefined}
+                    onPress={() => {
+                      setCategoryId(active ? undefined : category.id);
+                      setSubcategoryId(undefined);
+                    }}
+                    hitSlop={4}
+                    style={[styles.categoryChip, active && styles.chipActive]}
+                  >
+                    <Ionicons name={(category.icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap} size={16} color={active ? '#fff' : colors.primary} />
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{category.name}</Text>
+                    {active ? <Ionicons name="close" size={14} color="#fff" /> : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          )}
 
-        {mode === 'map' && startupRegion !== null ? <ZoneLabel text={zoneText} visible={!mapMoving} /> : null}
+          {searching && areaDirty && resultsStatus !== 'loading' && !selectedEntity ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setSearchArea(bbox);
+                setAreaDirty(false);
+              }}
+              style={styles.areaButton}
+            >
+              <Ionicons name="refresh" size={14} color="#fff" />
+              <Text style={styles.areaButtonText}>Buscar en esta zona</Text>
+            </Pressable>
+          ) : null}
+        </Animated.View>
 
-        {mode === 'list' || (!selectedEntity && !placeItems) ? (
-          <ModeFab
-            mode={mode}
-            onPress={() => setMode(mode === 'map' ? 'list' : 'map')}
-            bottom={mode === 'map' ? modeFabBottom : spacing.lg + insets.bottom}
-          />
-        ) : null}
-
-        {entities.isLoading && !entities.data ? (
-          <View style={styles.loading} pointerEvents="none">
-            <ActivityIndicator color={colors.primary} />
-          </View>
-        ) : null}
-
-        {entities.isError && !entities.isLoading ? (
-          <View style={styles.errorBanner}>
+        {entities.isError && !entities.isLoading && !searching ? (
+          <View style={[styles.errorBanner, { top: insets.top + 120 }]}>
             <Text style={styles.errorText}>No pudimos cargar los negocios. Revisa la conexión con el servidor.</Text>
             <Button title="Reintentar" variant="secondary" onPress={() => void entities.refetch()} style={styles.retry} />
           </View>
@@ -840,7 +866,6 @@ export default function ExploreScreen() {
         onSelectRadius={(km) => {
           setRadiusKm(km);
           if (km && reference) {
-            setMode('map');
             focusRadius(reference, km);
           }
         }}
@@ -1087,19 +1112,12 @@ function CategoryGridItem({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  // Barra superior: siempre en el flujo normal (nunca "flota" transparente
-  // sobre el mapa), como en el mockup — el mapa queda como protagonista,
-  // con esquinas redondeadas arriba, debajo de este bloque sólido.
-  topBar: { gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.xs, backgroundColor: colors.bg },
+  // Buscador y chips flotan sobre el mapa: el mapa ocupa toda la pantalla.
+  topBar: { position: 'absolute', top: 0, left: 0, right: 0, gap: spacing.sm, paddingHorizontal: spacing.md },
+  areaButton: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: spacing.lg, borderRadius: radius.pill, backgroundColor: colors.ink, ...shadow },
+  areaButtonText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
   content: { flex: 1, position: 'relative' },
-  mapWrap: {
-    flex: 1,
-    position: 'relative',
-    overflow: 'hidden',
-    borderTopLeftRadius: radius.lg + 4,
-    borderTopRightRadius: radius.lg + 4,
-    backgroundColor: '#E8EEF6',
-  },
+  mapWrap: { flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#E8EEF6' },
   map: { flex: 1 },
   mapStartupLoading: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

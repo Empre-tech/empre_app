@@ -19,6 +19,8 @@ interface Props {
   offer: Offer;
   /** Acción principal del pie. Sin ella, el boleto no lleva botón. */
   cta?: { title: string; onPress: () => void };
+  /** Precio y ahorro. La ficha del perfil los oculta: todavía no se trabaja con valores. */
+  showPrice?: boolean;
   /** Color de lo que hay detrás del boleto: las muescas de la línea perforada lo usan. */
   notchColor?: string;
 }
@@ -34,7 +36,7 @@ const RING_LENGTH = 2 * Math.PI * RING_R;
  * urgencia —calma, aviso, última llamada— y el tiempo siempre va también en
  * texto, así que el color no es la única señal.
  */
-export function OfferTicket({ offer, cta, notchColor = colors.bg }: Props) {
+export function OfferTicket({ offer, cta, notchColor = colors.bg, showPrice = true }: Props) {
   const now = useNow(1000);
   const msLeft = timeLeftMs(offer.ends_at, now);
   const urgency = offerUrgency(msLeft);
@@ -75,11 +77,11 @@ export function OfferTicket({ offer, cta, notchColor = colors.bg }: Props) {
             <Text style={[styles.title, off && styles.titleOff]} numberOfLines={2}>
               {offer.title}
             </Text>
-            <View style={styles.priceRow}>
+            {showPrice ? <View style={styles.priceRow}>
               {price ? <Text style={[styles.price, off && styles.titleOff]}>{price}</Text> : null}
               {normal ? <Text style={[styles.normal, hot && styles.normalHot]}>{normal}</Text> : null}
               {savings && !off ? <Text style={[styles.savings, hot && styles.savingsHot]}>{savings}</Text> : null}
-            </View>
+            </View> : null}
           </View>
 
           <View style={styles.clock}>

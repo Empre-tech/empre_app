@@ -115,6 +115,8 @@ export function BusinessForm({ initial, draft }: Props) {
 
   const [name, setName] = useState(initial?.name ?? draft?.name ?? '');
   const [description, setDescription] = useState(initial?.description ?? draft?.description ?? '');
+  // Frase corta: la línea que la tarjeta de Descubre muestra bajo el nombre.
+  const [tagline, setTagline] = useState(initial?.tagline ?? '');
   const [categoryId, setCategoryId] = useState(initial?.category?.id ?? draft?.categoryId ?? '');
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
   const [cityPickerOpen, setCityPickerOpen] = useState(false);
@@ -270,6 +272,7 @@ export function BusinessForm({ initial, draft }: Props) {
       const input: EntityInput = {
         name: name.trim(),
         description: description.trim(),
+        tagline: tagline.trim(),
         category: categoryId,
         subcategory_ids: subcategoryIds,
         address: address.trim(),
@@ -683,6 +686,16 @@ export function BusinessForm({ initial, draft }: Props) {
             }
           />
 
+          <TextField
+            label="Frase corta"
+            value={tagline}
+            onChangeText={setTagline}
+            autoCapitalize="sentences"
+            maxLength={80}
+            placeholder="Ej. Corte clásico y barba, sin cita"
+            labelAccessory={<Text style={styles.counter}>{tagline.length}/80 · sale en Descubre</Text>}
+          />
+
           <Text style={styles.sectionTitle}>Ubicación y horario</Text>
           <TextField label="Dirección" value={address} onChangeText={setAddress} autoCapitalize="words" placeholder="Calle, barrio o referencia" />
           {cityField}
@@ -802,6 +815,16 @@ export function BusinessForm({ initial, draft }: Props) {
                   onApply={setDescription}
                 />
               }
+            />
+
+            <TextField
+              label="Frase corta"
+              value={tagline}
+              onChangeText={setTagline}
+              autoCapitalize="sentences"
+              maxLength={80}
+              placeholder="Ej. Corte clásico y barba, sin cita"
+              labelAccessory={<Text style={styles.counter}>{tagline.length}/80 · sale en Descubre</Text>}
             />
 
             {serviceModeField}
@@ -1142,6 +1165,7 @@ function PhotoSlot({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
+  counter: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   locationPreviewMap: {
     height: 120,
     borderRadius: radius.md,

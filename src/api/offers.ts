@@ -1,6 +1,8 @@
 import { request } from './client';
 import type {
   BusinessStatus,
+  DiscoverSection,
+  DiscoverSectionId,
   DiscoveryItem,
   Offer,
   OfferClaim,
@@ -50,6 +52,28 @@ export const discoveryApi = {
     // por si el backend todavía no se reinició con el cambio.
     const items = res.items ?? res.data ?? [];
     return { items, total: res.total ?? 0 };
+  },
+};
+
+export interface SectionsParams {
+  min_lat?: number;
+  max_lat?: number;
+  min_lng?: number;
+  max_lng?: number;
+  lat?: number;
+  long?: number;
+  category?: string;
+  subcategory?: string;
+  /** «Ver más» de una sección: solo esa y con más negocios. */
+  section?: DiscoverSectionId;
+  limit?: number;
+}
+
+export const discoverApi = {
+  /** Descubre armado por el servidor para la zona visible (público). */
+  sections: async (params: SectionsParams = {}): Promise<DiscoverSection[]> => {
+    const res = await request<{ sections?: DiscoverSection[] | null }>('/api/discovery/sections', { auth: false, query: { ...params } });
+    return res.sections ?? [];
   },
 };
 

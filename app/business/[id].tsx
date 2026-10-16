@@ -28,10 +28,11 @@ import { AgendaStrip } from '@/components/agenda/AgendaStrip';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { SkeletonProfile } from '@/components/Skeleton';
-import { OfferBanner, OffersTab, useActiveOffers } from '@/components/OfferBanner';
+import { useActiveOffers } from '@/components/OfferBanner';
 import { PromotionsSection } from '@/components/PromotionsSection';
 import { PostComposerSheet } from '@/components/PostComposerSheet';
-import { ActionBar } from '@/components/profile/ActionBar';
+import { OffersFicha } from '@/components/profile/OffersFicha';
+import { OwnerDiscoverCard } from '@/components/profile/OwnerDiscoverCard';
 import { LatestStrip } from '@/components/profile/LatestStrip';
 import { ReviewsSummary, VerifiedStamp } from '@/components/profile/ReviewsSummary';
 import { StatusChips } from '@/components/profile/StatusChips';
@@ -60,7 +61,8 @@ function formatHourRow(h: { closed: boolean; is_24h: boolean; open_time: string;
 }
 
 export default function BusinessScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // `offer`: la oferta con la que abrir la ficha (al venir de la franja del mapa).
+  const { id, offer: offerParam } = useLocalSearchParams<{ id: string; offer?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -97,11 +99,10 @@ export default function BusinessScreen() {
   // Publicaciones y Reseñas viven en pestañas (como Instagram: grilla /
   // etiquetados), no apiladas una tras otra, para que se entienda de un
   // vistazo que son dos cosas distintas.
-  const [activeTab, setActiveTab] = useState<'posts' | 'offers' | 'reviews'>('posts');
-  // Con una sola oferta basta el boleto destacado; la pestaña Ofertas aparece desde la segunda.
+  const [activeTab, setActiveTab] = useState<'posts' | 'reviews'>('posts');
+  // Las ofertas viven en la ficha del perfil (un boleto a la vez, sin pestaña ni cantidades).
   const activeOffers = useActiveOffers(id);
   const offerCount = activeOffers.data?.length ?? 0;
-  const showOffersTab = offerCount >= 2;
   const [showHours, setShowHours] = useState(false);
 
   // Descripción: se trunca a 3 líneas con un "Ver más" cuando es larga, en
@@ -348,27 +349,6 @@ export default function BusinessScreen() {
   const infoLine = [location, serviceMode].filter(Boolean).join(' · ');
   const canCall = Boolean(contact && PHONE_RE.test(contact));
 
-  const favoriteButton = !isOwner ? (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={isFavorite ? 'Dejar de seguir' : 'Seguir este negocio'}
-      accessibilityState={{ selected: isFavorite }}
-      onPress={() => void toggleFavorite()}
-      disabled={favoriting}
-      hitSlop={6}
-      style={[styles.followButton, isFavorite && styles.followButtonOn, { top: insets.top + spacing.sm }]}
-    >
-      {favoriting ? (
-        <ActivityIndicator size="small" color={isFavorite ? '#fff' : colors.primary} />
-      ) : (
-        <>
-          <Ionicons name={isFavorite ? 'checkmark' : 'add'} size={16} color={isFavorite ? '#fff' : colors.primary} />
-          <Text style={[styles.followText, isFavorite && styles.followTextOn]}>{isFavorite ? 'Siguiendo' : 'Seguir'}</Text>
-        </>
-      )}
-    </Pressable>
-  ) : null;
-
   const onMessage = () => {
     if (status !== 'signedIn') {
       router.push('/(auth)/login');
@@ -388,7 +368,7 @@ export default function BusinessScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + (isOwner ? spacing.xxl : 96) }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xxl }}>
         <View style={styles.bannerWrap}>
           {bannerUrl ? <Image accessible={false} source={{ uri: bannerUrl }} style={styles.banner} contentFit="cover" /> : <View style={[styles.banner, styles.bannerEmpty]}><Ionicons name="storefront-outline" size={44} color={colors.primary} /></View>}
           {photos.length > 0 ? (
@@ -438,6 +418,36 @@ export default function BusinessScreen() {
               </Text>
             </View>
           ) : null}
+          {!isOwner ? (
+            <View style={styles.infoActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Escribirle a ${business.name}`}
+                onPress={onMessage}
+                style={({ pressed }) => [styles.infoPrimary, pressed && styles.infoPressed]}
+              >
+                <Ionicons name="chatbubble-ellipses" size={17} color="#fff" />
+                <Text style={styles.infoPrimaryText}>Escribirle</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={isFavorite ? 'Dejar de seguir' : 'Seguir este negocio'}
+                accessibilityState={{ selected: isFavorite }}
+                onPress={() => void toggleFavorite()}
+                disabled={favoriting}
+                style={({ pressed }) => [styles.infoSecondary, isFavorite && styles.infoSecondaryOn, pressed && styles.infoPressed]}
+              >
+                {favoriting ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <>
+                    <Ionicons name={isFavorite ? 'checkmark' : 'add'} size={17} color={colors.primary} />
+                    <Text style={styles.infoSecondaryText}>{isFavorite ? 'Siguiendo' : 'Seguir'}</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          ) : null}
           <StatusChips entityId={business.id} hasHours={Boolean(business.hours && business.hours.length > 0)} isOpen={Boolean(business.is_open_now)} />
           {business.is_verified ? (
             <View style={styles.verifiedNoteRow}>
@@ -469,7 +479,15 @@ export default function BusinessScreen() {
 
           <View style={styles.infoBlock}>
             {infoLine ? <InfoRow icon="location-outline" text={infoLine} /> : null}
-            {contact && (isOwner || !PHONE_RE.test(contact)) ? <InfoRow icon="call-outline" text={contact} /> : null}
+            {contact ? (
+              canCall ? (
+                <Pressable accessibilityRole="button" accessibilityLabel={`Llamar al ${contact}`} onPress={() => void Linking.openURL(`tel:${contact.replace(/[^\d+]/g, '')}`)}>
+                  <InfoRow icon="call-outline" text={contact} />
+                </Pressable>
+              ) : (
+                <InfoRow icon="call-outline" text={contact} />
+              )
+            ) : null}
           </View>
 
           {business.hours && business.hours.length > 0 ? (
@@ -515,7 +533,15 @@ export default function BusinessScreen() {
                 <Ionicons name="chevron-forward" size={18} color={colors.muted} />
               </Pressable>
             ) : null}
-            <OfferBanner entityId={business.id} isOwner={isOwner} onSeeMore={() => setActiveTab('offers')} />
+            {isOwner ? (
+              <OwnerDiscoverCard
+                business={business}
+                offer={activeOffers.data?.[0]}
+                onEdit={() => router.push({ pathname: '/business/edit/[id]', params: { id: business.id } })}
+                onPublishOffer={() => router.push({ pathname: '/business/offers', params: { entityId: business.id } })}
+              />
+            ) : null}
+            <OffersFicha entityId={business.id} isOwner={isOwner} initialOfferId={offerParam} />
             <PromotionsSection entityId={business.id} />
             {!isOwner ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
             {isOwner ? (
@@ -587,7 +613,7 @@ export default function BusinessScreen() {
           photos={photos}
           offers={activeOffers.data ?? []}
           reviews={reviews.data?.data ?? []}
-          onPress={(item) => setActiveTab(item.kind === 'post' ? 'posts' : item.kind === 'offer' && showOffersTab ? 'offers' : item.kind === 'review' ? 'reviews' : activeTab)}
+          onPress={(item) => setActiveTab(item.kind === 'post' ? 'posts' : item.kind === 'review' ? 'reviews' : activeTab)}
         />
 
         <View style={styles.tabBar}>
@@ -602,17 +628,6 @@ export default function BusinessScreen() {
               Publicaciones{photos.length > 0 ? ` (${photos.length})` : ''}
             </Text>
           </Pressable>
-          {showOffersTab ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ selected: activeTab === 'offers' }}
-              onPress={() => setActiveTab('offers')}
-              style={[styles.tabItem, activeTab === 'offers' && styles.tabItemActive]}
-            >
-              <Ionicons name="flash-outline" size={18} color={activeTab === 'offers' ? colors.ink : colors.muted} />
-              <Text style={[styles.tabLabel, activeTab === 'offers' && styles.tabLabelActive]}>Ofertas ({offerCount})</Text>
-            </Pressable>
-          ) : null}
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ selected: activeTab === 'reviews' }}
@@ -626,9 +641,7 @@ export default function BusinessScreen() {
           </Pressable>
         </View>
 
-        {activeTab === 'offers' && showOffersTab ? (
-          <OffersTab entityId={business.id} />
-        ) : activeTab === 'posts' ? (
+        {activeTab === 'posts' ? (
           <View style={styles.tabContent}>
             {photos.length > 0 || isOwner ? (
               <View style={styles.grid}>
@@ -739,14 +752,6 @@ export default function BusinessScreen() {
         )}
       </ScrollView>
       {back}
-      {favoriteButton}
-      {!isOwner ? (
-        <ActionBar
-          onMessage={onMessage}
-          onDirections={hasLocation(business) ? onDirections : undefined}
-          onCall={canCall ? () => void Linking.openURL(`tel:${(contact ?? '').replace(/[^\d+]/g, '')}`) : undefined}
-        />
-      ) : null}
 
       <Modal visible={openIndex !== null} animationType="slide" onRequestClose={closeViewer} presentationStyle="pageSheet">
         <View style={styles.viewer}>
@@ -1028,6 +1033,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  infoActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  infoPrimary: { flex: 1.3, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: radius.md, backgroundColor: colors.primary },
+  infoPrimaryText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  infoSecondary: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.surface },
+  infoSecondaryOn: { backgroundColor: colors.primarySoft },
+  infoSecondaryText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primary },
+  infoPressed: { opacity: 0.85 },
   followButton: { position: 'absolute', right: spacing.md, minWidth: 96, height: 40, paddingHorizontal: spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.94)', borderWidth: 1.5, borderColor: colors.primary },
   followButtonOn: { backgroundColor: colors.primary },
   followText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.primary },

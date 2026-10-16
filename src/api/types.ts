@@ -99,6 +99,8 @@ export interface EntityDetail {
   id: string;
   name: string;
   description: string;
+  /** Frase corta que la tarjeta de Descubre muestra bajo el nombre. */
+  tagline?: string;
   category: Category;
   subcategories?: Subcategory[];
   address: string;
@@ -180,6 +182,8 @@ export interface Conversation {
 export interface EntityInput {
   name: string;
   description: string;
+  /** Frase corta (hasta 80 caracteres). */
+  tagline?: string;
   /** UUID de la categoría. */
   category: string;
   /** UUIDs de subcategorías (dependientes de `category`). */
@@ -457,6 +461,10 @@ export type QuickAction = 'extend' | 'radius' | 'slots';
 
 /** Resultado de descubrimiento (GET /api/discovery): EntityMap + distancia + oferta. */
 export interface DiscoveryItem extends EntityMap {
+  /** Subcategorías y frase corta del negocio (para recomendaciones y tarjetas). */
+  subcategory_ids?: string[];
+  subcategory?: string;
+  tagline?: string;
   distance_meters: number;
   has_active_offer: boolean;
   active_offer?: Offer;
@@ -465,4 +473,42 @@ export interface DiscoveryItem extends EntityMap {
 export interface BusinessStatus {
   availability: string;
   updated_at?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Descubre (GET /api/discovery/sections): lo que el panel muestra sin búsqueda
+// ---------------------------------------------------------------------------
+
+export type DiscoverSectionId = 'offers' | 'open' | 'new';
+
+export interface DiscoverReason {
+  kind: DiscoverSectionId;
+  ends_at?: string;
+  posted_at?: string;
+  offer_title?: string;
+}
+
+export interface DiscoverItem {
+  entity_id: string;
+  name: string;
+  category_name: string;
+  category_icon: string;
+  category_color?: string;
+  subcategory?: string;
+  latitude: number;
+  longitude: number;
+  distance_meters: number;
+  is_open_now: boolean;
+  /** "HH:MM", "24h" o ausente. */
+  closes_at?: string;
+  cover_url?: string;
+  profile_url?: string;
+  tagline?: string;
+  reason: DiscoverReason;
+}
+
+export interface DiscoverSection {
+  id: DiscoverSectionId;
+  title: string;
+  items: DiscoverItem[];
 }
