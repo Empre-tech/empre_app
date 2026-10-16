@@ -26,6 +26,7 @@ import { type CardModel } from '@/components/explore/ExploreCards';
 import { ExploreSheet } from '@/components/explore/ExploreSheet';
 import { type WithDistance } from '@/components/explore/FeaturedCard';
 import { PinMarker } from '@/components/explore/PinMarker';
+import { useMapMarkers } from '@/components/explore/useMapMarkers';
 import { PlaceSheet } from '@/components/explore/PlaceSheet';
 import { StackMarker } from '@/components/explore/StackMarker';
 import { SearchBar } from '@/components/explore/SearchBar';
@@ -37,7 +38,7 @@ import { boxAround, openLine, reasonPill, relatedFrom, SEARCH_NEAR_KM, sheetHead
 import { formatDistance } from '@/lib/format';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { allWithinMeters, clusterByScreenDistance, type Cluster } from '@/lib/cluster';
+import { allWithinMeters, type Cluster } from '@/lib/cluster';
 import { FETCH_FACTOR, mergePins, needsRefetch, padBox, visibleInOrder, type Box } from '@/lib/mapArea';
 import { hasLocation, type Coords } from '@/lib/geo';
 import { MAP_STYLE } from '@/lib/mapStyle';
@@ -54,18 +55,6 @@ const RADIUS_OPTIONS: { label: string; km: number | null }[] = [
   { label: 'Menos de 60 km', km: 60 },
 ];
 
-
-type ZoomTier = 'far' | 'mid' | 'near';
-
-/** Nivel de zoom según el delta de latitud de la región visible del mapa.
- * La imagen del negocio solo aparece de cerca; al alejarte se reduce a un
- * punto de color que no estorba (con muchos negocios, las imágenes grandes
- * serían un estorbo). */
-function zoomTier(region: Region): ZoomTier {
-  if (region.latitudeDelta < 0.012) return 'near';
-  if (region.latitudeDelta < 0.05) return 'mid';
-  return 'far';
-}
 
 export default function ExploreScreen() {
   const router = useRouter();
@@ -408,16 +397,7 @@ export default function ExploreScreen() {
   // La lista de la zona: lo que se ve, en el orden del servidor. En búsqueda, los resultados.
   const items = useMemo(() => (searching ? fetched : visibleInOrder(pins.store, fetched, bbox)), [searching, fetched, pins.store, bbox]);
   const known = useMemo(() => (searching ? fetched : [...pins.store.values()]), [searching, fetched, pins.store]);
-  const mapped = useMemo(() => known.filter(hasLocation), [known]);
-  const tier = zoomTier(region);
-  // Lejos los pines son puntos de 18 pt; de cerca, portales de ~44 pt: el umbral
-  // de agrupación acompaña. Al acercar el zoom los negocios se alejan en pantalla
-  // y la pila se abre sola.
-  const clusterPx = tier === 'far' ? 22 : 44;
-  const clusters = useMemo(
-    () => clusterByScreenDistance(mapped, region, mapSize, clusterPx),
-    [mapped, region, mapSize, clusterPx],
-  );
+  const { tier, markers } = useMapMarkers({ known, region, mapSize, selectedId, myEntityIds });
 
   // Resultados de búsqueda: mientras llega una consulta nueva se muestra «Buscando…», no la anterior.
   const resultsStatus: 'loading' | 'error' | 'ok' = entities.isError ? 'error' : entities.isLoading || entities.isPlaceholderData ? 'loading' : 'ok';
@@ -623,31 +603,20 @@ export default function ExploreScreen() {
                   fillColor="rgba(36,104,198, 0.12)"
                 />
               ) : null}
-              {clusters.map((cluster) => {
-                const [only] = cluster.items;
-                const coordinate = { latitude: cluster.latitude, longitude: cluster.longitude };
-
-                if (cluster.items.length === 1 && only) {
-                  const isSelected = only.id === selectedId;
-                  // Lo que cambia el aspecto del pin va en la key: así se vuelve a dibujar solo cuando hace falta.
-                  return (
-                    <PinMarker
-                      key={`${cluster.key}-${tier}-${isSelected ? 's' : ''}-${only.has_active_offer ? 'o' : ''}`}
-                      entity={only}
-                      tier={tier}
-                      selected={isSelected}
-                      mine={myEntityIds.has(only.id)}
-                      onPress={() => selectBusiness(only.id, coordinate)}
-                    />
-                  );
-                }
-
-                // Varios negocios muy juntos: pila de miniaturas, nunca un número. El
-                // nivel de zoom va en la key para que el marcador se vuelva a dibujar.
-                return (
-                  <StackMarker key={`${cluster.key}-${tier}`} cluster={cluster} tier={tier} onPress={() => onStackPress(cluster)} />
-                );
-              })}
+              {markers.map((m) =>
+                m.kind === 'business' ? (
+                  <PinMarker
+                    key={m.key}
+                    entity={m.entity}
+                    tier={tier}
+                    selected={m.selected}
+                    mine={m.mine}
+                    onPress={() => selectBusiness(m.entity.id, m.coordinate)}
+                  />
+                ) : (
+                  <StackMarker key={m.key} cluster={m.cluster} tier={tier} onPress={() => onStackPress(m.cluster)} />
+                ),
+              )}
             </MapView>
           )}
 
