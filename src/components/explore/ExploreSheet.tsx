@@ -58,9 +58,10 @@ export function ExploreSheet(p: Props) {
 
   return (
     <Animated.View style={[styles.sheet, { height, paddingBottom: compact ? 0 : p.bottomInset, transform: [{ translateY: tuck }] }]}>
-      {/* Asa + encabezado: arrastrables; un toque alterna compacto ⇄ intermedio. */}
-      <Pressable
-        {...panHandlers}
+      {/* Asa + encabezado: el contenedor recibe el arrastre y el botón interior el toque
+          (un toque alterna compacto ⇄ intermedio). Separados, no compiten por el dedo. */}
+      <View {...panHandlers}>
+        <Pressable
         onPress={toggle}
         accessibilityRole="adjustable"
         accessibilityLabel={`${p.header.title}. ${p.header.subtitle}`}
@@ -96,7 +97,8 @@ export function ExploreSheet(p: Props) {
             <Ionicons name={compact ? 'chevron-up' : 'chevron-down'} size={18} color={colors.ink} />
           </Pressable>
         </View>
-      </Pressable>
+        </Pressable>
+      </View>
 
       {compact ? null : <Body {...p} />}
     </Animated.View>
