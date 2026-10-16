@@ -1,15 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { catalogApi } from '@/api/catalog';
+import { mediaApi } from '@/api/media';
 import { promotionsApi } from '@/api/offers';
+import type { UploadableImage } from '@/api/types';
 import { Button } from '@/components/Button';
 import { PromotionCardView } from '@/components/promotion/PromotionCardView';
 import { TextField } from '@/components/TextField';
+import { pickImage } from '@/lib/images';
 import { formatOfferEndsAt } from '@/lib/offer';
 import {
   MAX_PROMO_SERVICES,
@@ -17,6 +21,8 @@ import {
   MOTIVES,
   MOTIVE_MAX,
   TEMPLATES,
+  coverMediaId,
+  coverNeedsUpload,
   parseDays,
   previewModel,
   suggestTemplate,
@@ -44,6 +50,9 @@ export default function NewPromotionScreen() {
   const [form, setForm] = useState<PromotionForm>({ motive: '', title: '', message: '', template: null, serviceIds: [], days: '7' });
   // La plantilla se sugiere según los servicios hasta que la persona elige una a mano.
   const [templatePickedByHand, setTemplatePickedByHand] = useState(false);
+  // Portada: la foto elegida y, cuando ya se subió, el id del medio (así reintentar un guardado no la sube otra vez).
+  const [cover, setCover] = useState<UploadableImage | null>(null);
+  const [uploaded, setUploaded] = useState<{ uri: string; id: string } | null>(null);
   const [saving, setSaving] = useState<'draft' | 'publish' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,8 +67,18 @@ export default function NewPromotionScreen() {
     set({ template });
   };
 
+  const onPickCover = async () => {
+    setError(null);
+    try {
+      const image = await pickImage({ aspect: [16, 9], maxWidth: 1600 });
+      if (image) setCover(image);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No pudimos abrir tus fotos');
+    }
+  };
+
   const days = parseDays(form.days);
-  const preview = previewModel(form, services, days ? `Hasta el ${formatOfferEndsAt(endsInDays(days))}` : null);
+  const preview = previewModel(form, services, days ? `Hasta el ${formatOfferEndsAt(endsInDays(days))}` : null, cover?.uri ?? null);
 
   const save = async (draft: boolean) => {
     const problem = validatePromotionForm(form, draft);
@@ -70,12 +89,25 @@ export default function NewPromotionScreen() {
     setSaving(draft ? 'draft' : 'publish');
     setError(null);
     try {
+      // La foto se sube al guardar (no al elegirla: así no quedan fotos sueltas si la persona se arrepiente).
+      let photoId = coverMediaId({ picked: cover, uploaded });
+      if (cover && coverNeedsUpload({ picked: cover, uploaded })) {
+        try {
+          const media = await mediaApi.upload(cover);
+          setUploaded({ uri: cover.uri, id: media.id });
+          photoId = media.id;
+        } catch (e) {
+          setError(`No pudimos subir la imagen${e instanceof Error && e.message ? `: ${e.message}` : ''}. Inténtalo de nuevo o quítala.`);
+          return;
+        }
+      }
       await promotionsApi.publish(entityId ?? '', {
         title: form.title.trim(),
         motive_internal: form.motive.trim() || undefined,
         public_message: form.message.trim() || undefined,
         template: form.template ?? undefined,
         service_item_ids: form.serviceIds,
+        photo_media_id: photoId,
         // Un borrador lleva una fecha de fin tentativa; al publicarlo se exige que siga siendo futura.
         ends_at: days ? endsInDays(days) : undefined,
         draft,
@@ -124,7 +156,28 @@ export default function NewPromotionScreen() {
           maxLength={MESSAGE_MAX}
         />
 
-        <Text style={styles.step}>3 · Servicios que destacas (opcional)</Text>
+        <Text style={styles.step}>3 · Imagen de portada (opcional)</Text>
+        {cover ? (
+          <View style={styles.coverBox}>
+            <Image accessible={false} source={{ uri: cover.uri }} style={styles.coverThumb} contentFit="cover" />
+            <View style={styles.coverActions}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Cambiar la imagen de portada" onPress={() => void onPickCover()} style={styles.coverButton}>
+                <Text style={styles.coverButtonText}>Cambiar</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Quitar la imagen de portada" onPress={() => setCover(null)} style={styles.coverButton}>
+                <Text style={[styles.coverButtonText, styles.coverRemove]}>Quitar</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Pressable accessibilityRole="button" accessibilityLabel="Elegir una imagen de portada" onPress={() => void onPickCover()} style={styles.coverPick}>
+            <Ionicons name="image-outline" size={20} color={colors.primary} />
+            <Text style={styles.coverPickText}>Elegir una foto de tu galería</Text>
+          </Pressable>
+        )}
+        <Text style={styles.help}>Una foto real de tu negocio o de lo que ofreces funciona mejor que una genérica.</Text>
+
+        <Text style={styles.step}>4 · Servicios que destacas (opcional)</Text>
         {services.length === 0 ? (
           <Text style={styles.help}>Aún no tienes servicios en tu catálogo. Añádelos en tu perfil para destacarlos aquí.</Text>
         ) : (
@@ -140,7 +193,7 @@ export default function NewPromotionScreen() {
           </View>
         )}
 
-        <Text style={styles.step}>4 · Plantilla</Text>
+        <Text style={styles.step}>5 · Plantilla</Text>
         {TEMPLATES.map((t) => {
           const on = form.template === t.id;
           return (
@@ -151,10 +204,10 @@ export default function NewPromotionScreen() {
           );
         })}
 
-        <Text style={styles.step}>5 · ¿Cuánto dura?</Text>
+        <Text style={styles.step}>6 · ¿Cuánto dura?</Text>
         <TextField label="Días (de 1 a 90)" placeholder="7" value={form.days} onChangeText={(t) => set({ days: t })} keyboardType="number-pad" />
 
-        <Text style={styles.step}>6 · Así la verán</Text>
+        <Text style={styles.step}>7 · Así la verán</Text>
         <PromotionCardView model={preview} />
 
         {error ? (
@@ -186,4 +239,12 @@ const styles = StyleSheet.create({
   templateOn: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   templateName: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   error: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.danger },
+  coverPick: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, borderRadius: radius.md, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  coverPickText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.primaryDark },
+  coverBox: { gap: spacing.sm },
+  coverThumb: { aspectRatio: 16 / 9, borderRadius: radius.md, backgroundColor: colors.primarySoft },
+  coverActions: { flexDirection: 'row', gap: spacing.sm },
+  coverButton: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
+  coverButtonText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
+  coverRemove: { color: colors.danger },
 });

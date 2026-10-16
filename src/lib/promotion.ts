@@ -90,23 +90,29 @@ export interface PromotionCardModel {
   services: CardService[];
   /** «Hasta el 23 de octubre» (ya formateado) o null en la vista previa de un borrador sin fecha. */
   until: string | null;
+  /**
+   * Portada: en la vista previa, la foto elegida en el teléfono; en el perfil, la ruta pública que manda el servidor
+   * (/api/images/{id}). Null si no hay. Quien la dibuja la completa con `resolveImageUrl`.
+   */
+  cover: string | null;
 }
 
 export function previewModel(
   f: PromotionForm,
   catalog: { id: string; name: string; price: number | null; price_from: boolean }[],
   until: string | null,
+  cover: string | null = null,
 ): PromotionCardModel {
   const services = f.serviceIds
     .map((id) => catalog.find((c) => c.id === id))
     .filter((c): c is NonNullable<typeof c> => !!c)
     .map((c) => ({ name: c.name, price: priceText(c) }));
-  return { template: f.template ?? 'celebracion', title: f.title.trim(), message: f.message.trim(), services, until };
+  return { template: f.template ?? 'celebracion', title: f.title.trim(), message: f.message.trim(), services, until, cover };
 }
 
 /** Modelo de la tarjeta a partir de lo que responde el servidor (la promoción publicada). */
 export function cardFromApi(
-  p: { title: string; description?: string; public_message?: string; template?: string; ends_at: string; items?: { name: string; price?: number }[] },
+  p: { title: string; description?: string; public_message?: string; template?: string; ends_at: string; photo_url?: string; items?: { name: string; price?: number }[] },
   untilLabel: string,
 ): PromotionCardModel {
   const template: PromotionTemplate = p.template === 'servicio_estrella' || p.template === 'paquete' ? p.template : 'celebracion';
@@ -116,5 +122,25 @@ export function cardFromApi(
     message: (p.public_message ?? '').trim() || (p.description ?? '').trim(),
     services: (p.items ?? []).map((i) => ({ name: i.name, price: i.price === undefined || i.price === null ? null : priceText({ price: i.price, price_from: false }) })),
     until: untilLabel,
+    cover: p.photo_url ? p.photo_url : null,
   };
+}
+
+/** La foto elegida para la portada y, si ya se subió, el id que devolvió el servidor (con la foto a la que corresponde). */
+export interface CoverState {
+  picked: { uri: string } | null;
+  uploaded: { uri: string; id: string } | null;
+}
+
+/** ¿Hay que subir la portada ahora? Sí si hay foto elegida y no se subió esa misma (cambiarla obliga a subir otra). */
+export function coverNeedsUpload(c: CoverState): boolean {
+  return c.picked !== null && (c.uploaded === null || c.uploaded.uri !== c.picked.uri);
+}
+
+/**
+ * El id de medio que se manda al publicar: el de la foto elegida si ya se subió; undefined si no hay portada o aún no
+ * se subió. Reintentar un guardado fallido reutiliza el id y no sube la foto otra vez.
+ */
+export function coverMediaId(c: CoverState): string | undefined {
+  return c.picked !== null && c.uploaded !== null && c.uploaded.uri === c.picked.uri ? c.uploaded.id : undefined;
 }

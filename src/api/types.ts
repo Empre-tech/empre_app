@@ -440,6 +440,8 @@ export interface Promotion {
   items?: { name: string; price?: number }[];
   /** Solo lo recibe el dueño: el porqué de la campaña. */
   motive_internal?: string;
+  /** Portada: ruta pública del medio (/api/images/{id}); no caduca. */
+  photo_url?: string;
 }
 
 export interface PromotionInput {
@@ -458,6 +460,8 @@ export interface PromotionInput {
   public_message?: string;
   template?: string;
   service_item_ids?: string[];
+  /** Id del medio de la portada (lo devuelve la subida suelta). */
+  photo_media_id?: string;
   draft?: boolean;
 }
 

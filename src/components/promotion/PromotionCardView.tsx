@@ -1,5 +1,8 @@
+import { Image } from 'expo-image';
+import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { resolveImageUrl } from '@/lib/image';
 import type { PromotionCardModel } from '@/lib/promotion';
 import { colors, fonts, radius, spacing } from '@/theme';
 
@@ -13,11 +16,16 @@ interface Props {
  * La tarjeta de una promoción, según su plantilla. La usan la vista previa del editor y el perfil del negocio: lo que
  * ves al crearla es lo que se publica. Nunca lleva el motivo interno.
  *
+ * La portada (si hay) va arriba, de borde a borde; si no carga, se esconde y la tarjeta queda como sin portada.
+ *
  * - Celebración: el mensaje manda, sin precios.
  * - Servicio estrella: el servicio y su precio habitual.
  * - Paquete: lo que incluye, con el precio habitual de cada servicio.
  */
 export function PromotionCardView({ model, badge }: Props) {
+  // La portada que falló se recuerda por su dirección: si se cambia por otra, se vuelve a intentar.
+  const [failedCover, setFailedCover] = useState<string | null>(null);
+  const coverUri = model.cover && failedCover !== model.cover ? resolveImageUrl(model.cover) : null;
   const label = [model.title, model.message, ...model.services.map((s) => (s.price ? `${s.name}, ${s.price}` : s.name)), model.until]
     .filter(Boolean)
     .join('. ');
@@ -25,6 +33,16 @@ export function PromotionCardView({ model, badge }: Props) {
 
   return (
     <View accessible accessibilityLabel={label} style={[styles.card, model.template === 'celebracion' && styles.cardCelebration]}>
+      {coverUri ? (
+        <Image
+          accessible={false}
+          source={{ uri: coverUri }}
+          style={styles.cover}
+          contentFit="cover"
+          transition={150}
+          onError={() => setFailedCover(model.cover)}
+        />
+      ) : null}
       <View style={styles.top}>
         <Text style={styles.title} numberOfLines={2}>
           {model.title || 'Tu título'}
@@ -58,7 +76,9 @@ export function PromotionCardView({ model, badge }: Props) {
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: spacing.md, gap: spacing.sm },
+  card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: spacing.md, gap: spacing.sm, overflow: 'hidden' },
+  // De borde a borde: se come el relleno de la tarjeta (por eso los márgenes negativos) y mantiene 16:9.
+  cover: { aspectRatio: 16 / 9, marginHorizontal: -spacing.md, marginTop: -spacing.md, backgroundColor: colors.primarySoft },
   cardCelebration: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
   top: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.sm },
   title: { flex: 1, fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
