@@ -26,10 +26,11 @@ interface Props {
  * cambia su aspecto (conteo, oferta, nombre).
  */
 function BubbleMarkerView({ latitude, longitude, count, hasOffer, color, label, onPress }: Props) {
-  const { tracking, onLayout } = useMarkerTracking();
+  const { tracking, onLayout, markerRef } = useMarkerTracking();
   const size = bubbleSize(count);
   return (
     <Marker
+      ref={markerRef}
       coordinate={{ latitude, longitude }}
       // El centro de la burbuja queda sobre el centro de sus negocios.
       anchor={{ x: 0.5, y: 0.5 }}

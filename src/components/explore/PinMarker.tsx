@@ -32,7 +32,7 @@ interface Props {
  * real lo vuelve a dibujar.
  */
 function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, onPress }: Props) {
-  const { tracking, onLayout, onImageSettled } = useMarkerTracking();
+  const { tracking, onLayout, onImageSettled, markerRef } = useMarkerTracking();
 
   const cat = categoryColor(entity.category_color);
   const open = entity.has_hours ? entity.is_open_now : true;
@@ -51,6 +51,7 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
     const faded = closed ? styles.closedFade : null;
     return (
       <Marker
+        ref={markerRef}
         coordinate={coordinate}
         // El centro del pin queda sobre el negocio aunque el grande lleve etiqueta.
         anchor={{ x: 0.5, y: 0.5 }}
@@ -100,6 +101,7 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
 
   return (
     <Marker
+      ref={markerRef}
       coordinate={coordinate}
       zIndex={selected ? 1000 : 1}
       tracksViewChanges={tracking}

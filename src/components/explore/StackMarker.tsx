@@ -18,10 +18,11 @@ interface Props {
  * lo usa pone en la `key` el nivel de zoom, así un cambio de zoom lo redibuja.
  */
 function StackMarkerView({ cluster, tier, onPress }: Props) {
-  const { tracking, onLayout, onImageSettled } = useMarkerTracking();
+  const { tracking, onLayout, onImageSettled, markerRef } = useMarkerTracking();
 
   return (
     <Marker
+      ref={markerRef}
       coordinate={{ latitude: cluster.latitude, longitude: cluster.longitude }}
       tracksViewChanges={tracking}
       onPress={(event) => {
