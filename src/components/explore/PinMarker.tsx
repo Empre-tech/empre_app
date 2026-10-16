@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Marker } from 'react-native-maps';
 import { categoryColor } from '@/lib/categoryColor';
@@ -25,7 +25,7 @@ interface Props {
  * en la `key` lo que cambia su aspecto (zoom, selección, oferta), así un cambio
  * real lo vuelve a dibujar.
  */
-export function PinMarker({ entity, tier, selected, mine, onPress }: Props) {
+function PinMarkerView({ entity, tier, selected, mine, onPress }: Props) {
   const [tracking, setTracking] = useState(true);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const settle = useCallback((delay: number) => {
@@ -94,6 +94,28 @@ export function PinMarker({ entity, tier, selected, mine, onPress }: Props) {
     </Marker>
   );
 }
+
+/**
+ * Cada consulta trae objetos nuevos aunque el negocio sea el mismo; sin esto,
+ * todos los pines se redibujan (y en Android desaparecen un instante). Solo se
+ * redibuja si cambia algo que se ve. `onPress` no cuenta: hace lo mismo para el
+ * mismo negocio.
+ */
+export const PinMarker = memo(PinMarkerView, (a, b) =>
+  a.tier === b.tier &&
+  a.selected === b.selected &&
+  a.mine === b.mine &&
+  a.entity.id === b.entity.id &&
+  a.entity.latitude === b.entity.latitude &&
+  a.entity.longitude === b.entity.longitude &&
+  a.entity.profile_url === b.entity.profile_url &&
+  a.entity.category_color === b.entity.category_color &&
+  a.entity.category_icon === b.entity.category_icon &&
+  a.entity.has_hours === b.entity.has_hours &&
+  a.entity.is_open_now === b.entity.is_open_now &&
+  a.entity.has_active_offer === b.entity.has_active_offer &&
+  a.entity.active_offer?.type === b.entity.active_offer?.type,
+);
 
 const styles = StyleSheet.create({
   pinWrap: { alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44, paddingHorizontal: 10, paddingVertical: 6 },

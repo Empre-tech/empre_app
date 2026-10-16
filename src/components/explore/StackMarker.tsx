@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Marker } from 'react-native-maps';
 import type { Cluster } from '@/lib/cluster';
 import { BusinessStack } from './BusinessStack';
@@ -16,7 +16,7 @@ interface Props {
  * congelan, que es lo que evita la imagen cortada y el marcador lento. Quien
  * lo usa pone en la `key` el nivel de zoom, así un cambio de zoom lo redibuja.
  */
-export function StackMarker({ cluster, tier, onPress }: Props) {
+function StackMarkerView({ cluster, tier, onPress }: Props) {
   const [tracking, setTracking] = useState(true);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -50,3 +50,15 @@ export function StackMarker({ cluster, tier, onPress }: Props) {
     </Marker>
   );
 }
+
+/** Igual que el pin: una consulta nueva con los mismos negocios no redibuja la pila. */
+export const StackMarker = memo(StackMarkerView, (a, b) =>
+  a.tier === b.tier &&
+  a.cluster.key === b.cluster.key &&
+  a.cluster.latitude === b.cluster.latitude &&
+  a.cluster.longitude === b.cluster.longitude &&
+  a.cluster.items.every((it, i) => {
+    const o = b.cluster.items[i];
+    return o && it.id === o.id && it.profile_url === o.profile_url && it.has_active_offer === o.has_active_offer;
+  }),
+);
