@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Image } from 'expo-image';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -15,7 +14,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import MapView, { Circle, Marker, type Region } from 'react-native-maps';
+import MapView, { Circle, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { categoriesApi, entitiesApi } from '@/api/endpoints';
 import { claimsApi, discoverApi, discoveryApi } from '@/api/offers';
@@ -26,6 +25,7 @@ import { BusinessSheet } from '@/components/explore/BusinessSheet';
 import { type CardModel } from '@/components/explore/ExploreCards';
 import { ExploreSheet } from '@/components/explore/ExploreSheet';
 import { type WithDistance } from '@/components/explore/FeaturedCard';
+import { PinMarker } from '@/components/explore/PinMarker';
 import { PlaceSheet } from '@/components/explore/PlaceSheet';
 import { StackMarker } from '@/components/explore/StackMarker';
 import { SearchBar } from '@/components/explore/SearchBar';
@@ -39,7 +39,6 @@ import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { allWithinMeters, clusterByScreenDistance, type Cluster } from '@/lib/cluster';
 import { hasLocation, type Coords } from '@/lib/geo';
-import { resolveImageUrl } from '@/lib/image';
 import { MAP_STYLE } from '@/lib/mapStyle';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
 
@@ -613,65 +612,17 @@ export default function ExploreScreen() {
                 const coordinate = { latitude: cluster.latitude, longitude: cluster.longitude };
 
                 if (cluster.items.length === 1 && only) {
-                  const isMine = myEntityIds.has(only.id);
                   const isSelected = only.id === selectedId;
-                  const cat = categoryColor(only.category_color);
-                  const open = only.has_hours ? only.is_open_now : true;
-                  const icon = (only.category_icon || 'storefront') as keyof typeof Ionicons.glyphMap;
-                  const thumb = only.profile_url ? resolveImageUrl(only.profile_url) : null;
-                  // Borde: ámbar si hay ofertas, azul si está seleccionado, blanco si no.
-                  const hasOffer = only.has_active_offer;
-                  const showRayo = hasOffer && (only.active_offer?.type === 'HORAS' || only.active_offer?.type === 'DIA');
-                  const borderColor = isSelected ? colors.primary : hasOffer ? colors.accent : '#ffffff';
-                  const statusColor = open ? '#2E9E5B' : '#9AA7B5';
+                  // Lo que cambia el aspecto del pin va en la key: así se vuelve a dibujar solo cuando hace falta.
                   return (
-                    <Marker
-                      key={cluster.key}
-                      coordinate={coordinate}
-                      zIndex={isSelected ? 1000 : 1}
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        selectBusiness(only.id, coordinate);
-                      }}
-                    >
-                      <View collapsable={false} style={[styles.pinWrap, isSelected && styles.pinWrapSelected]}>
-                        {isMine ? (
-                          <View style={styles.pinOwnerLabel}>
-                            <Text style={styles.pinOwnerLabelText}>Tu negocio</Text>
-                          </View>
-                        ) : null}
-                        {showRayo ? (
-                          <View style={styles.offerBadge}>
-                            <Ionicons name="flash" size={11} color={colors.ink} />
-                          </View>
-                        ) : null}
-                        {tier === 'near' ? (
-                          <View style={[styles.pinNearImg, { borderColor }]}>
-                            {thumb ? (
-                              <Image accessible={false} source={{ uri: thumb }} style={styles.pinNearThumb} contentFit="cover" transition={120} />
-                            ) : (
-                              <View style={[styles.pinNearFallback, { backgroundColor: cat.bg }]}>
-                                <Ionicons name={icon} size={20} color={cat.fg} />
-                              </View>
-                            )}
-                            {only.has_hours ? <View style={[styles.statusDot, { backgroundColor: statusColor }]} /> : null}
-                          </View>
-                        ) : tier === 'mid' ? (
-                          <View style={[styles.pinMid, { borderColor }]}>
-                            {thumb ? (
-                              <Image accessible={false} source={{ uri: thumb }} style={styles.pinMidThumb} contentFit="cover" transition={120} />
-                            ) : (
-                              <View style={[styles.pinMidFallback, { backgroundColor: cat.bg }]}>
-                                <Ionicons name={icon} size={16} color={cat.fg} />
-                              </View>
-                            )}
-                            {only.has_hours ? <View style={[styles.statusDot, { backgroundColor: statusColor }]} /> : null}
-                          </View>
-                        ) : (
-                          <View style={[styles.pinFar, { backgroundColor: cat.fg }, isSelected && styles.pinFarSelected]} />
-                        )}
-                      </View>
-                    </Marker>
+                    <PinMarker
+                      key={`${cluster.key}-${tier}-${isSelected ? 's' : ''}-${only.has_active_offer ? 'o' : ''}`}
+                      entity={only}
+                      tier={tier}
+                      selected={isSelected}
+                      mine={myEntityIds.has(only.id)}
+                      onPress={() => selectBusiness(only.id, coordinate)}
+                    />
                   );
                 }
 
