@@ -418,7 +418,7 @@ export interface OfferInput {
   special_price?: number;
 }
 
-export type PromotionStatus = 'active' | 'paused' | 'finished';
+export type PromotionStatus = 'draft' | 'active' | 'paused' | 'finished';
 
 /** Oferta sostenida (sin cupos ni QR), editable y con vigencia. */
 export interface Promotion {
@@ -434,6 +434,12 @@ export interface Promotion {
   conditions?: string;
   tags: string[];
   status: PromotionStatus;
+  /** Editor por plantillas: mensaje para clientes, plantilla y servicios destacados (copia congelada). */
+  public_message?: string;
+  template?: string;
+  items?: { name: string; price?: number }[];
+  /** Solo lo recibe el dueño: el porqué de la campaña. */
+  motive_internal?: string;
 }
 
 export interface PromotionInput {
@@ -442,10 +448,17 @@ export interface PromotionInput {
   price?: string;
   discount?: string;
   normal_price?: string;
-  ends_at: string;
+  /** Obligatoria al publicar; un borrador puede no traerla. */
+  ends_at?: string;
   conditions?: string;
   /** Etiquetas separadas por coma. */
   tags?: string;
+  /** Editor por plantillas. El motivo es privado: el servidor nunca lo publica. */
+  motive_internal?: string;
+  public_message?: string;
+  template?: string;
+  service_item_ids?: string[];
+  draft?: boolean;
 }
 
 /** Relámpago en el listado de la pestaña Ofertas (con negocio/categoría/distancia). */

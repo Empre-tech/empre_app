@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Offer, Promotion, PromotionStatus } from '@/api/types';
 import { offersApi, promotionsApi } from '@/api/offers';
@@ -42,8 +42,14 @@ export default function OffersScreen() {
   };
 
   const setPromotionStatus = async (promotionId: string, status: PromotionStatus) => {
-    await promotionsApi.update(promotionId, { status });
-    await queryClient.invalidateQueries({ queryKey: ['promotions', entityId] });
+    try {
+      await promotionsApi.update(promotionId, { status });
+      await queryClient.invalidateQueries({ queryKey: ['promotions', entityId] });
+      await queryClient.invalidateQueries({ queryKey: ['promotions-active', entityId] });
+    } catch (e) {
+      // Por ejemplo: el límite de promociones activas, o la fecha de fin de un borrador que ya pasó.
+      Alert.alert('No pudimos cambiar la promoción', e instanceof Error ? e.message : 'Inténtalo de nuevo.');
+    }
   };
 
   return (
@@ -179,6 +185,8 @@ function PromotionCard({
   onFinish: () => void;
 }) {
   const active = promotion.status === 'active';
+  const draft = promotion.status === 'draft';
+  const finished = promotion.status === 'finished';
   const value = formatDiscount(promotion.discount) || formatCurrency(promotion.price);
   return (
     <View style={styles.card}>
@@ -190,20 +198,22 @@ function PromotionCard({
           </Text>
         </View>
         <View style={[styles.status, active ? styles.statusActive : styles.statusInactive]}>
-          <Text style={styles.statusText}>{active ? 'Activa' : 'Pausada'}</Text>
+          <Text style={styles.statusText}>{draft ? 'Borrador' : finished ? 'Finalizada' : active ? 'Activa' : 'Pausada'}</Text>
         </View>
       </View>
 
-      <View style={styles.actions}>
-        <Pressable onPress={onToggle} style={styles.action}>
-          <Ionicons name={active ? 'pause-circle-outline' : 'play-circle-outline'} size={16} color={colors.primary} />
-          <Text style={styles.actionText}>{active ? 'Pausar' : 'Reactivar'}</Text>
-        </Pressable>
-        <Pressable onPress={onFinish} style={styles.action}>
-          <Ionicons name="checkmark-circle-outline" size={16} color={colors.primary} />
-          <Text style={styles.actionText}>Finalizar</Text>
-        </Pressable>
-      </View>
+      {finished ? null : (
+        <View style={styles.actions}>
+          <Pressable accessibilityRole="button" onPress={onToggle} style={styles.action}>
+            <Ionicons name={active ? 'pause-circle-outline' : 'play-circle-outline'} size={16} color={colors.primary} />
+            <Text style={styles.actionText}>{draft ? 'Publicar' : active ? 'Pausar' : 'Reactivar'}</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={onFinish} style={styles.action}>
+            <Ionicons name="checkmark-circle-outline" size={16} color={colors.primary} />
+            <Text style={styles.actionText}>Finalizar</Text>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
