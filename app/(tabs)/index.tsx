@@ -79,6 +79,14 @@ export default function ExploreScreen() {
   // (si no, o si no hay una posición reciente a mano). Evita el "salto" de
   // ver primero Colombia completa y luego animar hacia la ubicación real.
   const [startupRegion, setStartupRegion] = useState<Region | null>(null);
+  // `region` arranca en el país entero; el mapa no siempre avisa su región inicial hasta que se mueve.
+  // Sin esto el nivel del mapa (burbujas) y la zona pedida al servidor salían del país, y el mapa
+  // quedaba vacío hasta tocarlo. En cuanto se sabe con qué región se monta el mapa, esa es la real.
+  const [regionSynced, setRegionSynced] = useState(false);
+  if (startupRegion !== null && !regionSynced) {
+    setRegionSynced(true);
+    setRegion(startupRegion);
+  }
   // Negocio seleccionado: tocar un pin o una tarjeta abre su detalle (franja, Ver perfil, Cómo llegar).
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Mientras el dedo mueve el mapa: el panel compacto baja un poco y el buscador se desvanece.
@@ -434,8 +442,9 @@ export default function ExploreScreen() {
     myEntityIds,
     searching,
     level,
-    // En modo burbujas, vacío mientras llegan (nunca los puntos sueltos por un instante).
-    cells: bubbleMode ? cellsQuery.data ?? [] : null,
+    // Burbujas solo cuando las casillas ya llegaron (y se mantienen las anteriores al mover el mapa):
+    // mientras llegan, o si fallan, se ven los pines; el mapa nunca queda vacío esperando.
+    cells: bubbleMode ? cellsQuery.data ?? null : null,
     zones,
   });
 
