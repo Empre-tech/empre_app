@@ -48,7 +48,8 @@ export function ExploreSheet(p: Props) {
   useEffect(() => {
     const to = p.tucked && anchor === 'peek' ? 46 : 0;
     if (reduce) tuck.setValue(to);
-    else Animated.timing(tuck, { toValue: to, duration: 180, useNativeDriver: true }).start();
+    // Sin driver nativo: la misma vista anima su alto (que el driver nativo no admite) y no se pueden mezclar.
+    else Animated.timing(tuck, { toValue: to, duration: 180, useNativeDriver: false }).start();
   }, [p.tucked, anchor, reduce, tuck]);
 
   if (anchor === 'hidden') return null;
