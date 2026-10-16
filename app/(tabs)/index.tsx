@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { categoriesApi, entitiesApi } from '@/api/endpoints';
 import { claimsApi, discoverApi, discoveryApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
-import type { Category, DiscoverItem, DiscoverSectionId } from '@/api/types';
+import type { Category, DiscoverItem, DiscoveryItem, DiscoverSectionId } from '@/api/types';
 import { Button } from '@/components/Button';
 import { BusinessSheet } from '@/components/explore/BusinessSheet';
 import { type CardModel } from '@/components/explore/ExploreCards';
@@ -48,6 +48,8 @@ import { allWithinMeters, type Cluster } from '@/lib/cluster';
 import { FETCH_FACTOR, mergePins, needsRefetch, padBox, visibleInOrder, type Box } from '@/lib/mapArea';
 import { hasLocation, type Coords } from '@/lib/geo';
 import { contextChips, removedAnnouncement, type FilterId } from '@/lib/context';
+import { sameIds } from '@/lib/pinsCache';
+import { loadPinsCache, savePinsCache } from '@/lib/pinsCacheStore';
 import { isBubbleLevel } from '@/lib/mapLevels';
 import { cameraTargets, emphasize, isFarResult } from '@/lib/proximity';
 import { MAP_STYLE } from '@/lib/mapStyle';
@@ -428,6 +430,32 @@ export default function ExploreScreen() {
     const base = pins.key === filterKey ? pins.store : new Map<string, WithDistance>();
     setPins({ key: filterKey, data: entities.data, store: mergePins(base, fetched, padBox(fetchBox ?? bbox, FETCH_FACTOR)) });
   }
+  // Caché de los últimos pines: al abrir, salen al instante (guardados en el teléfono) y se
+  // reemplazan por los frescos apenas llega la respuesta del servidor. Solo con los filtros por defecto.
+  useEffect(() => {
+    let alive = true;
+    void loadPinsCache<DiscoveryItem>().then((saved) => {
+      if (!alive || !saved) return;
+      setPins((p) =>
+        p.store.size === 0 && p.data === null
+          ? { key: 'cache', data: null, store: new Map(saved.map((i) => [i.id, { ...i, distanceKm: null }])) }
+          : p,
+      );
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const defaultFilters = categoryId === undefined && subcategoryId === undefined && radiusKm === null && !openNow;
+  const savedIdsRef = useRef<{ id: string }[]>([]);
+  const freshItems = !entities.isPlaceholderData ? entities.data?.items : undefined;
+  useEffect(() => {
+    if (searching || !defaultFilters || !freshItems || freshItems.length === 0) return;
+    if (sameIds(freshItems, savedIdsRef.current)) return;
+    savedIdsRef.current = freshItems;
+    void savePinsCache(freshItems);
+  }, [searching, defaultFilters, freshItems]);
+
   // La lista de la zona: lo que se ve, en el orden del servidor. En búsqueda, los resultados.
   // Con búsqueda, del más cercano al más lejano (F11): ese orden es el del énfasis del mapa.
   const plan = useMemo(() => (searching ? emphasize(fetched) : null), [searching, fetched]);
