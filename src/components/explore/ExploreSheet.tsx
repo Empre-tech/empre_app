@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { DiscoverSection, DiscoverSectionId } from '@/api/types';
 import { SkeletonBlock, SkeletonRows } from '@/components/Skeleton';
+import { scopeText, type SearchScope } from '@/lib/discover';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
 import { DiscoverCard, MiniCard, MiniRow, type CardModel } from './ExploreCards';
@@ -32,7 +33,7 @@ interface Props {
   /** Todos los negocios de la zona (sin búsqueda). */
   zone: { status: Status; items: CardModel[] };
   /** Búsqueda. */
-  results: { status: Status; items: CardModel[]; related: CardModel[]; relatedLabel: string; areaOnly: boolean; onRetry: () => void; onClear: () => void; onSearchCity: () => void };
+  results: { status: Status; items: CardModel[]; related: CardModel[]; relatedLabel: string; scope: SearchScope; onRetry: () => void; onClear: () => void; onSearchCity: () => void };
 }
 
 /**
@@ -232,11 +233,11 @@ function Body(p: Props) {
         <View style={styles.body}>
           {tabs}
           <View style={styles.state}>
-            <Text style={styles.stateTitle}>No encontramos «{p.query}» {r.areaOnly ? 'en esta zona' : 'cerca de ti'}</Text>
-            <Text style={styles.stateText}>Prueba con otra palabra{r.areaOnly ? ' o busca en toda la ciudad' : ''}.</Text>
+            <Text style={styles.stateTitle}>No encontramos «{p.query}» {scopeText(r.scope)}</Text>
+            <Text style={styles.stateText}>Prueba con otra palabra{r.scope !== 'all' ? ' o busca más lejos' : ''}.</Text>
             <View style={styles.btnRow}>
-              {r.areaOnly ? (
-                <Pressable accessibilityRole="button" onPress={r.onSearchCity} style={styles.primary}><Text style={styles.primaryText}>Buscar en toda la ciudad</Text></Pressable>
+              {r.scope !== 'all' ? (
+                <Pressable accessibilityRole="button" onPress={r.onSearchCity} style={styles.primary}><Text style={styles.primaryText}>Buscar más lejos</Text></Pressable>
               ) : null}
               <Pressable accessibilityRole="button" onPress={r.onClear} style={styles.secondary}><Text style={styles.secondaryText}>Borrar búsqueda</Text></Pressable>
             </View>

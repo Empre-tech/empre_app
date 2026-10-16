@@ -52,12 +52,30 @@ export function reasonPill(reason: { kind: string; ends_at?: string; posted_at?:
   return null;
 }
 
+/** Radio de una búsqueda nueva alrededor de la persona: se busca en su zona, no en todo el país. */
+export const SEARCH_NEAR_KM = 5;
+
+export type SearchScope = 'near' | 'zone' | 'all';
+
+/** Rectángulo de `km` de radio alrededor de un punto (para discovery). */
+export function boxAround(center: { latitude: number; longitude: number }, km: number) {
+  const dLat = km / 111;
+  const dLng = km / (111 * Math.max(Math.cos((center.latitude * Math.PI) / 180), 0.1));
+  const r = (n: number) => +n.toFixed(5);
+  return { min_lat: r(center.latitude - dLat), max_lat: r(center.latitude + dLat), min_lng: r(center.longitude - dLng), max_lng: r(center.longitude + dLng) };
+}
+
+/** Cómo se nombra el alcance de la búsqueda en el panel. */
+export function scopeText(scope: SearchScope): string {
+  return scope === 'near' ? 'cerca de ti' : scope === 'zone' ? 'en esta zona' : 'en todas las zonas';
+}
+
 export interface HeaderInput {
   searching: boolean;
   query: string;
   status: 'loading' | 'error' | 'ok';
   results: number;
-  areaOnly: boolean;
+  scope: SearchScope;
   zoneCount: number;
   categoryName?: string | null;
 }
@@ -77,7 +95,7 @@ export function sheetHeader(h: HeaderInput): { title: string; subtitle: string }
         ? 'No se pudo cargar'
         : h.results === 0
           ? 'Sin resultados'
-          : `${h.results} ${h.results === 1 ? 'resultado' : 'resultados'} · ${h.areaOnly ? 'en esta zona' : 'cerca de ti'}`;
+          : `${h.results} ${h.results === 1 ? 'resultado' : 'resultados'} · ${scopeText(h.scope)}`;
   return { title: `«${h.query}»`, subtitle };
 }
 

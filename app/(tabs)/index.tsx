@@ -33,7 +33,7 @@ import { useFeaturedSheet } from '@/components/explore/useFeaturedSheet';
 import { DEFAULT_REGION } from '@/config';
 import { categoryColor } from '@/lib/categoryColor';
 import { effectiveClaimStatus } from '@/lib/claims';
-import { openLine, reasonPill, relatedFrom, sheetHeader } from '@/lib/discover';
+import { boxAround, openLine, reasonPill, relatedFrom, SEARCH_NEAR_KM, sheetHeader } from '@/lib/discover';
 import { formatDistance } from '@/lib/format';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
@@ -92,8 +92,9 @@ export default function ExploreScreen() {
   const [view, setView] = useState<'discover' | 'results'>('discover');
   // «Ver más» de una sección de Descubre: la lista filtrada por esa sección.
   const [sectionFilter, setSectionFilter] = useState<DiscoverSectionId | null>(null);
-  // Alcance de la búsqueda: null = toda la ciudad (por defecto); un rectángulo tras «Buscar en esta zona».
-  const [searchArea, setSearchArea] = useState<{ min_lat: number; max_lat: number; min_lng: number; max_lng: number } | null>(null);
+  // Alcance de la búsqueda: por defecto alrededor de la persona («near», 5 km); «zone» tras «Buscar en esta zona»;
+  // null = sin límite, solo si la persona pide «Buscar más lejos».
+  const [searchArea, setSearchArea] = useState<{ min_lat: number; max_lat: number; min_lng: number; max_lng: number; kind: 'near' | 'zone' } | null>(null);
   // Con una búsqueda activa, mover el mapa no busca solo: aparece «Buscar en esta zona».
   const [areaDirty, setAreaDirty] = useState(false);
   // Distingue un arrastre del usuario de un movimiento hecho por la app (centrar, encuadrar).
@@ -277,11 +278,13 @@ export default function ExploreScreen() {
     mapRef.current?.animateToRegion({ ...userCoords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 500);
   }, [categoryId, subcategoryId, debouncedSearch, userCoords]);
 
-  // Una búsqueda nueva empieza en toda la ciudad, en la vista de resultados; borrarla vuelve a Descubre.
+  // Una búsqueda nueva empieza en la zona de la persona (o, sin ubicación, donde mira el mapa), en la
+  // vista de resultados; borrarla vuelve a Descubre.
   const [lastSearch, setLastSearch] = useState('');
   if (lastSearch !== debouncedSearch) {
     setLastSearch(debouncedSearch);
-    setSearchArea(null);
+    const center = userCoords ?? { latitude: region.latitude, longitude: region.longitude };
+    setSearchArea(debouncedSearch ? { ...boxAround(center, SEARCH_NEAR_KM), kind: 'near' } : null);
     setAreaDirty(false);
     setSectionFilter(null);
     setView(debouncedSearch ? 'results' : 'discover');
@@ -318,7 +321,10 @@ export default function ExploreScreen() {
   const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 5 * 60_000 });
   const searching = debouncedSearch.length > 0;
   // Sin búsqueda: la zona visible. Con búsqueda: toda la ciudad, o la zona que el usuario pidió.
-  const scope = searching ? searchArea : bbox;
+  const scope = searching
+    ? searchArea && { min_lat: searchArea.min_lat, max_lat: searchArea.max_lat, min_lng: searchArea.min_lng, max_lng: searchArea.max_lng }
+    : bbox;
+  const searchScope = searchArea ? searchArea.kind : 'all';
   const refKey = reference ? `${reference.latitude.toFixed(3)},${reference.longitude.toFixed(3)}` : 'no-ref';
   const entities = useQuery({
     queryKey: [
@@ -420,18 +426,19 @@ export default function ExploreScreen() {
       return;
     }
     if (resultsStatus !== 'ok') return;
-    const key = `${debouncedSearch}|${categoryId}|${searchArea ? 'zona' : 'ciudad'}`;
+    const key = `${debouncedSearch}|${categoryId}|${searchScope}`;
     if (fittedRef.current === key) return;
     fittedRef.current = key;
     if (sheet.getAnchor() === 'peek') sheet.snapTo('medium');
     const coords = items.filter(hasLocation).slice(0, 20).map((e) => ({ latitude: e.latitude, longitude: e.longitude }));
-    if (coords.length > 0 && !searchArea) {
+    // Se encuadra lo encontrado cerca o más lejos; si la persona eligió la zona, el mapa no se mueve.
+    if (coords.length > 0 && searchScope !== 'zone') {
       mapRef.current?.fitToCoordinates(coords, {
         edgePadding: { top: 150, right: 48, bottom: sheet.heights.medium + 40, left: 48 },
         animated: true,
       });
     }
-  }, [searching, resultsStatus, debouncedSearch, categoryId, searchArea, items, sheet]);
+  }, [searching, resultsStatus, debouncedSearch, categoryId, searchScope, items, sheet]);
 
   const openBusiness = (id: string) => router.push({ pathname: '/business/[id]', params: { id } });
 
@@ -533,7 +540,7 @@ export default function ExploreScreen() {
     query: debouncedSearch,
     status: resultsStatus,
     results: items.length,
-    areaOnly: Boolean(searchArea),
+    scope: searchScope,
     zoneCount: total,
     categoryName: selectedCategory?.name,
   });
@@ -741,7 +748,7 @@ export default function ExploreScreen() {
                 items: searching ? items.map((e) => toModel(e)) : [],
                 related: related.map((e) => toModel({ ...e, distanceKm: e.distance_meters > 0 ? e.distance_meters / 1000 : null })),
                 relatedLabel: topCategory ? `Misma categoría: ${items[0]?.category_name ?? ''}` : '',
-                areaOnly: Boolean(searchArea),
+                scope: searchScope,
                 onRetry: () => void entities.refetch(),
                 onClear: clearSearch,
                 onSearchCity: () => setSearchArea(null),
@@ -829,7 +836,7 @@ export default function ExploreScreen() {
             <Pressable
               accessibilityRole="button"
               onPress={() => {
-                setSearchArea(bbox);
+                setSearchArea({ ...bbox, kind: 'zone' });
                 setAreaDirty(false);
               }}
               style={styles.areaButton}
