@@ -4,6 +4,7 @@ import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Animated,
   Linking,
@@ -28,6 +29,7 @@ import { type WithDistance } from '@/components/explore/FeaturedCard';
 import { PinMarker } from '@/components/explore/PinMarker';
 import { useMapMarkers } from '@/components/explore/useMapMarkers';
 import { useZoneName } from '@/components/explore/useZoneName';
+import { ContextRow } from '@/components/explore/ContextRow';
 import { ZoneCapsule } from '@/components/explore/ZoneCapsule';
 import { PlaceSheet } from '@/components/explore/PlaceSheet';
 import { StackMarker } from '@/components/explore/StackMarker';
@@ -43,6 +45,7 @@ import { useReduceMotion } from '@/lib/useReduceMotion';
 import { allWithinMeters, type Cluster } from '@/lib/cluster';
 import { FETCH_FACTOR, mergePins, needsRefetch, padBox, visibleInOrder, type Box } from '@/lib/mapArea';
 import { hasLocation, type Coords } from '@/lib/geo';
+import { contextChips, removedAnnouncement, type FilterId } from '@/lib/context';
 import { cameraTargets, emphasize, isFarResult } from '@/lib/proximity';
 import { MAP_STYLE } from '@/lib/mapStyle';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
@@ -272,11 +275,14 @@ export default function ExploreScreen() {
 
   // Una búsqueda nueva empieza en la zona de la persona (o, sin ubicación, donde mira el mapa), en la
   // vista de resultados; borrarla vuelve a Descubre.
+  const nearArea = () => {
+    const center = userCoords ?? { latitude: region.latitude, longitude: region.longitude };
+    return { ...boxAround(center, SEARCH_NEAR_KM), kind: 'near' as const };
+  };
   const [lastSearch, setLastSearch] = useState('');
   if (lastSearch !== debouncedSearch) {
     setLastSearch(debouncedSearch);
-    const center = userCoords ?? { latitude: region.latitude, longitude: region.longitude };
-    setSearchArea(debouncedSearch ? { ...boxAround(center, SEARCH_NEAR_KM), kind: 'near' } : null);
+    setSearchArea(debouncedSearch ? nearArea() : null);
     setAreaDirty(false);
     setSectionFilter(null);
     setView(debouncedSearch ? 'results' : 'discover');
@@ -509,6 +515,40 @@ export default function ExploreScreen() {
   const selectedCategory = (categories.data ?? []).find((c) => c.id === categoryId) ?? null;
   const selectedSubcategory = (selectedCategory?.subcategories ?? []).find((s) => s.id === subcategoryId) ?? null;
   const radiusLabel = radiusKm ? `< ${radiusKm} km` : null;
+
+  // Fila de contexto (F12): zona, alcance y filtros activos, cada uno con su ✕.
+  const contextFilters: { id: FilterId; label: string }[] = [];
+  if (selectedCategory) contextFilters.push({ id: 'category', label: selectedCategory.name });
+  if (selectedSubcategory) contextFilters.push({ id: 'subcategory', label: selectedSubcategory.name });
+  if (radiusLabel) contextFilters.push({ id: 'radius', label: radiusLabel });
+  if (openNow) contextFilters.push({ id: 'open', label: 'Abiertos ahora' });
+  const contextRow = contextChips({
+    searching,
+    scope: searchScope,
+    hasLocation: userCoords !== null,
+    filters: contextFilters,
+    areaDirty: areaDirty && resultsStatus !== 'loading',
+  });
+  const removeFilter = (id: FilterId) => {
+    if (id === 'category') {
+      setCategoryId(undefined);
+      setSubcategoryId(undefined);
+    } else if (id === 'subcategory') setSubcategoryId(undefined);
+    else if (id === 'radius') setRadiusKm(null);
+    else setOpenNow(false);
+    AccessibilityInfo.announceForAccessibility(removedAnnouncement('filter'));
+  };
+  const removeScope = () => {
+    setSearchArea(nearArea());
+    setAreaDirty(false);
+    AccessibilityInfo.announceForAccessibility(removedAnnouncement('scope'));
+  };
+  const clearContext = () => {
+    clearAllFilters();
+    setSearchArea(nearArea());
+    setAreaDirty(false);
+    AccessibilityInfo.announceForAccessibility(removedAnnouncement('all'));
+  };
   // El chip de la categoría elegida va primero, para que siempre se vea y se pueda quitar.
   const orderedCategories = [...(categories.data ?? [])].sort(
     (a, b) => Number(b.id === categoryId) - Number(a.id === categoryId),
@@ -745,9 +785,20 @@ export default function ExploreScreen() {
         <Animated.View style={[styles.topBar, { paddingTop: insets.top + spacing.sm, opacity: topFade }]} pointerEvents={mapMoving ? 'none' : 'box-none'}>
           <SearchBar value={search} onChangeText={setSearch} onOpenFilters={openFilters} filterCount={activeFilterCount} />
 
-          {zoneName && !tall && !selectedEntity ? <ZoneCapsule name={zoneName} /> : null}
-
-          {tall || selectedEntity ? null : (
+          {tall || selectedEntity ? null : searching ? (
+            <ContextRow
+              chips={contextRow}
+              zoneName={zoneName}
+              onRemoveScope={removeScope}
+              onRemoveFilter={removeFilter}
+              onClear={clearContext}
+              onSearchArea={() => {
+                setSearchArea({ ...bbox, kind: 'zone' });
+                setAreaDirty(false);
+                AccessibilityInfo.announceForAccessibility('Buscando en esta zona');
+              }}
+            />
+          ) : (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -755,6 +806,7 @@ export default function ExploreScreen() {
               contentContainerStyle={styles.filterScrollRow}
               style={styles.filterScroll}
             >
+              {zoneName ? <ZoneCapsule name={zoneName} /> : null}
               {selectedSubcategory || radiusLabel || openNow ? (
                 <View style={styles.activeChips}>
                   {selectedSubcategory ? (
@@ -793,20 +845,6 @@ export default function ExploreScreen() {
               })}
             </ScrollView>
           )}
-
-          {searching && areaDirty && resultsStatus !== 'loading' && !selectedEntity ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                setSearchArea({ ...bbox, kind: 'zone' });
-                setAreaDirty(false);
-              }}
-              style={styles.areaButton}
-            >
-              <Ionicons name="refresh" size={14} color="#fff" />
-              <Text style={styles.areaButtonText}>Buscar en esta zona</Text>
-            </Pressable>
-          ) : null}
         </Animated.View>
 
         {entities.isError && !entities.isLoading && !searching ? (
@@ -1083,8 +1121,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   // Buscador y chips flotan sobre el mapa: el mapa ocupa toda la pantalla.
   topBar: { position: 'absolute', top: 0, left: 0, right: 0, gap: spacing.sm, paddingHorizontal: spacing.md },
-  areaButton: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: spacing.lg, borderRadius: radius.pill, backgroundColor: colors.ink, ...shadow },
-  areaButtonText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
   content: { flex: 1, position: 'relative' },
   mapWrap: { flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#E8EEF6' },
   map: { flex: 1 },

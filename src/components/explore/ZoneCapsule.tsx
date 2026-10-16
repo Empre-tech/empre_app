@@ -5,7 +5,7 @@ import type { ZoneName } from '@/lib/zoneName';
 import { colors, fonts, radius, shadow } from '@/theme';
 
 /**
- * En qué zona estás, bajo el buscador: «Centro Histórico · Santa Marta». Si el mapa mira otro
+ * En qué zona estás, como primer chip de la fila bajo el buscador: «Centro Histórico · Santa Marta». Si el mapa mira otro
  * lugar o no hay ubicación, una nota corta lo aclara («a 4,2 km de ti», «sin ubicación»).
  */
 export function ZoneCapsule({ name }: { name: ZoneName }) {
@@ -31,8 +31,7 @@ export function ZoneCapsule({ name }: { name: ZoneName }) {
 
 const styles = StyleSheet.create({
   capsule: {
-    alignSelf: 'center',
-    maxWidth: '100%',
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,

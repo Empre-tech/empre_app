@@ -95,7 +95,7 @@ export function sheetHeader(h: HeaderInput): { title: string; subtitle: string }
         ? 'No se pudo cargar'
         : h.results === 0
           ? 'Sin resultados'
-          : `${h.results} ${h.results === 1 ? 'resultado' : 'resultados'} · ${scopeText(h.scope)}`;
+          : `${h.results} ${h.results === 1 ? 'resultado' : 'resultados'}`;
   return { title: `«${h.query}»`, subtitle };
 }
 

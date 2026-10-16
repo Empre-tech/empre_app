@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AccessibilityInfo, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { removedAnnouncement } from '@/lib/context';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
 
 interface Props {
@@ -31,8 +32,15 @@ export function SearchBar({ value, onChangeText, onOpenFilters, filterCount }: P
         accessibilityLabel="Buscar negocios"
       />
       {value ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Borrar búsqueda" onPress={() => onChangeText('')} hitSlop={8}>
-          <Ionicons name="close-circle" size={18} color={colors.muted} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Quitar búsqueda" onPress={() => {
+            onChangeText('');
+            AccessibilityInfo.announceForAccessibility(removedAnnouncement('search'));
+          }}
+          style={styles.clearHit}
+        >
+          <View style={styles.clearDot}>
+            <Ionicons name="close" size={15} color={colors.ink} />
+          </View>
         </Pressable>
       ) : null}
       <Pressable
@@ -68,6 +76,9 @@ const styles = StyleSheet.create({
     ...shadow,
   },
   input: { flex: 1, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink, height: '100%' },
+  // Zona de toque de 44 × 44 pt (la caja mide 44 de alto: no la agranda).
+  clearHit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: -6 },
+  clearDot: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
   filterButton: {
     width: 36,
     height: 36,
