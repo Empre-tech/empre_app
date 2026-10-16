@@ -33,6 +33,7 @@ import { SkeletonProfile } from '@/components/Skeleton';
 import { useActiveOffers } from '@/components/OfferBanner';
 import { PromotionsSection } from '@/components/PromotionsSection';
 import { PostComposerSheet } from '@/components/PostComposerSheet';
+import { CatalogSection } from '@/components/profile/CatalogSection';
 import { OffersFicha } from '@/components/profile/OffersFicha';
 import { OwnerDiscoverCard } from '@/components/profile/OwnerDiscoverCard';
 import { LatestStrip } from '@/components/profile/LatestStrip';
@@ -554,6 +555,7 @@ export default function BusinessScreen() {
                 onPublishOffer={() => router.push({ pathname: '/business/offers', params: { entityId: business.id } })}
               />
             ) : null}
+            <CatalogSection entityId={business.id} isOwner={isOwner} />
             <OffersFicha entityId={business.id} isOwner={isOwner} initialOfferId={offerParam} />
             <PromotionsSection entityId={business.id} trackViews={!isOwner} />
             {FEATURES.agenda && !isOwner ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
