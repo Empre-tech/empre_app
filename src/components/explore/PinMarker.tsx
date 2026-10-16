@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Marker } from 'react-native-maps';
 import { categoryColor } from '@/lib/categoryColor';
 import { resolveImageUrl } from '@/lib/image';
 import { colors, fonts, radius } from '@/theme';
 import type { WithDistance } from './FeaturedCard';
+import { useMarkerTracking } from './useMarkerTracking';
 
 interface Props {
   entity: WithDistance;
@@ -26,22 +27,7 @@ interface Props {
  * real lo vuelve a dibujar.
  */
 function PinMarkerView({ entity, tier, selected, mine, onPress }: Props) {
-  const [tracking, setTracking] = useState(true);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const settle = useCallback((delay: number) => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setTracking(false), delay);
-  }, []);
-  useEffect(() => {
-    settle(800);
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-    };
-  }, [settle]);
-  const onImageLoad = useCallback(() => {
-    setTracking(true);
-    settle(200);
-  }, [settle]);
+  const { tracking, onLayout, onImageSettled } = useMarkerTracking();
 
   const cat = categoryColor(entity.category_color);
   const open = entity.has_hours ? entity.is_open_now : true;
@@ -64,7 +50,7 @@ function PinMarkerView({ entity, tier, selected, mine, onPress }: Props) {
         onPress();
       }}
     >
-      <View collapsable={false} style={[styles.pinWrap, selected && styles.pinWrapSelected]}>
+      <View collapsable={false} onLayout={onLayout} style={[styles.pinWrap, selected && styles.pinWrapSelected]}>
         {mine ? (
           <View style={styles.pinOwnerLabel}>
             <Text style={styles.pinOwnerLabelText}>Tu negocio</Text>
@@ -81,7 +67,7 @@ function PinMarkerView({ entity, tier, selected, mine, onPress }: Props) {
           <View style={[tier === 'near' ? styles.pinNear : styles.pinMid, { borderColor }]}>
             {thumb ? (
               // Sin transición: dentro de un marcador, el fundido se vería como un parpadeo.
-              <Image accessible={false} source={{ uri: thumb }} style={tier === 'near' ? styles.thumbNear : styles.thumbMid} contentFit="cover" onLoad={onImageLoad} />
+              <Image accessible={false} source={{ uri: thumb }} style={tier === 'near' ? styles.thumbNear : styles.thumbMid} contentFit="cover" onLoad={onImageSettled} onError={onImageSettled} />
             ) : (
               <View style={[tier === 'near' ? styles.thumbNear : styles.thumbMid, styles.fallback, { backgroundColor: cat.bg }]}>
                 <Ionicons name={icon} size={tier === 'near' ? 20 : 16} color={cat.fg} />

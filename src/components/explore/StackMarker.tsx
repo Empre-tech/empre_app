@@ -1,8 +1,9 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo } from 'react';
 import { Marker } from 'react-native-maps';
 import type { Cluster } from '@/lib/cluster';
 import { BusinessStack } from './BusinessStack';
 import type { WithDistance } from './FeaturedCard';
+import { useMarkerTracking } from './useMarkerTracking';
 
 interface Props {
   cluster: Cluster<WithDistance>;
@@ -17,25 +18,7 @@ interface Props {
  * lo usa pone en la `key` el nivel de zoom, así un cambio de zoom lo redibuja.
  */
 function StackMarkerView({ cluster, tier, onPress }: Props) {
-  const [tracking, setTracking] = useState(true);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const settle = useCallback((delay: number) => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setTracking(false), delay);
-  }, []);
-
-  useEffect(() => {
-    settle(800);
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-    };
-  }, [settle]);
-
-  const onImageLoad = useCallback(() => {
-    setTracking(true);
-    settle(200);
-  }, [settle]);
+  const { tracking, onLayout, onImageSettled } = useMarkerTracking();
 
   return (
     <Marker
@@ -46,7 +29,7 @@ function StackMarkerView({ cluster, tier, onPress }: Props) {
         onPress();
       }}
     >
-      <BusinessStack items={cluster.items} tier={tier} onImageLoad={onImageLoad} />
+      <BusinessStack items={cluster.items} tier={tier} onImageLoad={onImageSettled} onLayout={onLayout} />
     </Marker>
   );
 }

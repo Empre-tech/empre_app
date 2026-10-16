@@ -13,6 +13,8 @@ interface Props {
   tier: 'far' | 'mid' | 'near';
   /** Avisa cuando carga una miniatura, para que el marcador se vuelva a dibujar. */
   onImageLoad?: () => void;
+  /** Avisa cuando la vista del marcador se dibujó, para empezar a congelarlo. */
+  onLayout?: () => void;
 }
 
 /** Cara de una capa de la pila: la miniatura del negocio o el ícono de su categoría. */
@@ -20,7 +22,7 @@ function Face({ entity, onLoad }: { entity: WithDistance; onLoad?: () => void })
   const cat = categoryColor(entity.category_color);
   const thumb = entity.profile_url ? resolveImageUrl(entity.profile_url) : null;
   if (thumb) {
-    return <Image accessible={false} source={{ uri: thumb }} style={styles.face} contentFit="cover" onLoad={onLoad} />;
+    return <Image accessible={false} source={{ uri: thumb }} style={styles.face} contentFit="cover" onLoad={onLoad} onError={onLoad} />;
   }
   const icon = (entity.category_icon || 'storefront') as keyof typeof Ionicons.glyphMap;
   return (
@@ -54,7 +56,7 @@ function Layer({
  * hay, y el borde ámbar con el rayo avisa que hay oferta dentro del grupo.
  * Lejos se reduce a un punto del color del negocio de arriba.
  */
-export function BusinessStack({ items, tier, onImageLoad }: Props) {
+export function BusinessStack({ items, tier, onImageLoad, onLayout }: Props) {
   // Con oferta primero; el orden del ranking decide entre iguales (el sort es estable).
   const ordered = [...items].sort((a, b) => Number(!!b.has_active_offer) - Number(!!a.has_active_offer));
   const [top, second, third] = ordered;
@@ -63,14 +65,14 @@ export function BusinessStack({ items, tier, onImageLoad }: Props) {
 
   if (tier === 'far') {
     return (
-      <View collapsable={false} style={styles.wrap}>
+      <View collapsable={false} onLayout={onLayout} style={styles.wrap}>
         <View style={[styles.dot, { backgroundColor: categoryColor(top.category_color).fg }]} />
       </View>
     );
   }
 
   return (
-    <View collapsable={false} style={styles.wrap}>
+    <View collapsable={false} onLayout={onLayout} style={styles.wrap}>
       <View style={styles.stack}>
         {third ? <Layer entity={third} style={styles.back} onLoad={onImageLoad} /> : null}
         {second ? <Layer entity={second} style={styles.middle} onLoad={onImageLoad} /> : null}
