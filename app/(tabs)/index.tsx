@@ -31,6 +31,7 @@ import { BubbleMarker } from '@/components/explore/BubbleMarker';
 import { useMapLevel, useMapMarkers } from '@/components/explore/useMapMarkers';
 import { useZoneName, useZones } from '@/components/explore/useZoneName';
 import { ContextRow } from '@/components/explore/ContextRow';
+import { LoadingChip } from '@/components/explore/LoadingChip';
 import { ZoneCapsule } from '@/components/explore/ZoneCapsule';
 import { PlaceSheet } from '@/components/explore/PlaceSheet';
 import { StackMarker } from '@/components/explore/StackMarker';
@@ -447,6 +448,10 @@ export default function ExploreScreen() {
     cells: bubbleMode ? cellsQuery.data ?? null : null,
     zones,
   });
+
+  // Sin pines todavía y pidiendo la zona: el mapa lo dice en vez de verse vacío (con búsqueda ya lo
+  // dice el panel: «Buscando…»).
+  const mapLoading = !searching && startupRegion !== null && markers.length === 0 && (entities.isFetching || cellsQuery.isFetching);
 
   // En qué zona está la persona (o qué zona mira el mapa): nombre del encabezado del panel.
   const viewPoint = useMemo(() => ({ latitude: region.latitude, longitude: region.longitude }), [region.latitude, region.longitude]);
@@ -901,6 +906,7 @@ export default function ExploreScreen() {
               })}
             </ScrollView>
           )}
+          {mapLoading && !tall && !selectedEntity ? <LoadingChip /> : null}
         </Animated.View>
 
         {entities.isError && !entities.isLoading && !searching ? (
