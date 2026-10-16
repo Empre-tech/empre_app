@@ -38,6 +38,7 @@ import { formatDistance } from '@/lib/format';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { allWithinMeters, clusterByScreenDistance, type Cluster } from '@/lib/cluster';
+import { FETCH_FACTOR, mergePins, needsRefetch, padBox, visibleInOrder, type Box } from '@/lib/mapArea';
 import { hasLocation, type Coords } from '@/lib/geo';
 import { MAP_STYLE } from '@/lib/mapStyle';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
@@ -320,9 +321,13 @@ export default function ExploreScreen() {
   const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 5 * 60_000 });
   const searching = debouncedSearch.length > 0;
   // Sin búsqueda: la zona visible. Con búsqueda: toda la ciudad, o la zona que el usuario pidió.
+  // Sin búsqueda se pide un área más grande que la pantalla (el doble) y solo se vuelve a
+  // pedir al salir de ella o al acercarse mucho: mover el mapa un poco no consulta.
+  const [fetchBox, setFetchBox] = useState<Box | null>(null);
+  if (!searching && startupRegion !== null && needsRefetch(fetchBox, bbox)) setFetchBox(padBox(bbox, FETCH_FACTOR));
   const scope = searching
     ? searchArea && { min_lat: searchArea.min_lat, max_lat: searchArea.max_lat, min_lng: searchArea.min_lng, max_lng: searchArea.max_lng }
-    : bbox;
+    : fetchBox ?? bbox;
   const searchScope = searchArea ? searchArea.kind : 'all';
   const refKey = reference ? `${reference.latitude.toFixed(3)},${reference.longitude.toFixed(3)}` : 'no-ref';
   const entities = useQuery({
@@ -376,7 +381,7 @@ export default function ExploreScreen() {
     return map;
   }, [claimsQuery.data, now]);
 
-  const items = useMemo<WithDistance[]>(() => {
+  const fetched = useMemo<WithDistance[]>(() => {
     const withDistance = (entities.data?.items ?? []).map((entity) => ({
       ...entity,
       distanceKm: entity.distance_meters > 0 ? entity.distance_meters / 1000 : null,
@@ -391,7 +396,19 @@ export default function ExploreScreen() {
     return openFiltered;
   }, [entities.data, reference, radiusKm, openNow]);
 
-  const mapped = useMemo(() => items.filter(hasLocation), [items]);
+  // Pines acumulados (sin búsqueda): cada respuesta SUMA negocios a los que ya estaban y solo se
+  // quitan los que quedaron muy lejos; así una consulta nunca hace desaparecer un pin que se ve.
+  // Cambiar de categoría o de filtros empieza de cero.
+  const filterKey = `${categoryId}|${subcategoryId}|${radiusKm}|${openNow}|${refKey}`;
+  const [pins, setPins] = useState<{ key: string; data: unknown; store: Map<string, WithDistance> }>(() => ({ key: '', data: null, store: new Map() }));
+  if (!searching && entities.data && !entities.isPlaceholderData && (pins.data !== entities.data || pins.key !== filterKey)) {
+    const base = pins.key === filterKey ? pins.store : new Map<string, WithDistance>();
+    setPins({ key: filterKey, data: entities.data, store: mergePins(base, fetched, padBox(fetchBox ?? bbox, FETCH_FACTOR)) });
+  }
+  // La lista de la zona: lo que se ve, en el orden del servidor. En búsqueda, los resultados.
+  const items = useMemo(() => (searching ? fetched : visibleInOrder(pins.store, fetched, bbox)), [searching, fetched, pins.store, bbox]);
+  const known = useMemo(() => (searching ? fetched : [...pins.store.values()]), [searching, fetched, pins.store]);
+  const mapped = useMemo(() => known.filter(hasLocation), [known]);
   const tier = zoomTier(region);
   // Lejos los pines son puntos de 18 pt; de cerca, portales de ~44 pt: el umbral
   // de agrupación acompaña. Al acercar el zoom los negocios se alejan en pantalla
@@ -401,7 +418,6 @@ export default function ExploreScreen() {
     () => clusterByScreenDistance(mapped, region, mapSize, clusterPx),
     [mapped, region, mapSize, clusterPx],
   );
-  const total = entities.data?.total ?? 0;
 
   // Resultados de búsqueda: mientras llega una consulta nueva se muestra «Buscando…», no la anterior.
   const resultsStatus: 'loading' | 'error' | 'ok' = entities.isError ? 'error' : entities.isLoading || entities.isPlaceholderData ? 'loading' : 'ok';
@@ -442,8 +458,8 @@ export default function ExploreScreen() {
   const openBusiness = (id: string) => router.push({ pathname: '/business/[id]', params: { id } });
 
   const selectedEntity = useMemo(
-    () => (selectedId ? items.find((e) => e.id === selectedId) ?? null : null),
-    [items, selectedId],
+    () => (selectedId ? known.find((e) => e.id === selectedId) ?? null : null),
+    [known, selectedId],
   );
 
   // Toca un pin: selecciona y centra dejando espacio abajo para que el banner
@@ -540,7 +556,7 @@ export default function ExploreScreen() {
     status: resultsStatus,
     results: items.length,
     scope: searchScope,
-    zoneCount: total,
+    zoneCount: items.length,
     categoryName: selectedCategory?.name,
   });
   const sections = sectionsQuery.data ?? [];
@@ -548,7 +564,7 @@ export default function ExploreScreen() {
   const sectionTitle = sections.find((sec) => sec.id === sectionFilter)?.title ?? '';
   const onSelectCard = (m: CardModel) => {
     // Si el negocio está entre los pines, se selecciona en el mapa; si no, se abre su perfil.
-    if (items.some((e) => e.id === m.id)) selectBusiness(m.id, { latitude: m.latitude, longitude: m.longitude });
+    if (known.some((e) => e.id === m.id)) selectBusiness(m.id, { latitude: m.latitude, longitude: m.longitude });
     else openBusiness(m.id);
   };
   const clearSearch = () => {
