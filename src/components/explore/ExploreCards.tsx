@@ -26,6 +26,17 @@ export interface CardModel {
   pill?: Pill | null;
   /** Tiene un QR activo del usuario: la pastilla pasa a verde. */
   mine?: boolean;
+  /** Distancia destacada: solo los resultados más cercanos de una búsqueda (F11). */
+  nearChip?: string | null;
+}
+
+function NearChip({ text }: { text?: string | null }) {
+  if (!text) return null;
+  return (
+    <View style={styles.nearChip} accessible={false}>
+      <Text style={styles.nearChipText}>{text}</Text>
+    </View>
+  );
 }
 
 function Circle({ model, size }: { model: CardModel; size: number }) {
@@ -114,11 +125,14 @@ export function MiniCard({ model, selected, onPress }: { model: CardModel; selec
       accessibilityRole="button"
       accessibilityLabel={[model.name, model.distance, model.line].filter(Boolean).join(', ')}
       onPress={onPress}
-      style={({ pressed }) => [styles.mini, selected && styles.selected, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.mini, model.nearChip ? styles.nearBorder : null, selected && styles.selected, pressed && styles.pressed]}
     >
       <View style={styles.dcTop}>
         <Circle model={model} size={40} />
-        <PillView pill={model.pill} mine={model.mine} />
+        <View style={styles.topRight}>
+          <NearChip text={model.nearChip} />
+          <PillView pill={model.pill} mine={model.mine} />
+        </View>
       </View>
       <Text style={styles.dcName} numberOfLines={1}>
         {model.name}
@@ -160,7 +174,10 @@ export function MiniRow({ model, selected, onPress }: { model: CardModel; select
           </Text>
         ) : null}
       </View>
-      <PillView pill={model.pill} mine={model.mine} />
+      <View style={styles.topRight}>
+        <NearChip text={model.nearChip} />
+        <PillView pill={model.pill} mine={model.mine} />
+      </View>
     </Pressable>
   );
 }
@@ -179,6 +196,10 @@ const styles = StyleSheet.create({
   closed: { color: '#9B2C2C', fontFamily: fonts.ui.bold },
   why: { color: colors.primaryDark },
   pressed: { opacity: 0.85 },
+  nearChip: { height: 22, paddingHorizontal: 9, borderRadius: radius.pill, backgroundColor: colors.primary, justifyContent: 'center' },
+  nearChipText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  nearBorder: { borderColor: colors.primary },
+  topRight: { alignItems: 'flex-end', gap: 4 },
   selected: { borderColor: colors.primary, borderWidth: 1.5 },
   dcard: { width: 216 },
   dcardNoPhoto: { borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.lg, padding: spacing.md, backgroundColor: colors.surface },

@@ -1,3 +1,4 @@
+import type { Zone } from '@/lib/zoneName';
 import { request } from './client';
 import type {
   BusinessStatus,
@@ -74,6 +75,14 @@ export const discoverApi = {
   sections: async (params: SectionsParams = {}): Promise<DiscoverSection[]> => {
     const res = await request<{ sections?: DiscoverSection[] | null }>('/api/discovery/sections', { auth: false, query: { ...params } });
     return res.sections ?? [];
+  },
+};
+
+export const zonesApi = {
+  /** Zonas con nombre de una ciudad (todas si no se indica); una ciudad sin zonas devuelve []. */
+  list: async (city?: string): Promise<Zone[]> => {
+    const res = await request<{ items?: Zone[] | null }>('/api/zones', { auth: false, query: city ? { city } : {} });
+    return res.items ?? [];
   },
 };
 

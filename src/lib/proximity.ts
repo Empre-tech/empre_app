@@ -51,7 +51,12 @@ export function emphasize<T extends { distanceKm: number | null }>(items: T[]): 
     }));
 }
 
-/** Los resultados que encuadra la cámara: los más cercanos dentro del radio, nunca los lejanos. */
+/**
+ * Los resultados que encuadra la cámara: los más cercanos dentro del radio, nunca los lejanos.
+ * Si no hay ninguno dentro del radio (todo quedó lejos), los más cercanos que haya, para que
+ * el mapa no se quede donde estaba.
+ */
 export function cameraTargets<T>(plan: Emphasized<T>[], count = CAMERA_COUNT): T[] {
-  return plan.filter((p) => p.tier === 'big' || p.tier === 'mid' || p.tier === 'dot').slice(0, count).map((p) => p.item);
+  const near = plan.filter((p) => p.tier === 'big' || p.tier === 'mid' || p.tier === 'dot');
+  return (near.length > 0 ? near : plan).slice(0, count).map((p) => p.item);
 }

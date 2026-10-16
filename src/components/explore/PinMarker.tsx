@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Marker } from 'react-native-maps';
 import { categoryColor } from '@/lib/categoryColor';
 import { resolveImageUrl } from '@/lib/image';
+import type { EmphasisTier } from '@/lib/proximity';
 import { colors, fonts, radius } from '@/theme';
 import type { WithDistance } from './FeaturedCard';
 import { useMarkerTracking } from './useMarkerTracking';
@@ -14,6 +15,10 @@ interface Props {
   tier: 'far' | 'mid' | 'near';
   selected: boolean;
   mine: boolean;
+  /** Solo en búsqueda (F11): destaca según la cercanía y sustituye a los niveles por zoom. */
+  emphasis?: EmphasisTier;
+  /** Distancia escrita en el pin grande. */
+  distanceLabel?: string | null;
   onPress: () => void;
 }
 
@@ -26,7 +31,7 @@ interface Props {
  * en la `key` lo que cambia su aspecto (zoom, selección, oferta), así un cambio
  * real lo vuelve a dibujar.
  */
-function PinMarkerView({ entity, tier, selected, mine, onPress }: Props) {
+function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, onPress }: Props) {
   const { tracking, onLayout, onImageSettled } = useMarkerTracking();
 
   const cat = categoryColor(entity.category_color);
@@ -39,6 +44,59 @@ function PinMarkerView({ entity, tier, selected, mine, onPress }: Props) {
   const borderColor = selected ? colors.primary : hasOffer ? colors.accent : '#ffffff';
   const statusColor = open ? '#2E9E5B' : '#9AA7B5';
   const coordinate = { latitude: entity.latitude, longitude: entity.longitude };
+
+  if (emphasis) {
+    const closed = entity.has_hours && !entity.is_open_now;
+    const ring = selected ? colors.primary : closed ? '#9AA7B5' : hasOffer ? colors.accent : emphasis === 'big' ? colors.primary : '#ffffff';
+    const faded = closed ? styles.closedFade : null;
+    return (
+      <Marker
+        coordinate={coordinate}
+        // El centro del pin queda sobre el negocio aunque el grande lleve etiqueta.
+        anchor={{ x: 0.5, y: 0.5 }}
+        zIndex={selected ? 1000 : emphasis === 'big' ? 30 : emphasis === 'mid' ? 20 : emphasis === 'dot' ? 10 : 1}
+        tracksViewChanges={tracking}
+        onPress={(event) => {
+          event.stopPropagation();
+          onPress();
+        }}
+      >
+        <View collapsable={false} onLayout={onLayout} style={styles.emphWrap}>
+          {emphasis === 'big' ? <View style={styles.labelSpacer} /> : null}
+          {emphasis === 'far' ? (
+            <View style={[styles.pinFarOff, { backgroundColor: cat.fg }]} />
+          ) : emphasis === 'dot' ? (
+            <View style={[styles.pinDot, { backgroundColor: cat.fg }, faded]} />
+          ) : (
+            <View style={faded}>
+              {showRayo ? (
+                <View style={[styles.offerBadge, styles.offerBadgeCorner]}>
+                  <Ionicons name="flash" size={11} color={colors.ink} />
+                </View>
+              ) : null}
+              <View style={[emphasis === 'big' ? styles.pinBig : styles.pinMid, { borderColor: ring }]}>
+                {thumb ? (
+                  <Image accessible={false} source={{ uri: thumb }} style={emphasis === 'big' ? styles.thumbBig : styles.thumbMid} contentFit="cover" onLoad={onImageSettled} onError={onImageSettled} />
+                ) : (
+                  <View style={[emphasis === 'big' ? styles.thumbBig : styles.thumbMid, styles.fallback, { backgroundColor: cat.bg }]}>
+                    <Ionicons name={icon} size={emphasis === 'big' ? 22 : 16} color={cat.fg} />
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+          {emphasis === 'big' ? (
+            <View style={styles.label}>
+              <Text style={styles.labelText} numberOfLines={1}>
+                {entity.name}
+                {distanceLabel ? <Text style={styles.labelDistance}>{`  ${distanceLabel}`}</Text> : null}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      </Marker>
+    );
+  }
 
   return (
     <Marker
@@ -89,6 +147,8 @@ function PinMarkerView({ entity, tier, selected, mine, onPress }: Props) {
  */
 export const PinMarker = memo(PinMarkerView, (a, b) =>
   a.tier === b.tier &&
+  a.emphasis === b.emphasis &&
+  a.distanceLabel === b.distanceLabel &&
   a.selected === b.selected &&
   a.mine === b.mine &&
   a.entity.id === b.entity.id &&
@@ -114,6 +174,17 @@ const styles = StyleSheet.create({
   pinMid: { width: 34, height: 34, borderRadius: 17, borderWidth: 3, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   pinNear: { width: 46, height: 46, borderRadius: 23, borderWidth: 3, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   thumbMid: { width: 28, height: 28, borderRadius: 14 },
+  emphWrap: { alignItems: 'center', justifyContent: 'center', padding: 8 },
+  labelSpacer: { height: 26 },
+  label: { marginTop: 4, maxWidth: 170, height: 22, paddingHorizontal: 9, borderRadius: radius.pill, backgroundColor: colors.ink, justifyContent: 'center' },
+  labelText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  labelDistance: { color: '#FFD2A6', fontFamily: fonts.ui.extrabold },
+  pinBig: { width: 56, height: 56, borderRadius: 28, borderWidth: 4, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
+  thumbBig: { width: 48, height: 48, borderRadius: 24 },
+  pinDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: '#fff', opacity: 0.8 },
+  pinFarOff: { width: 11, height: 11, borderRadius: 6, borderWidth: 1.5, borderColor: '#fff', opacity: 0.4 },
+  closedFade: { opacity: 0.6 },
+  offerBadgeCorner: { position: 'absolute', top: -4, right: -4, zIndex: 2, marginBottom: 0 },
   thumbNear: { width: 40, height: 40, borderRadius: 20 },
   fallback: { alignItems: 'center', justifyContent: 'center' },
   statusDot: { position: 'absolute', right: 1, bottom: 1, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#fff' },

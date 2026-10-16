@@ -9,6 +9,8 @@ import { distanceKm, type Coords } from './geo';
 export interface Zone extends Coords {
   id: string;
   name: string;
+  /** Ciudad a la que pertenece la zona. */
+  city?: string;
   /** Radio de la zona en metros (v1: círculo). */
   radius_m: number;
 }
@@ -75,6 +77,29 @@ export function zoneAt(zones: Zone[], p: Coords, prevId?: string | null): { zone
     return { zone: keep.zone, held: true, other: best.zone };
   }
   return { zone: best.zone, held: false };
+}
+
+/** Radio máximo para considerar que alguien está en una ciudad con zonas. */
+const CITY_REACH_KM = 50;
+
+/**
+ * De todas las zonas que llegan del servidor, las de la ciudad donde está el punto: la ciudad de
+ * la zona más cercana si queda a menos de 50 km; si no, ninguna (otra ciudad o sin zonas).
+ */
+export function pickCityZones(all: Zone[], point: Coords): { zones: Zone[]; city: string | null } {
+  let nearest: Zone | null = null;
+  let best = Infinity;
+  for (const z of all) {
+    if (!z.city) continue;
+    const d = distanceKm(point, z);
+    if (d < best) {
+      best = d;
+      nearest = z;
+    }
+  }
+  if (!nearest || best > CITY_REACH_KM) return { zones: [], city: null };
+  const city = nearest.city as string;
+  return { zones: all.filter((z) => z.city === city), city };
 }
 
 /** El título y subtítulo del panel según dónde está la persona y qué mira el mapa. */
