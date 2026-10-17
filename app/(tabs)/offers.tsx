@@ -7,22 +7,21 @@ import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { categoriesApi } from '@/api/endpoints';
 import { offersApi } from '@/api/offers';
-import type { PromotionListItem, RelampagoListItem } from '@/api/types';
+import type { RelampagoListItem } from '@/api/types';
 import { Button } from '@/components/Button';
 import { SkeletonRows } from '@/components/Skeleton';
-import { formatCurrency, formatDiscount, formatOfferEndsAt, formatSlotsLeft, offerTypeLabel } from '@/lib/offer';
+import { formatCurrency, formatSlotsFree, offerTypeLabel, timeLeftLabel, timeLeftMs } from '@/lib/offer';
+import { useNow } from '@/lib/useNow';
 import { formatDistance } from '@/lib/format';
 import { colors, fonts, radius, spacing } from '@/theme';
 
-type OffersView = 'relampagos' | 'promotions';
 type Order = 'near' | 'trending';
 
-/** Pestaña Ofertas: relámpagos y promociones activos, con orden y filtros. */
+/** Pestaña Ofertas: las ofertas vigentes cerca, con orden y filtros. */
 export default function OffersScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [view, setView] = useState<OffersView>('relampagos');
   const [order, setOrder] = useState<Order>('near');
   const [categoryId, setCategoryId] = useState<string | undefined>();
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -57,11 +56,6 @@ export default function OffersScreen() {
     <View style={[styles.screen, { paddingTop: insets.top + spacing.md }]}>
       <Text style={styles.title}>Ofertas</Text>
 
-      <View style={styles.segment}>
-        <SegmentButton label="Relámpago" active={view === 'relampagos'} onPress={() => setView('relampagos')} />
-        <SegmentButton label="Promociones" active={view === 'promotions'} onPress={() => setView('promotions')} />
-      </View>
-
       <View style={styles.orderRow}>
         <OrderButton label="Cerca de ti" active={order === 'near'} onPress={() => setOrder('near')} />
         <OrderButton label="Lo más buscado" active={order === 'trending'} onPress={() => setOrder('trending')} />
@@ -86,7 +80,7 @@ export default function OffersScreen() {
 
       {feed.isLoading ? (
         <SkeletonRows count={4} />
-      ) : view === 'relampagos' ? (
+      ) : (
         <FlatList
           data={feed.data?.relampagos ?? []}
           keyExtractor={(item) => item.id}
@@ -94,16 +88,6 @@ export default function OffersScreen() {
           ListEmptyComponent={<EmptyOffers />}
           renderItem={({ item }) => (
             <RelampagoCard item={item} onPress={() => router.push({ pathname: '/business/[id]', params: { id: item.entity_id } })} />
-          )}
-        />
-      ) : (
-        <FlatList
-          data={feed.data?.promotions ?? []}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          ListEmptyComponent={<EmptyOffers />}
-          renderItem={({ item }) => (
-            <PromotionCard item={item} onPress={() => router.push({ pathname: '/business/[id]', params: { id: item.entity_id } })} />
           )}
         />
       )}
@@ -120,14 +104,6 @@ function EmptyOffers() {
       <Text style={styles.emptyText}>Explora el mapa para ver más negocios.</Text>
       <Button title="Ver en el mapa" variant="secondary" onPress={() => router.replace('/')} style={styles.emptyButton} />
     </View>
-  );
-}
-
-function SegmentButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} style={[styles.segmentBtn, active && styles.segmentBtnActive]}>
-      <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{label}</Text>
-    </Pressable>
   );
 }
 
@@ -154,6 +130,7 @@ function CategoryChip({ label, active, onPress }: { label: string; active: boole
 }
 
 function RelampagoCard({ item, onPress }: { item: RelampagoListItem; onPress: () => void }) {
+  const now = useNow(60_000);
   const distance = item.distance_meters > 0 ? formatDistance(item.distance_meters / 1000) : null;
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}>
@@ -167,26 +144,8 @@ function RelampagoCard({ item, onPress }: { item: RelampagoListItem; onPress: ()
       </Text>
       <Text style={styles.cardPrice}>{formatCurrency(item.price)}</Text>
       <Text style={styles.cardMeta}>
-        {offerTypeLabel(item.type)} · hasta {formatOfferEndsAt(item.ends_at)} · {formatSlotsLeft(item.slots_left)}
+        {offerTypeLabel(item.type)} · {timeLeftLabel(timeLeftMs(item.ends_at, now))} · {formatSlotsFree(item.slots_left, item.total_slots ?? item.slots_left)}
       </Text>
-    </Pressable>
-  );
-}
-
-function PromotionCard({ item, onPress }: { item: PromotionListItem; onPress: () => void }) {
-  const distance = item.distance_meters > 0 ? formatDistance(item.distance_meters / 1000) : null;
-  const value = formatDiscount(item.discount) || formatCurrency(item.price);
-  return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-        {value ? <Text style={styles.promoValue}>{value}</Text> : null}
-      </View>
-      <Text style={styles.cardMeta}>
-        {item.entity_name} · {item.category_name}
-        {distance ? ` · ${distance}` : ''}
-      </Text>
-      <Text style={styles.cardMeta}>hasta {formatOfferEndsAt(item.ends_at)}</Text>
     </Pressable>
   );
 }

@@ -5,9 +5,9 @@ export function offerTypeLabel(type: OfferType): string {
     case 'HORAS':
       return 'Por horas';
     case 'DIA':
-      return 'Del día';
+      return 'Todo el día';
     case 'SEMANA':
-      return 'De la semana';
+      return 'Toda la semana';
     default:
       return type;
   }
@@ -152,4 +152,56 @@ export function formatClock(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
+}
+
+// ---------------------------------------------------------------------------
+// Un solo formato para cada dato de una oferta (lista del dueño, formulario, perfil y pestaña Ofertas).
+// ---------------------------------------------------------------------------
+
+const DAY_SHORT = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const MONTH_SHORT = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+function clock12(d: Date): string {
+  const h = d.getHours();
+  const m = d.getMinutes();
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'pm' : 'am'}`;
+}
+
+/** Fecha absoluta de fin, con día: «sáb 16 oct · 1:15 am». Va en las condiciones; en tarjetas se usa el tiempo que queda. */
+export function formatEndsWhen(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${DAY_SHORT[d.getDay()]} ${d.getDate()} ${MONTH_SHORT[d.getMonth()]} · ${clock12(d)}`;
+}
+
+/** Una oferta terminada: «Terminó el 15 oct». */
+export function formatEnded(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'Terminó';
+  return `Terminó el ${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`;
+}
+
+/** Cupos libres: «18 de 25 libres», «1 de 10 libre», «Sin cupos». */
+export function formatSlotsFree(left: number, total: number): string {
+  if (left <= 0) return 'Sin cupos';
+  return `${left} de ${total} ${left === 1 ? 'libre' : 'libres'}`;
+}
+
+const pesos = (n: number) => `$${Math.round(n).toLocaleString('es-CO').replace(/,/g, '.')}`;
+
+/**
+ * El precio de una oferta para mostrar en el perfil: el precio especial (o, en ofertas de antes, el precio escrito) y,
+ * solo si viene del catálogo y es menor, el habitual tachado y el ahorro en porcentaje. En el mapa no se muestra.
+ */
+export function offerPriceParts(o: { special_price?: number; reference_price?: number; price?: string; normal_price?: string }): { now: string; was: string; savingPct: number } {
+  if (typeof o.special_price === 'number' && o.special_price > 0) {
+    const ref = o.reference_price ?? 0;
+    const saving = ref > o.special_price ? Math.round((1 - o.special_price / ref) * 100) : 0;
+    return { now: pesos(o.special_price), was: saving > 0 ? pesos(ref) : '', savingPct: saving };
+  }
+  const now = Number((o.price ?? '').replace(/[^\d]/g, ''));
+  const was = Number((o.normal_price ?? '').replace(/[^\d]/g, ''));
+  if (!now) return { now: '', was: '', savingPct: 0 };
+  const saving = was > now ? Math.round((1 - now / was) * 100) : 0;
+  return { now: pesos(now), was: saving > 0 ? pesos(was) : '', savingPct: saving };
 }

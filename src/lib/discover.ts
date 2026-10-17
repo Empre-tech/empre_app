@@ -2,6 +2,7 @@
 // tarjeta del dueño. Sin React para poder probarla con Node.
 
 import { containsPoint, type Box } from './mapArea';
+import { formatEndsWhen } from './offer';
 
 export const MINUTE = 60_000;
 
@@ -155,15 +156,11 @@ export function ownerChecklist(input: { hasCover: boolean; hasTagline: boolean; 
 
 /** Indicaciones de una oferta para la ficha del perfil. */
 export function offerIndications(o: { conditions?: string; ends_at: string; radius_meters: number; claim_window_minutes?: number; repeat_policy?: string }): { label: string; value: string }[] {
-  const end = new Date(o.ends_at);
-  const days = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-  const hh = end.getHours(), mm = end.getMinutes();
-  const clock = `${hh % 12 === 0 ? 12 : hh % 12}:${String(mm).padStart(2, '0')} ${hh >= 12 ? 'pm' : 'am'}`;
   const win = o.claim_window_minutes ?? 0;
   const winText = win >= 60 ? `${win / 60} h` : `${win} min`;
   const rows = [
     o.conditions?.trim() ? { label: 'Condiciones', value: o.conditions.trim() } : null,
-    { label: 'Vigencia', value: `Hasta el ${days[end.getDay()]} a las ${clock}` },
+    { label: 'Vigencia', value: `Hasta el ${formatEndsWhen(o.ends_at)}` },
     { label: 'Dónde', value: `Válida a ${o.radius_meters} m del negocio` },
     { label: 'Por persona', value: o.repeat_policy === 'daily' ? '1 reclamo al día' : '1 reclamo' },
     win > 0 ? { label: 'Al reclamar', value: `Tienes ${winText} para usarla; el QR sirve una sola vez` } : null,

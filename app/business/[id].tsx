@@ -32,7 +32,6 @@ import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { SkeletonProfile } from '@/components/Skeleton';
 import { useActiveOffers } from '@/components/OfferBanner';
-import { PromotionsSection } from '@/components/PromotionsSection';
 import { PostComposerSheet } from '@/components/PostComposerSheet';
 import { ACTION_BAR_HEIGHT, ActionBar } from '@/components/profile/ActionBar';
 import { CatalogSection } from '@/components/profile/CatalogSection';
@@ -494,7 +493,6 @@ export default function BusinessScreen() {
         return (
           <View key={id} onLayout={mark('offers')}>
             <OffersFicha entityId={business.id} isOwner={isOwner} initialOfferId={offerParam} />
-            <PromotionsSection entityId={business.id} trackViews={!isOwner} />
           </View>
         );
       case 'quote':

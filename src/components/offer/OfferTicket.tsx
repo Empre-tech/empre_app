@@ -4,8 +4,8 @@ import Svg, { Circle, Line } from 'react-native-svg';
 import type { Offer } from '@/api/types';
 import { Button } from '@/components/Button';
 import {
-  formatCurrency,
-  formatSavings,
+  formatSlotsFree,
+  offerPriceParts,
   offerTypeLabel,
   offerUrgency,
   timeLeftLabel,
@@ -50,15 +50,17 @@ export function OfferTicket({ offer, cta, notchColor = colors.bg, showPrice = tr
   const fraction = Math.min(1, Math.max(0, msLeft / total));
   const short = timeLeftShort(msLeft);
 
-  const price = formatCurrency(offer.price);
-  const normal = formatCurrency(offer.normal_price);
-  const savings = formatSavings(offer.price, offer.normal_price);
+  // Un solo formato de precio: el especial (o el escrito, en ofertas de antes) y, si viene del catálogo, el habitual tachado y el ahorro.
+  const parts = offerPriceParts(offer);
+  const price = parts.now;
+  const normal = parts.was;
+  const savings = parts.savingPct > 0 ? `Ahorras ${parts.savingPct} %` : '';
 
   // Cupos como segmentos (hasta 10), no como un número suelto.
   const segments = Math.min(10, Math.max(1, offer.total_slots));
   const filled = offer.slots_left <= 0 ? 0 : Math.max(1, Math.round((offer.slots_left / Math.max(1, offer.total_slots)) * segments));
   const slotsText =
-    offer.slots_left <= 0 ? 'Sin cupos' : offer.slots_left === 1 ? '¡Queda 1 cupo!' : `Quedan ${offer.slots_left} de ${offer.total_slots}`;
+    formatSlotsFree(offer.slots_left, offer.total_slots);
 
   const topBg = off ? styles.topOff : hot ? styles.topHot : warn ? styles.topWarn : styles.topCalm;
   const ringColor = off ? '#9AA7B5' : hot ? colors.ink : warn ? colors.accentDark : colors.primary;

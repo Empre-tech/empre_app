@@ -10,9 +10,6 @@ import type {
   OfferClaim,
   OfferInput,
   OffersFeed,
-  Promotion,
-  PromotionInput,
-  PromotionStatus,
   QuickAction,
   RedeemResult,
 } from './types';
@@ -205,20 +202,3 @@ export const statusApi = {
     request<BusinessStatus>(`/api/entities/${entityId}/status`, { method: 'PATCH', body: { availability } }),
 };
 
-export const promotionsApi = {
-  /** Publica una promoción (dueño). */
-  publish: (entityId: string, input: PromotionInput) =>
-    request<Promotion>(`/api/entities/${entityId}/promotions`, { method: 'POST', body: input }),
-
-  /** Promociones del negocio (dueño). */
-  list: async (entityId: string): Promise<Promotion[]> =>
-    list(await request<{ data?: Promotion[] | null }>(`/api/entities/${entityId}/promotions`)),
-
-  /** Promociones activas de un negocio (público). */
-  active: async (entityId: string): Promise<Promotion[]> =>
-    list(await request<{ data?: Promotion[] | null }>(`/api/entities/${entityId}/promotions/active`, { auth: false })),
-
-  /** Edita o cambia el estado de una promoción (dueño). */
-  update: (promotionId: string, input: Partial<PromotionInput> & { status?: PromotionStatus }) =>
-    request<Promotion>(`/api/promotions/${promotionId}`, { method: 'PATCH', body: input }),
-};

@@ -117,7 +117,7 @@ export function OffersFicha({ entityId, isOwner, initialOfferId, variant = 'prof
     return (
       <View key={o.id} style={how === 'sheet' ? { width: CARD_WIDTH, gap: spacing.sm } : { gap: spacing.sm }}>
         {how === 'single' && !isOwner ? stepsFor(o) : null}
-        <OfferTicket offer={o} cta={ctaFor(o)} showPrice={false} />
+        <OfferTicket offer={o} cta={ctaFor(o)} />
         {includes(o)}
         {how === 'single' ? (
           indications(o)

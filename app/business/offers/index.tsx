@@ -4,9 +4,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { Offer, Promotion, PromotionStatus } from '@/api/types';
-import { offersApi, promotionsApi } from '@/api/offers';
-import { offerTypeLabel, formatOfferEndsAt, formatCurrency, formatDiscount, formatSlotsLeft } from '@/lib/offer';
+import type { Offer } from '@/api/types';
+import { offersApi } from '@/api/offers';
+import { offerTypeLabel, formatOfferEndsAt, formatCurrency, formatSlotsLeft } from '@/lib/offer';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 /**
@@ -25,11 +25,6 @@ export default function OffersScreen() {
     queryFn: () => offersApi.list(entityId ?? ''),
     enabled: Boolean(entityId),
   });
-  const promotions = useQuery({
-    queryKey: ['promotions', entityId],
-    queryFn: () => promotionsApi.list(entityId ?? ''),
-    enabled: Boolean(entityId),
-  });
 
   const quickAction = async (offerId: string, action: 'extend' | 'slots', value: number) => {
     setBusyId(offerId);
@@ -38,17 +33,6 @@ export default function OffersScreen() {
       await queryClient.invalidateQueries({ queryKey: ['offers', entityId] });
     } finally {
       setBusyId(null);
-    }
-  };
-
-  const setPromotionStatus = async (promotionId: string, status: PromotionStatus) => {
-    try {
-      await promotionsApi.update(promotionId, { status });
-      await queryClient.invalidateQueries({ queryKey: ['promotions', entityId] });
-      await queryClient.invalidateQueries({ queryKey: ['promotions-active', entityId] });
-    } catch (e) {
-      // Por ejemplo: el límite de promociones activas, o la fecha de fin de un borrador que ya pasó.
-      Alert.alert('No pudimos cambiar la promoción', e instanceof Error ? e.message : 'Inténtalo de nuevo.');
     }
   };
 
@@ -87,33 +71,6 @@ export default function OffersScreen() {
           ))
         )}
 
-        {/* --- Promociones --- */}
-        <View style={styles.sectionRow}>
-          <Text style={styles.section}>Promociones</Text>
-          <Pressable
-            onPress={() => router.push({ pathname: '/business/offers/promotions/new', params: { entityId } })}
-            hitSlop={8}
-          >
-            <Text style={styles.link}>+ Nueva promoción</Text>
-          </Pressable>
-        </View>
-
-        {promotions.isLoading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.md }} />
-        ) : (promotions.data ?? []).length === 0 ? (
-          <Text style={styles.empty}>Aún no tienes promociones.</Text>
-        ) : (
-          (promotions.data ?? []).map((promotion) => (
-            <PromotionCard
-              key={promotion.id}
-              promotion={promotion}
-              onToggle={() =>
-                setPromotionStatus(promotion.id, promotion.status === 'active' ? 'paused' : 'active')
-              }
-              onFinish={() => setPromotionStatus(promotion.id, 'finished')}
-            />
-          ))
-        )}
       </ScrollView>
     </View>
   );
@@ -175,48 +132,6 @@ function OfferCard({
   );
 }
 
-function PromotionCard({
-  promotion,
-  onToggle,
-  onFinish,
-}: {
-  promotion: Promotion;
-  onToggle: () => void;
-  onFinish: () => void;
-}) {
-  const active = promotion.status === 'active';
-  const draft = promotion.status === 'draft';
-  const finished = promotion.status === 'finished';
-  const value = formatDiscount(promotion.discount) || formatCurrency(promotion.price);
-  return (
-    <View style={styles.card}>
-      <View style={styles.cardTop}>
-        <View style={styles.cardInfo}>
-          <Text style={styles.cardTitle}>{promotion.title}</Text>
-          <Text style={styles.cardMeta}>
-            {value ? `${value} · ` : ''}hasta {formatOfferEndsAt(promotion.ends_at)}
-          </Text>
-        </View>
-        <View style={[styles.status, active ? styles.statusActive : styles.statusInactive]}>
-          <Text style={styles.statusText}>{draft ? 'Borrador' : finished ? 'Finalizada' : active ? 'Activa' : 'Pausada'}</Text>
-        </View>
-      </View>
-
-      {finished ? null : (
-        <View style={styles.actions}>
-          <Pressable accessibilityRole="button" onPress={onToggle} style={styles.action}>
-            <Ionicons name={active ? 'pause-circle-outline' : 'play-circle-outline'} size={16} color={colors.primary} />
-            <Text style={styles.actionText}>{draft ? 'Publicar' : active ? 'Pausar' : 'Reactivar'}</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={onFinish} style={styles.action}>
-            <Ionicons name="checkmark-circle-outline" size={16} color={colors.primary} />
-            <Text style={styles.actionText}>Finalizar</Text>
-          </Pressable>
-        </View>
-      )}
-    </View>
-  );
-}
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
