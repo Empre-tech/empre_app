@@ -185,7 +185,32 @@ export interface ReviewListResult {
   summary: ReviewSummary;
 }
 
+export interface ReviewPageParams {
+  page?: number;
+  pageSize?: number;
+  /** Solo esa nota (1 a 5). */
+  stars?: number;
+  /** Solo las respaldadas por un canje confirmado. */
+  verified?: boolean;
+  /** Solo las que traen comentario. */
+  withComment?: boolean;
+}
+
+export interface ReviewPageResult extends ReviewListResult {
+  /** Cuántas reseñas cumplen el filtro (no las del negocio en total). */
+  total: number;
+}
+
 export const reviewsApi = {
+  /** Una página de reseñas con filtros (pantalla «Todas las reseñas»); más nuevas primero. */
+  page: async (entityId: string, p: ReviewPageParams = {}): Promise<ReviewPageResult> => {
+    const res = await request<{ data: Review[] | null; summary: ReviewSummary; meta?: { total?: number } }>(`/api/entities/${entityId}/reviews`, {
+      auth: false,
+      query: { page: p.page ?? 1, pageSize: p.pageSize ?? 20, stars: p.stars, verified: p.verified ? 1 : undefined, with_comment: p.withComment ? 1 : undefined },
+    });
+    return { data: res.data ?? [], summary: res.summary, total: res.meta?.total ?? (res.data ?? []).length };
+  },
+
   /** Lista pública de reseñas de un negocio, más nuevas primero, con el promedio. */
   list: async (entityId: string): Promise<ReviewListResult> => {
     const res = await request<{ data: Review[] | null; summary: ReviewSummary }>(

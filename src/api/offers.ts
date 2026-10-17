@@ -133,6 +133,16 @@ export const offersApi = {
   activeList: async (entityId: string): Promise<Offer[]> =>
     list(await request<{ data?: Offer[] | null }>(`/api/entities/${entityId}/offers/active`, { auth: false })),
 
+  /**
+   * Las primeras `limit` ofertas vigentes (la que termina antes primero; a igualdad, más cupos libres) y cuántas
+   * hay en total, para saber si hace falta «Ver todas las ofertas» (público).
+   */
+  activePage: async (entityId: string, limit: number): Promise<{ offers: Offer[]; total: number }> => {
+    const res = await request<{ data?: Offer[] | null; total?: number }>(`/api/entities/${entityId}/offers/active`, { auth: false, query: { limit } });
+    const offers = list(res);
+    return { offers, total: res.total ?? offers.length };
+  },
+
   /** Canjes confirmados del negocio en la última semana (prueba social, público). */
   activity: async (entityId: string): Promise<number> => {
     const res = await request<{ verified_redemptions_week?: number }>(`/api/entities/${entityId}/activity`, { auth: false });

@@ -94,6 +94,22 @@ export interface Photo {
   created_at: string;
 }
 
+/** Un archivo (foto o video) dentro de una publicación. */
+export interface PostItem {
+  id: string;
+  url: string;
+  /** MIME real (ej. "image/jpeg", "video/mp4"). */
+  content_type: string;
+}
+
+/** Una publicación del negocio (GET /api/entities/:id/posts): su descripción compartida y sus archivos en orden. */
+export interface PostEntry {
+  id: string;
+  caption: string;
+  created_at: string;
+  items: PostItem[];
+}
+
 /** Perfil completo (GET /api/entities/:id). */
 export interface EntityDetail {
   id: string;
