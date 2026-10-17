@@ -3,34 +3,38 @@ import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
 
-/** Tamaño con el que se calcula dónde va la píldora «Tú» (la vista lo respeta). */
-export const YOU_PILL = { width: 132, height: 44 };
+/** Lado de la zona táctil del punto «Tú» (la flecha se calcula desde su centro). */
+export const YOU_DOT = 44;
 
 /**
- * «Tú · 3.7 km» pegada al borde de lo que se ve, del lado donde estás, con una flecha hacia ti (3.23). Tocarla te
- * devuelve al mapa sobre ti (lo mismo que «Volver» de la franja).
+ * «Tú» cuando tu punto azul no se ve (3.25, opción B de `tu_ligero.html`): el mismo punto azul asomándose en el borde
+ * derecho, encima del botón de ubicación, con una flecha hacia ti y la distancia pequeña debajo. Tocarlo te devuelve.
  */
-export function YouPill({ left, top, angle, distance, onPress }: { left: number; top: number; angle: number; distance: string | null; onPress: () => void }) {
+export function YouDot({ bottom, angle, distance, onPress }: { bottom: Animated.AnimatedAddition<number>; angle: number; distance: string | null; onPress: () => void }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Tú estás ${distance ? `a ${distance}` : 'fuera de lo que ves'}. Volver a tu ubicación`}
-      onPress={onPress}
-      style={({ pressed }) => [styles.you, { left, top }, pressed && styles.pressed]}
-    >
-      <View style={styles.youArrow}>
-        <Ionicons name="arrow-forward" size={15} color="#fff" style={{ transform: [{ rotate: `${angle}deg` }] }} />
-      </View>
-      <Text style={styles.youText} numberOfLines={1}>
-        Tú{distance ? ` · ${distance}` : ''}
-      </Text>
-    </Pressable>
+    <Animated.View style={[styles.dotWrap, { bottom }]} pointerEvents="box-none">
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Tú estás ${distance ? `a ${distance}` : 'fuera de lo que ves'}. Volver a tu ubicación`}
+        onPress={onPress}
+        style={({ pressed }) => [styles.dotHit, pressed && styles.pressed]}
+      >
+        <View style={styles.dot}>
+          <Ionicons name="arrow-forward" size={13} color="#fff" style={{ transform: [{ rotate: `${angle}deg` }] }} />
+        </View>
+      </Pressable>
+      {distance ? (
+        <Text style={styles.dotText} numberOfLines={1}>
+          {distance}
+        </Text>
+      ) : null}
+    </Animated.View>
   );
 }
 
 /**
- * Leyenda corta del mapa, al lado izquierdo, pegada al panel como el botón de ubicación: rayo = oferta, punto verde =
- * abierto y, si hay zona marcada, el círculo punteado. Tocarla abre la explicación.
+ * Leyenda del mapa (3.25): un botón «i» de 44 pt al lado izquierdo, pegado al panel como el de ubicación, que no tapa
+ * pines. Al tocarlo se abre la explicación: rayo = oferta, punto verde = abierto y, si hay zona marcada, el círculo.
  */
 export function MapLegend({ bottom, withZone, open, onToggle }: { bottom: Animated.AnimatedInterpolation<number> | Animated.Value | Animated.AnimatedAddition<number>; withZone: boolean; open: boolean; onToggle: () => void }) {
   return (
@@ -64,24 +68,9 @@ export function MapLegend({ bottom, withZone, open, onToggle }: { bottom: Animat
         accessibilityLabel="Qué significan los pines"
         accessibilityState={{ expanded: open }}
         onPress={onToggle}
-        style={({ pressed }) => [styles.legend, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.info, open && styles.infoOn, pressed && styles.pressed]}
       >
-        <View style={styles.item}>
-          <View style={styles.bolt}>
-            <Ionicons name="flash" size={10} color={colors.ink} />
-          </View>
-          <Text style={styles.itemText}>Oferta</Text>
-        </View>
-        <View style={styles.item}>
-          <View style={styles.green} />
-          <Text style={styles.itemText}>Abierto</Text>
-        </View>
-        {withZone ? (
-          <View style={styles.item}>
-            <View style={styles.dash} />
-            <Text style={styles.itemText}>Zona</Text>
-          </View>
-        ) : null}
+        <Ionicons name={open ? 'close' : 'information'} size={20} color={open ? '#fff' : colors.primary} />
       </Pressable>
     </Animated.View>
   );
@@ -89,25 +78,24 @@ export function MapLegend({ bottom, withZone, open, onToggle }: { bottom: Animat
 
 const styles = StyleSheet.create({
   pressed: { opacity: 0.85 },
-  you: {
-    position: 'absolute',
-    minWidth: YOU_PILL.width,
-    height: YOU_PILL.height,
-    flexDirection: 'row',
+  // Pegado al borde derecho; quien lo usa lo pone encima del botón de ubicación.
+  dotWrap: { position: 'absolute', right: spacing.md + 2, alignItems: 'center', width: YOU_DOT },
+  dotHit: { width: YOU_DOT, height: YOU_DOT, alignItems: 'center', justifyContent: 'center' },
+  dot: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#3B82F6',
+    borderWidth: 3,
+    borderColor: '#fff',
     alignItems: 'center',
-    gap: 6,
-    paddingLeft: 8,
-    paddingRight: 12,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
+    justifyContent: 'center',
     ...shadow,
   },
-  youArrow: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#3B82F6', alignItems: 'center', justifyContent: 'center' },
-  youText: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: '#1E4FA0' },
+  dotText: { marginTop: -4, paddingHorizontal: 5, borderRadius: 6, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.88)', fontSize: 10, fontFamily: fonts.ui.extrabold, color: '#1E4FA0' },
   legendWrap: { position: 'absolute', left: spacing.md, right: 84, alignItems: 'flex-start', gap: spacing.sm },
-  legend: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,0.96)', ...shadow },
-  item: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  itemText: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.ink },
+  info: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center', ...shadow },
+  infoOn: { backgroundColor: colors.primary },
   bolt: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   green: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.success },
   dash: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.primary },

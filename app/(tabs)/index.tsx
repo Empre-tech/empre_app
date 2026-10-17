@@ -39,7 +39,7 @@ import { LocationStrip } from '@/components/explore/LocationStrip';
 import { PlaceSheet } from '@/components/explore/PlaceSheet';
 import { PhotoViewer, type ViewerTarget } from '@/components/explore/PhotoViewer';
 import { MapLabelMarker } from '@/components/explore/MapLabelMarker';
-import { MapLegend, YouPill, YOU_PILL } from '@/components/explore/MapReferences';
+import { MapLegend, YouDot, YOU_DOT } from '@/components/explore/MapReferences';
 import { ExploreGuide, type GuideRect } from '@/components/explore/ExploreGuide';
 import { StackMarker } from '@/components/explore/StackMarker';
 import { SearchBar } from '@/components/explore/SearchBar';
@@ -50,7 +50,7 @@ import { buildGroups, categoryFilter, groupIdOf, type GroupId } from '@/lib/cate
 import { focusCenterLat } from '@/lib/placeCard';
 import { stripText } from '@/lib/locationStrip';
 import { photoTotal } from '@/lib/photoStrip';
-import { anyHiddenBelow, boxCenter, displayIcon, edgePill, nearestTo, toScreen, usefulBox } from '@/lib/mapView';
+import { anyHiddenBelow, boxCenter, displayIcon, nearestTo, pointerAngle, showYouDot, toScreen, usefulBox } from '@/lib/mapView';
 import { shouldAutoStart } from '@/lib/exploreGuide';
 import { loadGuideSeen, saveGuideSeen } from '@/lib/exploreGuideStore';
 import { snippetLines } from '@/lib/reviewSnippet';
@@ -66,7 +66,7 @@ import { contextChips, removedAnnouncement, type FilterId } from '@/lib/context'
 import { sameIds } from '@/lib/pinsCache';
 import { loadPinsCache, savePinsCache } from '@/lib/pinsCacheStore';
 import { isBubbleLevel } from '@/lib/mapLevels';
-import { zoneAt } from '@/lib/zoneName';
+import { NEAR_ME_M, zoneAt } from '@/lib/zoneName';
 import { cameraTargets, emphasize, isFarResult } from '@/lib/proximity';
 import { MAP_STYLE } from '@/lib/mapStyle';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
@@ -882,11 +882,22 @@ export default function ExploreScreen() {
 
   // Referencias del mapa (3.23, `referencias_mapa.html`): la zona marcada, «Tú» y la leyenda.
   const areaZone = !searching && !bubbleMode && !selectedEntity && zoneName?.zone ? zoneName.zone : null;
-  const youPill =
-    userCoords && mapSize.height > 0 && topH > 0 && !tall && !selectedEntity && !placeItems && !mapMoving
-      ? edgePill(region, mapSize, userCoords, { top: topH + 8, bottom: mapSize.height - sheetNowPx - 64, left: 12, right: mapSize.width - 12 }, YOU_PILL)
+  // «Tú» (3.25, opción B de `tu_ligero.html`): solo explorando otra zona (a más de 1 km, como la franja) y solo si tu
+  // punto azul no se ve. Es un punto en el borde derecho, encima del botón de ubicación, con la flecha hacia ti.
+  const youKm = userCoords ? distanceKm(userCoords, { latitude: region.latitude, longitude: region.longitude }) : null;
+  const exploring = youKm !== null && youKm * 1000 >= NEAR_ME_M;
+  const youDotBottom = Animated.add(locateBottom, 56);
+  const youDot =
+    userCoords && mapSize.height > 0 && topH > 0 && !tall && !selectedEntity && !placeItems && !mapMoving &&
+    showYouDot(exploring, region, mapSize, userCoords, { top: topH, bottom: mapSize.height - sheetNowPx, left: 0, right: mapSize.width })
+      ? {
+          angle: pointerAngle(
+            { x: mapSize.width - spacing.md - 2 - YOU_DOT / 2, y: mapSize.height - sheetNowPx - spacing.md - 56 - YOU_DOT / 2 },
+            toScreen(region, mapSize, userCoords),
+          ),
+        }
       : null;
-  const youDistance = userCoords ? formatDistance(distanceKm(userCoords, { latitude: region.latitude, longitude: region.longitude })) : null;
+  const youDistance = youKm !== null ? formatDistance(youKm) : null;
   const [legendOpen, setLegendOpen] = useState(false);
 
   // Guía de la primera vez (3 pasos). Sale sola una vez; desde Perfil se puede volver a ver (?guide=1).
@@ -937,7 +948,7 @@ export default function ExploreScreen() {
     if (bottom - top < 60) return usefulRect;
     return { x: Math.max(spacing.sm, c.x - r), y: top, width: Math.min(mapSize.width - spacing.sm * 2, r * 2), height: bottom - top };
   })();
-  const legendRect: GuideRect = { x: spacing.md, y: mapSize.height - sheetNowPx - spacing.md - 44, width: 220, height: 44 };
+  const legendRect: GuideRect = { x: spacing.md, y: mapSize.height - sheetNowPx - spacing.md - 44, width: 44, height: 44 };
 
   return (
     <View style={styles.screen}>
@@ -994,10 +1005,8 @@ export default function ExploreScreen() {
                   latitude={areaZone.latitude + areaZone.radius_m / 111_320}
                   longitude={areaZone.longitude}
                   text={areaZone.name}
-                  tone="zone"
                 />
               ) : null}
-              {userCoords && !youPill && !selectedEntity ? <MapLabelMarker key="you" latitude={userCoords.latitude} longitude={userCoords.longitude} text="Tú" tone="you" /> : null}
               {markers.map((m) =>
                 m.kind === 'bubble' ? (
                   <BubbleMarker
@@ -1049,7 +1058,7 @@ export default function ExploreScreen() {
             </Animated.View>
           ) : null}
 
-          {youPill ? <YouPill left={youPill.left} top={youPill.top} angle={youPill.angle} distance={youDistance} onPress={() => void goToMe()} /> : null}
+          {youDot ? <YouDot bottom={youDotBottom} angle={youDot.angle} distance={youDistance} onPress={() => void goToMe()} /> : null}
           {!selectedEntity && !placeItems && !tall ? (
             <MapLegend bottom={locateBottom} withZone={areaZone !== null} open={legendOpen && guideStep === null} onToggle={() => setLegendOpen((v) => !v)} />
           ) : null}

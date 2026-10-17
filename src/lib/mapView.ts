@@ -61,23 +61,19 @@ export interface ViewWindow {
 }
 
 /**
- * La píldora «Tú · 3.7 km» cuando la persona queda fuera de lo que se ve: pegada al borde de la ventana visible, del
- * lado donde está, con el ángulo de la flecha (grados, 0 = derecha, 90 = abajo). Null si la persona está a la vista
- * (ahí basta su punto azul con «Tú»).
+ * ¿Hace falta la referencia «Tú» (3.25, mockup `tu_ligero.html`)? Solo explorando otra zona (la franja dice
+ * «Explorando», a más de 1 km) y solo si tu punto azul no se ve: fuera del mapa o tapado por lo de arriba o el panel.
+ * Estando sobre ti, basta tu punto azul.
  */
-export function edgePill(
-  r: RegionLike,
-  size: { width: number; height: number },
-  user: Coords,
-  win: ViewWindow,
-  pill: { width: number; height: number },
-): { left: number; top: number; angle: number } | null {
+export function showYouDot(exploring: boolean, r: RegionLike, size: { width: number; height: number }, user: Coords, win: ViewWindow): boolean {
+  if (!exploring || size.height <= 0) return false;
   const p = toScreen(r, size, user);
-  if (p.x >= win.left && p.x <= win.right && p.y >= win.top && p.y <= win.bottom) return null;
-  const cx = clamp(p.x, win.left + pill.width / 2, win.right - pill.width / 2);
-  const cy = clamp(p.y, win.top + pill.height / 2, win.bottom - pill.height / 2);
-  const angle = Math.round((Math.atan2(p.y - cy, p.x - cx) * 180) / Math.PI);
-  return { left: Math.round(cx - pill.width / 2), top: Math.round(cy - pill.height / 2), angle };
+  return p.x < win.left || p.x > win.right || p.y < win.top || p.y > win.bottom;
+}
+
+/** Ángulo de la flecha que va de un punto de la pantalla a otro (grados; 0 = derecha, 90 = abajo). */
+export function pointerAngle(from: { x: number; y: number }, to: { x: number; y: number }): number {
+  return Math.round((Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI);
 }
 
 /** ¿Alguno de estos negocios quedaría tapado por un panel de `sheetPx`? (para que el mapa acompañe al subirlo). */
