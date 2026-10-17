@@ -129,14 +129,14 @@ export function DiscoverCard({ model, selected, onPress, onPhoto }: { model: Car
     );
   }
   if (!cover) {
-    // Sin fotos ni portada: el color de la categoría con «Aún sin fotos» (mismo alto que una con fotos).
+    // Sin fotos ni portada: el tono suave de la categoría con su icono (3.24): se nota que falta la foto sin parecer roto.
     return (
       <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.dcard, pressed && styles.pressed]}>
-        <View style={[styles.cover, styles.noPhoto, { backgroundColor: model.color.fg }, selected && styles.coverSelected]}>
-          <View style={styles.noPhotoIcon}>
+        <View style={[styles.cover, styles.noPhoto, { backgroundColor: model.color.bg }, selected && styles.coverSelected]}>
+          <View style={[styles.noPhotoIcon, { backgroundColor: model.color.fg }]}>
             <Ionicons name={model.icon as keyof typeof Ionicons.glyphMap} size={22} color="#fff" />
           </View>
-          <Text style={styles.noPhotoText}>Aún sin fotos</Text>
+          <Text style={styles.noPhotoText}>Sin fotos todavía</Text>
           <View style={styles.pillTop}>
             <PillView pill={model.pill} mine={model.mine} />
           </View>
@@ -246,8 +246,8 @@ const styles = StyleSheet.create({
   coverImage: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   galleryWrap: { borderRadius: radius.lg, overflow: 'hidden' },
   noPhoto: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, padding: spacing.md },
-  noPhotoIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' },
-  noPhotoText: { paddingBottom: 10, fontSize: 12, fontFamily: fonts.ui.bold, color: '#fff' },
+  noPhotoIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  noPhotoText: { paddingBottom: 10, fontSize: 12, fontFamily: fonts.ui.semibold, fontStyle: 'italic', color: colors.muted },
   pillTop: { position: 'absolute', left: 8, top: 8 },
   dcTextPress: { minHeight: 44 },
   dcText: { paddingTop: spacing.sm, paddingHorizontal: 2, gap: 1 },

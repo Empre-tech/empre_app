@@ -114,6 +114,19 @@ export default function ProfileScreen() {
         <Ionicons name="chevron-forward" size={18} color={colors.muted} />
       </Pressable>
 
+      {/* La guía de la primera vez de Explorar (3.23), para volver a verla. */}
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push({ pathname: '/', params: { guide: '1' } })}
+        style={({ pressed }) => [styles.adminCard, pressed && { opacity: 0.85 }]}
+      >
+        <View style={styles.adminCardIcon}>
+          <Ionicons name="map-outline" size={19} color={colors.primary} />
+        </View>
+        <Text style={styles.adminCardText}>Cómo usar el mapa</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+      </Pressable>
+
       {FEATURES.agenda ? (
         <Pressable
           accessibilityRole="button"

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import * as Location from 'expo-location';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
@@ -38,6 +38,9 @@ import { LoadingChip } from '@/components/explore/LoadingChip';
 import { LocationStrip } from '@/components/explore/LocationStrip';
 import { PlaceSheet } from '@/components/explore/PlaceSheet';
 import { PhotoViewer, type ViewerTarget } from '@/components/explore/PhotoViewer';
+import { MapLabelMarker } from '@/components/explore/MapLabelMarker';
+import { MapLegend, YouPill, YOU_PILL } from '@/components/explore/MapReferences';
+import { ExploreGuide, type GuideRect } from '@/components/explore/ExploreGuide';
 import { StackMarker } from '@/components/explore/StackMarker';
 import { SearchBar } from '@/components/explore/SearchBar';
 import { useFeaturedSheet } from '@/components/explore/useFeaturedSheet';
@@ -47,6 +50,9 @@ import { buildGroups, categoryFilter, groupIdOf, type GroupId } from '@/lib/cate
 import { focusCenterLat } from '@/lib/placeCard';
 import { stripText } from '@/lib/locationStrip';
 import { photoTotal } from '@/lib/photoStrip';
+import { anyHiddenBelow, boxCenter, displayIcon, edgePill, nearestTo, toScreen, usefulBox } from '@/lib/mapView';
+import { shouldAutoStart } from '@/lib/exploreGuide';
+import { loadGuideSeen, saveGuideSeen } from '@/lib/exploreGuideStore';
 import { snippetLines } from '@/lib/reviewSnippet';
 import { effectiveClaimStatus } from '@/lib/claims';
 import { boxAround, EXTRAS_MAX, ZONE_FICHA_MAX, openLine, pickExtras, reasonPill, relatedFrom, SEARCH_NEAR_KM, sheetHeader } from '@/lib/discover';
@@ -55,7 +61,7 @@ import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { allWithinMeters, type Cluster } from '@/lib/cluster';
 import { FETCH_FACTOR, mergePins, needsRefetch, padBox, visibleInOrder, type Box } from '@/lib/mapArea';
-import { hasLocation, type Coords } from '@/lib/geo';
+import { distanceKm, hasLocation, type Coords } from '@/lib/geo';
 import { contextChips, removedAnnouncement, type FilterId } from '@/lib/context';
 import { sameIds } from '@/lib/pinsCache';
 import { loadPinsCache, savePinsCache } from '@/lib/pinsCacheStore';
@@ -151,6 +157,8 @@ export default function ExploreScreen() {
   };
   const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
   const sheet = useFeaturedSheet(mapSize.height);
+  // Alto real de lo que flota arriba (franja, buscador y categorías): el área útil y los encuadres lo dejan libre.
+  const [topH, setTopH] = useState(0);
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -347,6 +355,13 @@ export default function ExploreScreen() {
       max_lng: +(region.longitude + halfLng).toFixed(5),
     };
   }, [region]);
+  // Área útil (3.24, `area_util.html`): lo que de verdad se ve, entre lo que flota arriba y el panel COMPACTO (no su alto
+  // actual, para que la lista no cambie al subirlo). Descubre y la lista de la zona usan esta: nunca nombran negocios
+  // escondidos bajo el panel. Los pines y las burbujas siguen pidiéndose para todo el mapa.
+  const listBox = useMemo(
+    () => (mapSize.height > 0 && topH > 0 ? usefulBox(region, mapSize.height, topH, sheet.heights.peek) : bbox),
+    [region, mapSize.height, topH, sheet.heights.peek, bbox],
+  );
   const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 5 * 60_000 });
   const groups = useMemo(() => buildGroups(categories.data ?? []), [categories.data]);
   // Lo que se manda como filtro: la categoría, o todas las del grupo elegido.
@@ -405,15 +420,15 @@ export default function ExploreScreen() {
 
   // Descubre: lo arma el servidor para la zona visible (también se ve durante una búsqueda).
   const sectionsQuery = useQuery({
-    queryKey: ['discover-sections', catFilter ?? 'all', subcategoryId ?? 'all', bbox.min_lat, bbox.min_lng, bbox.max_lat, bbox.max_lng, refKey],
-    queryFn: () => discoverApi.sections({ ...bbox, lat: reference?.latitude, long: reference?.longitude, category: catFilter, subcategory: subcategoryId }),
+    queryKey: ['discover-sections', catFilter ?? 'all', subcategoryId ?? 'all', listBox.min_lat, listBox.min_lng, listBox.max_lat, listBox.max_lng, refKey],
+    queryFn: () => discoverApi.sections({ ...listBox, lat: reference?.latitude, long: reference?.longitude, category: catFilter, subcategory: subcategoryId }),
     enabled: startupRegion !== null,
     placeholderData: keepPreviousData,
   });
   // «Ver más» de una sección: la misma regla, con más negocios.
   const sectionMoreQuery = useQuery({
-    queryKey: ['discover-section', sectionFilter, catFilter ?? 'all', subcategoryId ?? 'all', bbox.min_lat, bbox.min_lng, bbox.max_lat, bbox.max_lng, refKey],
-    queryFn: () => discoverApi.sections({ ...bbox, lat: reference?.latitude, long: reference?.longitude, category: catFilter, subcategory: subcategoryId, section: sectionFilter ?? undefined, limit: 50 }),
+    queryKey: ['discover-section', sectionFilter, catFilter ?? 'all', subcategoryId ?? 'all', listBox.min_lat, listBox.min_lng, listBox.max_lat, listBox.max_lng, refKey],
+    queryFn: () => discoverApi.sections({ ...listBox, lat: reference?.latitude, long: reference?.longitude, category: catFilter, subcategory: subcategoryId, section: sectionFilter ?? undefined, limit: 50 }),
     enabled: sectionFilter !== null,
   });
   // Reclamos con QR activo: su negocio muestra «Tu QR» en vez de la pastilla de la oferta.
@@ -480,7 +495,7 @@ export default function ExploreScreen() {
   // La lista de la zona: lo que se ve, en el orden del servidor. En búsqueda, los resultados.
   // Con búsqueda, del más cercano al más lejano (F11): ese orden es el del énfasis del mapa.
   const plan = useMemo(() => (searching ? emphasize(fetched) : null), [searching, fetched]);
-  const items = useMemo(() => (plan ? plan.map((p) => p.item) : visibleInOrder(pins.store, fetched, bbox)), [plan, fetched, pins.store, bbox]);
+  const items = useMemo(() => (plan ? plan.map((p) => p.item) : visibleInOrder(pins.store, fetched, listBox)), [plan, fetched, pins.store, listBox]);
   const hasNearResults = useMemo(() => (plan ?? []).some((p) => p.tier !== 'far' && p.distanceM !== null), [plan]);
   const closestIds = useMemo(() => new Set((plan ?? []).filter((p) => p.tier === 'big').map((p) => p.item.id)), [plan]);
   const known = useMemo(() => (searching ? fetched : [...pins.store.values()]), [searching, fetched, pins.store]);
@@ -506,8 +521,6 @@ export default function ExploreScreen() {
   const viewPoint = useMemo(() => ({ latitude: region.latitude, longitude: region.longitude }), [region.latitude, region.longitude]);
   const zoneName = useZoneName({ user: userCoords, view: viewPoint });
   const strip = useMemo(() => stripText(zoneName, { hasUser: userCoords !== null, denied: locationDenied }), [zoneName, userCoords, locationDenied]);
-  // Alto real de lo que flota arriba (franja, buscador y fila): el encuadre de resultados deja ese espacio libre.
-  const [topH, setTopH] = useState(0);
 
   // Resultados de búsqueda: mientras llega una consulta nueva se muestra «Buscando…», no la anterior.
   const resultsStatus: 'loading' | 'error' | 'ok' = entities.isError ? 'error' : entities.isLoading || entities.isPlaceholderData ? 'loading' : 'ok';
@@ -709,7 +722,7 @@ export default function ExploreScreen() {
   };
 
   // La reseña verificada más reciente de los destacados que se ven (y los adicionales): una sola consulta, hasta 12.
-  const extraEntities = useMemo(() => (searching ? [] : pickExtras(known, bbox, EXTRAS_MAX)), [searching, known, bbox]);
+  const extraEntities = useMemo(() => (searching ? [] : pickExtras(known, listBox, EXTRAS_MAX)), [searching, known, listBox]);
   const snippetIds = searching ? [] : [...items.slice(0, ZONE_FICHA_MAX), ...extraEntities].map((e) => e.id);
   const snippetsKey = [...snippetIds].sort().join(',');
   const snippetsQuery = useQuery({
@@ -736,7 +749,7 @@ export default function ExploreScreen() {
     longitude: e.longitude,
     image: e.profile_url,
     color: categoryColor(e.category_color),
-    icon: e.category_icon || 'storefront',
+    icon: displayIcon(e.category_icon),
     open: e.has_hours ? e.is_open_now : null,
     distance: formatDistance(e.distanceKm),
     sub: e.subcategory || e.category_name,
@@ -758,7 +771,7 @@ export default function ExploreScreen() {
     image: it.profile_url,
     cover: it.cover_url,
     color: categoryColor(it.category_color),
-    icon: it.category_icon || 'storefront',
+    icon: displayIcon(it.category_icon),
     open: it.is_open_now,
     distance: formatDistance(it.distance_meters > 0 ? it.distance_meters / 1000 : null),
     sub: it.subcategory || it.category_name,
@@ -829,6 +842,102 @@ export default function ExploreScreen() {
   }, [mapMoving, reduceMotion, topFade]);
   const tall = sheet.anchor === 'full';
   const locateBottom = Animated.add(sheet.buttonsBase, spacing.md);
+  const sheetNowPx = sheet.anchor === 'peek' ? sheet.heights.peek : sheet.heights.medium;
+
+  // Encuadra negocios en lo que se ve (entre lo de arriba y el panel). Con uno solo se centra sin cambiar el acercamiento.
+  const fitInView = (coords: Coords[], sheetPx: number) => {
+    if (coords.length === 0 || mapSize.height === 0) return;
+    if (coords.length === 1) {
+      const c = coords[0];
+      const latitude = focusCenterLat(c.latitude, region.latitudeDelta, mapSize.height, topH, sheetPx);
+      mapRef.current?.animateToRegion({ latitude, longitude: c.longitude, latitudeDelta: region.latitudeDelta, longitudeDelta: region.longitudeDelta }, reduceMotion ? 0 : 400);
+      return;
+    }
+    mapRef.current?.fitToCoordinates(coords, { edgePadding: { top: topH + 24, right: 48, bottom: sheetPx + 24, left: 48 }, animated: !reduceMotion });
+  };
+
+  // Al subir el panel a intermedio, el mapa acompaña: si algún destacado quedaría tapado, se encuadran (una vez).
+  const prevAnchor = useRef(sheet.anchor);
+  useEffect(() => {
+    const was = prevAnchor.current;
+    prevAnchor.current = sheet.anchor;
+    if (sheet.anchor !== 'medium' || was !== 'peek' || searching || selectedEntity || mapSize.height === 0) return;
+    const pts = items.slice(0, ZONE_FICHA_MAX).filter(hasLocation).map((e) => ({ latitude: e.latitude, longitude: e.longitude }));
+    if (pts.length > 0 && anyHiddenBelow(region, mapSize, pts, sheet.heights.medium)) fitInView(pts, sheet.heights.medium);
+    // Solo al cambiar de anclaje: lo demás se lee en ese momento.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheet.anchor]);
+
+  // Nada a la vista: los más cercanos al centro de lo que se ve, para traerlos al mapa.
+  const nearest = useMemo(
+    () => (searching || items.length > 0 ? [] : nearestTo(known.filter(hasLocation), boxCenter(listBox), 5)),
+    [searching, items.length, known, listBox],
+  );
+  const showNearest = () => {
+    if (sheet.anchor === 'full') sheet.snapTo('medium');
+    fitInView(nearest.map((e) => ({ latitude: e.latitude, longitude: e.longitude })), sheet.anchor === 'peek' ? sheet.heights.peek : sheet.heights.medium);
+  };
+  // Encabezado de lo que se ve: «En Centro Histórico», «Cerca de ti».
+  const place = zoneName ? (zoneName.onUser ? 'Cerca de ti' : zoneName.title.startsWith('Cerca de') ? zoneName.title : `En ${zoneName.title}`) : 'A la vista';
+
+  // Referencias del mapa (3.23, `referencias_mapa.html`): la zona marcada, «Tú» y la leyenda.
+  const areaZone = !searching && !bubbleMode && !selectedEntity && zoneName?.zone ? zoneName.zone : null;
+  const youPill =
+    userCoords && mapSize.height > 0 && topH > 0 && !tall && !selectedEntity && !placeItems && !mapMoving
+      ? edgePill(region, mapSize, userCoords, { top: topH + 8, bottom: mapSize.height - sheetNowPx - 64, left: 12, right: mapSize.width - 12 }, YOU_PILL)
+      : null;
+  const youDistance = userCoords ? formatDistance(distanceKm(userCoords, { latitude: region.latitude, longitude: region.longitude })) : null;
+  const [legendOpen, setLegendOpen] = useState(false);
+
+  // Guía de la primera vez (3 pasos). Sale sola una vez; desde Perfil se puede volver a ver (?guide=1).
+  const params = useLocalSearchParams<{ guide?: string }>();
+  const [guideSeen, setGuideSeen] = useState<boolean | null>(null);
+  const [guideStep, setGuideStep] = useState<number | null>(null);
+  const [stripRect, setStripRect] = useState<GuideRect | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void loadGuideSeen().then((seen) => {
+      if (alive) setGuideSeen(seen);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const guideBusy = searching || selectedEntity !== null || placeItems !== null || !mapReady || topH === 0;
+  useEffect(() => {
+    if (!shouldAutoStart(guideSeen, guideBusy) || guideStep !== null) return;
+    const t = setTimeout(() => setGuideStep(0), 800);
+    return () => clearTimeout(t);
+  }, [guideSeen, guideBusy, guideStep]);
+  useEffect(() => {
+    if (params.guide !== '1') return;
+    const t = setTimeout(() => {
+      setLegendOpen(false);
+      setGuideStep(0);
+    }, 300);
+    router.setParams({ guide: undefined });
+    return () => clearTimeout(t);
+  }, [params.guide, router]);
+  const onGuideStep = (next: number | null) => {
+    if (next !== null) {
+      setGuideStep(next);
+      return;
+    }
+    setGuideStep(null);
+    setGuideSeen(true);
+    void saveGuideSeen();
+  };
+  const usefulRect: GuideRect = { x: spacing.md, y: topH + 8, width: mapSize.width - spacing.md * 2, height: Math.max(60, mapSize.height - sheet.heights.peek - topH - 16) };
+  const areaRect = ((): GuideRect => {
+    if (!areaZone || mapSize.height === 0) return usefulRect;
+    const c = toScreen(region, mapSize, areaZone);
+    const r = (areaZone.radius_m / 111_320 / region.latitudeDelta) * mapSize.height;
+    const top = Math.max(usefulRect.y, c.y - r);
+    const bottom = Math.min(usefulRect.y + usefulRect.height, c.y + r);
+    if (bottom - top < 60) return usefulRect;
+    return { x: Math.max(spacing.sm, c.x - r), y: top, width: Math.min(mapSize.width - spacing.sm * 2, r * 2), height: bottom - top };
+  })();
+  const legendRect: GuideRect = { x: spacing.md, y: mapSize.height - sheetNowPx - spacing.md - 44, width: 220, height: 44 };
 
   return (
     <View style={styles.screen}>
@@ -869,6 +978,26 @@ export default function ExploreScreen() {
                   fillColor="rgba(36,104,198, 0.12)"
                 />
               ) : null}
+              {areaZone ? (
+                <Circle
+                  center={{ latitude: areaZone.latitude, longitude: areaZone.longitude }}
+                  radius={areaZone.radius_m}
+                  strokeWidth={2}
+                  strokeColor={colors.primary}
+                  fillColor="rgba(36,104,198,0.06)"
+                  lineDashPattern={[12, 10]}
+                />
+              ) : null}
+              {areaZone ? (
+                <MapLabelMarker
+                  key={`zone-${areaZone.id}`}
+                  latitude={areaZone.latitude + areaZone.radius_m / 111_320}
+                  longitude={areaZone.longitude}
+                  text={areaZone.name}
+                  tone="zone"
+                />
+              ) : null}
+              {userCoords && !youPill && !selectedEntity ? <MapLabelMarker key="you" latitude={userCoords.latitude} longitude={userCoords.longitude} text="Tú" tone="you" /> : null}
               {markers.map((m) =>
                 m.kind === 'bubble' ? (
                   <BubbleMarker
@@ -920,6 +1049,11 @@ export default function ExploreScreen() {
             </Animated.View>
           ) : null}
 
+          {youPill ? <YouPill left={youPill.left} top={youPill.top} angle={youPill.angle} distance={youDistance} onPress={() => void goToMe()} /> : null}
+          {!selectedEntity && !placeItems && !tall ? (
+            <MapLegend bottom={locateBottom} withZone={areaZone !== null} open={legendOpen && guideStep === null} onToggle={() => setLegendOpen((v) => !v)} />
+          ) : null}
+
           {!selectedEntity && !placeItems ? (
             <ExploreSheet
               sheet={sheet}
@@ -964,6 +1098,8 @@ export default function ExploreScreen() {
                 extras: extraModels,
                 filterActive: activeFilterCount > 0,
                 onRetry: () => void entities.refetch(),
+                place,
+                nearest: nearest.length > 0 ? { count: nearest.length, onShow: showNearest } : undefined,
               }}
               onPhoto={openPhoto}
               onOpenProfile={openBusiness}
@@ -1020,8 +1156,16 @@ export default function ExploreScreen() {
 
         {/* Arriba, dónde estás (o qué zona mira el mapa); debajo, el buscador con el filtro y las categorías. Flotan sobre el
             mapa: mientras el dedo lo mueve, la franja se atenúa y el resto se desvanece. */}
-        <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]} pointerEvents="box-none" onLayout={(e) => setTopH(e.nativeEvent.layout.height)}>
-          {selectedEntity ? null : <LocationStrip text={strip} moving={mapMoving} onAction={() => void goToMe()} />}
+        <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]} pointerEvents="box-none"
+          onLayout={(e) => {
+            if (!selectedEntity && !tall) setTopH(Math.round(e.nativeEvent.layout.height));
+          }}
+        >
+          {selectedEntity ? null : (
+            <View onLayout={(e) => setStripRect(e.nativeEvent.layout)}>
+              <LocationStrip text={strip} moving={mapMoving} onAction={() => void goToMe()} />
+            </View>
+          )}
           <Animated.View style={[styles.topRows, { opacity: topFade }]} pointerEvents={mapMoving ? 'none' : 'box-none'}>
           <SearchBar value={search} onChangeText={setSearch} onOpenFilters={openFilters} filterCount={activeFilterCount} />
 
@@ -1033,7 +1177,7 @@ export default function ExploreScreen() {
               onRemoveFilter={removeFilter}
               onClear={clearContext}
               onSearchArea={() => {
-                setSearchArea({ ...bbox, kind: 'zone' });
+                setSearchArea({ ...listBox, kind: 'zone' });
                 setAreaDirty(false);
                 AccessibilityInfo.announceForAccessibility('Buscando en esta zona');
               }}
@@ -1070,6 +1214,8 @@ export default function ExploreScreen() {
         </View>
 
       </View>
+
+      {guideStep !== null ? <ExploreGuide step={guideStep} rects={[stripRect, areaRect, legendRect]} size={mapSize} onStep={onGuideStep} /> : null}
 
       <PhotoViewer
         target={viewer}

@@ -37,7 +37,17 @@ interface Props {
    * Sin búsqueda: los destacados (negocios directamente en tu zona) y los adicionales (cerca, fuera de tu
    * zona). Todos suma los dos; Descubre, con pocos negocios, muestra los destacados como fichas.
    */
-  zone: { status: Status; items: CardModel[]; extras: CardModel[]; filterActive: boolean; onRetry: () => void };
+  zone: {
+    status: Status;
+    items: CardModel[];
+    extras: CardModel[];
+    filterActive: boolean;
+    onRetry: () => void;
+    /** Encabezado de lo que se ve («En Centro Histórico», «Cerca de ti»). */
+    place?: string;
+    /** Sin nada a la vista: traer los más cercanos al mapa. */
+    nearest?: { count: number; onShow: () => void };
+  };
   /** Tocar una foto (de la tira o de una tarjeta): abre el visor en esa foto. */
   onPhoto: (model: CardModel, index: number) => void;
   /** Abre el perfil de un negocio (la franja de oferta de una ficha). */
@@ -225,6 +235,8 @@ function Body(p: Props) {
           items={p.zone.items}
           extras={p.zone.extras}
           filterActive={p.zone.filterActive}
+          place={p.zone.place}
+          nearest={p.zone.nearest}
           selectedId={p.selectedId}
           onSelect={p.onSelect}
           onOpenProfile={p.onOpenProfile}
@@ -387,6 +399,8 @@ function Body(p: Props) {
           items={list}
           extras={extras}
           filterActive={p.zone.filterActive}
+          place={p.zone.place}
+          nearest={p.zone.nearest}
           selectedId={p.selectedId}
           onSelect={p.onSelect}
           onOpenProfile={p.onOpenProfile}

@@ -227,7 +227,9 @@ export function groupFeatured<T extends FichaLike>(items: T[]): FichaGroup<T>[] 
     { id: 'closed', title: 'Cerrados ahora', items: rest.filter((i) => i.open === false) },
     { id: 'unknown', title: 'Sin horario publicado', items: rest.filter((i) => i.open === null) },
   ];
-  return groups.filter((g) => g.items.length > 0);
+  const nonEmpty = groups.filter((g) => g.items.length > 0);
+  // Un solo grupo no se titula: repetiría el encabezado («Destacados · 5» y «Sin horario publicado · 5»).
+  return nonEmpty.length > 1 ? nonEmpty : [{ id: 'all', title: '', items }];
 }
 
 /** Las primeras `max` fichas y cuántas quedaron fuera (para «Ver los N»). */

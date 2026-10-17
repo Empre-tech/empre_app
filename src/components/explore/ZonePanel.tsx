@@ -26,6 +26,10 @@ interface Props extends Common {
   onWiden: () => void;
   /** Pasa a la pestaña Todos. */
   onSeeAll: () => void;
+  /** Encabezado de lo que se ve (3.24): «En Centro Histórico», «Cerca de ti». */
+  place?: string;
+  /** Sin nada a la vista: los más cercanos, para traerlos al mapa. */
+  nearest?: { count: number; onShow: () => void };
 }
 
 function GroupHead({ title, note, tone }: { title: string; note?: string; tone?: 'offer' | 'open' | 'extra' }) {
@@ -68,7 +72,29 @@ function Fichas({ items, selectedId, onSelect, onOpenProfile, onPhoto }: Common 
 }
 
 /** Sin destacados: nunca un callejón sin salida. */
-function EmptyZone({ extras, filterActive, onClearFilters, onWiden, onSeeAll }: Pick<Props, 'filterActive' | 'onClearFilters' | 'onWiden' | 'onSeeAll'> & { extras: number }) {
+function EmptyZone({ extras, filterActive, onClearFilters, onWiden, onSeeAll, nearest }: Pick<Props, 'filterActive' | 'onClearFilters' | 'onWiden' | 'onSeeAll' | 'nearest'> & { extras: number }) {
+  // Nada en lo que se ve (3.24): se ofrece traer los más cercanos al mapa, nunca una lista de negocios escondidos.
+  if (nearest && nearest.count > 0) {
+    return (
+      <View style={styles.empty} accessibilityRole="alert">
+        <View style={styles.emptyIcon}>
+          <Ionicons name="eye-outline" size={26} color={colors.primary} />
+        </View>
+        <Text style={styles.emptyTitle}>No hay destacados en lo que ves</Text>
+        <Text style={styles.emptyText}>{filterActive ? 'Con tu filtro, los más cercanos están un poco más allá.' : 'Hay negocios un poco más allá de lo que muestra el mapa.'}</Text>
+        <View style={styles.btns}>
+          <Pressable accessibilityRole="button" onPress={nearest.onShow} style={[styles.btn, styles.btnPrimary]}>
+            <Text style={[styles.btnText, styles.btnTextPrimary]}>{nearest.count === 1 ? 'Ver el más cercano' : `Ver los ${nearest.count} más cercanos`}</Text>
+          </Pressable>
+          {filterActive ? (
+            <Pressable accessibilityRole="button" onPress={onClearFilters} style={[styles.btn, styles.btnSecondary]}>
+              <Text style={styles.btnText}>Quitar filtros</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+    );
+  }
   const text = filterActive ? 'Con tu filtro no hay negocios en esta zona.' : extras > 0 ? 'Pero hay negocios cerca, un poco más allá de tu zona.' : 'Mueve el mapa o mira toda la ciudad.';
   const primary: 'extras' | 'filters' | 'widen' = extras > 0 ? 'extras' : filterActive ? 'filters' : 'widen';
   return (
@@ -106,13 +132,13 @@ function EmptyZone({ extras, filterActive, onClearFilters, onWiden, onSeeAll }: 
  */
 export function ZoneDiscover(p: Props) {
   const state = zoneState(p.items.length, p.extras.length);
-  if (state !== 'list') return <EmptyZone extras={p.extras.length} filterActive={p.filterActive} onClearFilters={p.onClearFilters} onWiden={p.onWiden} onSeeAll={p.onSeeAll} />;
+  if (state !== 'list') return <EmptyZone extras={p.extras.length} filterActive={p.filterActive} onClearFilters={p.onClearFilters} onWiden={p.onWiden} onSeeAll={p.onSeeAll} nearest={p.nearest} />;
   const { shown, hidden } = capFichas(p.items);
   const teaser = extrasTeaser(p.extras.length);
   return (
     <>
       {p.filterActive ? <FilterNote count={p.items.length} onClear={p.onClearFilters} /> : null}
-      <GroupHead title="Destacados en tu zona" note={String(p.items.length)} />
+      <GroupHead title={p.place ?? 'A la vista'} note={String(p.items.length)} tone="open" />
       <Fichas items={shown} selectedId={p.selectedId} onSelect={p.onSelect} onOpenProfile={p.onOpenProfile} onPhoto={p.onPhoto} />
       {hidden > 0 ? (
         <Pressable accessibilityRole="button" onPress={p.onSeeAll} style={[styles.btn, styles.btnSecondary, styles.btnCenter]}>
@@ -123,7 +149,7 @@ export function ZoneDiscover(p: Props) {
         <Pressable accessibilityRole="button" accessibilityLabel={`${teaser}. Ver en Todos`} onPress={p.onSeeAll} style={styles.more}>
           <View style={styles.moreText}>
             <Text style={styles.moreTitle}>{teaser}</Text>
-            <Text style={styles.moreSub}>Fuera de tu zona</Text>
+            <Text style={styles.moreSub}>Fuera de lo que ves</Text>
           </View>
           <Text style={styles.moreAction}>Ver en Todos</Text>
         </Pressable>
@@ -134,22 +160,22 @@ export function ZoneDiscover(p: Props) {
 
 /** Todos: los destacados de tu zona y, aparte, los adicionales cerca (otras zonas). */
 export function ZoneAll(p: Props) {
-  if (p.items.length + p.extras.length === 0) return <EmptyZone extras={0} filterActive={p.filterActive} onClearFilters={p.onClearFilters} onWiden={p.onWiden} onSeeAll={p.onSeeAll} />;
+  if (p.items.length + p.extras.length === 0) return <EmptyZone extras={0} filterActive={p.filterActive} onClearFilters={p.onClearFilters} onWiden={p.onWiden} onSeeAll={p.onSeeAll} nearest={p.nearest} />;
   return (
     <>
       {p.filterActive ? <FilterNote count={p.items.length + p.extras.length} onClear={p.onClearFilters} /> : null}
-      <GroupHead title="Destacados en tu zona" note={String(p.items.length)} tone="open" />
+      <GroupHead title={p.place ?? 'A la vista'} note={String(p.items.length)} tone="open" />
       {p.items.length > 0 ? (
         <Fichas items={p.items} selectedId={p.selectedId} onSelect={p.onSelect} onOpenProfile={p.onOpenProfile} onPhoto={p.onPhoto} />
       ) : (
         <View style={styles.noneHere}>
-          <Text style={styles.moreTitle}>Ninguno en tu zona</Text>
-          <Text style={styles.moreSub}>Mira los adicionales de abajo.</Text>
+          <Text style={styles.moreTitle}>Ninguno a la vista</Text>
+          <Text style={styles.moreSub}>Mira los de abajo, un poco más allá.</Text>
         </View>
       )}
       {p.extras.length > 0 ? (
         <>
-          <GroupHead title="Adicionales cerca" note={`${p.extras.length} · fuera de tu zona`} tone="extra" />
+          <GroupHead title="Más allá de lo que ves" note={String(p.extras.length)} tone="extra" />
           {p.extras.map((m) => (
             <ZoneCard key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onOpenProfile={p.onOpenProfile} onPhoto={p.onPhoto ? (i) => p.onPhoto?.(m, i) : undefined} />
           ))}

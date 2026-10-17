@@ -29,7 +29,8 @@ function reasonOf(model: CardModel): { text: string; tone: 'offer' | 'open' | 'n
 
 /**
  * Tarjeta de un destacado (3.22, mockup `destacados_fotos.html`): arriba sus fotos subidas (la grande y dos pequeñas con
- * «+N») o, sin fotos, el color de su categoría con «Aún sin fotos»; encima, la razón. Debajo el nombre, la categoría y
+ * «+N»); encima, la razón. Sin fotos (3.24, `area_util.html`) es compacta: icono de su categoría, datos y la franja de
+ * oferta si la tiene. Debajo el nombre, la categoría y
  * la distancia, la nota y el estado, la reseña o la frase corta, y «Ver perfil ›». Tocar la tarjeta centra el negocio
  * en el mapa; tocar una foto la abre. Sin precios ni cantidades de ofertas.
  */
@@ -59,23 +60,68 @@ export function ZoneCard({ model, selected, onPress, onOpenProfile, onPhoto }: P
     </View>
   ) : null;
 
+  const scoreLine = (
+    <Text style={styles.line} numberOfLines={1}>
+      <Text style={rating.hasScore ? styles.score : styles.noScore}>{rating.text}</Text>
+      {status ? <Text style={styles.sep}> · </Text> : null}
+      {status ? <Text style={status === 'Abierto' ? styles.open : styles.closed}>{status}</Text> : null}
+    </Text>
+  );
+
+  // Sin fotos (3.24): tarjeta compacta, sin un bloque grande vacío. El orden no cambia; solo ocupa menos.
+  if (!(onPhoto && model.photos?.length)) {
+    const offer = model.pill?.kind === 'offer' ? model.pill : null;
+    return (
+      <View style={[styles.card, model.open === false && styles.cardClosed, selected && styles.selected]}>
+        <View style={styles.compact}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${label}, sin fotos todavía`}
+            onPress={onPress}
+            style={({ pressed }) => [styles.compactMain, pressed && styles.pressed]}
+          >
+            <View style={[styles.cIcon, { backgroundColor: model.color.bg }]}>
+              <Ionicons name={model.icon as keyof typeof Ionicons.glyphMap} size={22} color={model.color.fg} />
+            </View>
+            <View style={styles.cText}>
+              <Text style={styles.cName} numberOfLines={1}>
+                {model.name}
+              </Text>
+              {where ? (
+                <Text style={styles.sub} numberOfLines={1}>
+                  {where}
+                </Text>
+              ) : null}
+              {scoreLine}
+              <Text style={styles.noPhotoNote}>Sin fotos todavía</Text>
+            </View>
+          </Pressable>
+          <Pressable accessibilityRole="link" accessibilityLabel={`Ver el perfil de ${model.name}`} onPress={() => onOpenProfile(model.id)} style={({ pressed }) => [styles.chev, pressed && styles.pressed]}>
+            <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+          </Pressable>
+        </View>
+        {offer ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Abrir el perfil de ${model.name}: oferta, termina en ${offer.text}`}
+            onPress={() => onOpenProfile(model.id)}
+            style={({ pressed }) => [styles.strip, pressed && styles.pressed]}
+          >
+            <Ionicons name="flash" size={14} color={colors.ink} />
+            <Text style={styles.stripText} numberOfLines={1}>
+              Oferta · termina en {offer.text}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.card, model.open === false && styles.cardClosed, selected && styles.selected]}>
-      {onPhoto && model.photos?.length ? (
-        <PhotoGallery name={model.name} photos={model.photos} photosCount={model.photosCount} color={model.color.bg} height={150} rounded="top" onPhoto={onPhoto}>
-          {reasonPill}
-        </PhotoGallery>
-      ) : (
-        <Pressable accessible={false} onPress={onPress} style={[styles.noPhoto, { backgroundColor: model.color.fg }]}>
-          {reasonPill ? <View style={styles.noPhotoReason}>{reasonPill}</View> : null}
-          <View style={styles.noPhotoRow}>
-            <View style={styles.noPhotoIcon}>
-              <Ionicons name={model.icon as keyof typeof Ionicons.glyphMap} size={24} color="#fff" />
-            </View>
-            <Text style={styles.noPhotoText}>Aún sin fotos</Text>
-          </View>
-        </Pressable>
-      )}
+      <PhotoGallery name={model.name} photos={model.photos} photosCount={model.photosCount} color={model.color.bg} height={150} rounded="top" onPhoto={onPhoto}>
+        {reasonPill}
+      </PhotoGallery>
 
       <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.body, pressed && styles.pressed]}>
         <Text style={styles.name} numberOfLines={2}>
@@ -86,11 +132,7 @@ export function ZoneCard({ model, selected, onPress, onOpenProfile, onPhoto }: P
             {where}
           </Text>
         ) : null}
-        <Text style={styles.line} numberOfLines={1}>
-          <Text style={rating.hasScore ? styles.score : styles.noScore}>{rating.text}</Text>
-          {status ? <Text style={styles.sep}> · </Text> : null}
-          {status ? <Text style={status === 'Abierto' ? styles.open : styles.closed}>{status}</Text> : null}
-        </Text>
+        {scoreLine}
         {model.review ? (
           <View style={styles.review} accessible={false}>
             <Text style={styles.quote} numberOfLines={2}>
@@ -142,11 +184,15 @@ const styles = StyleSheet.create({
   reasonText: { flexShrink: 1, fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   reasonOpenText: { color: '#1D6B3D' },
   reasonNewText: { color: colors.primaryDark },
-  noPhoto: { minHeight: 96, paddingHorizontal: spacing.md, paddingBottom: spacing.md, paddingTop: 42, justifyContent: 'flex-end' },
-  noPhotoReason: { position: 'absolute', left: 8, top: 8 },
-  noPhotoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  noPhotoIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' },
-  noPhotoText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#fff' },
+  compact: { flexDirection: 'row', alignItems: 'center', minHeight: 76 },
+  compactMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 10, paddingLeft: spacing.md },
+  cIcon: { width: 52, height: 52, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  cText: { flex: 1, minWidth: 0, gap: 1 },
+  cName: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  noPhotoNote: { fontSize: 11.5, fontFamily: fonts.ui.medium, fontStyle: 'italic', color: colors.muted },
+  chev: { width: 44, height: 44, marginRight: 4, alignItems: 'center', justifyContent: 'center' },
+  strip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: spacing.md, backgroundColor: colors.accent },
+  stripText: { flex: 1, fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   body: { paddingHorizontal: spacing.md, paddingTop: 10, gap: 3 },
   name: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   sub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
