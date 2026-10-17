@@ -4,10 +4,10 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { entitiesApi } from '@/api/endpoints';
 import { AIWritingAssist } from './AIWritingAssist';
 import { pickPostMedia, type PickedPostMedia } from '@/lib/images';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { enqueuePost } from '@/upload/uploadStore';
 
 interface Props {
   visible: boolean;
@@ -34,8 +34,6 @@ export function PostComposerSheet({ visible, onClose, entityId, businessName, ca
   const [media, setMedia] = useState<PickedPostMedia | null>(null);
   const [caption, setCaption] = useState('');
   const [picking, setPicking] = useState(false);
-  const [publishing, setPublishing] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const isVideo = media?.type.startsWith('video/') ?? false;
@@ -46,13 +44,10 @@ export function PostComposerSheet({ visible, onClose, entityId, businessName, ca
     setMedia(null);
     setCaption('');
     setPicking(false);
-    setPublishing(false);
-    setProgress(0);
     setError(null);
   };
 
   const close = () => {
-    if (publishing) return; // no cerrar a mitad de una subida
     reset();
     onClose();
   };
@@ -77,23 +72,14 @@ export function PostComposerSheet({ visible, onClose, entityId, businessName, ca
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
-  const publish = async () => {
+  // Publicar no hace esperar: la hoja se cierra y la publicación sube en segundo plano. Aparece al instante en Fotos
+  // con su progreso, la cápsula de arriba avisa cómo va y, si falla, se puede reintentar sin perder la foto.
+  const publish = () => {
     if (!media) return;
-    setPublishing(true);
-    setProgress(0);
-    setError(null);
-    try {
-      await entitiesApi.uploadImage(entityId, 'gallery', media, {
-        caption: caption.trim() || undefined,
-        onProgress: setProgress,
-      });
-      onPublished();
-      reset();
-      onClose();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'No pudimos publicar. Intenta de nuevo.');
-      setPublishing(false);
-    }
+    enqueuePost({ entityId, media, caption: caption.trim() || undefined });
+    onPublished();
+    reset();
+    onClose();
   };
 
   return (
@@ -112,7 +98,7 @@ export function PostComposerSheet({ visible, onClose, entityId, businessName, ca
           <View style={styles.sheetHandle} />
           <View style={styles.header}>
             <Text style={styles.title}>Nueva publicación</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={close} disabled={publishing} style={styles.closeButton}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={close} style={styles.closeButton}>
               <Ionicons name="close" size={20} color={colors.ink} />
             </Pressable>
           </View>
@@ -143,23 +129,13 @@ export function PostComposerSheet({ visible, onClose, entityId, businessName, ca
                   <Image accessible={false} source={{ uri: media.uri }} style={styles.previewMedia} contentFit="cover" />
                 )}
 
-                {publishing ? (
-                  <View style={styles.progressOverlay}>
-                    <View style={styles.progressRing}>
-                      <Text style={styles.progressText}>{Math.round(progress * 100)}%</Text>
-                    </View>
-                    <Text style={styles.progressLabel}>Publicando…</Text>
-                  </View>
-                ) : (
-                  <Pressable accessibilityRole="button" accessibilityLabel="Elegir otro archivo" onPress={() => void pick()} style={styles.changeButton}>
-                    <Ionicons name="swap-horizontal" size={14} color="#fff" />
-                    <Text style={styles.changeButtonText}>Cambiar</Text>
-                  </Pressable>
-                )}
+                <Pressable accessibilityRole="button" accessibilityLabel="Elegir otro archivo" onPress={() => void pick()} style={styles.changeButton}>
+                  <Ionicons name="swap-horizontal" size={14} color="#fff" />
+                  <Text style={styles.changeButtonText}>Cambiar</Text>
+                </Pressable>
               </View>
 
-              {!publishing ? (
-                <>
+              <>
                   <View style={styles.captionHeader}>
                     <Text style={styles.captionLabel}>Descripción (opcional)</Text>
                     <AIWritingAssist
@@ -186,12 +162,11 @@ export function PostComposerSheet({ visible, onClose, entityId, businessName, ca
 
                   {error ? <Text style={styles.error}>{error}</Text> : null}
 
-                  <Pressable accessibilityRole="button" onPress={() => void publish()} style={styles.publishButton}>
+                  <Pressable accessibilityRole="button" onPress={publish} style={styles.publishButton}>
                     <Ionicons name="paper-plane" size={16} color="#fff" />
                     <Text style={styles.publishButtonText}>Publicar</Text>
                   </Pressable>
-                </>
-              ) : null}
+              </>
             </View>
           )}
         </ScrollView>

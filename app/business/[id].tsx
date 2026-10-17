@@ -52,6 +52,8 @@ import { openingFromHours, statusLine } from '@/lib/placeCard';
 import { blockOrder, coverSource, pickQuote, sections, showQuickIndex, type BlockId, type SectionId } from '@/lib/profileLayout';
 import { featuredRating } from '@/lib/reviewSnippet';
 import { useNow } from '@/lib/useNow';
+import { itemsFor } from '@/lib/uploadQueue';
+import { removeUpload, retryUpload, useUploads } from '@/upload/uploadStore';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const PHONE_RE = /^[+\d\s()-]{7,}$/;
@@ -129,6 +131,8 @@ export default function BusinessScreen() {
   const sectionY = useRef<Record<string, number>>({});
   const bodyY = useRef(0);
   const recsY = useRef(0);
+  // Lo que el dueño está subiendo a este negocio (aparece al instante en Fotos, con su progreso).
+  const uploads = useUploads();
 
   // Descripción: se trunca a 3 líneas con un "Ver más" cuando es larga, en
   // vez de siempre mostrarla completa y alargar el perfil. El umbral de
@@ -508,7 +512,17 @@ export default function BusinessScreen() {
       case 'photos':
         return (
           <View key={id} onLayout={mark('photos')}>
-            <PhotosSection photos={photos} color={business.category?.color} isOwner={isOwner} onOpenPhoto={openViewer} onAll={openPhotos} onNew={() => setComposerOpen(true)} />
+            <PhotosSection
+              photos={photos}
+              color={business.category?.color}
+              isOwner={isOwner}
+              onOpenPhoto={openViewer}
+              onAll={openPhotos}
+              onNew={() => setComposerOpen(true)}
+              pending={isOwner ? itemsFor(uploads.items, business.id) : []}
+              onRetry={retryUpload}
+              onRemove={removeUpload}
+            />
           </View>
         );
       case 'reviews':

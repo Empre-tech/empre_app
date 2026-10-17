@@ -2,10 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import type { Photo } from '@/api/types';
 import { categoryColor } from '@/lib/categoryColor';
 import { resolveImageUrl } from '@/lib/image';
 import { photoSample } from '@/lib/profileLayout';
+import { isVideoItem, type UploadItem } from '@/lib/uploadQueue';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 interface Props {
@@ -17,6 +19,10 @@ interface Props {
   onAll: () => void;
   /** El dueño sube una publicación nueva. */
   onNew: () => void;
+  /** Lo que el dueño está subiendo a este negocio: aparece primero, con su progreso. */
+  pending?: UploadItem[];
+  onRetry?: (id: string) => void;
+  onRemove?: (id: string) => void;
 }
 
 const GAP = 4;
@@ -28,13 +34,14 @@ const isVideo = (p: Photo) => p.content_type?.startsWith('video/') ?? false;
  * en 3 columnas (la última con «+N» si hay más) y «Ver todas las fotos (N)». El dueño ve «+ Nueva» primero y, con
  * menos de 5 fotos, un aviso.
  */
-export function PhotosSection({ photos, color, isOwner, onOpenPhoto, onAll, onNew }: Props) {
+export function PhotosSection({ photos, color, isOwner, onOpenPhoto, onAll, onNew, pending = [], onRetry, onRemove }: Props) {
   const [w, setW] = useState(0);
   const sample = photoSample(photos.length, isOwner);
   const cat = categoryColor(color);
   if (!sample.show) return null;
   const size = w > 0 ? (w - GAP * (COLUMNS - 1)) / COLUMNS : 0;
-  const shown = photos.slice(0, sample.shown);
+  // Lo que sube ocupa las primeras celdas: la muestra sigue siendo de 6 en total.
+  const shown = photos.slice(0, Math.max(0, sample.shown - pending.length));
 
   return (
     <View style={styles.block} onLayout={(e) => setW(e.nativeEvent.layout.width - spacing.md * 2)}>
@@ -49,8 +56,11 @@ export function PhotosSection({ photos, color, isOwner, onOpenPhoto, onAll, onNe
               <Text style={styles.newText}>Nueva</Text>
             </Pressable>
           ) : null}
+          {pending.map((u) => (
+            <UploadTile key={u.id} item={u} size={size} onRetry={() => onRetry?.(u.id)} onRemove={() => onRemove?.(u.id)} />
+          ))}
           {shown.map((p, i) => {
-            const last = i === shown.length - 1 && sample.extra > 0;
+            const last = i === shown.length - 1 && photos.length > shown.length;
             return (
               <Pressable
                 key={p.id}
@@ -68,7 +78,7 @@ export function PhotosSection({ photos, color, isOwner, onOpenPhoto, onAll, onNe
                 )}
                 {last ? (
                   <View style={styles.more}>
-                    <Text style={styles.moreText}>+{sample.extra}</Text>
+                    <Text style={styles.moreText}>+{photos.length - shown.length}</Text>
                   </View>
                 ) : null}
               </Pressable>
@@ -86,7 +96,75 @@ export function PhotosSection({ photos, color, isOwner, onOpenPhoto, onAll, onNe
   );
 }
 
+const RING = 46;
+const STROKE = 4;
+const R = (RING - STROKE) / 2;
+const LEN = 2 * Math.PI * R;
+
+/**
+ * Una publicación que se está subiendo: la imagen elegida (o el color con ▶ si es video), apagada, con un anillo que se
+ * llena y el porcentaje; al terminar, un ✓ verde hasta que llega la foto real; si falla, borde rojo con «Reintentar» y
+ * «Quitar».
+ */
+function UploadTile({ item, size, onRetry, onRemove }: { item: UploadItem; size: number; onRetry: () => void; onRemove: () => void }) {
+  const pct = Math.round(item.progress * 100);
+  const failed = item.status === 'failed';
+  const done = item.status === 'done';
+  const label = failed ? `No se subió${item.error ? `: ${item.error}` : ''}` : done ? 'Publicada' : `Subiendo, ${pct} %`;
+  return (
+    <View style={[styles.cell, styles.uploadCell, { width: size, height: size }, failed && styles.uploadFailed]} accessible={!failed} accessibilityLabel={label}>
+      {isVideoItem(item) ? <View style={[styles.videoFill, { backgroundColor: colors.ink }]} /> : <Image accessible={false} source={{ uri: item.uri }} style={styles.image} contentFit="cover" />}
+      <View style={[styles.uploadVeil, done && styles.uploadVeilDone]}>
+        {failed ? (
+          <>
+            <Text style={styles.failedText}>No se subió</Text>
+            <View style={styles.failedRow}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Reintentar la subida" onPress={onRetry} style={styles.iconBtn}>
+                <Ionicons name="refresh" size={18} color="#fff" />
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Quitar la publicación" onPress={onRemove} style={styles.iconBtn}>
+                <Ionicons name="close" size={18} color="#fff" />
+              </Pressable>
+            </View>
+          </>
+        ) : done ? (
+          <Ionicons name="checkmark-circle" size={34} color="#fff" />
+        ) : (
+          <View style={styles.ringWrap}>
+            <Svg width={RING} height={RING}>
+              <Circle cx={RING / 2} cy={RING / 2} r={R} stroke="rgba(255,255,255,0.35)" strokeWidth={STROKE} fill="none" />
+              <Circle
+                cx={RING / 2}
+                cy={RING / 2}
+                r={R}
+                stroke="#fff"
+                strokeWidth={STROKE}
+                strokeLinecap="round"
+                fill="none"
+                strokeDasharray={LEN}
+                strokeDashoffset={LEN * (1 - item.progress)}
+                rotation={-90}
+                origin={`${RING / 2}, ${RING / 2}`}
+              />
+            </Svg>
+            <Text style={styles.ringText}>{pct}%</Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  uploadCell: { backgroundColor: colors.ink },
+  uploadFailed: { borderWidth: 2, borderColor: '#B3261E' },
+  uploadVeil: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(10,20,40,0.55)', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  uploadVeilDone: { backgroundColor: 'rgba(29,107,61,0.55)' },
+  ringWrap: { width: RING, height: RING, alignItems: 'center', justifyContent: 'center' },
+  ringText: { position: 'absolute', fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  failedText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  failedRow: { flexDirection: 'row', gap: 4 },
+  iconBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
   block: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: spacing.md, gap: spacing.sm },
   title: { fontSize: 12, fontFamily: fonts.ui.extrabold, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.muted },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },

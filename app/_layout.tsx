@@ -18,6 +18,8 @@ import { initAnalytics } from '@/analytics/track';
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
 import { ChatProvider } from '@/chat/ChatProvider';
 import { usePushNotifications } from '@/notifications/usePushNotifications';
+import { UploadCapsule } from '@/upload/UploadCapsule';
+import { initUploads } from '@/upload/uploadStore';
 import { colors } from '@/theme';
 
 // Se mantiene la splash nativa visible hasta que Nunito y Manrope estén
@@ -72,6 +74,11 @@ export default function RootLayout() {
     void initAnalytics();
   }, []);
 
+  // Cola de subidas: se conecta con la caché (para mostrar lo publicado al instante) y recupera lo que quedó sin subir.
+  useEffect(() => {
+    void initUploads(queryClient);
+  }, [queryClient]);
+
   useEffect(() => {
     if (fontsLoaded || fontError) void SplashScreen.hideAsync();
   }, [fontsLoaded, fontError]);
@@ -87,6 +94,7 @@ export default function RootLayout() {
           <ChatProvider>
             <StatusBar style="dark" />
             <AppStack />
+            <UploadCapsule />
           </ChatProvider>
         </AuthProvider>
       </QueryClientProvider>
