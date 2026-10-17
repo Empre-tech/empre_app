@@ -495,6 +495,9 @@ export interface DiscoveryItem extends EntityMap {
   distance_meters: number;
   has_active_offer: boolean;
   active_offer?: Offer;
+  /** Abierto: a qué hora cierra («HH:MM» o «24h»). Cerrado: cuándo vuelve a abrir. Sin horario, ninguno. */
+  closes_at?: string;
+  next_open?: { days_ahead: number; weekday: number; time: string } | null;
 }
 
 export interface BusinessStatus {

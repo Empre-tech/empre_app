@@ -43,6 +43,7 @@ import { useFeaturedSheet } from '@/components/explore/useFeaturedSheet';
 import { DEFAULT_REGION } from '@/config';
 import { categoryColor } from '@/lib/categoryColor';
 import { buildGroups, categoryFilter, groupIdOf, type GroupId } from '@/lib/categoryGroups';
+import { focusCenterLat } from '@/lib/placeCard';
 import { snippetLines } from '@/lib/reviewSnippet';
 import { effectiveClaimStatus } from '@/lib/claims';
 import { boxAround, EXTRAS_MAX, ZONE_FICHA_MAX, openLine, pickExtras, reasonPill, relatedFrom, SEARCH_NEAR_KM, sheetHeader } from '@/lib/discover';
@@ -73,6 +74,9 @@ const RADIUS_OPTIONS: { label: string; km: number | null }[] = [
 ];
 
 
+/** Alto estimado de la ficha del negocio mientras no se mide (para encuadrar el mapa sin esperar). */
+const SHEET_ESTIMATE = 300;
+
 export default function ExploreScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -83,6 +87,8 @@ export default function ExploreScreen() {
   const [groupId, setGroupId] = useState<GroupId | undefined>();
   const [subcategoryId, setSubcategoryId] = useState<string | undefined>();
   const [allCatsOpen, setAllCatsOpen] = useState(false);
+  // Alto medido de la ficha del negocio elegido (0 = aún no medido).
+  const [sheetH, setSheetH] = useState(0);
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
   const [userCoords, setUserCoords] = useState<Coords | null>(null);
   // Región con la que se monta el mapa la PRIMERA vez: null mientras no
@@ -573,13 +579,27 @@ export default function ExploreScreen() {
 
   // Toca un pin: selecciona y centra dejando espacio abajo para que el banner
   // no tape el pin (el centro queda un poco al sur del negocio).
+  // El negocio elegido queda en el centro del espacio libre (bajo el buscador y sobre la ficha), no en el centro de
+  // la pantalla. Se encuadra con un alto de ficha estimado y se afina cuando la ficha mide su alto real.
+  const focusBusiness = (coords: { latitude: number; longitude: number }, sheetHeight: number) => {
+    const delta = 0.008;
+    const latitude = mapSize.height > 0 ? focusCenterLat(coords.latitude, delta, mapSize.height, insets.top + 64, sheetHeight) : coords.latitude - 0.0016;
+    mapRef.current?.animateToRegion({ latitude, longitude: coords.longitude, latitudeDelta: delta, longitudeDelta: delta }, 420);
+  };
   const selectBusiness = (id: string, coords: { latitude: number; longitude: number }) => {
     setSelectedId(id);
     setPlaceItems(null);
-    mapRef.current?.animateToRegion(
-      { latitude: coords.latitude - 0.0016, longitude: coords.longitude, latitudeDelta: 0.008, longitudeDelta: 0.008 },
-      400,
-    );
+    setSheetH(0);
+    focusBusiness(coords, SHEET_ESTIMATE);
+  };
+  const onSheetHeight = (h: number) => {
+    // Solo se vuelve a encuadrar si el alto real difiere de verdad de lo estimado (una vez por negocio).
+    if (!selectedEntity || sheetH !== 0 || Math.abs(h - SHEET_ESTIMATE) < 24) {
+      setSheetH(h);
+      return;
+    }
+    setSheetH(h);
+    focusBusiness({ latitude: selectedEntity.latitude, longitude: selectedEntity.longitude }, h);
   };
 
   // Tocar una pila: si sus negocios comparten punto (≤ 50 m) o ya no se puede
@@ -693,6 +713,15 @@ export default function ExploreScreen() {
     staleTime: 10 * 60_000,
   });
   const snippets = snippetsQuery.data;
+  // La ficha del negocio elegido: su reseña viene de los destacados ya cargados o, si no está entre ellos, de una consulta.
+  const selectedSnippetQuery = useQuery({
+    queryKey: ['review-snippet', selectedId],
+    queryFn: () => discoveryApi.reviewSnippets([selectedId ?? '']),
+    enabled: selectedId !== null && !snippets?.[selectedId],
+    staleTime: 10 * 60_000,
+  });
+  const selectedSnippet = selectedId ? (snippets?.[selectedId] ?? selectedSnippetQuery.data?.[selectedId]) : undefined;
+  const selectedReview = selectedSnippet ? snippetLines(selectedSnippet, now) : undefined;
 
   const toModel = (e: WithDistance, line?: string): CardModel => ({
     id: e.id,
@@ -838,6 +867,7 @@ export default function ExploreScreen() {
                     mine={m.mine}
                     emphasis={m.emphasis}
                     distanceLabel={m.distanceLabel}
+                    dimmed={selectedId !== null && !m.selected}
                     onPress={() => selectBusiness(m.entity.id, m.coordinate)}
                   />
                 ) : (
@@ -943,6 +973,8 @@ export default function ExploreScreen() {
               }
               onScan={() => router.push('/business/scan')}
               onPublishOffer={() => router.push({ pathname: '/business/offers', params: { entityId: selectedEntity.id } })}
+              review={selectedReview}
+              onHeight={onSheetHeight}
             />
           ) : null}
 

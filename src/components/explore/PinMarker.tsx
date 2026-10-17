@@ -10,6 +10,9 @@ import { colors, fonts, radius } from '@/theme';
 import type { WithDistance } from './FeaturedCard';
 import { useMarkerTracking } from './useMarkerTracking';
 
+/** Opacidad de los pines que no son el elegido (35 %, como en la maqueta). */
+const DIM_OPACITY = 0.35;
+
 interface Props {
   entity: WithDistance;
   tier: 'far' | 'mid' | 'near';
@@ -19,6 +22,8 @@ interface Props {
   emphasis?: EmphasisTier;
   /** Distancia escrita en el pin grande. */
   distanceLabel?: string | null;
+  /** Hay otro negocio elegido: este baja de opacidad para que el elegido resalte (no desaparece). */
+  dimmed?: boolean;
   onPress: () => void;
 }
 
@@ -31,7 +36,7 @@ interface Props {
  * en la `key` lo que cambia su aspecto (zoom, selección, oferta), así un cambio
  * real lo vuelve a dibujar.
  */
-function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, onPress }: Props) {
+function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, dimmed, onPress }: Props) {
   const { tracking, onLayout, onImageSettled, markerRef } = useMarkerTracking();
 
   const cat = categoryColor(entity.category_color);
@@ -55,6 +60,7 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
         coordinate={coordinate}
         // El centro del pin queda sobre el negocio aunque el grande lleve etiqueta.
         anchor={{ x: 0.5, y: 0.5 }}
+        opacity={dimmed ? DIM_OPACITY : 1}
         zIndex={selected ? 1000 : emphasis === 'big' ? 30 : emphasis === 'mid' ? 20 : emphasis === 'dot' ? 10 : 1}
         tracksViewChanges={tracking}
         onPress={(event) => {
@@ -103,6 +109,7 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
     <Marker
       ref={markerRef}
       coordinate={coordinate}
+      opacity={dimmed ? DIM_OPACITY : 1}
       zIndex={selected ? 1000 : 1}
       tracksViewChanges={tracking}
       onPress={(event) => {

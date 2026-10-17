@@ -1,9 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
-import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button } from '@/components/Button';
+import { categoryColor } from '@/lib/categoryColor';
 import { formatDistance } from '@/lib/format';
+import { resolveImageUrl } from '@/lib/image';
 import { offerUrgency, timeLeftLabel, timeLeftMs } from '@/lib/offer';
+import { statusLine, swipeEnters, walkText } from '@/lib/placeCard';
+import { featuredRating } from '@/lib/reviewSnippet';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
@@ -20,18 +25,47 @@ interface Props {
   onProfile: (offerId?: string) => void;
   onScan?: () => void;
   onPublishOffer?: () => void;
+  /** La reseña verificada más reciente, ya en cita y firma; sin ella sale la frase corta del negocio. */
+  review?: { quote: string; byline: string };
+  /** Alto de la ficha, para que el mapa ponga el negocio en el centro del espacio libre. */
+  onHeight?: (height: number) => void;
 }
 
 /**
- * Lo que se ve al tocar un negocio en el mapa: su nombre y estado, la franja
- * naranja de la oferta relámpago que termina antes (si tiene) y dos acciones:
- * «Ver perfil» y «Cómo llegar». Ni cantidades de ofertas ni precios: todo eso,
- * escribirle y seguirlo están en el perfil. La franja entera abre el perfil.
+ * Lo que se ve al tocar un negocio en el mapa (maqueta `ficha_negocio_mapa.html`, forma A con el deslizar de B):
+ * foto, nombre, categoría con distancia y minutos a pie; nota (desde 3 reseñas) y estado con hora; una frase de
+ * reseña; la franja naranja de la oferta (si tiene); y el cierre «¿Quieres saber más?» con «Entrar al negocio» y
+ * «Cómo llegar». Ni cantidades de ofertas ni precios. La cabecera, la franja y deslizar la ficha hacia arriba
+ * también abren el perfil.
  */
-export function BusinessSheet({ entity, isMine, qrOfferId, onClose, onDirections, onProfile, onScan, onPublishOffer }: Props) {
+export function BusinessSheet({ entity, isMine, qrOfferId, onClose, onDirections, onProfile, onScan, onPublishOffer, review, onHeight }: Props) {
   const distance = formatDistance(entity.distanceKm);
-  const status = entity.has_hours ? (entity.is_open_now ? 'Abierto' : 'Cerrado') : null;
-  const sub = [entity.subcategory || entity.category_name, distance, status].filter(Boolean).join(' · ');
+  const walk = walkText(entity.distanceKm);
+  const sub = [entity.subcategory || entity.category_name, distance, walk].filter(Boolean).join(' · ');
+  const rating = featuredRating(entity.avg_rating, entity.review_count);
+  const status = statusLine(entity);
+  const cat = categoryColor(entity.category_color);
+  const photo = entity.profile_url ? resolveImageUrl(entity.profile_url) : null;
+  const quote = review?.quote ?? (entity.tagline ? entity.tagline : null);
+
+  // Deslizar la ficha hacia arriba entra al perfil (atajo del botón: quien no lo usa no pierde nada).
+  // Se crea una sola vez: con una oferta la ficha se repinta cada segundo y un gesto a medias no debe perderse.
+  const profileRef = useRef(onProfile);
+  useEffect(() => {
+    profileRef.current = onProfile;
+  });
+  const pan = useMemo(
+    () =>
+      // eslint-disable-next-line react-hooks/refs -- el callback del gesto corre por eventos del dedo, nunca durante el render
+      PanResponder.create({
+        // En la fase de captura: un arrastre vertical hacia arriba gana aunque empiece sobre un botón; un toque no se mueve.
+        onMoveShouldSetPanResponderCapture: (_, g) => g.dy < -8 && Math.abs(g.dy) > Math.abs(g.dx) * 1.5,
+        onPanResponderRelease: (_, g) => {
+          if (swipeEnters(g.dy)) profileRef.current();
+        },
+      }),
+    [],
+  );
 
   const offer = entity.has_active_offer ? entity.active_offer : undefined;
   const now = useNow(offer ? 1000 : 60_000);
@@ -57,21 +91,65 @@ export function BusinessSheet({ entity, isMine, qrOfferId, onClose, onDirections
   }, [enter]);
 
   return (
-    <Animated.View style={[styles.sheet, { opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }] }]}>
-      <View style={styles.handle} />
+    <Animated.View
+      onLayout={(e) => onHeight?.(e.nativeEvent.layout.height)}
+      {...pan.panHandlers}
+      style={[styles.sheet, { opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }] }]}
+    >
+      <View style={styles.grab}>
+        <View style={styles.handle} />
+      </View>
       <View style={styles.head}>
-        <View style={styles.headText}>
-          <Text style={styles.name} numberOfLines={1}>
-            {entity.name}
-          </Text>
-          <Text style={styles.sub} numberOfLines={1}>
-            {sub}
-          </Text>
-        </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} hitSlop={8} style={styles.close}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${entity.name}. ${sub}. Entrar al negocio`}
+          onPress={() => onProfile()}
+          style={styles.headTap}
+        >
+          <View style={[styles.photo, { backgroundColor: cat.fg }]}>
+            {photo ? (
+              <Image accessible={false} source={{ uri: photo }} style={styles.photoImage} contentFit="cover" />
+            ) : (
+              <Ionicons name={(entity.category_icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap} size={26} color="#fff" />
+            )}
+          </View>
+          <View style={styles.headText}>
+            <Text style={styles.name} numberOfLines={1}>
+              {entity.name}
+            </Text>
+            <Text style={styles.sub} numberOfLines={1}>
+              {sub}
+            </Text>
+          </View>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} hitSlop={4} style={styles.close}>
           <Ionicons name="close" size={18} color={colors.ink} />
         </Pressable>
       </View>
+
+      <View style={styles.facts}>
+        <View style={[styles.fact, rating.hasScore && styles.factRating]}>
+          <Text style={[styles.factText, rating.hasScore ? styles.factRatingText : styles.factMuted]}>{rating.text}</Text>
+        </View>
+        {status ? (
+          <View style={[styles.fact, status.tone === 'open' ? styles.factOpen : styles.factClosed]}>
+            <Text style={[styles.factText, status.tone === 'open' ? styles.factOpenText : styles.factClosedText]}>{status.text}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      {quote ? (
+        <View style={styles.review} accessible accessibilityLabel={review ? `Reseña: ${review.quote}. ${review.byline}` : quote}>
+          <Text style={styles.quote} numberOfLines={2}>
+            {review ? review.quote : quote}
+          </Text>
+          {review ? (
+            <Text style={styles.byline} numberOfLines={1}>
+              {review.byline}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
 
       {qrOfferId ? (
         <Strip kind="mine" title="Tu QR está activo" line="Toca para verlo en el perfil" onPress={() => onProfile(qrOfferId)} />
@@ -85,6 +163,7 @@ export function BusinessSheet({ entity, isMine, qrOfferId, onClose, onDirections
         />
       ) : null}
 
+      {isMine ? null : <Text style={styles.more}>¿Quieres saber más? Entra al negocio.</Text>}
       <View style={styles.actions}>
         {isMine ? (
           <>
@@ -93,7 +172,7 @@ export function BusinessSheet({ entity, isMine, qrOfferId, onClose, onDirections
           </>
         ) : (
           <>
-            <Button title="Ver perfil" onPress={() => onProfile()} style={styles.main} />
+            <Button title="Entrar al negocio ›" onPress={() => onProfile()} style={styles.main} />
             <Button title="Cómo llegar" variant="secondary" onPress={onDirections} style={styles.action} />
           </>
         )}
@@ -166,12 +245,31 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     ...shadow,
   },
+  // Zona de agarre para deslizar hacia arriba: el asa visible es pequeña, la zona de toque es mayor.
+  grab: { minHeight: 24, justifyContent: 'center', marginTop: -spacing.xs },
   handle: { width: 38, height: 5, borderRadius: 3, backgroundColor: colors.line, alignSelf: 'center' },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg },
+  headTap: { flex: 1, minWidth: 0, minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  photo: { width: 56, height: 56, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  photoImage: { width: 56, height: 56 },
   headText: { flex: 1, minWidth: 0 },
   name: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
   sub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
-  close: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
+  close: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
+  facts: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: spacing.lg },
+  fact: { minHeight: 28, paddingHorizontal: 10, borderRadius: radius.pill, backgroundColor: colors.bg, justifyContent: 'center' },
+  factText: { fontSize: 12, fontFamily: fonts.ui.bold },
+  factMuted: { color: colors.muted },
+  factRating: { backgroundColor: '#FFF4DC' },
+  factRatingText: { color: '#7A4B00' },
+  factOpen: { backgroundColor: '#E3F4EA' },
+  factOpenText: { color: '#1D6B3D' },
+  factClosed: { backgroundColor: '#FBE4E4' },
+  factClosedText: { color: '#8E2A2A' },
+  review: { marginHorizontal: spacing.lg, paddingLeft: 10, borderLeftWidth: 3, borderLeftColor: colors.accent, gap: 2 },
+  quote: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, fontStyle: 'italic', color: colors.ink },
+  byline: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.muted },
+  more: { paddingHorizontal: spacing.lg, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   strip: {
     flexDirection: 'row',
     alignItems: 'center',
