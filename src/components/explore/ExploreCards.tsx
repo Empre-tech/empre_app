@@ -148,7 +148,7 @@ export function DiscoverCard({ model, selected, onPress, onPhoto }: { model: Car
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.dcard, pressed && styles.pressed]}>
       <View style={[styles.cover, { backgroundColor: model.color.bg }, selected && styles.coverSelected]}>
-        <Image accessible={false} source={{ uri: cover }} style={styles.coverImage} contentFit="cover" transition={150} />
+        <Image accessible={false} source={{ uri: cover }} style={styles.coverImage} contentFit="cover" transition={250} cachePolicy="memory-disk" />
         <PillView pill={model.pill} mine={model.mine} floating />
       </View>
       {text}

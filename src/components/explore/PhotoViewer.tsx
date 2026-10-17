@@ -72,7 +72,7 @@ function ViewerBody({ target, onClose, onProfile, onAllPhotos }: Props & { targe
       >
         {target.photos.map((uri, i) => (
           <View key={`${i}-${uri}`} style={{ width }} accessible accessibilityRole="image" accessibilityLabel={photoLabel(i, target.total, target.name)}>
-            <Image source={{ uri: resolveImageUrl(uri) ?? uri }} style={styles.photo} contentFit="contain" transition={150} />
+            <Image source={{ uri: resolveImageUrl(uri) ?? uri }} style={styles.photo} contentFit="contain" transition={150} cachePolicy="memory-disk" />
           </View>
         ))}
       </ScrollView>

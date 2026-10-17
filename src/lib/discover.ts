@@ -279,3 +279,42 @@ export function extrasTeaser(extras: number): string | null {
   if (extras <= 0) return null;
   return `${extras} ${extras === 1 ? 'negocio más' : 'negocios más'} cerca de ti`;
 }
+
+/** Como en el servidor: una sección se muestra desde 3 negocios y con 6 como mucho. */
+export const SECTION_MIN = 3;
+export const SECTION_SHOW = 6;
+
+/**
+ * Descubre se pide para un área con holgura (la misma de los pines, 2× la pantalla) y el teléfono deja en cada sección
+ * solo los negocios que se ven (3.26). Así un movimiento corto del mapa no pide nada: se vuelve a filtrar. Las
+ * secciones que se quedan con menos de 3 negocios a la vista no se muestran (igual que la regla del servidor).
+ */
+export function sectionsInView<I extends { latitude: number; longitude: number }, S extends { items: I[] }>(
+  sections: S[],
+  view: Box,
+  min: number = SECTION_MIN,
+  max: number = SECTION_SHOW,
+): S[] {
+  const out: S[] = [];
+  for (const sec of sections) {
+    const items = sec.items.filter((it) => containsPoint(view, it)).slice(0, max);
+    if (items.length >= min) out.push({ ...sec, items });
+  }
+  return out;
+}
+
+/** Cuántas reseñas destacadas acepta el servidor por petición. */
+export const SNIPPET_MAX_IDS = 12;
+
+/**
+ * Reseñas destacadas: solo se piden las de negocios que todavía no se consultaron (con o sin reseña), hasta 12. Antes se
+ * pedía la lista entera cada vez que cambiaban los negocios a la vista.
+ */
+export function snippetIdsToFetch(ids: string[], asked: ReadonlySet<string>, max: number = SNIPPET_MAX_IDS): string[] {
+  const out: string[] = [];
+  for (const id of ids) {
+    if (!asked.has(id) && !out.includes(id)) out.push(id);
+    if (out.length >= max) break;
+  }
+  return out.sort();
+}

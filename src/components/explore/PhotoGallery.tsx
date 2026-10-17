@@ -37,7 +37,7 @@ export function PhotoGallery({ name, photos, photosCount, color, height, onPhoto
       onPress={() => onPhoto(i)}
       style={({ pressed }) => [styles.tile, { backgroundColor: color }, style, pressed && styles.pressed]}
     >
-      <Image accessible={false} source={{ uri: resolveImageUrl(uri) ?? uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} recyclingKey={uri} />
+      <Image accessible={false} source={{ uri: resolveImageUrl(uri) ?? uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={250} cachePolicy="memory-disk" recyclingKey={uri} />
       {i === shown.length - 1 && extra > 0 ? (
         <View style={styles.more}>
           <Text style={styles.moreText}>+{extra}</Text>

@@ -39,7 +39,7 @@ export function PhotoReel({ tiles, badge, onPhoto }: Props) {
             onPress={() => onPhoto(t)}
             style={({ pressed }) => [styles.tile, { backgroundColor: b.color }, pressed && styles.pressed]}
           >
-            <Image accessible={false} source={{ uri: resolveImageUrl(t.uri) ?? t.uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} recyclingKey={t.uri} />
+            <Image accessible={false} source={{ uri: resolveImageUrl(t.uri) ?? t.uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={250} cachePolicy="memory-disk" recyclingKey={t.uri} />
             <View style={[styles.badge, { backgroundColor: b.color }]}>
               <Text style={styles.badgeText}>{b.letter}</Text>
             </View>

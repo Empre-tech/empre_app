@@ -55,7 +55,8 @@ import { shouldAutoStart } from '@/lib/exploreGuide';
 import { loadGuideSeen, saveGuideSeen } from '@/lib/exploreGuideStore';
 import { snippetLines } from '@/lib/reviewSnippet';
 import { effectiveClaimStatus } from '@/lib/claims';
-import { boxAround, EXTRAS_MAX, ZONE_FICHA_MAX, openLine, pickExtras, reasonPill, relatedFrom, SEARCH_NEAR_KM, sheetHeader } from '@/lib/discover';
+import { boxAround, EXTRAS_MAX, ZONE_FICHA_MAX, openLine, pickExtras, reasonPill, relatedFrom, SEARCH_NEAR_KM, sectionsInView, sheetHeader, snippetIdsToFetch } from '@/lib/discover';
+import type { ReviewSnippetData } from '@/lib/reviewSnippet';
 import { formatDistance } from '@/lib/format';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
@@ -418,12 +419,16 @@ export default function ExploreScreen() {
   });
   const zones = useZones();
 
-  // Descubre: lo arma el servidor para la zona visible (también se ve durante una búsqueda).
+  // Descubre (3.26, `carga_descubre.html`): lo arma el servidor para la MISMA área con holgura que los pines (`fetchBox`,
+  // 2× la pantalla) y el teléfono deja solo lo que se ve (`sectionsInView`). Un movimiento corto no pide nada: se vuelve
+  // a filtrar. La llave no lleva la posición GPS (la distancia se calcula aquí), así el GPS no dispara peticiones.
+  const sectionsBox = fetchBox ?? bbox;
   const sectionsQuery = useQuery({
-    queryKey: ['discover-sections', catFilter ?? 'all', subcategoryId ?? 'all', listBox.min_lat, listBox.min_lng, listBox.max_lat, listBox.max_lng, refKey],
-    queryFn: () => discoverApi.sections({ ...listBox, lat: reference?.latitude, long: reference?.longitude, category: catFilter, subcategory: subcategoryId }),
+    queryKey: ['discover-sections', catFilter ?? 'all', subcategoryId ?? 'all', sectionsBox.min_lat, sectionsBox.min_lng, sectionsBox.max_lat, sectionsBox.max_lng],
+    queryFn: () => discoverApi.sections({ ...sectionsBox, lat: reference?.latitude, long: reference?.longitude, category: catFilter, subcategory: subcategoryId, limit: 30 }),
     enabled: startupRegion !== null,
     placeholderData: keepPreviousData,
+    staleTime: 60_000,
   });
   // «Ver más» de una sección: la misma regla, con más negocios.
   const sectionMoreQuery = useQuery({
@@ -724,14 +729,20 @@ export default function ExploreScreen() {
   // La reseña verificada más reciente de los destacados que se ven (y los adicionales): una sola consulta, hasta 12.
   const extraEntities = useMemo(() => (searching ? [] : pickExtras(known, listBox, EXTRAS_MAX)), [searching, known, listBox]);
   const snippetIds = searching ? [] : [...items.slice(0, ZONE_FICHA_MAX), ...extraEntities].map((e) => e.id);
-  const snippetsKey = [...snippetIds].sort().join(',');
+  // Reseñas destacadas (3.26): solo se piden las de negocios aún no consultados; lo ya traído se guarda y se reutiliza.
+  const [snippetStore, setSnippetStore] = useState<{ asked: Set<string>; data: Record<string, ReviewSnippetData> }>(() => ({ asked: new Set(), data: {} }));
+  const snippetsToFetch = snippetIdsToFetch(snippetIds, snippetStore.asked);
   const snippetsQuery = useQuery({
-    queryKey: ['review-snippets', snippetsKey],
-    queryFn: () => discoveryApi.reviewSnippets(snippetIds),
-    enabled: snippetIds.length > 0,
+    queryKey: ['review-snippets', snippetsToFetch.join(',')],
+    queryFn: async () => {
+      const got = await discoveryApi.reviewSnippets(snippetsToFetch);
+      setSnippetStore((prev) => ({ asked: new Set([...prev.asked, ...snippetsToFetch]), data: { ...prev.data, ...got } }));
+      return got;
+    },
+    enabled: snippetsToFetch.length > 0,
     staleTime: 10 * 60_000,
   });
-  const snippets = snippetsQuery.data;
+  const snippets = useMemo(() => ({ ...snippetStore.data, ...(snippetsQuery.data ?? {}) }), [snippetStore.data, snippetsQuery.data]);
   // La ficha del negocio elegido: su reseña viene de los destacados ya cargados o, si no está entre ellos, de una consulta.
   const selectedSnippetQuery = useQuery({
     queryKey: ['review-snippet', selectedId],
@@ -773,7 +784,8 @@ export default function ExploreScreen() {
     color: categoryColor(it.category_color),
     icon: displayIcon(it.category_icon),
     open: it.is_open_now,
-    distance: formatDistance(it.distance_meters > 0 ? it.distance_meters / 1000 : null),
+    // La distancia se calcula aquí (Descubre se guarda por área, no por tu posición).
+    distance: formatDistance(reference ? distanceKm(reference, it) : it.distance_meters > 0 ? it.distance_meters / 1000 : null),
     sub: it.subcategory || it.category_name,
     line: sectionId === 'open' ? openLine(it.closes_at) : it.tagline || undefined,
     pill: reasonPill(it.reason, now),
@@ -818,7 +830,12 @@ export default function ExploreScreen() {
     const coords = userCoords ?? (await requestLocation());
     if (coords) mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 500);
   };
-  const sections = sectionsQuery.data ?? [];
+  const sections = useMemo(() => sectionsInView(sectionsQuery.data ?? [], listBox), [sectionsQuery.data, listBox]);
+  // Llega algo nuevo con lo anterior todavía a la vista: barra fina arriba del panel y lo anterior atenuado (3.26).
+  const updating =
+    !searching &&
+    ((sectionsQuery.isFetching && !sectionsQuery.isLoading && (sectionsQuery.data?.length ?? 0) > 0) ||
+      (entities.isFetching && !entities.isLoading && (entities.data?.items?.length ?? 0) > 0));
   const avatars = (sections[0]?.items ?? []).slice(0, 3).map((it) => ({ key: it.entity_id, color: categoryColor(it.category_color).fg, letter: it.name.charAt(0) }));
   const sectionTitle = sections.find((sec) => sec.id === sectionFilter)?.title ?? '';
   const onSelectCard = (m: CardModel) => {
@@ -1066,6 +1083,7 @@ export default function ExploreScreen() {
           {!selectedEntity && !placeItems ? (
             <ExploreSheet
               sheet={sheet}
+              updating={updating}
               bottomInset={0}
               tucked={mapMoving}
               header={header}

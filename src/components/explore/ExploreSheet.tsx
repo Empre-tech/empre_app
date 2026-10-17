@@ -2,12 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { DiscoverSection, DiscoverSectionId } from '@/api/types';
-import { SkeletonBlock, SkeletonRows } from '@/components/Skeleton';
+import { SkeletonRows } from '@/components/Skeleton';
 import { scopeText, type SearchScope } from '@/lib/discover';
 import { reelTiles, type ReelTile } from '@/lib/photoStrip';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
 import { DiscoverCard, MiniCard, MiniRow, type CardModel } from './ExploreCards';
+import { DiscoverSkeleton, FadeIn, UpdatingBar } from './LoadingMotion';
 import { PhotoReel } from './PhotoReel';
 import { ZoneAll, ZoneDiscover } from './ZonePanel';
 import { PEEK_REEL, type FeaturedSheetState } from './useFeaturedSheet';
@@ -50,6 +51,8 @@ interface Props {
   };
   /** Tocar una foto (de la tira o de una tarjeta): abre el visor en esa foto. */
   onPhoto: (model: CardModel, index: number) => void;
+  /** Llega algo nuevo con lo anterior todavía a la vista (3.26): barra fina arriba y lo anterior atenuado. */
+  updating?: boolean;
   /** Abre el perfil de un negocio (la franja de oferta de una ficha). */
   onOpenProfile: (id: string) => void;
   /** Quita los filtros activos (categoría, distancia, «abiertos ahora»). */
@@ -147,8 +150,13 @@ export function ExploreSheet(p: Props) {
         </Pressable>
       </View>
 
+      {p.updating ? <UpdatingBar /> : null}
       {compact ? <PhotoReel tiles={tiles} badge={badge} onPhoto={openTile} /> : null}
-      {compact ? null : <Body {...p} />}
+      {compact ? null : (
+        <View style={[styles.bodyWrap, p.updating && styles.dim]} accessibilityState={{ busy: Boolean(p.updating) }}>
+          <Body {...p} />
+        </View>
+      )}
     </Animated.View>
   );
 }
@@ -192,17 +200,10 @@ function Body(p: Props) {
     const keep = p.searching ? <Hint text={`Tu búsqueda «${p.query}» sigue activa`} action="Volver a resultados" onAction={() => p.onView('results')} /> : null;
     const { status, data } = p.sections;
     let content: React.ReactNode;
-    if (status === 'loading' && data.length === 0) {
-      content = (
-        <View style={styles.skelCards}>
-          {[0, 1].map((i) => (
-            <View key={i} style={{ width: 216, gap: 8 }}>
-              <SkeletonBlock height={112} borderRadius={radius.lg} />
-              <SkeletonBlock width="70%" height={12} />
-            </View>
-          ))}
-        </View>
-      );
+    // Primera carga (3.26): esqueleto mientras falte cualquiera de las dos respuestas. Nunca un «No hay destacados» falso.
+    const firstLoad = (status === 'loading' && data.length === 0) || (p.zone.status === 'loading' && p.zone.items.length === 0 && data.length === 0);
+    if (firstLoad) {
+      content = <DiscoverSkeleton />;
     } else if (p.zone.status === 'error' && (status === 'error' || data.length === 0) && p.zone.items.length === 0) {
       content = (
         <View style={styles.errBox} accessibilityRole="alert">
@@ -274,11 +275,13 @@ function Body(p: Props) {
         </>
       );
     }
+    // Lo nuevo entra con un fundido (la llave cambia solo cuando cambian los negocios mostrados).
+    const sig = firstLoad ? 'loading' : data.length > 0 ? data.map((sec) => `${sec.id}:${sec.items.map((it) => it.entity_id).join('.')}`).join('|') : `zona:${p.zone.items.map((m) => m.id).join('.')}`;
     return (
       <ScrollView style={styles.body} scrollEnabled={!mid} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
         {tabs}
         {keep}
-        {content}
+        <FadeIn key={sig}>{content}</FadeIn>
       </ScrollView>
     );
   }
@@ -453,6 +456,8 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 10, fontFamily: fonts.ui.extrabold, color: '#fff' },
   chevron: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1 },
+  bodyWrap: { flex: 1 },
+  dim: { opacity: 0.55 },
   bodyContent: { paddingBottom: spacing.lg },
   seg: { flexDirection: 'row', gap: 6, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   segItem: { height: 34, paddingHorizontal: 13, borderRadius: radius.pill, backgroundColor: colors.bg, justifyContent: 'center' },
@@ -469,7 +474,6 @@ const styles = StyleSheet.create({
   link: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primary },
   hscroll: { flexGrow: 0 },
   hrow: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
-  skelCards: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   more: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   group: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: 6 },
   groupTitle: { fontSize: 12, fontFamily: fonts.ui.extrabold, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.muted },
