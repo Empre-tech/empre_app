@@ -377,6 +377,45 @@ export interface Offer {
   items?: { name: string; price?: number }[];
 }
 
+/** Una oferta del negocio con sus resultados (GET /api/entities/:id/offers/stats, solo el dueño). */
+export interface OfferStat {
+  offer_id: string;
+  title: string;
+  type: OfferType;
+  starts_at: string;
+  ends_at: string;
+  total_slots: number;
+  special_price?: number;
+  ended: boolean;
+  /** Instalaciones distintas que la vieron (anónimo). */
+  views: number;
+  claims: number;
+  redeemed: number;
+  /** Minutos hasta que se reclamó el último cupo; sin valor si no se agotó. */
+  filled_minutes?: number;
+  /** Hora y día del inicio (hora de Colombia) y cuánto duró. */
+  hour: number;
+  weekday: number;
+  duration_minutes: number;
+}
+
+/** Resumen de las ofertas terminadas y lo que se puede sugerir (solo con datos suficientes). */
+export interface OfferStatsSummary {
+  finished: number;
+  views: number;
+  claims: number;
+  redeemed: number;
+  enough: boolean;
+  min_offers: number;
+  min_views: number;
+  insights: { kind: 'band' | 'duration' | 'fill' | string; text: string }[];
+  best_offer_id?: string;
+  /** «mañana», «tarde» o «noche». */
+  prefer_band?: string;
+  prefer_short: boolean;
+  avg_fill_minutes?: number;
+}
+
 export interface OfferClaim {
   id: string;
   offer_id: string;

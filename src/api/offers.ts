@@ -9,6 +9,8 @@ import type {
   Offer,
   OfferClaim,
   OfferInput,
+  OfferStat,
+  OfferStatsSummary,
   OffersFeed,
   QuickAction,
   RedeemResult,
@@ -138,6 +140,12 @@ export const offersApi = {
     const res = await request<{ data?: Offer[] | null; total?: number }>(`/api/entities/${entityId}/offers/active`, { auth: false, query: { limit } });
     const offers = list(res);
     return { offers, total: res.total ?? offers.length };
+  },
+
+  /** Cómo le fue a cada oferta de los últimos 90 días y lo que dicen las pasadas (solo el dueño). */
+  stats: async (entityId: string): Promise<{ offers: OfferStat[]; summary: OfferStatsSummary }> => {
+    const res = await request<{ offers?: OfferStat[] | null; summary: OfferStatsSummary }>(`/api/entities/${entityId}/offers/stats`);
+    return { offers: res.offers ?? [], summary: { ...res.summary, insights: res.summary?.insights ?? [] } };
   },
 
   /** Canjes confirmados del negocio en la última semana (prueba social, público). */
