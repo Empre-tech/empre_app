@@ -40,6 +40,8 @@ export interface ZoneName {
   /** Aclaración corta para la cápsula («a 4,2 km de ti», «sin ubicación»); null si no hace falta. */
   note: string | null;
   reason: ZoneReason;
+  /** El nombre es el del lugar de la persona (el mapa está sobre ella), no el de otro lugar que mira. */
+  onUser: boolean;
   /** Zona configurada que da el nombre (para recordarla como «anterior»); null si no hay. */
   zone: Zone | null;
   /** Solo hay «Explora por zona» donde hay zonas configuradas para la ciudad. */
@@ -140,6 +142,7 @@ export function resolveZoneName(input: ZoneInput): ZoneName {
       sub: user ? (near ? 'Cerca de ti' : 'En esta zona') : 'En esta zona',
       note: null,
       reason: 'other-city',
+      onUser: near,
       zone: null,
       zoneExplore: false,
     };
@@ -155,6 +158,7 @@ export function resolveZoneName(input: ZoneInput): ZoneName {
       sub: 'En esta zona · activa tu ubicación para ver distancias',
       note: 'sin ubicación',
       reason: 'no-permission',
+      onUser: false,
       zone: z ? z.zone : null,
       zoneExplore: true,
     };
@@ -168,6 +172,7 @@ export function resolveZoneName(input: ZoneInput): ZoneName {
       sub: `En esta zona · a ${kmLabel(meters(user, view))} de ti`,
       note: `a ${kmLabel(meters(user, view))} de ti`,
       reason: 'view-away',
+      onUser: false,
       zone: z ? z.zone : null,
       zoneExplore: true,
     };
@@ -175,8 +180,8 @@ export function resolveZoneName(input: ZoneInput): ZoneName {
 
   const z = zoneAt(zones, user, prevZoneId);
   if (z) {
-    return { title: z.zone.name, city: ownCity, sub: 'Cerca de ti', note: null, reason: z.held ? 'held' : 'inside', zone: z.zone, zoneExplore: true };
+    return { title: z.zone.name, city: ownCity, sub: 'Cerca de ti', note: null, reason: z.held ? 'held' : 'inside', onUser: true, zone: z.zone, zoneExplore: true };
   }
   const out = outsideName(zones, user, district, ownCity);
-  return { title: out.title, city: ownCity, sub: 'Cerca de ti', note: null, reason: out.reason, zone: null, zoneExplore: true };
+  return { title: out.title, city: ownCity, sub: 'Cerca de ti', note: null, reason: out.reason, onUser: true, zone: null, zoneExplore: true };
 }

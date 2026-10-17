@@ -35,7 +35,7 @@ import { useZoneName, useZones } from '@/components/explore/useZoneName';
 import { track } from '@/analytics/track';
 import { ContextRow } from '@/components/explore/ContextRow';
 import { LoadingChip } from '@/components/explore/LoadingChip';
-import { ZoneCapsule } from '@/components/explore/ZoneCapsule';
+import { LocationStrip } from '@/components/explore/LocationStrip';
 import { PlaceSheet } from '@/components/explore/PlaceSheet';
 import { StackMarker } from '@/components/explore/StackMarker';
 import { SearchBar } from '@/components/explore/SearchBar';
@@ -44,6 +44,7 @@ import { DEFAULT_REGION } from '@/config';
 import { categoryColor } from '@/lib/categoryColor';
 import { buildGroups, categoryFilter, groupIdOf, type GroupId } from '@/lib/categoryGroups';
 import { focusCenterLat } from '@/lib/placeCard';
+import { stripText } from '@/lib/locationStrip';
 import { snippetLines } from '@/lib/reviewSnippet';
 import { effectiveClaimStatus } from '@/lib/claims';
 import { boxAround, EXTRAS_MAX, ZONE_FICHA_MAX, openLine, pickExtras, reasonPill, relatedFrom, SEARCH_NEAR_KM, sheetHeader } from '@/lib/discover';
@@ -502,6 +503,9 @@ export default function ExploreScreen() {
   // En qué zona está la persona (o qué zona mira el mapa): nombre del encabezado del panel.
   const viewPoint = useMemo(() => ({ latitude: region.latitude, longitude: region.longitude }), [region.latitude, region.longitude]);
   const zoneName = useZoneName({ user: userCoords, view: viewPoint });
+  const strip = useMemo(() => stripText(zoneName, { hasUser: userCoords !== null, denied: locationDenied }), [zoneName, userCoords, locationDenied]);
+  // Alto real de lo que flota arriba (franja, buscador y fila): el encuadre de resultados deja ese espacio libre.
+  const [topH, setTopH] = useState(0);
 
   // Resultados de búsqueda: mientras llega una consulta nueva se muestra «Buscando…», no la anterior.
   const resultsStatus: 'loading' | 'error' | 'ok' = entities.isError ? 'error' : entities.isLoading || entities.isPlaceholderData ? 'loading' : 'ok';
@@ -538,11 +542,11 @@ export default function ExploreScreen() {
     // Se encuadra lo encontrado cerca o más lejos; si la persona eligió la zona, el mapa no se mueve.
     if (coords.length > 0 && searchScope !== 'zone') {
       mapRef.current?.fitToCoordinates(coords, {
-        edgePadding: { top: 150, right: 48, bottom: sheet.heights.medium + 40, left: 48 },
+        edgePadding: { top: Math.max(150, topH + 16), right: 48, bottom: sheet.heights.medium + 40, left: 48 },
         animated: true,
       });
     }
-  }, [searching, resultsStatus, debouncedSearch, catFilter, searchScope, plan, sheet, userCoords]);
+  }, [searching, resultsStatus, debouncedSearch, catFilter, searchScope, plan, sheet, userCoords, topH]);
 
   // Medición (anónima): una búsqueda cuenta una vez por consulta y alcance, cuando llegan los resultados.
   const trackedSearch = useRef('');
@@ -781,7 +785,14 @@ export default function ExploreScreen() {
     categoryName: selectedCategory?.name ?? selectedGroup?.name,
     view,
     extraCount: extraModels.length,
+    zone: zoneName ? { title: zoneName.title, onUser: zoneName.onUser } : null,
+    openCount: searching ? 0 : items.filter((e) => e.has_hours && e.is_open_now).length,
   });
+  // «Volver» lleva el mapa a la persona; sin ubicación, la pide y luego centra.
+  const goToMe = async () => {
+    const coords = userCoords ?? (await requestLocation());
+    if (coords) mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 500);
+  };
   const sections = sectionsQuery.data ?? [];
   const avatars = (sections[0]?.items ?? []).slice(0, 3).map((it) => ({ key: it.entity_id, color: categoryColor(it.category_color).fg, letter: it.name.charAt(0) }));
   const sectionTitle = sections.find((sec) => sec.id === sectionFilter)?.title ?? '';
@@ -988,14 +999,17 @@ export default function ExploreScreen() {
           ) : null}
         </View>
 
-        {/* Buscador y chips flotan sobre el mapa (sin barra sólida). */}
-        <Animated.View style={[styles.topBar, { paddingTop: insets.top + spacing.sm, opacity: topFade }]} pointerEvents={mapMoving ? 'none' : 'box-none'}>
+        {/* Arriba, dónde estás (o qué zona mira el mapa); debajo, el buscador con el filtro y las categorías. Flotan sobre el
+            mapa: mientras el dedo lo mueve, la franja se atenúa y el resto se desvanece. */}
+        <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]} pointerEvents="box-none" onLayout={(e) => setTopH(e.nativeEvent.layout.height)}>
+          {selectedEntity ? null : <LocationStrip text={strip} moving={mapMoving} onAction={() => void goToMe()} />}
+          <Animated.View style={[styles.topRows, { opacity: topFade }]} pointerEvents={mapMoving ? 'none' : 'box-none'}>
           <SearchBar value={search} onChangeText={setSearch} onOpenFilters={openFilters} filterCount={activeFilterCount} />
 
           {tall || selectedEntity ? null : searching ? (
             <ContextRow
               chips={contextRow}
-              zoneName={zoneName}
+              zoneName={null}
               onRemoveScope={removeScope}
               onRemoveFilter={removeFilter}
               onClear={clearContext}
@@ -1016,7 +1030,6 @@ export default function ExploreScreen() {
                 setSubcategoryId(undefined);
               }}
               onSeeAll={() => setAllCatsOpen(true)}
-              leading={zoneName ? <ZoneCapsule name={zoneName} /> : null}
               trailing={
                 selectedSubcategory || radiusLabel || openNow ? (
                   <View style={styles.activeChips}>
@@ -1034,10 +1047,11 @@ export default function ExploreScreen() {
             />
           )}
           {mapLoading && !tall && !selectedEntity ? <LoadingChip /> : null}
-        </Animated.View>
+          </Animated.View>
+        </View>
 
         {entities.isError && !entities.isLoading && !searching ? (
-          <View style={[styles.errorBanner, { top: insets.top + 120 }]}>
+          <View style={[styles.errorBanner, { top: Math.max(insets.top + 120, topH + spacing.sm) }]}>
             <Text style={styles.errorText}>No pudimos cargar los negocios. Revisa la conexión con el servidor.</Text>
             <Button title="Reintentar" variant="secondary" onPress={() => void entities.refetch()} style={styles.retry} />
           </View>
@@ -1315,6 +1329,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   // Buscador y chips flotan sobre el mapa: el mapa ocupa toda la pantalla.
   topBar: { position: 'absolute', top: 0, left: 0, right: 0, gap: spacing.sm, paddingHorizontal: spacing.md },
+  topRows: { gap: spacing.sm },
   content: { flex: 1, position: 'relative' },
   mapWrap: { flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#E8EEF6' },
   map: { flex: 1 },
