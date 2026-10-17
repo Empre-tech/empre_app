@@ -129,11 +129,17 @@ export function DiscoverCard({ model, selected, onPress, onPhoto }: { model: Car
     );
   }
   if (!cover) {
+    // Sin fotos ni portada: el color de la categoría con «Aún sin fotos» (mismo alto que una con fotos).
     return (
-      <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.dcard, styles.dcardNoPhoto, selected && styles.selected, pressed && styles.pressed]}>
-        <View style={styles.dcTop}>
-          <Circle model={{ ...model, image: null }} size={40} />
-          <PillView pill={model.pill} mine={model.mine} />
+      <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.dcard, pressed && styles.pressed]}>
+        <View style={[styles.cover, styles.noPhoto, { backgroundColor: model.color.fg }, selected && styles.coverSelected]}>
+          <View style={styles.noPhotoIcon}>
+            <Ionicons name={model.icon as keyof typeof Ionicons.glyphMap} size={22} color="#fff" />
+          </View>
+          <Text style={styles.noPhotoText}>Aún sin fotos</Text>
+          <View style={styles.pillTop}>
+            <PillView pill={model.pill} mine={model.mine} />
+          </View>
         </View>
         {text}
       </Pressable>
@@ -234,12 +240,15 @@ const styles = StyleSheet.create({
   topRight: { alignItems: 'flex-end', gap: 4 },
   selected: { borderColor: colors.primary, borderWidth: 1.5 },
   dcard: { width: 216 },
-  dcardNoPhoto: { borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.lg, padding: spacing.md, backgroundColor: colors.surface },
   dcTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.sm },
   cover: { height: 112, borderRadius: radius.lg, overflow: 'hidden' },
   coverSelected: { borderWidth: 3, borderColor: colors.primary },
   coverImage: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   galleryWrap: { borderRadius: radius.lg, overflow: 'hidden' },
+  noPhoto: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, padding: spacing.md },
+  noPhotoIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' },
+  noPhotoText: { paddingBottom: 10, fontSize: 12, fontFamily: fonts.ui.bold, color: '#fff' },
+  pillTop: { position: 'absolute', left: 8, top: 8 },
   dcTextPress: { minHeight: 44 },
   dcText: { paddingTop: spacing.sm, paddingHorizontal: 2, gap: 1 },
   dcName: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
