@@ -76,3 +76,53 @@ export const SWIPE_ENTER_PX = 60;
 export function swipeEnters(dy: number): boolean {
   return dy <= -SWIPE_ENTER_PX;
 }
+
+// ---------- Horario del perfil ----------
+
+interface HourRow {
+  weekday: number;
+  closed: boolean;
+  is_24h: boolean;
+  open_time: string;
+  close_time: string;
+}
+
+/** La hora y el día de Colombia (UTC-5 fijo, sin horario de verano), como lo hace el servidor. */
+function colombiaClock(now: Date): { weekday: number; hhmm: string } {
+  const shifted = new Date(now.getTime() - 5 * 60 * 60 * 1000);
+  const hh = String(shifted.getUTCHours()).padStart(2, '0');
+  const mm = String(shifted.getUTCMinutes()).padStart(2, '0');
+  return { weekday: shifted.getUTCDay(), hhmm: `${hh}:${mm}` };
+}
+
+/**
+ * A qué hora cierra (abierto) o cuándo vuelve a abrir (cerrado), a partir del horario semanal del negocio y la hora
+ * de Colombia. Es la misma regla del servidor (`closes_at` y `next_open`), para el perfil, que ya trae el horario.
+ * Sin horario no dice nada.
+ */
+export function openingFromHours(hours: HourRow[] | undefined, now: Date, isOpenNow: boolean): { closes_at?: string; next_open?: NextOpen } {
+  if (!hours || hours.length === 0) return {};
+  const { weekday, hhmm } = colombiaClock(now);
+  if (isOpenNow) {
+    const yesterday = (weekday + 6) % 7;
+    const y = hours.find((h) => h.weekday === yesterday);
+    if (y && !y.closed && !y.is_24h && y.open_time && y.close_time && y.close_time <= y.open_time && hhmm < y.close_time) return { closes_at: y.close_time };
+    const t = hours.find((h) => h.weekday === weekday);
+    if (!t || t.closed) return {};
+    if (t.is_24h) return { closes_at: '24h' };
+    return t.close_time ? { closes_at: t.close_time } : {};
+  }
+  for (let off = 0; off <= 7; off++) {
+    const wd = (weekday + off) % 7;
+    const h = hours.find((x) => x.weekday === wd);
+    if (!h || h.closed) continue;
+    if (h.is_24h) {
+      if (off === 0) continue;
+      return { next_open: { days_ahead: off, weekday: wd, time: '00:00' } };
+    }
+    if (!h.open_time || !h.close_time) continue;
+    if (off === 0 && hhmm >= h.open_time) continue;
+    return { next_open: { days_ahead: off, weekday: wd, time: h.open_time } };
+  }
+  return {};
+}
