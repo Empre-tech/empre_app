@@ -1,7 +1,6 @@
 // Lógica pura del panel de explorar: Descubre, encabezado, recomendaciones y la
 // tarjeta del dueño. Sin React para poder probarla con Node.
 
-import { placeTitle } from './locationStrip';
 import { containsPoint, type Box } from './mapArea';
 import { formatEndsWhen } from './offer';
 
@@ -86,31 +85,30 @@ export interface HeaderInput {
   view?: 'discover' | 'results';
   /** Negocios cerca pero fuera de tu zona (los «adicionales» de Todos). */
   extraCount?: number;
-  /** La zona de la franja de arriba: el panel habla de la misma («Cerca de ti en Comuna 4», «En Mamatoco»). */
-  zone?: { title: string; onUser: boolean } | null;
   /** Destacados abiertos ahora (solo se dice si hay alguno). */
   openCount?: number;
+  /** Carga de los negocios de la zona: con error el panel lo dice, nunca «0 destacados». */
+  zoneStatus?: 'loading' | 'error' | 'ok';
 }
 
 /** Título y subtítulo del panel: Descubre sin búsqueda, la consulta con búsqueda. */
 export function sheetHeader(h: HeaderInput): { title: string; subtitle: string } {
   if (!h.searching) {
+    // La zona ya la dice la franja de arriba (3.22): el panel dice QUÉ se ve («Descubre» o el grupo elegido) y cuántos.
     // Los destacados son los negocios directamente en la zona; Todos suma los adicionales cerca.
-    // El título nombra la misma zona que la franja de arriba: si el mapa mira otro lugar, no dice «cerca de ti».
-    const place = placeTitle(h.zone);
-    const cat = h.categoryName ? ` · ${h.categoryName}` : '';
-    const where = !h.zone || h.zone.onUser ? 'en tu zona' : 'en esta zona';
+    const what = h.categoryName || null;
+    const status = h.zoneStatus === 'error' && h.zoneCount === 0 ? 'Sin conexión con el servidor' : h.zoneStatus === 'loading' && h.zoneCount === 0 ? 'Cargando…' : null;
     if (h.view === 'results') {
       const extra = h.extraCount ?? 0;
       return {
-        title: `Todos · ${place}${cat}`,
-        subtitle: `${h.zoneCount} ${where}${extra > 0 ? ` · ${extra} ${extra === 1 ? 'adicional' : 'adicionales'}` : ''}`,
+        title: what ? `Todos · ${what}` : 'Todos',
+        subtitle: status ?? `${h.zoneCount} en esta zona${extra > 0 ? ` · ${extra} ${extra === 1 ? 'adicional' : 'adicionales'}` : ''}`,
       };
     }
     const open = h.openCount ?? 0;
     return {
-      title: `${place}${cat}`,
-      subtitle: `${h.zoneCount} ${h.zoneCount === 1 ? 'destacado' : 'destacados'}${open > 0 ? ` · ${open} ${open === 1 ? 'abierto' : 'abiertos'} ahora` : ` ${where}`}`,
+      title: what ?? 'Descubre',
+      subtitle: status ?? `${h.zoneCount} ${h.zoneCount === 1 ? 'destacado' : 'destacados'}${open > 0 ? ` · ${open} ${open === 1 ? 'abierto' : 'abiertos'} ahora` : ''}`,
     };
   }
   const subtitle =

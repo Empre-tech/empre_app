@@ -37,6 +37,7 @@ import { ContextRow } from '@/components/explore/ContextRow';
 import { LoadingChip } from '@/components/explore/LoadingChip';
 import { LocationStrip } from '@/components/explore/LocationStrip';
 import { PlaceSheet } from '@/components/explore/PlaceSheet';
+import { PhotoViewer, type ViewerTarget } from '@/components/explore/PhotoViewer';
 import { StackMarker } from '@/components/explore/StackMarker';
 import { SearchBar } from '@/components/explore/SearchBar';
 import { useFeaturedSheet } from '@/components/explore/useFeaturedSheet';
@@ -45,6 +46,7 @@ import { categoryColor } from '@/lib/categoryColor';
 import { buildGroups, categoryFilter, groupIdOf, type GroupId } from '@/lib/categoryGroups';
 import { focusCenterLat } from '@/lib/placeCard';
 import { stripText } from '@/lib/locationStrip';
+import { photoTotal } from '@/lib/photoStrip';
 import { snippetLines } from '@/lib/reviewSnippet';
 import { effectiveClaimStatus } from '@/lib/claims';
 import { boxAround, EXTRAS_MAX, ZONE_FICHA_MAX, openLine, pickExtras, reasonPill, relatedFrom, SEARCH_NEAR_KM, sheetHeader } from '@/lib/discover';
@@ -745,6 +747,8 @@ export default function ExploreScreen() {
     reviews: e.review_count,
     tagline: e.tagline || undefined,
     review: snippets?.[e.id] ? snippetLines(snippets[e.id], now) : undefined,
+    photos: e.photos,
+    photosCount: e.photos_count,
   });
   const discoverModel = (it: DiscoverItem, sectionId: DiscoverSectionId): CardModel => ({
     id: it.entity_id,
@@ -761,6 +765,8 @@ export default function ExploreScreen() {
     line: sectionId === 'open' ? openLine(it.closes_at) : it.tagline || undefined,
     pill: reasonPill(it.reason, now),
     mine: qrByEntity.has(it.entity_id),
+    photos: it.photos,
+    photosCount: it.photos_count,
   });
   const zoneModels = searching ? [] : items.map((e) => toModel(e));
   // Adicionales: los pines acumulados que están cerca pero fuera de la zona que se ve, con el nombre de su zona.
@@ -785,9 +791,15 @@ export default function ExploreScreen() {
     categoryName: selectedCategory?.name ?? selectedGroup?.name,
     view,
     extraCount: extraModels.length,
-    zone: zoneName ? { title: zoneName.title, onUser: zoneName.onUser } : null,
     openCount: searching ? 0 : items.filter((e) => e.has_hours && e.is_open_now).length,
+    zoneStatus: entities.isError ? 'error' : entities.isLoading ? 'loading' : 'ok',
   });
+  // Visor de fotos de un destacado, encima del mapa (3.22).
+  const [viewer, setViewer] = useState<ViewerTarget | null>(null);
+  const openPhoto = (m: CardModel, index: number) => {
+    if (!m.photos?.length) return;
+    setViewer({ id: m.id, name: m.name, photos: m.photos, total: photoTotal({ id: m.id, name: m.name, photos: m.photos, photosCount: m.photosCount }), index });
+  };
   // «Volver» lleva el mapa a la persona; sin ubicación, la pide y luego centra.
   const goToMe = async () => {
     const coords = userCoords ?? (await requestLocation());
@@ -946,7 +958,14 @@ export default function ExploreScreen() {
                 sheet.snapTo('full');
               }}
               onClearSection={() => setSectionFilter(null)}
-              zone={{ status: entities.isError ? 'error' : entities.isLoading ? 'loading' : 'ok', items: zoneModels, extras: extraModels, filterActive: activeFilterCount > 0 }}
+              zone={{
+                status: entities.isError ? 'error' : entities.isLoading ? 'loading' : 'ok',
+                items: zoneModels,
+                extras: extraModels,
+                filterActive: activeFilterCount > 0,
+                onRetry: () => void entities.refetch(),
+              }}
+              onPhoto={openPhoto}
               onOpenProfile={openBusiness}
               onClearFilters={clearAllFilters}
               onWiden={widenMap}
@@ -1050,13 +1069,20 @@ export default function ExploreScreen() {
           </Animated.View>
         </View>
 
-        {entities.isError && !entities.isLoading && !searching ? (
-          <View style={[styles.errorBanner, { top: Math.max(insets.top + 120, topH + spacing.sm) }]}>
-            <Text style={styles.errorText}>No pudimos cargar los negocios. Revisa la conexión con el servidor.</Text>
-            <Button title="Reintentar" variant="secondary" onPress={() => void entities.refetch()} style={styles.retry} />
-          </View>
-        ) : null}
       </View>
+
+      <PhotoViewer
+        target={viewer}
+        onClose={() => setViewer(null)}
+        onProfile={(id) => {
+          setViewer(null);
+          openBusiness(id);
+        }}
+        onAllPhotos={(id) => {
+          setViewer(null);
+          router.push({ pathname: '/business/photos/[id]', params: { id } });
+        }}
+      />
 
       <AllCategoriesModal
         visible={allCatsOpen}
@@ -1440,19 +1466,6 @@ const styles = StyleSheet.create({
   listHint: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   empty: { textAlign: 'center', fontFamily: fonts.ui.medium, color: colors.muted, marginTop: spacing.xxl },
   loading: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  errorBanner: {
-    position: 'absolute',
-    left: spacing.md,
-    right: spacing.md,
-    top: spacing.md,
-    backgroundColor: colors.bg,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.sm,
-    ...shadow,
-  },
-  errorText: { color: colors.danger, fontSize: 14, fontFamily: fonts.ui.semibold },
-  retry: { minHeight: 40 },
   locateButtonWrap: {
     position: 'absolute',
     right: spacing.md,

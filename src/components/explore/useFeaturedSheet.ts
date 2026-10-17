@@ -5,18 +5,21 @@ import { useReduceMotion } from '@/lib/useReduceMotion';
 /**
  * El panel de explorar: una sola hoja con tres anclajes (más «hidden» mientras
  * hay un negocio seleccionado):
- * - peek: compacto, asa y una línea (Descubre o la búsqueda). El mapa manda.
+ * - peek: compacto, asa y una línea (Descubre o la búsqueda) y, si los destacados tienen fotos, su tira. El mapa manda.
  * - medium: intermedio, una fila de tarjetas.
  * - full: expandido, la lista completa con una franja de mapa arriba.
  */
 export type FeaturedAnchor = 'hidden' | 'peek' | 'medium' | 'full';
 
 export const FEATURED_PEEK = 84;
+/** Alto que suma al compacto la tira de fotos de los destacados (64 pt de foto y su margen). */
+export const PEEK_REEL = 74;
 /** Mínimos por si todavía no se midió el contenido. */
 const MEDIUM_MIN = 240;
 const FULL_MIN = MEDIUM_MIN + 120;
 
 interface Heights {
+  peek: number;
   medium: number;
   full: number;
 }
@@ -26,7 +29,7 @@ function heightFor(anchor: FeaturedAnchor, h: Heights): number {
     case 'hidden':
       return 0;
     case 'peek':
-      return FEATURED_PEEK;
+      return h.peek;
     case 'medium':
       return h.medium;
     default:
@@ -57,12 +60,14 @@ function nearestAnchor(value: number, h: Heights): FeaturedAnchor {
  * @param contentHeight alto del área del mapa (se mide con onLayout).
  */
 export function useFeaturedSheet(contentHeight: number) {
+  // El compacto crece cuando hay tira de fotos; lo decide el panel con `setPeekExtra`.
+  const [peekExtra, setPeekExtra] = useState(0);
   const heights = useMemo<Heights>(() => {
     const medium = Math.max(MEDIUM_MIN, Math.min(Math.round(contentHeight * 0.52), 380));
     // Expandido deja una franja de mapa arriba con el buscador encima.
     const full = Math.max(FULL_MIN, Math.round(contentHeight - 190), medium + 60);
-    return { medium, full };
-  }, [contentHeight]);
+    return { peek: FEATURED_PEEK + peekExtra, medium, full };
+  }, [contentHeight, peekExtra]);
 
   const [anchor, setAnchor] = useState<FeaturedAnchor>('peek');
   const [height] = useState(() => new Animated.Value(FEATURED_PEEK));
@@ -112,7 +117,7 @@ export function useFeaturedSheet(contentHeight: number) {
         startValue = valueRef.current;
       },
       onPanResponderMove: (_, g) => {
-        height.setValue(Math.min(heightsRef.current.full, Math.max(FEATURED_PEEK, startValue - g.dy)));
+        height.setValue(Math.min(heightsRef.current.full, Math.max(heightsRef.current.peek, startValue - g.dy)));
       },
       onPanResponderRelease: (_, g) => snapTo(nearestAnchor(valueRef.current - g.vy * 120, heightsRef.current)),
       onPanResponderTerminate: () => snapTo(nearestAnchor(valueRef.current, heightsRef.current)),
@@ -133,7 +138,7 @@ export function useFeaturedSheet(contentHeight: number) {
   /** Anclaje actual sin provocar un render (para temporizadores y gestos del mapa). */
   const getAnchor = useCallback(() => anchorRef.current, []);
 
-  return { anchor, height, heights, buttonsBase, snapTo, getAnchor, panHandlers: panResponder.panHandlers };
+  return { anchor, height, heights, buttonsBase, snapTo, getAnchor, setPeekExtra, panHandlers: panResponder.panHandlers };
 }
 
 export type FeaturedSheetState = ReturnType<typeof useFeaturedSheet>;

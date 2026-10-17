@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { resolveImageUrl } from '@/lib/image';
 import type { Pill } from '@/lib/discover';
+import { PhotoGallery } from './PhotoGallery';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 /** Lo que necesita cualquier tarjeta o fila del panel, venga de discovery o de Descubre. */
@@ -39,6 +40,9 @@ export interface CardModel {
   review?: { quote: string; byline: string };
   /** Zona del negocio cuando es un adicional (cerca, fuera de tu zona). */
   zoneLabel?: string | null;
+  /** Fotos recientes del negocio (hasta 4, sin videos) y cuántas tiene en total (3.22). */
+  photos?: string[];
+  photosCount?: number;
 }
 
 function NearChip({ text }: { text?: string | null }) {
@@ -88,8 +92,11 @@ function StatusText({ open }: { open: boolean | null }) {
   return <Text style={open ? styles.open : styles.closed}>{open ? 'Abierto' : 'Cerrado'}</Text>;
 }
 
-/** Tarjeta de Descubre: portada (o círculo si el negocio no subió una), una sola razón y nada más. */
-export function DiscoverCard({ model, selected, onPress }: { model: CardModel; selected?: boolean; onPress: () => void }) {
+/**
+ * Tarjeta de Descubre: sus fotos subidas (la grande y dos pequeñas, 3.22); sin fotos, la portada o el círculo con el
+ * icono; una sola razón y nada más. Tocar una foto abre el visor; el resto de la tarjeta selecciona el negocio.
+ */
+export function DiscoverCard({ model, selected, onPress, onPhoto }: { model: CardModel; selected?: boolean; onPress: () => void; onPhoto?: (index: number) => void }) {
   const cover = model.cover ? resolveImageUrl(model.cover) : null;
   const label = [model.name, model.sub, model.distance, model.pill?.text, model.line].filter(Boolean).join(', ');
   const text = (
@@ -107,6 +114,20 @@ export function DiscoverCard({ model, selected, onPress }: { model: CardModel; s
       ) : null}
     </View>
   );
+  if (onPhoto && model.photos?.length) {
+    return (
+      <View style={styles.dcard}>
+        <View style={[styles.galleryWrap, selected && styles.coverSelected]}>
+          <PhotoGallery name={model.name} photos={model.photos} photosCount={model.photosCount} color={model.color.bg} height={112} onPhoto={onPhoto}>
+            <PillView pill={model.pill} mine={model.mine} />
+          </PhotoGallery>
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.dcTextPress, pressed && styles.pressed]}>
+          {text}
+        </Pressable>
+      </View>
+    );
+  }
   if (!cover) {
     return (
       <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.dcard, styles.dcardNoPhoto, selected && styles.selected, pressed && styles.pressed]}>
@@ -218,6 +239,8 @@ const styles = StyleSheet.create({
   cover: { height: 112, borderRadius: radius.lg, overflow: 'hidden' },
   coverSelected: { borderWidth: 3, borderColor: colors.primary },
   coverImage: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  galleryWrap: { borderRadius: radius.lg, overflow: 'hidden' },
+  dcTextPress: { minHeight: 44 },
   dcText: { paddingTop: spacing.sm, paddingHorizontal: 2, gap: 1 },
   dcName: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   dcMeta: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },

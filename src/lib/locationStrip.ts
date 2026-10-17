@@ -1,7 +1,7 @@
 // Franja de ubicación de Explorar (3.21, mockup `docs/mockups/explorar_superior.html`). Sin React para poder probarlo con Node.
 //
 // Arriba de todo se dice dónde estás («Estás en Comuna 4 · Santa Marta») o qué zona mira el mapa
-// («Explorando Mamatoco · Santa Marta» con «a 3,1 km · Volver»). El panel de Descubre usa el mismo nombre.
+// («Explorando Mamatoco · Santa Marta» con «a 3.1 km · Volver»). Solo la franja nombra la zona: el panel no la repite.
 
 import type { ZoneName } from './zoneName';
 
@@ -62,9 +62,3 @@ export function shouldAnnounce(lastAt: number | null, now: number): boolean {
 /** El nombre cambia solo cuando el mapa lleva quieto este tiempo (sin parpadeo al arrastrar). */
 export const SETTLE_MS = 400;
 
-/** Título del panel con la misma zona que la franja: «Cerca de ti en Comuna 4», «En Mamatoco». */
-export function placeTitle(zone: { title: string; onUser: boolean } | null | undefined): string {
-  if (!zone) return 'Cerca de ti';
-  if (isNearTitle(zone.title)) return zone.onUser ? 'Cerca de ti' : zone.title;
-  return zone.onUser ? `Cerca de ti en ${zone.title}` : `En ${zone.title}`;
-}

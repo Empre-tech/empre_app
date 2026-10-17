@@ -1,14 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { DiscoverSection, DiscoverSectionId } from '@/api/types';
 import { SkeletonBlock, SkeletonRows } from '@/components/Skeleton';
 import { scopeText, type SearchScope } from '@/lib/discover';
+import { reelTiles, type ReelTile } from '@/lib/photoStrip';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
 import { DiscoverCard, MiniCard, MiniRow, type CardModel } from './ExploreCards';
+import { PhotoReel } from './PhotoReel';
 import { ZoneAll, ZoneDiscover } from './ZonePanel';
-import type { FeaturedSheetState } from './useFeaturedSheet';
+import { PEEK_REEL, type FeaturedSheetState } from './useFeaturedSheet';
 
 type Status = 'loading' | 'error' | 'ok';
 
@@ -35,7 +37,9 @@ interface Props {
    * Sin búsqueda: los destacados (negocios directamente en tu zona) y los adicionales (cerca, fuera de tu
    * zona). Todos suma los dos; Descubre, con pocos negocios, muestra los destacados como fichas.
    */
-  zone: { status: Status; items: CardModel[]; extras: CardModel[]; filterActive: boolean };
+  zone: { status: Status; items: CardModel[]; extras: CardModel[]; filterActive: boolean; onRetry: () => void };
+  /** Tocar una foto (de la tira o de una tarjeta): abre el visor en esa foto. */
+  onPhoto: (model: CardModel, index: number) => void;
   /** Abre el perfil de un negocio (la franja de oferta de una ficha). */
   onOpenProfile: (id: string) => void;
   /** Quita los filtros activos (categoría, distancia, «abiertos ahora»). */
@@ -62,6 +66,28 @@ export function ExploreSheet(p: Props) {
     // Sin driver nativo: la misma vista anima su alto (que el driver nativo no admite) y no se pueden mezclar.
     else Animated.timing(tuck, { toValue: to, duration: 180, useNativeDriver: false }).start();
   }, [p.tucked, anchor, reduce, tuck]);
+
+  // La tira del compacto: fotos de los destacados (Descubre primero, luego la zona), sin búsqueda.
+  const { data: secData, models: toCard } = p.sections;
+  const reelSource = useMemo(() => {
+    if (p.searching) return [];
+    const fromSections = secData.flatMap((sec) => sec.items.map((it) => toCard(it, sec.id)));
+    return [...fromSections, ...p.zone.items];
+  }, [p.searching, secData, toCard, p.zone.items]);
+  const tiles = useMemo(() => reelTiles(reelSource), [reelSource]);
+  const { setPeekExtra } = p.sheet;
+  const hasReel = tiles.length > 0;
+  useEffect(() => {
+    setPeekExtra(hasReel ? PEEK_REEL : 0);
+  }, [hasReel, setPeekExtra]);
+  const openTile = (t: ReelTile) => {
+    const m = reelSource.find((x) => x.id === t.id);
+    if (m) p.onPhoto(m, t.index);
+  };
+  const badge = (id: string) => {
+    const m = reelSource.find((x) => x.id === id);
+    return { color: m?.color.fg ?? colors.primary, letter: m?.name.charAt(0) ?? '' };
+  };
 
   if (anchor === 'hidden') return null;
   const compact = anchor === 'peek';
@@ -95,7 +121,7 @@ export function ExploreSheet(p: Props) {
               {p.header.subtitle}
             </Text>
           </View>
-          {compact && !p.searching ? (
+          {compact && !p.searching && !hasReel ? (
             <View style={styles.avatars} accessible={false}>
               {p.avatars.slice(0, 3).map((a, i) => (
                 <View key={a.key} style={[styles.avatar, { backgroundColor: a.color, marginLeft: i === 0 ? 0 : -8 }]}>
@@ -111,6 +137,7 @@ export function ExploreSheet(p: Props) {
         </Pressable>
       </View>
 
+      {compact ? <PhotoReel tiles={tiles} badge={badge} onPhoto={openTile} /> : null}
       {compact ? null : <Body {...p} />}
     </Animated.View>
   );
@@ -166,6 +193,22 @@ function Body(p: Props) {
           ))}
         </View>
       );
+    } else if (p.zone.status === 'error' && (status === 'error' || data.length === 0) && p.zone.items.length === 0) {
+      content = (
+        <View style={styles.errBox} accessibilityRole="alert">
+          <Text style={styles.errText}>No pudimos cargar los negocios.</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              p.zone.onRetry();
+              p.sections.onRetry();
+            }}
+            style={({ pressed }) => [styles.errBtn, pressed && { opacity: 0.8 }]}
+          >
+            <Text style={styles.errBtnText}>Reintentar</Text>
+          </Pressable>
+        </View>
+      );
     } else if (status === 'error') {
       content = (
         <>
@@ -185,6 +228,7 @@ function Body(p: Props) {
           selectedId={p.selectedId}
           onSelect={p.onSelect}
           onOpenProfile={p.onOpenProfile}
+          onPhoto={p.onPhoto}
           onClearFilters={p.onClearFilters}
           onWiden={p.onWiden}
           onSeeAll={() => p.onView('results')}
@@ -205,7 +249,7 @@ function Body(p: Props) {
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hscroll} contentContainerStyle={styles.hrow}>
                 {sec.items.map((it) => {
                   const m = p.sections.models(it, sec.id);
-                  return <DiscoverCard key={`${sec.id}-${m.id}`} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />;
+                  return <DiscoverCard key={`${sec.id}-${m.id}`} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={(i) => p.onPhoto(m, i)} />;
                 })}
               </ScrollView>
             </View>
@@ -346,6 +390,7 @@ function Body(p: Props) {
           selectedId={p.selectedId}
           onSelect={p.onSelect}
           onOpenProfile={p.onOpenProfile}
+          onPhoto={p.onPhoto}
           onClearFilters={p.onClearFilters}
           onWiden={p.onWiden}
           onSeeAll={() => p.onView('results')}
@@ -423,4 +468,8 @@ const styles = StyleSheet.create({
   primaryText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
   secondary: { minHeight: 44, paddingHorizontal: spacing.lg, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   secondaryText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  errBox: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.lg, marginTop: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: '#FBE4E4' },
+  errText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.bold, color: '#8E2A2A' },
+  errBtn: { minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.sm, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  errBtnText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

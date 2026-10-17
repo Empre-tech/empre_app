@@ -10,6 +10,8 @@ interface Common {
   selectedId: string | null;
   onSelect: (model: CardModel) => void;
   onOpenProfile: (id: string) => void;
+  /** Tocar una foto de la ficha: abre el visor en esa foto. */
+  onPhoto?: (model: CardModel, index: number) => void;
 }
 
 interface Props extends Common {
@@ -50,14 +52,14 @@ function FilterNote({ count, onClear }: { count: number; onClear: () => void }) 
 }
 
 /** Las fichas, agrupadas (con oferta, abiertos, cerrados…) desde 4; con menos, una sola lista. */
-function Fichas({ items, selectedId, onSelect, onOpenProfile }: Common & { items: CardModel[] }) {
+function Fichas({ items, selectedId, onSelect, onOpenProfile, onPhoto }: Common & { items: CardModel[] }) {
   return (
     <>
       {groupFeatured(items).map((g) => (
         <View key={g.id}>
           {g.title ? <GroupHead title={g.title} note={String(g.items.length)} tone={g.id === 'offer' ? 'offer' : g.id === 'open' ? 'open' : undefined} /> : null}
           {g.items.map((m) => (
-            <ZoneCard key={m.id} model={m} selected={selectedId === m.id} onPress={() => onSelect(m)} onOpenProfile={onOpenProfile} />
+            <ZoneCard key={m.id} model={m} selected={selectedId === m.id} onPress={() => onSelect(m)} onOpenProfile={onOpenProfile} onPhoto={onPhoto ? (i) => onPhoto(m, i) : undefined} />
           ))}
         </View>
       ))}
@@ -111,7 +113,7 @@ export function ZoneDiscover(p: Props) {
     <>
       {p.filterActive ? <FilterNote count={p.items.length} onClear={p.onClearFilters} /> : null}
       <GroupHead title="Destacados en tu zona" note={String(p.items.length)} />
-      <Fichas items={shown} selectedId={p.selectedId} onSelect={p.onSelect} onOpenProfile={p.onOpenProfile} />
+      <Fichas items={shown} selectedId={p.selectedId} onSelect={p.onSelect} onOpenProfile={p.onOpenProfile} onPhoto={p.onPhoto} />
       {hidden > 0 ? (
         <Pressable accessibilityRole="button" onPress={p.onSeeAll} style={[styles.btn, styles.btnSecondary, styles.btnCenter]}>
           <Text style={styles.btnText}>Ver los {p.items.length}</Text>
@@ -138,7 +140,7 @@ export function ZoneAll(p: Props) {
       {p.filterActive ? <FilterNote count={p.items.length + p.extras.length} onClear={p.onClearFilters} /> : null}
       <GroupHead title="Destacados en tu zona" note={String(p.items.length)} tone="open" />
       {p.items.length > 0 ? (
-        <Fichas items={p.items} selectedId={p.selectedId} onSelect={p.onSelect} onOpenProfile={p.onOpenProfile} />
+        <Fichas items={p.items} selectedId={p.selectedId} onSelect={p.onSelect} onOpenProfile={p.onOpenProfile} onPhoto={p.onPhoto} />
       ) : (
         <View style={styles.noneHere}>
           <Text style={styles.moreTitle}>Ninguno en tu zona</Text>
@@ -149,7 +151,7 @@ export function ZoneAll(p: Props) {
         <>
           <GroupHead title="Adicionales cerca" note={`${p.extras.length} · fuera de tu zona`} tone="extra" />
           {p.extras.map((m) => (
-            <ZoneCard key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onOpenProfile={p.onOpenProfile} />
+            <ZoneCard key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onOpenProfile={p.onOpenProfile} onPhoto={p.onPhoto ? (i) => p.onPhoto?.(m, i) : undefined} />
           ))}
         </>
       ) : null}

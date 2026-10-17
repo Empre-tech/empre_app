@@ -543,6 +543,9 @@ export type QuickAction = 'extend' | 'radius' | 'slots';
 
 /** Resultado de descubrimiento (GET /api/discovery): EntityMap + distancia + oferta. */
 export interface DiscoveryItem extends EntityMap {
+  /** Fotos recientes (hasta 4, sin videos) y cuántas tiene en total. */
+  photos?: string[];
+  photos_count?: number;
   /** Subcategorías y frase corta del negocio (para recomendaciones y tarjetas). */
   subcategory_ids?: string[];
   subcategory?: string;
@@ -590,6 +593,9 @@ export interface DiscoverItem {
   profile_url?: string;
   tagline?: string;
   reason: DiscoverReason;
+  /** Fotos recientes (hasta 4, sin videos) y cuántas tiene en total. */
+  photos?: string[];
+  photos_count?: number;
 }
 
 export interface DiscoverSection {

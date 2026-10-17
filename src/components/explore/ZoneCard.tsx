@@ -7,6 +7,7 @@ import { featuredRating } from '@/lib/reviewSnippet';
 import { resolveImageUrl } from '@/lib/image';
 import { colors, fonts, radius, spacing } from '@/theme';
 import type { CardModel } from './ExploreCards';
+import { PhotoGallery } from './PhotoGallery';
 
 interface Props {
   model: CardModel;
@@ -15,6 +16,8 @@ interface Props {
   onPress: () => void;
   /** Tocar la franja de oferta: abre el perfil del negocio. */
   onOpenProfile: (id: string) => void;
+  /** Tocar una de sus fotos: abre el visor en esa foto. */
+  onPhoto?: (index: number) => void;
 }
 
 /**
@@ -24,7 +27,7 @@ interface Props {
  * una franja naranja al pie con el tiempo que queda. Sin precios ni cantidades. En los adicionales
  * (cerca pero fuera de tu zona) la distancia lleva el nombre de su zona.
  */
-export function ZoneCard({ model, selected, onPress, onOpenProfile }: Props) {
+export function ZoneCard({ model, selected, onPress, onOpenProfile, onPhoto }: Props) {
   const rating = featuredRating(model.rating, model.reviews);
   const status = statusText(model.open);
   const src = model.image ? resolveImageUrl(model.image) : null;
@@ -45,6 +48,10 @@ export function ZoneCard({ model, selected, onPress, onOpenProfile }: Props) {
 
   return (
     <View style={[styles.card, model.open === false && styles.cardClosed, selected && styles.selected]}>
+      {/* Sus fotos subidas, arriba (3.22): la grande y dos pequeñas con «+N». Sin fotos, la ficha de siempre. */}
+      {onPhoto ? (
+        <PhotoGallery name={model.name} photos={model.photos} photosCount={model.photosCount} color={model.color.bg} height={132} rounded="top" onPhoto={onPhoto} />
+      ) : null}
       <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.press, pressed && styles.pressed]}>
         <View style={styles.top}>
           <View style={[styles.avatar, { backgroundColor: model.color.fg }, model.open === false && styles.avatarClosed]}>
