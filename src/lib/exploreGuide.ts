@@ -13,7 +13,7 @@ export const GUIDE_STEPS: GuideStep[] = [
   {
     id: 'area',
     title: 'Lo que ves es lo que sale',
-    text: 'El círculo punteado marca la zona que estás mirando. El panel de abajo muestra los destacados que se ven en el mapa.',
+    text: 'El panel de abajo muestra los destacados de lo que ves en el mapa. Muévelo y cambian con la zona.',
   },
   { id: 'legend', title: 'Qué significan los pines', text: 'Rayo: oferta activa ahora. Punto verde: abierto. Toca la «i» cuando quieras repasarlo.' },
 ];

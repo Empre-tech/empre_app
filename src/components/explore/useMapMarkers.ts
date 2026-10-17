@@ -5,7 +5,7 @@ import { clusterByScreenDistance, type Cluster } from '@/lib/cluster';
 import type { ApiCell } from '@/api/offers';
 import { hasLocation } from '@/lib/geo';
 import { levelOf, MAX_DRAWN, type MapLevel } from '@/lib/mapLevels';
-import { capPins, inView } from '@/lib/mapMarkers';
+import { pickPins } from '@/lib/mapMarkers';
 import { emphasize, type EmphasisTier } from '@/lib/proximity';
 import { zoneAt, type Zone } from '@/lib/zoneName';
 import { formatFeaturedDistance, type WithDistance } from './FeaturedCard';
@@ -80,10 +80,10 @@ type Args = {
  */
 export function useMapMarkers({ known, region, mapSize, selectedId, myEntityIds, searching, level, cells, zones }: Args) {
   const mapped = useMemo(() => known.filter(hasLocation), [known]);
-  // Solo se dibuja lo que se ve (con un 10 % de margen) y como mucho 60, con prioridad al elegido, a las ofertas y a
-  // los abiertos (3.29). Lo guardado alrededor sigue en memoria para no volver a pedirlo, pero no se pinta: antes se
-  // dibujaban ~150 marcadores para ~42 visibles y arrastrar o rotar pesaba.
-  const visible = useMemo(() => capPins(inView(mapped, region), selectedId), [mapped, region, selectedId]);
+  // Como mucho 60 (3.29): primero lo que se ve (+10 %), con prioridad al elegido, a las ofertas y a los abiertos, y con
+  // lo que sobra, un anillo de media pantalla alrededor (3.30) para que al arrastrar el borde que entra ya tenga pines.
+  // Lo guardado más lejos sigue en memoria pero no se pinta (antes ~150 marcadores para ~42 visibles).
+  const visible = useMemo(() => pickPins(mapped, region, selectedId), [mapped, region, selectedId]);
   const tier = zoomTier(region);
   // Lejos los pines son puntos de 18 pt; de cerca, portales de ~44 pt: el umbral
   // de agrupación acompaña. Al acercar el zoom los negocios se alejan en pantalla
@@ -98,7 +98,7 @@ export function useMapMarkers({ known, region, mapSize, selectedId, myEntityIds,
   // El énfasis se calcula con todos los resultados (es un ranking) y después se dibuja solo lo visible.
   const emphasized = useMemo(() => {
     if (!searching) return null;
-    const ids = new Set(capPins(inView(mapped, region), selectedId).map((e) => e.id));
+    const ids = new Set(pickPins(mapped, region, selectedId).map((e) => e.id));
     return emphasize(mapped).filter((p) => ids.has(p.item.id));
   }, [searching, mapped, region, selectedId]);
 

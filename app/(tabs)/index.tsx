@@ -39,7 +39,6 @@ import { LoadingChip } from '@/components/explore/LoadingChip';
 import { LocationStrip } from '@/components/explore/LocationStrip';
 import { PlaceSheet } from '@/components/explore/PlaceSheet';
 import { PhotoViewer, type ViewerTarget } from '@/components/explore/PhotoViewer';
-import { MapLabelMarker } from '@/components/explore/MapLabelMarker';
 import { MapLegend, YouDot, YOU_DOT } from '@/components/explore/MapReferences';
 import { ExploreGuide, type GuideRect } from '@/components/explore/ExploreGuide';
 import { StackMarker } from '@/components/explore/StackMarker';
@@ -63,7 +62,8 @@ import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { useEventCallback } from '@/lib/useEventCallback';
 import { allWithinMeters, type Cluster } from '@/lib/cluster';
-import { FETCH_FACTOR, mergePins, needsRefetch, padBox, visibleInOrder, type Box } from '@/lib/mapArea';
+import { FETCH_FACTOR, mergePins, needsRefetchAhead, padBox, visibleInOrder, type Box } from '@/lib/mapArea';
+import { shouldMoveList } from '@/lib/mapMarkers';
 import { distanceKm, hasLocation, type Coords } from '@/lib/geo';
 import { contextChips, removedAnnouncement, type FilterId } from '@/lib/context';
 import { sameIds } from '@/lib/pinsCache';
@@ -167,6 +167,7 @@ export default function ExploreScreen() {
   // con búsqueda solo se ofrece buscar en la zona nueva. El panel no cambia de estado.
   const onMapSettled = (next: Region) => {
     setRegion(next);
+    setLiveRegion(null);
     if (moveTimer.current) clearTimeout(moveTimer.current);
     draggingRef.current = false;
     setMapMoving(false);
@@ -389,7 +390,8 @@ export default function ExploreScreen() {
   // Sin búsqueda se pide un área más grande que la pantalla (el doble) y solo se vuelve a
   // pedir al salir de ella o al acercarse mucho: mover el mapa un poco no consulta.
   const [fetchBox, setFetchBox] = useState<Box | null>(null);
-  if (!searching && startupRegion !== null && needsRefetch(fetchBox, bbox)) setFetchBox(padBox(bbox, FETCH_FACTOR));
+  // Se pide antes de llegar al borde de lo traído (3.30): al soltar, la zona nueva casi siempre ya llegó.
+  if (!searching && startupRegion !== null && needsRefetchAhead(fetchBox, bbox)) setFetchBox(padBox(bbox, FETCH_FACTOR));
   const scope = searching
     ? searchArea && { min_lat: searchArea.min_lat, max_lat: searchArea.max_lat, min_lng: searchArea.min_lng, max_lng: searchArea.max_lng }
     : fetchBox ?? bbox;
@@ -413,8 +415,9 @@ export default function ExploreScreen() {
         category: catFilter,
         subcategory: subcategoryId,
         q: debouncedSearch || undefined,
-        // Suficiente para poblar el mapa; el orden sigue siendo el ranking.
-        limit: 50,
+        // Suficiente para poblar el mapa; el orden sigue siendo el ranking. Sin búsqueda el área pedida es 2,6 veces la
+        // pantalla por lado (3.30), así que se piden algunos más para que la densidad en pantalla no baje.
+        limit: searching ? 50 : 80,
       }),
     // Al mover el mapa el bbox cambia (queryKey nuevo): mantenemos los
     // resultados anteriores mientras llegan los de la nueva zona, para no
@@ -521,9 +524,17 @@ export default function ExploreScreen() {
   const hasNearResults = useMemo(() => (plan ?? []).some((p) => p.tier !== 'far' && p.distanceM !== null), [plan]);
   const closestIds = useMemo(() => new Set((plan ?? []).filter((p) => p.tier === 'big').map((p) => p.item.id)), [plan]);
   const known = useMemo(() => (searching ? fetched : [...pins.store.values()]), [searching, fetched, pins.store]);
+  // Región de los pines (3.30): la del mapa quieto o, durante el gesto, la última que avanzó un cuarto de pantalla. Así
+  // los pines del borde que entra ya están al llegar, sin rehacer la lista en cada cuadro ni tocar lo demás (zona,
+  // Descubre y peticiones siguen con la región al soltar).
+  const [liveRegion, setLiveRegion] = useState<Region | null>(null);
+  const pinRegion = liveRegion ?? region;
+  const onMapChange = useEventCallback((next: Region) => {
+    if (shouldMoveList(pinRegion, next)) setLiveRegion(next);
+  });
   const { tier, markers } = useMapMarkers({
     known,
-    region,
+    region: pinRegion,
     mapSize,
     selectedId,
     myEntityIds,
@@ -878,7 +889,7 @@ export default function ExploreScreen() {
   // se esconden con el panel expandido (queda una franja de mapa con el buscador).
   const reduceMotion = useReduceMotion();
   // Los marcadores nuevos entran en tandas desde el centro, no todos de golpe (3.29).
-  const revealed = useRevealedMarkers(markers, { latitude: region.latitude, longitude: region.longitude }, reduceMotion);
+  const revealed = useRevealedMarkers(markers, { latitude: pinRegion.latitude, longitude: pinRegion.longitude }, reduceMotion);
   const [topFade] = useState(() => new Animated.Value(1));
   useEffect(() => {
     const to = mapMoving ? 0 : 1;
@@ -932,8 +943,7 @@ export default function ExploreScreen() {
   // Encabezado de lo que se ve: «En Centro Histórico», «Cerca de ti».
   const place = zoneName ? (zoneName.onUser ? 'Cerca de ti' : zoneName.title.startsWith('Cerca de') ? zoneName.title : `En ${zoneName.title}`) : 'A la vista';
 
-  // Referencias del mapa (3.23, `referencias_mapa.html`): la zona marcada, «Tú» y la leyenda.
-  const areaZone = !searching && !bubbleMode && !selectedEntity && zoneName?.zone ? zoneName.zone : null;
+  // Referencias del mapa (3.23, `referencias_mapa.html`): «Tú» y la leyenda. La zona ya no se marca con un círculo (3.30).
   // «Tú» (3.25, opción B de `tu_ligero.html`): solo explorando otra zona (a más de 1 km, como la franja) y solo si tu
   // punto azul no se ve. Es un punto en el borde derecho, encima del botón de ubicación, con la flecha hacia ti.
   const youKm = userCoords ? distanceKm(userCoords, { latitude: region.latitude, longitude: region.longitude }) : null;
@@ -991,15 +1001,6 @@ export default function ExploreScreen() {
     void saveGuideSeen();
   };
   const usefulRect: GuideRect = { x: spacing.md, y: topH + 8, width: mapSize.width - spacing.md * 2, height: Math.max(60, mapSize.height - sheet.heights.peek - topH - 16) };
-  const areaRect = ((): GuideRect => {
-    if (!areaZone || mapSize.height === 0) return usefulRect;
-    const c = toScreen(region, mapSize, areaZone);
-    const r = (areaZone.radius_m / 111_320 / region.latitudeDelta) * mapSize.height;
-    const top = Math.max(usefulRect.y, c.y - r);
-    const bottom = Math.min(usefulRect.y + usefulRect.height, c.y + r);
-    if (bottom - top < 60) return usefulRect;
-    return { x: Math.max(spacing.sm, c.x - r), y: top, width: Math.min(mapSize.width - spacing.sm * 2, r * 2), height: bottom - top };
-  })();
   const legendRect: GuideRect = { x: spacing.md, y: mapSize.height - sheetNowPx - spacing.md - 44, width: 44, height: 44 };
 
   // ---- Lo que recibe el panel (memorizado, 3.29): mover el mapa o empezar a arrastrar no lo vuelve a dibujar.
@@ -1102,6 +1103,7 @@ export default function ExploreScreen() {
               customMapStyle={MAP_STYLE}
               onMapReady={() => setMapReady(true)}
               onPanDrag={onMapDrag}
+              onRegionChange={onMapChange}
               onRegionChangeComplete={onMapSettled}
               onPress={() => {
                 setSelectedId(null);
@@ -1117,24 +1119,7 @@ export default function ExploreScreen() {
                   fillColor="rgba(36,104,198, 0.12)"
                 />
               ) : null}
-              {areaZone ? (
-                <Circle
-                  center={{ latitude: areaZone.latitude, longitude: areaZone.longitude }}
-                  radius={areaZone.radius_m}
-                  strokeWidth={2}
-                  strokeColor={colors.primary}
-                  fillColor="rgba(36,104,198,0.06)"
-                  lineDashPattern={[12, 10]}
-                />
-              ) : null}
-              {areaZone ? (
-                <MapLabelMarker
-                  key={`zone-${areaZone.id}`}
-                  latitude={areaZone.latitude + areaZone.radius_m / 111_320}
-                  longitude={areaZone.longitude}
-                  text={areaZone.name}
-                />
-              ) : null}
+              {/* Sin círculo ni nombre de la zona (3.30): la franja de arriba ya dice dónde estás. */}
               {revealed.map((m) =>
                 m.kind === 'bubble' ? (
                   <BubbleMarker
@@ -1188,7 +1173,7 @@ export default function ExploreScreen() {
 
           {youDot ? <YouDot bottom={youDotBottom} angle={youDot.angle} distance={youDistance} onPress={() => void goToMe()} /> : null}
           {!selectedEntity && !placeItems && !tall ? (
-            <MapLegend bottom={locateBottom} withZone={areaZone !== null} open={legendOpen && guideStep === null} onToggle={() => setLegendOpen((v) => !v)} />
+            <MapLegend bottom={locateBottom} open={legendOpen && guideStep === null} onToggle={() => setLegendOpen((v) => !v)} />
           ) : null}
 
           {!selectedEntity && !placeItems ? (
@@ -1310,7 +1295,7 @@ export default function ExploreScreen() {
 
       </View>
 
-      {guideStep !== null ? <ExploreGuide step={guideStep} rects={[stripRect, areaRect, legendRect]} size={mapSize} onStep={onGuideStep} /> : null}
+      {guideStep !== null ? <ExploreGuide step={guideStep} rects={[stripRect, usefulRect, legendRect]} size={mapSize} onStep={onGuideStep} /> : null}
 
       <PhotoViewer
         target={viewer}

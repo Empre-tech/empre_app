@@ -34,20 +34,14 @@ export function YouDot({ bottom, angle, distance, onPress }: { bottom: Animated.
 
 /**
  * Leyenda del mapa (3.25): un botón «i» de 44 pt al lado izquierdo, pegado al panel como el de ubicación, que no tapa
- * pines. Al tocarlo se abre la explicación: rayo = oferta, punto verde = abierto y, si hay zona marcada, el círculo.
+ * pines. Al tocarlo se abre la explicación: rayo = oferta y punto verde = abierto.
  */
-export function MapLegend({ bottom, withZone, open, onToggle }: { bottom: Animated.AnimatedInterpolation<number> | Animated.Value | Animated.AnimatedAddition<number>; withZone: boolean; open: boolean; onToggle: () => void }) {
+export function MapLegend({ bottom, open, onToggle }: { bottom: Animated.AnimatedInterpolation<number> | Animated.Value | Animated.AnimatedAddition<number>; open: boolean; onToggle: () => void }) {
   return (
     <Animated.View style={[styles.legendWrap, { bottom }]} pointerEvents="box-none">
       {open ? (
         <View style={styles.card} accessibilityRole="summary" accessibilityLiveRegion="polite">
           <Text style={styles.cardTitle}>Cómo leer el mapa</Text>
-          {withZone ? (
-            <View style={styles.cardRow}>
-              <View style={styles.dash} />
-              <Text style={styles.cardText}>El círculo punteado es la zona que estás mirando. El panel muestra los destacados que se ven en el mapa.</Text>
-            </View>
-          ) : null}
           <View style={styles.cardRow}>
             <View style={styles.bolt}>
               <Ionicons name="flash" size={11} color={colors.ink} />
@@ -98,7 +92,6 @@ const styles = StyleSheet.create({
   infoOn: { backgroundColor: colors.primary },
   bolt: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   green: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.success },
-  dash: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.primary },
   card: { alignSelf: 'stretch', padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, gap: spacing.sm, ...shadow },
   cardTitle: { fontSize: 14, fontFamily: fonts.display.bold, color: colors.ink },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

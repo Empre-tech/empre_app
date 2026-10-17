@@ -58,3 +58,31 @@ export function revealOrder<T extends { key: string } & Coords>(items: T[], show
 export function nextReveal<T extends { key: string }>(pending: T[], reduce: boolean, batch: number = REVEAL_BATCH): T[] {
   return reduce ? pending : pending.slice(0, batch);
 }
+
+/** Anillo alrededor de lo visible que también se dibuja (3.30): media pantalla por lado, así al arrastrar el borde que
+ * entra ya tiene sus pines. Solo se llena con lo que sobra del tope después de lo visible. */
+export const RING_MARGIN = 0.5;
+
+/**
+ * Qué pines dibujar (3.30, `mapa_sin_huecos.html`): primero lo visible (+10 %) con su prioridad de `capPins` y, si
+ * sobra tope, el anillo de media pantalla alrededor, con la misma prioridad. Lo que está en pantalla nunca se pierde por
+ * un pin del anillo.
+ */
+export function pickPins<T extends PinLike>(items: T[], r: RegionLike, selectedId: string | null, max: number = MAX_PINS): T[] {
+  const core = capPins(inView(items, r, VIEW_MARGIN), selectedId, max);
+  if (core.length >= max) return core;
+  const ids = new Set(core.map((it) => it.id));
+  const ring = inView(items, r, RING_MARGIN).filter((it) => !ids.has(it.id));
+  return [...core, ...capPins(ring, selectedId, max - core.length)];
+}
+
+/** Cada cuánto se rehace la lista durante el gesto: un cuarto de pantalla de recorrido o un 25 % de zoom. */
+export const LIVE_STEP = 0.25;
+
+/** ¿Hay que rehacer la lista de pines durante el gesto? Solo cuando el mapa avanzó lo bastante (pocos cálculos). */
+export function shouldMoveList(list: RegionLike, next: RegionLike, step: number = LIVE_STEP): boolean {
+  if (next.latitudeDelta <= 0 || list.latitudeDelta <= 0) return false;
+  const zoom = next.latitudeDelta / list.latitudeDelta;
+  if (zoom >= 1 + step || zoom <= 1 / (1 + step)) return true;
+  return Math.abs(next.latitude - list.latitude) >= next.latitudeDelta * step || Math.abs(next.longitude - list.longitude) >= next.longitudeDelta * step;
+}
