@@ -5,6 +5,7 @@ import type { Review } from '@/api/types';
 import { Avatar } from '@/components/Avatar';
 import { agoLabel } from '@/lib/discover';
 import { shortName } from '@/lib/profileLayout';
+import { useNow } from '@/lib/useNow';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const LONG = 160;
@@ -15,9 +16,10 @@ const LONG = 160;
  */
 export function ReviewCard({ review, mine = false }: { review: Review; mine?: boolean }) {
   const [open, setOpen] = useState(false);
+  const now = useNow(60_000);
   const long = review.comment.length > LONG;
   const who = mine ? 'Tu reseña' : shortName(review.user.name) || 'Alguien';
-  const when = agoLabel(review.created_at, Date.now());
+  const when = agoLabel(review.created_at, now);
   return (
     <View
       style={[styles.card, mine && styles.mine]}
