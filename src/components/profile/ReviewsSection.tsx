@@ -1,9 +1,10 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Review, ReviewSummary } from '@/api/types';
 import { ReviewCard } from '@/components/profile/ReviewCard';
-import { ReviewsSummary } from '@/components/profile/ReviewsSummary';
 import { previewReviews, reviewsMode } from '@/lib/profileLayout';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { SectionHeader } from './SectionHeader';
 
 interface Props {
   summary: ReviewSummary;
@@ -18,51 +19,54 @@ interface Props {
 }
 
 /**
- * «Reseñas» (maqueta `perfil_secciones.html`), con el mismo formato que Ofertas y Fotos: una muestra de hasta 3
- * (verificadas y recientes primero) y «Ver todas las reseñas (N)» siempre que haya alguna. Con 1 o 2, solo el número
- * (un 5,0 de una persona engaña); desde 3, nota y distribución. Sin reseñas, un mensaje.
+ * «Reseñas» compacta (3.28, `perfil_integrado.html`): la cabecera común con cuántas y «Ver todas ›»; en la tarjeta, la
+ * nota (desde 3 reseñas: un 5,0 de una persona engaña), una sola reseña (la tuya si la escribiste; si no, la verificada
+ * más reciente) y «Escribir reseña». El resto está a un toque, en su pantalla con filtros.
  */
 export function ReviewsSection({ summary, reviews, mine, isOwner, loading, onWrite, onAll }: Props) {
   const mode = reviewsMode(summary.count);
-  const others = reviews.filter((r) => r.id !== mine?.id);
-  const list = previewReviews(others).slice(0, mine ? 2 : 3);
+  const best = mine ?? previewReviews(reviews)[0] ?? null;
+  const avg = summary.average.toFixed(1).replace('.', ',');
 
   return (
-    <View style={styles.block}>
-      <Text style={styles.title} accessibilityRole="header">
-        Reseñas
-      </Text>
-      {mode === 'empty' && !mine ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyTitle}>Aún sin reseñas</Text>
-          <Text style={styles.emptyText}>{isOwner ? 'Cuando tus clientes canjeen una oferta podrán dejar su reseña verificada.' : 'Sé la primera persona en contar tu experiencia.'}</Text>
-        </View>
-      ) : (
-        <>
-          {mode === 'count' ? (
-            <Text style={styles.count}>
-              {summary.count} {summary.count === 1 ? 'reseña' : 'reseñas'}
-            </Text>
-          ) : (
-            <ReviewsSummary summary={summary} />
-          )}
-          <View>
-            {mine ? <ReviewCard review={mine} mine /> : null}
-            {loading && list.length === 0 ? <Text style={styles.count}>Cargando reseñas…</Text> : null}
-            {list.map((r) => (
-              <ReviewCard key={r.id} review={r} />
-            ))}
+    <View style={styles.section}>
+      <SectionHeader title="Reseñas" count={summary.count > 0 ? String(summary.count) : null} link={summary.count > 0 ? 'Ver todas' : null} onLink={onAll} />
+      <View style={styles.card}>
+        {mode === 'empty' && !mine ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>Aún sin reseñas</Text>
+            <Text style={styles.emptyText}>{isOwner ? 'Cuando tus clientes canjeen una oferta podrán dejar su reseña verificada.' : 'Sé la primera persona en contar tu experiencia.'}</Text>
           </View>
-        </>
-      )}
-      <View style={styles.actions}>
-        {summary.count > 0 ? (
-          <Pressable accessibilityRole="button" onPress={onAll} style={styles.btn}>
-            <Text style={styles.btnText}>Ver todas las reseñas ({summary.count})</Text>
-          </Pressable>
-        ) : null}
+        ) : (
+          <>
+            <View style={styles.score} accessible accessibilityLabel={mode === 'score' ? `Nota ${avg} de 5, ${summary.count} reseñas` : `${summary.count} ${summary.count === 1 ? 'reseña' : 'reseñas'}; la nota aparece desde 3`}>
+              {mode === 'score' ? (
+                <>
+                  <Text style={styles.avg}>{avg}</Text>
+                  <View style={styles.scoreText}>
+                    <View style={styles.stars}>
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <Ionicons key={n} name={summary.average >= n - 0.25 ? 'star' : summary.average >= n - 0.75 ? 'star-half' : 'star-outline'} size={14} color="#E8A317" />
+                      ))}
+                    </View>
+                    <Text style={styles.scoreSub}>
+                      {summary.count} reseñas de quienes fueron
+                    </Text>
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.scoreSub}>
+                  {summary.count} {summary.count === 1 ? 'reseña' : 'reseñas'} · la nota aparece desde 3
+                </Text>
+              )}
+            </View>
+            {loading && !best ? <Text style={styles.scoreSub}>Cargando reseñas…</Text> : null}
+            {best ? <ReviewCard review={best} mine={Boolean(mine)} /> : null}
+          </>
+        )}
         {!isOwner ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={mine ? 'Editar mi reseña' : 'Escribir una reseña'} onPress={onWrite} style={styles.btn}>
+          <Pressable accessibilityRole="button" accessibilityLabel={mine ? 'Editar mi reseña' : 'Escribir una reseña'} onPress={onWrite} style={({ pressed }) => [styles.btn, pressed && styles.pressed]}>
+            <Ionicons name="create-outline" size={16} color={colors.primary} />
             <Text style={styles.btnText}>{mine ? 'Editar mi reseña' : 'Escribir reseña'}</Text>
           </Pressable>
         ) : null}
@@ -72,13 +76,17 @@ export function ReviewsSection({ summary, reviews, mine, isOwner, loading, onWri
 }
 
 const styles = StyleSheet.create({
-  block: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: spacing.md, gap: spacing.sm },
-  title: { fontSize: 12, fontFamily: fonts.ui.extrabold, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.muted },
-  count: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink },
-  empty: { alignItems: 'center', gap: 4, paddingVertical: spacing.md },
+  section: { gap: spacing.xs },
+  card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: spacing.md, gap: spacing.sm },
+  score: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  avg: { fontSize: 34, fontFamily: fonts.display.bold, color: colors.ink },
+  scoreText: { gap: 2 },
+  stars: { flexDirection: 'row', gap: 2 },
+  scoreSub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
+  empty: { alignItems: 'center', gap: 4, paddingVertical: spacing.sm },
   emptyTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink },
   emptyText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  btn: { flexGrow: 1, flexBasis: 140, minHeight: 44, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.sm },
-  btnText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  btn: { minHeight: 44, flexDirection: 'row', gap: 6, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
+  btnText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.primary },
+  pressed: { opacity: 0.85 },
 });

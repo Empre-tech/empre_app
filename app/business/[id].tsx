@@ -41,6 +41,7 @@ import { OwnerPanel } from '@/components/profile/OwnerPanel';
 import { PhotosSection } from '@/components/profile/PhotosSection';
 import { ProfileHero } from '@/components/profile/ProfileHero';
 import { QuickIndex } from '@/components/profile/QuickIndex';
+import { SectionHeader } from '@/components/profile/SectionHeader';
 import { Recommendations } from '@/components/profile/Recommendations';
 import { ReviewsSection } from '@/components/profile/ReviewsSection';
 import { StatusChips } from '@/components/profile/StatusChips';
@@ -456,9 +457,7 @@ export default function BusinessScreen() {
   // detalle, con «Llegar» y «Llamar» junto a cada dato, y «Sobre el negocio» al final.
   const infoBlock = (
     <View style={styles.infoSection}>
-      <Text style={styles.secTitle} accessibilityRole="header">
-        Información
-      </Text>
+      <SectionHeader title="Información" />
       <View style={styles.card}>
         {statusInfo ? <InfoRow icon="time-outline" text={statusInfo.text} /> : null}
         {hasHours ? (
@@ -483,7 +482,9 @@ export default function BusinessScreen() {
         ) : null}
         {location ? (
           <View style={styles.infoLine}>
-            <InfoRow icon="location-outline" text={location} />
+            <View style={styles.grow}>
+              <InfoRow icon="location-outline" text={location} />
+            </View>
             {hasLocation(business) ? (
               <Pressable accessibilityRole="button" accessibilityLabel="Cómo llegar" onPress={onDirections} style={styles.inlineAction}>
                 <Text style={styles.linkText}>Llegar</Text>
@@ -493,7 +494,9 @@ export default function BusinessScreen() {
         ) : null}
         {contact ? (
           <View style={styles.infoLine}>
-            <InfoRow icon="call-outline" text={contact} />
+            <View style={styles.grow}>
+              <InfoRow icon="call-outline" text={contact} />
+            </View>
             {canCall ? (
               <Pressable accessibilityRole="button" accessibilityLabel={`Llamar al ${contact}`} onPress={onCall} style={styles.inlineAction}>
                 <Text style={styles.linkText}>Llamar</Text>
@@ -502,22 +505,20 @@ export default function BusinessScreen() {
           </View>
         ) : null}
         {serviceMode ? <InfoRow icon="storefront-outline" text={serviceMode} /> : null}
+        {business.description ? (
+          <View style={styles.about}>
+            <Text style={styles.aboutLabel}>Sobre el negocio</Text>
+            <Text style={styles.aboutText} numberOfLines={descriptionExpanded ? undefined : 3}>
+              {business.description}
+            </Text>
+            {descriptionTruncatable ? (
+              <Pressable accessibilityRole="button" onPress={() => setDescriptionExpanded((v) => !v)} style={styles.readMoreHit}>
+                <Text style={styles.readMore}>{descriptionExpanded ? 'Ver menos' : 'Ver más'}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
       </View>
-      {business.description ? (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle} accessibilityRole="header">
-            Sobre el negocio
-          </Text>
-          <Text style={styles.description} numberOfLines={descriptionExpanded ? undefined : 3}>
-            {business.description}
-          </Text>
-          {descriptionTruncatable ? (
-            <Pressable accessibilityRole="button" onPress={() => setDescriptionExpanded((v) => !v)} style={styles.readMoreHit}>
-              <Text style={styles.readMore}>{descriptionExpanded ? 'Ver menos' : 'Ver más'}</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      ) : null}
     </View>
   );
 
@@ -652,11 +653,7 @@ export default function BusinessScreen() {
                 <Text style={styles.glanceText}>Desde {formatPesos(fromPrice)}</Text>
               </View>
             ) : null}
-            {serviceMode ? (
-              <View style={styles.glanceChip}>
-                <Text style={styles.glanceText}>{serviceMode}</Text>
-              </View>
-            ) : null}
+
           </ProfileHero>
         )}
         {ownerPanelOpen ? ownerTabs : (stickyChild ?? <View />)}
@@ -954,8 +951,11 @@ const styles = StyleSheet.create({
   floatIndex: { position: 'absolute', left: 0, right: 0, top: 0, backgroundColor: colors.bg },
   glanceChip: { minHeight: 26, paddingHorizontal: 10, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, justifyContent: 'center' },
   glanceText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.ink },
-  infoSection: { gap: spacing.sm },
-  secTitle: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
+  infoSection: { gap: spacing.xs },
+  grow: { flex: 1, minWidth: 0 },
+  about: { gap: 4, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line },
+  aboutLabel: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
+  aboutText: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.ink },
   infoLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   inlineAction: { minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'flex-end' },
   linkText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primary },

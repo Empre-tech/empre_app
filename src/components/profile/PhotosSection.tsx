@@ -10,6 +10,7 @@ import { isNewPhoto, photoSample, showMosaic } from '@/lib/profileLayout';
 import { useNow } from '@/lib/useNow';
 import { isVideoItem, type UploadItem } from '@/lib/uploadQueue';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { SectionHeader } from './SectionHeader';
 
 interface Props {
   photos: Photo[];
@@ -91,16 +92,7 @@ export function PhotosSection({ photos, color, isOwner, onOpenPhoto, onAll, onNe
 
   return (
     <View style={styles.section}>
-      <View style={styles.head}>
-        <Text style={styles.headTitle} accessibilityRole="header">
-          Fotos {photos.length > 0 ? <Text style={styles.headCount}>{photos.length}</Text> : null}
-        </Text>
-        {photos.length > 0 ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={`Ver las ${photos.length} fotos`} onPress={onAll} style={styles.headLink}>
-            <Text style={styles.headLinkText}>Ver todas ›</Text>
-          </Pressable>
-        ) : null}
-      </View>
+      <SectionHeader title="Fotos" count={photos.length > 0 ? String(photos.length) : null} link={photos.length > 0 ? 'Ver todas' : null} onLink={onAll} />
       <View style={styles.block}>
         <View onLayout={(e) => setW(e.nativeEvent.layout.width)}>
           {size > 0 && mosaic ? (
@@ -205,11 +197,6 @@ const styles = StyleSheet.create({
   failedRow: { flexDirection: 'row', gap: 4 },
   iconBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
   section: { gap: spacing.sm },
-  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headTitle: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
-  headCount: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  headLink: { minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'flex-end' },
-  headLinkText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primary },
   block: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: spacing.md, gap: spacing.sm },
   mosaic: { gap: GAP },
   mosaicTop: { flexDirection: 'row', gap: GAP },

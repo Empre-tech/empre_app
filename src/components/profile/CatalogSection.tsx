@@ -9,6 +9,7 @@ import { CATALOG_PREVIEW, catalogCount, freshnessNote, priceText, serviceLabel, 
 import { displayIcon } from '@/lib/mapView';
 import { useNow } from '@/lib/useNow';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { SectionHeader } from './SectionHeader';
 
 interface Props {
   entityId: string;
@@ -81,20 +82,12 @@ export function CatalogSection({ entityId, isOwner, copy, color, icon, onAsk, on
 
   return (
     <View style={styles.section}>
-      <View style={styles.head}>
-        <Text style={styles.title} accessibilityRole="header">
-          {copy.noun} <Text style={styles.count}>{catalogCount(copy, items.length)}</Text>
-        </Text>
-        {more ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={`Ver ${catalogCount(copy, items.length)}`} onPress={onAll} style={styles.headLink}>
-            <Text style={styles.link}>{copy.noun === 'Carta' ? 'Ver la carta' : 'Ver todos'} ›</Text>
-          </Pressable>
-        ) : isOwner ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={`Editar ${copy.noun}`} onPress={edit} style={styles.headLink}>
-            <Text style={styles.link}>Editar</Text>
-          </Pressable>
-        ) : null}
-      </View>
+      <SectionHeader
+        title={copy.noun}
+        count={catalogCount(copy, items.length)}
+        link={more ? (copy.noun === 'Carta' ? 'Ver la carta' : 'Ver todos') : isOwner ? 'Editar' : null}
+        onLink={more ? onAll : edit}
+      />
       <View style={styles.card}>
         {shown.map((item, i) => (
           <CatalogRow key={item.id} item={item} color={color} icon={icon} first={i === 0} onPress={() => onAsk(item)} />
@@ -107,11 +100,6 @@ export function CatalogSection({ entityId, isOwner, copy, color, icon, onAsk, on
 
 const styles = StyleSheet.create({
   section: { gap: spacing.sm },
-  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { flexShrink: 1, fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
-  count: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  headLink: { minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'flex-end' },
-  link: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primary },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, paddingHorizontal: spacing.md },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md, minHeight: 56 },
   rowBorder: { borderTopWidth: 1, borderTopColor: colors.line },

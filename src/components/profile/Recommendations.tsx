@@ -11,6 +11,7 @@ import { formatDistance } from '@/lib/format';
 import { resolveImageUrl } from '@/lib/image';
 import { pickRecommendations, recReason } from '@/lib/profileLayout';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { SectionHeader } from './SectionHeader';
 
 interface Props {
   business: { id: string; latitude: number; longitude: number; category?: { id: string } | null };
@@ -68,9 +69,7 @@ export function Recommendations({ business, closed, title }: Props) {
 
   return (
     <View style={styles.block}>
-      <Text style={styles.title} accessibilityRole="header">
-        {title}
-      </Text>
+      <SectionHeader title={title} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row} style={styles.scroll}>
         {picks.map((p) => {
           const cat = categoryColor(p.category_color);
@@ -111,7 +110,7 @@ export function Recommendations({ business, closed, title }: Props) {
 }
 
 const styles = StyleSheet.create({
-  block: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: spacing.md, gap: spacing.sm },
+  block: { gap: spacing.xs },
   title: { fontSize: 12, fontFamily: fonts.ui.extrabold, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.muted },
   scroll: { marginHorizontal: -spacing.md },
   row: { flexDirection: 'row', gap: 10, paddingHorizontal: spacing.md },

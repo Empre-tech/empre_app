@@ -14,6 +14,7 @@ import { offerIndications } from '@/lib/discover';
 import { offersHasAll, offersMode, offersShown } from '@/lib/profileLayout';
 import { useNow } from '@/lib/useNow';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { SectionHeader } from './SectionHeader';
 
 interface Props {
   entityId: string;
@@ -132,16 +133,7 @@ export function OffersFicha({ entityId, isOwner, initialOfferId, variant = 'prof
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.head}>
-        <Text style={styles.title} accessibilityRole="header">
-          Ofertas
-        </Text>
-        {isOwner ? (
-          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/offers', params: { entityId } })} hitSlop={8}>
-            <Text style={styles.link}>Gestionar</Text>
-          </Pressable>
-        ) : null}
-      </View>
+      <SectionHeader title="Ofertas" link={isOwner ? 'Gestionar' : null} onLink={() => router.push({ pathname: '/business/offers', params: { entityId } })} />
 
       {mode === 'single' ? card(shown[0], 'single') : <View style={styles.stack}>{shown.map((o) => card(o, 'inline'))}</View>}
       {variant === 'profile' && offersHasAll(list.length) ? (
@@ -154,10 +146,7 @@ export function OffersFicha({ entityId, isOwner, initialOfferId, variant = 'prof
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: spacing.sm, marginTop: spacing.md },
-  head: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  title: { fontSize: 12, fontFamily: fonts.ui.extrabold, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.muted },
-  link: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primary },
+  wrap: { gap: spacing.sm },
   stack: { gap: spacing.md },
   allBtn: { minHeight: 44, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   allBtnText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
