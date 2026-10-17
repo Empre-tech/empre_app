@@ -25,9 +25,19 @@ const REDRAW_AT_MS = [80, 400];
  * reinicia con cada foto que termina de cargar (o falla). Un respaldo evita rastrear sin fin.
  *
  * Quien lo usa pasa `markerRef` al `<Marker ref={…}>`.
+ *
+ * `look` resume lo que cambia el aspecto del marcador (nivel de zoom, elegido, oferta…). Antes iba en la `key` y, al
+ * cambiar de nivel, todos los marcadores se desmontaban y volvían a crear a la vez (3.29); ahora el marcador sigue
+ * montado y solo vuelve a rastrear un momento para tomar la imagen nueva.
  */
-export function useMarkerTracking() {
+export function useMarkerTracking(look = '') {
   const [tracking, setTracking] = useState(true);
+  const [seenLook, setSeenLook] = useState(look);
+  if (look !== seenLook) {
+    // Estado derivado durante el render (patrón de React): cambió el aspecto, se vuelve a rastrear.
+    setSeenLook(look);
+    setTracking(true);
+  }
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const redraws = useRef<ReturnType<typeof setTimeout>[]>([]);
   const markerRef = useRef<MapMarker>(null);
@@ -42,6 +52,13 @@ export function useMarkerTracking() {
     for (const t of redraws.current) clearTimeout(t);
     redraws.current = REDRAW_AT_MS.map((ms) => setTimeout(() => markerRef.current?.redraw(), ms));
   }, []);
+
+  // Mientras se rastrea (al montar o al cambiar de aspecto) corre la espera y en Android se pide redibujar.
+  useEffect(() => {
+    if (!tracking) return;
+    settle();
+    redrawSoon();
+  }, [tracking, seenLook, settle, redrawSoon]);
 
   useEffect(() => {
     const fallback = setTimeout(() => setTracking(false), FALLBACK_MS);

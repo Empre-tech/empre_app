@@ -37,7 +37,9 @@ interface Props {
  * real lo vuelve a dibujar.
  */
 function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, dimmed, onPress }: Props) {
-  const { tracking, onLayout, onImageSettled, markerRef } = useMarkerTracking();
+  // Lo que cambia la imagen del pin; al cambiar, se redibuja sin desmontarse (3.29).
+  const look = [tier, emphasis ?? '', selected ? 's' : '', mine ? 'm' : '', entity.has_active_offer ? 'o' : '', entity.is_open_now ? 'a' : 'c', distanceLabel ?? ''].join('|');
+  const { tracking, onLayout, onImageSettled, markerRef } = useMarkerTracking(look);
 
   const cat = categoryColor(entity.category_color);
   const open = entity.has_hours ? entity.is_open_now : true;
@@ -83,7 +85,7 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
               ) : null}
               <View style={[emphasis === 'big' ? styles.pinBig : styles.pinMid, { borderColor: ring }]}>
                 {thumb ? (
-                  <Image accessible={false} source={{ uri: thumb }} style={emphasis === 'big' ? styles.thumbBig : styles.thumbMid} contentFit="cover" onLoad={onImageSettled} onError={onImageSettled} />
+                  <Image accessible={false} source={{ uri: thumb }} style={emphasis === 'big' ? styles.thumbBig : styles.thumbMid} contentFit="cover" cachePolicy="memory-disk" recyclingKey={thumb} onLoad={onImageSettled} onError={onImageSettled} />
                 ) : (
                   <View style={[emphasis === 'big' ? styles.thumbBig : styles.thumbMid, styles.fallback, { backgroundColor: cat.bg }]}>
                     <Ionicons name={icon} size={emphasis === 'big' ? 22 : 16} color={cat.fg} />
@@ -134,7 +136,7 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
           <View style={[tier === 'near' ? styles.pinNear : styles.pinMid, { borderColor }]}>
             {thumb ? (
               // Sin transición: dentro de un marcador, el fundido se vería como un parpadeo.
-              <Image accessible={false} source={{ uri: thumb }} style={tier === 'near' ? styles.thumbNear : styles.thumbMid} contentFit="cover" onLoad={onImageSettled} onError={onImageSettled} />
+              <Image accessible={false} source={{ uri: thumb }} style={tier === 'near' ? styles.thumbNear : styles.thumbMid} contentFit="cover" cachePolicy="memory-disk" recyclingKey={thumb} onLoad={onImageSettled} onError={onImageSettled} />
             ) : (
               <View style={[tier === 'near' ? styles.thumbNear : styles.thumbMid, styles.fallback, { backgroundColor: cat.bg }]}>
                 <Ionicons name={icon} size={tier === 'near' ? 20 : 16} color={cat.fg} />

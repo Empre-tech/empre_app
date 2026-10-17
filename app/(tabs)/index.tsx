@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   ActivityIndicator,
@@ -31,6 +31,7 @@ import { type WithDistance } from '@/components/explore/FeaturedCard';
 import { PinMarker } from '@/components/explore/PinMarker';
 import { BubbleMarker } from '@/components/explore/BubbleMarker';
 import { useMapLevel, useMapMarkers } from '@/components/explore/useMapMarkers';
+import { useRevealedMarkers } from '@/components/explore/useRevealedMarkers';
 import { useZoneName, useZones } from '@/components/explore/useZoneName';
 import { track } from '@/analytics/track';
 import { ContextRow } from '@/components/explore/ContextRow';
@@ -55,11 +56,12 @@ import { shouldAutoStart } from '@/lib/exploreGuide';
 import { loadGuideSeen, saveGuideSeen } from '@/lib/exploreGuideStore';
 import { snippetLines } from '@/lib/reviewSnippet';
 import { effectiveClaimStatus } from '@/lib/claims';
-import { boxAround, EXTRAS_MAX, ZONE_FICHA_MAX, openLine, pickExtras, reasonPill, relatedFrom, SEARCH_NEAR_KM, sectionsInView, sheetHeader, snippetIdsToFetch } from '@/lib/discover';
+import { boxAround, EXTRAS_MAX, ZONE_FICHA_MAX, openLine, pickExtras, reasonPill, relatedFrom, SEARCH_NEAR_KM, sectionsInView, sheetHeader, snippetIdsToFetch, type SearchScope } from '@/lib/discover';
 import type { ReviewSnippetData } from '@/lib/reviewSnippet';
 import { formatDistance } from '@/lib/format';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
+import { useEventCallback } from '@/lib/useEventCallback';
 import { allWithinMeters, type Cluster } from '@/lib/cluster';
 import { FETCH_FACTOR, mergePins, needsRefetch, padBox, visibleInOrder, type Box } from '@/lib/mapArea';
 import { distanceKm, hasLocation, type Coords } from '@/lib/geo';
@@ -141,17 +143,32 @@ export default function ExploreScreen() {
     },
     [],
   );
+  // `onPanDrag` llega en cada cuadro del gesto: solo el primero hace trabajo (avisar que el mapa se mueve); los demás
+  // anotan la hora y vuelven (3.29). El respaldo espera a que pase un rato sin arrastrar para bajar el aviso.
+  const draggingRef = useRef(false);
+  const lastDragRef = useRef(0);
   const onMapDrag = () => {
+    lastDragRef.current = Date.now();
+    if (draggingRef.current) return;
+    draggingRef.current = true;
     userMovedRef.current = true;
-    if (!mapMoving) setMapMoving(true);
-    if (moveTimer.current) clearTimeout(moveTimer.current);
-    moveTimer.current = setTimeout(() => setMapMoving(false), 1500);
+    setMapMoving(true);
+    const check = () => {
+      if (Date.now() - lastDragRef.current < 1200) {
+        moveTimer.current = setTimeout(check, 400);
+        return;
+      }
+      draggingRef.current = false;
+      setMapMoving(false);
+    };
+    moveTimer.current = setTimeout(check, 1500);
   };
   // El mapa terminó de moverse: sin búsqueda se actualiza la zona (y Descubre);
   // con búsqueda solo se ofrece buscar en la zona nueva. El panel no cambia de estado.
   const onMapSettled = (next: Region) => {
     setRegion(next);
     if (moveTimer.current) clearTimeout(moveTimer.current);
+    draggingRef.current = false;
     setMapMoving(false);
     if (userMovedRef.current && debouncedSearch) setAreaDirty(true);
     userMovedRef.current = false;
@@ -753,7 +770,7 @@ export default function ExploreScreen() {
   const selectedSnippet = selectedId ? (snippets?.[selectedId] ?? selectedSnippetQuery.data?.[selectedId]) : undefined;
   const selectedReview = selectedSnippet ? snippetLines(selectedSnippet, now) : undefined;
 
-  const toModel = (e: WithDistance, line?: string): CardModel => ({
+  const toModel = useCallback((e: WithDistance, line?: string): CardModel => ({
     id: e.id,
     name: e.name,
     latitude: e.latitude,
@@ -773,8 +790,8 @@ export default function ExploreScreen() {
     review: snippets?.[e.id] ? snippetLines(snippets[e.id], now) : undefined,
     photos: e.photos,
     photosCount: e.photos_count,
-  });
-  const discoverModel = (it: DiscoverItem, sectionId: DiscoverSectionId): CardModel => ({
+  }), [now, qrByEntity, snippets]);
+  const discoverModel = useCallback((it: DiscoverItem, sectionId: DiscoverSectionId): CardModel => ({
     id: it.entity_id,
     name: it.name,
     latitude: it.latitude,
@@ -792,10 +809,10 @@ export default function ExploreScreen() {
     mine: qrByEntity.has(it.entity_id),
     photos: it.photos,
     photosCount: it.photos_count,
-  });
-  const zoneModels = searching ? [] : items.map((e) => toModel(e));
+  }), [now, qrByEntity, reference]);
+  const zoneModels = useMemo(() => (searching ? [] : items.map((e) => toModel(e))), [searching, items, toModel]);
   // Adicionales: los pines acumulados que están cerca pero fuera de la zona que se ve, con el nombre de su zona.
-  const extraModels = extraEntities.map((e) => ({ ...toModel(e), zoneLabel: zoneAt(zones, e)?.zone.name ?? null }));
+  const extraModels = useMemo(() => extraEntities.map((e) => ({ ...toModel(e), zoneLabel: zoneAt(zones, e)?.zone.name ?? null })), [extraEntities, zones, toModel]);
   const widenMap = () =>
     mapRef.current?.animateToRegion(
       {
@@ -806,19 +823,25 @@ export default function ExploreScreen() {
       },
       500,
     );
-  const header = sheetHeader({
-    searching,
-    query: debouncedSearch,
-    status: resultsStatus,
-    results: items.length,
-    scope: searchScope,
-    zoneCount: items.length,
-    categoryName: selectedCategory?.name ?? selectedGroup?.name,
-    view,
-    extraCount: extraModels.length,
-    openCount: searching ? 0 : items.filter((e) => e.has_hours && e.is_open_now).length,
-    zoneStatus: entities.isError ? 'error' : entities.isLoading ? 'loading' : 'ok',
-  });
+  const headerCategory = selectedCategory?.name ?? selectedGroup?.name;
+  const headerZoneStatus: 'loading' | 'error' | 'ok' = entities.isError ? 'error' : entities.isLoading ? 'loading' : 'ok';
+  const header = useMemo(
+    () =>
+      sheetHeader({
+        searching,
+        query: debouncedSearch,
+        status: resultsStatus,
+        results: items.length,
+        scope: searchScope,
+        zoneCount: items.length,
+        categoryName: headerCategory,
+        view,
+        extraCount: extraModels.length,
+        openCount: searching ? 0 : items.filter((e) => e.has_hours && e.is_open_now).length,
+        zoneStatus: headerZoneStatus,
+      }),
+    [searching, debouncedSearch, resultsStatus, items, searchScope, headerCategory, view, extraModels.length, headerZoneStatus],
+  );
   // Visor de fotos de un destacado, encima del mapa (3.22).
   const [viewer, setViewer] = useState<ViewerTarget | null>(null);
   const openPhoto = (m: CardModel, index: number) => {
@@ -836,7 +859,10 @@ export default function ExploreScreen() {
     !searching &&
     ((sectionsQuery.isFetching && !sectionsQuery.isLoading && (sectionsQuery.data?.length ?? 0) > 0) ||
       (entities.isFetching && !entities.isLoading && (entities.data?.items?.length ?? 0) > 0));
-  const avatars = (sections[0]?.items ?? []).slice(0, 3).map((it) => ({ key: it.entity_id, color: categoryColor(it.category_color).fg, letter: it.name.charAt(0) }));
+  const avatars = useMemo(
+    () => (sections[0]?.items ?? []).slice(0, 3).map((it) => ({ key: it.entity_id, color: categoryColor(it.category_color).fg, letter: it.name.charAt(0) })),
+    [sections],
+  );
   const sectionTitle = sections.find((sec) => sec.id === sectionFilter)?.title ?? '';
   const onSelectCard = (m: CardModel) => {
     // Si el negocio está entre los pines, se selecciona en el mapa; si no, se abre su perfil.
@@ -851,6 +877,8 @@ export default function ExploreScreen() {
   // El buscador y los chips se desvanecen mientras el dedo mueve el mapa, y los chips
   // se esconden con el panel expandido (queda una franja de mapa con el buscador).
   const reduceMotion = useReduceMotion();
+  // Los marcadores nuevos entran en tandas desde el centro, no todos de golpe (3.29).
+  const revealed = useRevealedMarkers(markers, { latitude: region.latitude, longitude: region.longitude }, reduceMotion);
   const [topFade] = useState(() => new Animated.Value(1));
   useEffect(() => {
     const to = mapMoving ? 0 : 1;
@@ -858,6 +886,13 @@ export default function ExploreScreen() {
     else Animated.timing(topFade, { toValue: to, duration: 150, useNativeDriver: true }).start();
   }, [mapMoving, reduceMotion, topFade]);
   const tall = sheet.anchor === 'full';
+  // Mientras el dedo mueve el mapa, el panel compacto baja un poco (no cambia de estado). Con driver nativo (3.29).
+  const [sheetTuck] = useState(() => new Animated.Value(0));
+  const tuckTo = mapMoving && sheet.anchor === 'peek' ? 46 : 0;
+  useEffect(() => {
+    if (reduceMotion) sheetTuck.setValue(tuckTo);
+    else Animated.timing(sheetTuck, { toValue: tuckTo, duration: 180, useNativeDriver: true }).start();
+  }, [tuckTo, reduceMotion, sheetTuck]);
   const locateBottom = Animated.add(sheet.buttonsBase, spacing.md);
   const sheetNowPx = sheet.anchor === 'peek' ? sheet.heights.peek : sheet.heights.medium;
 
@@ -967,6 +1002,76 @@ export default function ExploreScreen() {
   })();
   const legendRect: GuideRect = { x: spacing.md, y: mapSize.height - sheetNowPx - spacing.md - 44, width: 44, height: 44 };
 
+  // ---- Lo que recibe el panel (memorizado, 3.29): mover el mapa o empezar a arrastrar no lo vuelve a dibujar.
+  const onViewS = useEventCallback((v: 'discover' | 'results') => {
+    setView(v);
+    if (v === 'discover') setSectionFilter(null);
+  });
+  const onSelectS = useEventCallback(onSelectCard);
+  const onSeeSectionS = useEventCallback((sid: DiscoverSectionId) => {
+    setSectionFilter(sid);
+    setView('results');
+    sheet.snapTo('full');
+  });
+  const onClearSectionS = useEventCallback(() => setSectionFilter(null));
+  const onSectionsRetryS = useEventCallback(() => void sectionsQuery.refetch());
+  const onEntitiesRetryS = useEventCallback(() => void entities.refetch());
+  const onShowNearestS = useEventCallback(showNearest);
+  const onPhotoS = useEventCallback(openPhoto);
+  const onOpenProfileS = useEventCallback(openBusiness);
+  const onClearFiltersS = useEventCallback(clearAllFilters);
+  const onWidenS = useEventCallback(() => void widenMap());
+  const onClearSearchS = useEventCallback(clearSearch);
+  const onSearchCityS = useEventCallback(() => setSearchArea(null));
+
+  const sectionsStatus: 'loading' | 'error' | 'ok' = sectionsQuery.isError ? 'error' : sectionsQuery.isLoading ? 'loading' : 'ok';
+  const sheetSections = useMemo(
+    () => ({ status: sectionsStatus, data: sections, models: discoverModel, onRetry: onSectionsRetryS }),
+    [sectionsStatus, sections, discoverModel, onSectionsRetryS],
+  );
+  const sectionMoreStatus: 'loading' | 'error' | 'ok' = sectionMoreQuery.isError ? 'error' : sectionMoreQuery.isLoading ? 'loading' : 'ok';
+  const sectionMoreItems = sectionMoreQuery.data?.[0]?.items;
+  const sheetSectionFilter = useMemo(
+    () =>
+      sectionFilter
+        ? { id: sectionFilter, title: sectionTitle, status: sectionMoreStatus, items: (sectionMoreItems ?? []).map((it) => discoverModel(it, sectionFilter)) }
+        : null,
+    [sectionFilter, sectionTitle, sectionMoreStatus, sectionMoreItems, discoverModel],
+  );
+  const nearestCount = nearest.length;
+  const sheetZone = useMemo(
+    () => ({
+      status: headerZoneStatus,
+      items: zoneModels,
+      extras: extraModels,
+      filterActive: activeFilterCount > 0,
+      onRetry: onEntitiesRetryS,
+      place,
+      nearest: nearestCount > 0 ? { count: nearestCount, onShow: onShowNearestS } : undefined,
+    }),
+    [headerZoneStatus, zoneModels, extraModels, activeFilterCount, onEntitiesRetryS, place, nearestCount, onShowNearestS],
+  );
+  const relatedLabel = topCategory ? `Misma categoría: ${items[0]?.category_name ?? ''}` : '';
+  const sheetResults = useMemo(
+    () => ({
+      status: resultsStatus,
+      items: searching
+        ? items.map((e) => ({
+            ...toModel(e),
+            nearChip: closestIds.has(e.id) ? formatDistance(e.distanceKm) : null,
+            far: isFarResult(e.distanceKm === null ? null : e.distanceKm * 1000, hasNearResults),
+          }))
+        : [],
+      related: related.map((e) => toModel({ ...e, distanceKm: e.distance_meters > 0 ? e.distance_meters / 1000 : null })),
+      relatedLabel,
+      scope: searchScope as SearchScope,
+      onRetry: onEntitiesRetryS,
+      onClear: onClearSearchS,
+      onSearchCity: onSearchCityS,
+    }),
+    [resultsStatus, searching, items, toModel, closestIds, hasNearResults, related, relatedLabel, searchScope, onEntitiesRetryS, onClearSearchS, onSearchCityS],
+  );
+
   return (
     <View style={styles.screen}>
       <View style={styles.content} onLayout={(e) => setMapSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}>
@@ -983,6 +1088,12 @@ export default function ExploreScreen() {
               initialRegion={startupRegion}
               showsUserLocation
               showsMyLocationButton={false}
+              // Android mueve la cámara solo al tocar un marcador y además la app centra el negocio: dos animaciones
+              // seguidas se sienten pesadas. Solo queda la nuestra (3.29).
+              moveOnMarkerPress={false}
+              // La inclinación 3D no aporta para encontrar negocios y cuesta al dibujar; la rotación se mantiene (la
+              // brújula del mapa la devuelve al norte).
+              pitchEnabled={false}
               // Oculta las etiquetas de lugares del mapa base de Google (cementerios,
               // parques, centros comerciales, etc.) que no tienen nada que ver con
               // los negocios de Empre y solo generan ruido visual (hallazgo de UI:
@@ -1024,7 +1135,7 @@ export default function ExploreScreen() {
                   text={areaZone.name}
                 />
               ) : null}
-              {markers.map((m) =>
+              {revealed.map((m) =>
                 m.kind === 'bubble' ? (
                   <BubbleMarker
                     key={m.key}
@@ -1081,74 +1192,31 @@ export default function ExploreScreen() {
           ) : null}
 
           {!selectedEntity && !placeItems ? (
-            <ExploreSheet
-              sheet={sheet}
-              updating={updating}
-              bottomInset={0}
-              tucked={mapMoving}
-              header={header}
-              avatars={avatars}
-              searching={searching}
-              query={debouncedSearch}
-              view={view}
-              onView={(v) => {
-                setView(v);
-                if (v === 'discover') setSectionFilter(null);
-              }}
-              selectedId={selectedId}
-              onSelect={onSelectCard}
-              sections={{
-                status: sectionsQuery.isError ? 'error' : sectionsQuery.isLoading ? 'loading' : 'ok',
-                data: sections,
-                models: discoverModel,
-                onRetry: () => void sectionsQuery.refetch(),
-              }}
-              sectionFilter={
-                sectionFilter
-                  ? {
-                      id: sectionFilter,
-                      title: sectionTitle,
-                      status: sectionMoreQuery.isError ? 'error' : sectionMoreQuery.isLoading ? 'loading' : 'ok',
-                      items: (sectionMoreQuery.data?.[0]?.items ?? []).map((it) => discoverModel(it, sectionFilter)),
-                    }
-                  : null
-              }
-              onSeeSection={(id) => {
-                setSectionFilter(id);
-                setView('results');
-                sheet.snapTo('full');
-              }}
-              onClearSection={() => setSectionFilter(null)}
-              zone={{
-                status: entities.isError ? 'error' : entities.isLoading ? 'loading' : 'ok',
-                items: zoneModels,
-                extras: extraModels,
-                filterActive: activeFilterCount > 0,
-                onRetry: () => void entities.refetch(),
-                place,
-                nearest: nearest.length > 0 ? { count: nearest.length, onShow: showNearest } : undefined,
-              }}
-              onPhoto={openPhoto}
-              onOpenProfile={openBusiness}
-              onClearFilters={clearAllFilters}
-              onWiden={widenMap}
-              results={{
-                status: resultsStatus,
-                items: searching
-                  ? items.map((e) => ({
-                      ...toModel(e),
-                      nearChip: closestIds.has(e.id) ? formatDistance(e.distanceKm) : null,
-                      far: isFarResult(e.distanceKm === null ? null : e.distanceKm * 1000, hasNearResults),
-                    }))
-                  : [],
-                related: related.map((e) => toModel({ ...e, distanceKm: e.distance_meters > 0 ? e.distance_meters / 1000 : null })),
-                relatedLabel: topCategory ? `Misma categoría: ${items[0]?.category_name ?? ''}` : '',
-                scope: searchScope,
-                onRetry: () => void entities.refetch(),
-                onClear: clearSearch,
-                onSearchCity: () => setSearchArea(null),
-              }}
-            />
+            <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateY: sheetTuck }] }]} pointerEvents="box-none">
+              <ExploreSheet
+                sheet={sheet}
+                updating={updating}
+                bottomInset={0}
+                header={header}
+                avatars={avatars}
+                searching={searching}
+                query={debouncedSearch}
+                view={view}
+                onView={onViewS}
+                selectedId={selectedId}
+                onSelect={onSelectS}
+                sections={sheetSections}
+                sectionFilter={sheetSectionFilter}
+                onSeeSection={onSeeSectionS}
+                onClearSection={onClearSectionS}
+                zone={sheetZone}
+                onPhoto={onPhotoS}
+                onOpenProfile={onOpenProfileS}
+                onClearFilters={onClearFiltersS}
+                onWiden={onWidenS}
+                results={sheetResults}
+              />
+            </Animated.View>
           ) : null}
 
           {selectedEntity ? (

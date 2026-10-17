@@ -1,11 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { DiscoverSection, DiscoverSectionId } from '@/api/types';
 import { SkeletonRows } from '@/components/Skeleton';
 import { scopeText, type SearchScope } from '@/lib/discover';
 import { reelTiles, type ReelTile } from '@/lib/photoStrip';
-import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
 import { DiscoverCard, MiniCard, MiniRow, type CardModel } from './ExploreCards';
 import { DiscoverSkeleton, FadeIn, UpdatingBar } from './LoadingMotion';
@@ -18,8 +17,6 @@ type Status = 'loading' | 'error' | 'ok';
 interface Props {
   sheet: FeaturedSheetState;
   bottomInset: number;
-  /** Mientras el dedo mueve el mapa, el panel compacto baja un poco (no cambia de estado). */
-  tucked: boolean;
   header: { title: string; subtitle: string };
   avatars: { key: string; color: string; letter: string }[];
   searching: boolean;
@@ -68,17 +65,13 @@ interface Props {
  * el servidor) y «Todos»; con búsqueda, los resultados primero y Descubre a un
  * toque sin perder la consulta. Compacto, intermedio y expandido son el mismo
  * panel a distinta altura; nunca se abre solo por mover el mapa.
+ *
+ * Está memorizado (3.29): la pantalla le pasa datos memorizados y manejadores estables, así que mover el mapa o
+ * empezar a arrastrar no lo vuelve a dibujar; solo cambia cuando cambia lo que muestra. Bajar un poco al arrastrar
+ * lo hace la pantalla con una animación nativa alrededor del panel.
  */
-export function ExploreSheet(p: Props) {
+function ExploreSheetView(p: Props) {
   const { anchor, height, snapTo, panHandlers } = p.sheet;
-  const reduce = useReduceMotion();
-  const [tuck] = useState(() => new Animated.Value(0));
-  useEffect(() => {
-    const to = p.tucked && anchor === 'peek' ? 46 : 0;
-    if (reduce) tuck.setValue(to);
-    // Sin driver nativo: la misma vista anima su alto (que el driver nativo no admite) y no se pueden mezclar.
-    else Animated.timing(tuck, { toValue: to, duration: 180, useNativeDriver: false }).start();
-  }, [p.tucked, anchor, reduce, tuck]);
 
   // La tira del compacto: fotos de los destacados (Descubre primero, luego la zona), sin búsqueda.
   const { data: secData, models: toCard } = p.sections;
@@ -107,7 +100,7 @@ export function ExploreSheet(p: Props) {
   const toggle = () => snapTo(compact ? 'medium' : 'peek');
 
   return (
-    <Animated.View style={[styles.sheet, { height, paddingBottom: compact ? 0 : p.bottomInset, transform: [{ translateY: tuck }] }]}>
+    <Animated.View style={[styles.sheet, { height, paddingBottom: compact ? 0 : p.bottomInset }]}>
       {/* Asa + encabezado: el contenedor recibe el arrastre y el botón interior el toque
           (un toque alterna compacto ⇄ intermedio). Separados, no compiten por el dedo. */}
       <View {...panHandlers}>
@@ -160,6 +153,8 @@ export function ExploreSheet(p: Props) {
     </Animated.View>
   );
 }
+
+export const ExploreSheet = memo(ExploreSheetView);
 
 function Tabs({ searching, view, onView, count }: { searching: boolean; view: 'discover' | 'results'; onView: (v: 'discover' | 'results') => void; count: number }) {
   const tabs: ['discover' | 'results', string][] = searching

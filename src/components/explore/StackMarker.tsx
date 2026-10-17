@@ -14,11 +14,11 @@ interface Props {
 /**
  * Marcador de una pila de negocios. El mapa dibuja los marcadores como imagen:
  * se rastrean los cambios solo mientras cargan las miniaturas y después se
- * congelan, que es lo que evita la imagen cortada y el marcador lento. Quien
- * lo usa pone en la `key` el nivel de zoom, así un cambio de zoom lo redibuja.
+ * congelan, que es lo que evita la imagen cortada y el marcador lento. Al
+ * cambiar de nivel de zoom se redibuja sin desmontarse (3.29).
  */
 function StackMarkerView({ cluster, tier, onPress }: Props) {
-  const { tracking, onLayout, onImageSettled, markerRef } = useMarkerTracking();
+  const { tracking, onLayout, onImageSettled, markerRef } = useMarkerTracking(tier);
 
   return (
     <Marker

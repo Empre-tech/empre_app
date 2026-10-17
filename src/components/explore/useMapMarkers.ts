@@ -5,6 +5,7 @@ import { clusterByScreenDistance, type Cluster } from '@/lib/cluster';
 import type { ApiCell } from '@/api/offers';
 import { hasLocation } from '@/lib/geo';
 import { levelOf, MAX_DRAWN, type MapLevel } from '@/lib/mapLevels';
+import { capPins, inView } from '@/lib/mapMarkers';
 import { emphasize, type EmphasisTier } from '@/lib/proximity';
 import { zoneAt, type Zone } from '@/lib/zoneName';
 import { formatFeaturedDistance, type WithDistance } from './FeaturedCard';
@@ -79,18 +80,27 @@ type Args = {
  */
 export function useMapMarkers({ known, region, mapSize, selectedId, myEntityIds, searching, level, cells, zones }: Args) {
   const mapped = useMemo(() => known.filter(hasLocation), [known]);
+  // Solo se dibuja lo que se ve (con un 10 % de margen) y como mucho 60, con prioridad al elegido, a las ofertas y a
+  // los abiertos (3.29). Lo guardado alrededor sigue en memoria para no volver a pedirlo, pero no se pinta: antes se
+  // dibujaban ~150 marcadores para ~42 visibles y arrastrar o rotar pesaba.
+  const visible = useMemo(() => capPins(inView(mapped, region), selectedId), [mapped, region, selectedId]);
   const tier = zoomTier(region);
   // Lejos los pines son puntos de 18 pt; de cerca, portales de ~44 pt: el umbral
   // de agrupación acompaña. Al acercar el zoom los negocios se alejan en pantalla
   // y la pila se abre sola.
   const clusterPx = tier === 'far' ? 22 : 44;
   const clusters = useMemo(
-    () => clusterByScreenDistance(mapped, region, mapSize, clusterPx),
-    [mapped, region, mapSize, clusterPx],
+    () => clusterByScreenDistance(visible, region, mapSize, clusterPx),
+    [visible, region, mapSize, clusterPx],
   );
 
   // Búsqueda (F11): un pin por resultado, el más cercano primero. Los lejanos salen tenues.
-  const emphasized = useMemo(() => (searching ? emphasize(mapped) : null), [searching, mapped]);
+  // El énfasis se calcula con todos los resultados (es un ranking) y después se dibuja solo lo visible.
+  const emphasized = useMemo(() => {
+    if (!searching) return null;
+    const ids = new Set(capPins(inView(mapped, region), selectedId).map((e) => e.id));
+    return emphasize(mapped).filter((p) => ids.has(p.item.id));
+  }, [searching, mapped, region, selectedId]);
 
   // Niveles 1 y 2 (sin búsqueda): burbujas con el conteo de cada casilla, las más pobladas primero y
   // nunca más de MAX_DRAWN. El nivel 1 nombra la burbuja cuyo centro cae en una zona configurada.
@@ -122,7 +132,8 @@ export function useMapMarkers({ known, region, mapSize, selectedId, myEntityIds,
           const selected = item.id === selectedId;
           return {
             kind: 'business',
-            key: `${item.id}-e${emphasis}-${selected ? 's' : ''}-${item.has_active_offer ? 'o' : ''}-${item.is_open_now ? 'a' : 'c'}`,
+            // Llave estable: el aspecto cambia con `look` dentro del marcador, sin desmontarlo.
+            key: `p-${item.id}`,
             entity: item,
             coordinate: { latitude: item.latitude, longitude: item.longitude },
             selected,
@@ -138,20 +149,20 @@ export function useMapMarkers({ known, region, mapSize, selectedId, myEntityIds,
           const selected = only.id === selectedId;
           return {
             kind: 'business',
-            // Lo que cambia el aspecto del pin va en la key: así se vuelve a dibujar solo cuando hace falta.
-            key: `${cluster.key}-${tier}-${selected ? 's' : ''}-${only.has_active_offer ? 'o' : ''}`,
+            // Llave estable (el id): al cambiar de nivel o de selección el pin se redibuja sin desmontarse.
+            key: `p-${only.id}`,
             entity: only,
             coordinate: { latitude: cluster.latitude, longitude: cluster.longitude },
             selected,
             mine: myEntityIds.has(only.id),
           };
         }
-        // Varios negocios muy juntos: pila de miniaturas, nunca un número. El
-        // nivel de zoom va en la key para que el marcador se vuelva a dibujar.
-        return { kind: 'stack', key: `${cluster.key}-${tier}`, cluster };
+        // Varios negocios muy juntos: pila de miniaturas, nunca un número. La llave es la de la pila; el nivel de
+        // zoom se redibuja dentro del marcador.
+        return { kind: 'stack', key: cluster.key, cluster };
       });
     },
-    [bubbles, emphasized, clusters, tier, selectedId, myEntityIds],
+    [bubbles, emphasized, clusters, selectedId, myEntityIds],
   );
 
   return { tier, markers };
