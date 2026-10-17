@@ -81,24 +81,46 @@ export function photoSample(count: number, isOwner: boolean): { show: boolean; s
   return { show: n > 0 || isOwner, shown, extra: Math.max(0, n - shown) };
 }
 
+/**
+ * Mosaico de 3 × 3 (3.27): la más reciente grande (2 × 2) y 5 pequeñas. Solo para quien visita, sin subidas en curso y
+ * con 6 o más fotos (con menos no llena el bloque y queda un hueco); si no, la cuadrícula pareja de 3 columnas.
+ */
+export function showMosaic(i: { count: number; isOwner: boolean; uploading: number }): boolean {
+  return !i.isOwner && i.uploading === 0 && i.count >= PHOTOS_SAMPLE;
+}
+
+/** «Nuevo» en la foto grande si se publicó hace menos de 48 h. */
+export const NEW_PHOTO_MS = 48 * 3600_000;
+export function isNewPhoto(createdAt: string | null | undefined, now: number): boolean {
+  if (!createdAt) return false;
+  const t = Date.parse(createdAt);
+  return Number.isFinite(t) && t <= now && now - t < NEW_PHOTO_MS;
+}
+
 // ---------- Secciones, índice rápido y orden ----------
 
-export type SectionId = 'offers' | 'services' | 'photos' | 'reviews';
+export type SectionId = 'offers' | 'services' | 'photos' | 'reviews' | 'info';
 
 export interface SectionInput {
   offers: number;
   hasServices: boolean;
   photos: number;
   isOwner: boolean;
+  /** Cuántas reseñas tiene (sin ninguna, el apartado sigue, para escribir la primera, pero no su chip). */
+  reviews?: number;
 }
 
-/** Las secciones que existen, en su orden; el dueño siempre tiene «Ofertas» y «Fotos» (ahí publica). */
+/**
+ * Los chips del índice, en el orden del perfil (3.28): Ofertas · Catálogo · Fotos · Reseñas · Info. Un apartado sin
+ * contenido no tiene chip. El dueño siempre tiene «Ofertas» y «Fotos» (ahí publica). «Info» siempre está.
+ */
 export function sections(i: SectionInput): SectionId[] {
   const out: SectionId[] = [];
   if (i.offers > 0 || i.isOwner) out.push('offers');
   if (i.hasServices) out.push('services');
   if (i.photos > 0 || i.isOwner) out.push('photos');
-  out.push('reviews');
+  if (i.reviews === undefined || i.reviews > 0 || i.isOwner) out.push('reviews');
+  out.push('info');
   return out;
 }
 
@@ -107,17 +129,22 @@ export function showQuickIndex(list: SectionId[]): boolean {
   return list.length >= 2;
 }
 
-export const SECTION_LABEL: Record<SectionId, string> = { offers: 'Ofertas', services: 'Servicios', photos: 'Fotos', reviews: 'Reseñas' };
+export const SECTION_LABEL: Record<SectionId, string> = { offers: 'Ofertas', services: 'Servicios', photos: 'Fotos', reviews: 'Reseñas', info: 'Info' };
 
-export type BlockId = 'offers' | 'quote' | 'about' | 'services' | 'photos' | 'reviews' | 'recs';
+/** El nombre del chip: el catálogo se llama según el negocio («Carta», «Productos»…). */
+export function sectionLabel(id: SectionId, catalogNoun?: string): string {
+  return id === 'services' && catalogNoun ? catalogNoun : SECTION_LABEL[id];
+}
+
+export type BlockId = 'offers' | 'services' | 'photos' | 'reviews' | 'info' | 'recs';
 
 /**
- * El orden de los bloques: primero lo del negocio (ofertas, cita de una reseña, sobre el negocio, servicios, fotos y
- * reseñas) y al final las recomendaciones, también cuando está cerrado (no se pone a otro negocio antes que el que
- * se visita). El dueño no ve recomendaciones.
+ * El orden para decidir (3.28, `perfil_integrado.html`): ofertas (como estaban), qué ofrece y a qué precio (catálogo),
+ * cómo es (fotos), qué dicen (reseñas, que ya ponen primero las verificadas: la cita suelta sobraba) y cómo llegar
+ * (información). Al final las recomendaciones, también cuando está cerrado. El dueño no ve recomendaciones.
  */
 export function blockOrder(i: { isOwner: boolean }): BlockId[] {
-  const out: BlockId[] = ['offers', 'quote', 'about', 'services', 'photos', 'reviews'];
+  const out: BlockId[] = ['offers', 'services', 'photos', 'reviews', 'info'];
   if (!i.isOwner) out.push('recs');
   return out;
 }

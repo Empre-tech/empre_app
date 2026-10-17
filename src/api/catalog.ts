@@ -7,6 +7,8 @@ export interface ServiceInput {
   /** Precio habitual en pesos; null = sin publicar (no es cero). */
   price: number | null;
   price_from: boolean;
+  /** Sección opcional («Almuerzos», «Cortes»); vacía, sin sección. */
+  section?: string;
 }
 
 /** Catálogo del negocio: lectura pública y gestión del dueño. */

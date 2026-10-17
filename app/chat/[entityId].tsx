@@ -33,7 +33,8 @@ const PHONE_RE = /^[+\d\s()-]{7,}$/;
 const QUICK_REPLIES = ['¿Horario?', '¿Precios?', '¿Hacen envíos?'];
 
 export default function ChatScreen() {
-  const { entityId, userId, name, avatar } = useLocalSearchParams<{ entityId: string; userId?: string; name?: string; avatar?: string }>();
+  // `draft`: un mensaje ya escrito (por ejemplo, preguntar por un ítem del catálogo); la persona lo revisa y lo envía.
+  const { entityId, userId, name, avatar, draft } = useLocalSearchParams<{ entityId: string; userId?: string; name?: string; avatar?: string; draft?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -44,7 +45,7 @@ export default function ChatScreen() {
   const customerId = userId ?? user?.id;
   const sentByEntity = Boolean(userId && userId !== user?.id);
 
-  const [text, setText] = useState('');
+  const [text, setText] = useState(() => (typeof draft === 'string' ? draft.slice(0, 1000) : ''));
   const [error, setError] = useState<string | null>(null);
   // Mensajes nuevos de esta sesión (más nuevo primero): entrantes + los que enviamos nosotros.
   const [live, setLive] = useState<ChatMessage[]>([]);

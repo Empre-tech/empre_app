@@ -1,27 +1,64 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { catalogApi } from '@/api/catalog';
-import { CATALOG_PREVIEW, freshnessNote, priceText, serviceLabel } from '@/lib/catalog';
+import { categoryColor } from '@/lib/categoryColor';
+import { CATALOG_PREVIEW, catalogCount, freshnessNote, priceText, serviceLabel, type CatalogCopy, type ServiceItem } from '@/lib/catalog';
+import { displayIcon } from '@/lib/mapView';
 import { useNow } from '@/lib/useNow';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 interface Props {
   entityId: string;
   isOwner: boolean;
+  /** Textos según el tipo de negocio («Carta», «Servicios», «Productos»…). */
+  copy: CatalogCopy;
+  /** Color e icono de la categoría, para la marca de cada ítem. */
+  color?: string | null;
+  icon?: string | null;
+  /** Tocar un ítem: preguntar por él al negocio. */
+  onAsk: (item: ServiceItem) => void;
+  /** «Ver todos ›»: la pantalla del catálogo con buscador y secciones. */
+  onAll: () => void;
+}
+
+/** Una fila del catálogo: marca de la categoría, nombre, descripción y precio habitual (o «Consultar»). */
+export function CatalogRow({ item, color, icon, onPress, first }: { item: ServiceItem; color?: string | null; icon?: string | null; onPress: () => void; first?: boolean }) {
+  const price = priceText(item);
+  const cat = categoryColor(color);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${serviceLabel(item)}. Preguntar al negocio`}
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, !first && styles.rowBorder, pressed && styles.pressed]}
+    >
+      <View style={[styles.mark, { backgroundColor: cat.bg }]}>
+        <Ionicons name={displayIcon(icon) as keyof typeof Ionicons.glyphMap} size={18} color={cat.fg} />
+      </View>
+      <View style={styles.rowText}>
+        <Text style={styles.name}>{item.name}</Text>
+        {item.description ? (
+          <Text style={styles.desc} numberOfLines={2}>
+            {item.description}
+          </Text>
+        ) : null}
+      </View>
+      <Text style={price ? styles.price : styles.consult}>{price ?? 'Consultar'}</Text>
+    </Pressable>
+  );
 }
 
 /**
- * «Servicios»: lo que el negocio ofrece habitualmente, con su precio habitual. Va en el perfil (no en el mapa).
- * Sin servicios no se dibuja nada para el público; el dueño ve un acceso para empezar. Un servicio sin precio no
- * muestra «$0»: dice «Consultar». Bajo la lista, una nota de qué tan vigentes están los precios.
+ * El catálogo en el perfil (3.27/3.28): se llama según el negocio (Carta, Servicios, Productos…), muestra hasta 5 ítems
+ * y «Ver todos ›» abre su pantalla con buscador y secciones. Tocar un ítem abre el mensaje para preguntar. Es el
+ * catálogo habitual: las ofertas van en su propio apartado y aquí no se mezclan. Sin ítems no se dibuja para el
+ * público; el dueño ve un acceso para empezar.
  */
-export function CatalogSection({ entityId, isOwner }: Props) {
+export function CatalogSection({ entityId, isOwner, copy, color, icon, onAsk, onAll }: Props) {
   const router = useRouter();
-  const [all, setAll] = useState(false);
   const now = useNow(60_000);
   const catalog = useQuery({ queryKey: ['catalog', entityId], queryFn: () => catalogApi.list(entityId), enabled: Boolean(entityId), staleTime: 60_000 });
 
@@ -33,66 +70,58 @@ export function CatalogSection({ entityId, isOwner }: Props) {
     return (
       <Pressable accessibilityRole="button" onPress={edit} style={styles.ownerLink}>
         <Ionicons name="pricetags-outline" size={16} color={colors.primary} />
-        <Text style={styles.ownerLinkText}>Añadir servicios y precios</Text>
+        <Text style={styles.ownerLinkText}>Añadir a tu {copy.noun.toLocaleLowerCase('es')}</Text>
       </Pressable>
     );
   }
 
-  const shown = all ? items : items.slice(0, CATALOG_PREVIEW);
+  const shown = items.slice(0, CATALOG_PREVIEW);
   const note = freshnessNote(items, now);
+  const more = items.length > CATALOG_PREVIEW;
 
   return (
     <View style={styles.section}>
       <View style={styles.head}>
-        <Text style={styles.title}>Servicios</Text>
-        {isOwner ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Editar el catálogo de servicios" onPress={edit} hitSlop={8}>
+        <Text style={styles.title} accessibilityRole="header">
+          {copy.noun} <Text style={styles.count}>{catalogCount(copy, items.length)}</Text>
+        </Text>
+        {more ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Ver ${catalogCount(copy, items.length)}`} onPress={onAll} style={styles.headLink}>
+            <Text style={styles.link}>{copy.noun === 'Carta' ? 'Ver la carta' : 'Ver todos'} ›</Text>
+          </Pressable>
+        ) : isOwner ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Editar ${copy.noun}`} onPress={edit} style={styles.headLink}>
             <Text style={styles.link}>Editar</Text>
           </Pressable>
         ) : null}
       </View>
       <View style={styles.card}>
-        {shown.map((item, i) => {
-          const price = priceText(item);
-          return (
-            <View key={item.id} accessible accessibilityLabel={serviceLabel(item)} style={[styles.row, i > 0 && styles.rowBorder]}>
-              <View style={styles.rowText}>
-                <Text style={styles.name}>{item.name}</Text>
-                {item.description ? (
-                  <Text style={styles.desc} numberOfLines={2}>
-                    {item.description}
-                  </Text>
-                ) : null}
-              </View>
-              <Text style={price ? styles.price : styles.consult}>{price ?? 'Consultar'}</Text>
-            </View>
-          );
-        })}
+        {shown.map((item, i) => (
+          <CatalogRow key={item.id} item={item} color={color} icon={icon} first={i === 0} onPress={() => onAsk(item)} />
+        ))}
       </View>
-      {items.length > CATALOG_PREVIEW ? (
-        <Pressable accessibilityRole="button" onPress={() => setAll((v) => !v)} style={styles.more}>
-          <Text style={styles.link}>{all ? 'Ver menos' : `Ver los ${items.length}`}</Text>
-        </Pressable>
-      ) : null}
-      {note ? <Text style={styles.note}>{note}</Text> : null}
+      <Text style={styles.note}>{[note, 'toca uno para preguntar'].filter(Boolean).join(' · ')}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  section: { gap: spacing.sm, marginTop: spacing.lg },
-  head: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  title: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
+  section: { gap: spacing.sm },
+  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  title: { flexShrink: 1, fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
+  count: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  headLink: { minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'flex-end' },
   link: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primary },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, paddingHorizontal: spacing.md },
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, paddingVertical: spacing.md },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md, minHeight: 56 },
   rowBorder: { borderTopWidth: 1, borderTopColor: colors.line },
+  pressed: { opacity: 0.8 },
+  mark: { width: 40, height: 40, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
   rowText: { flex: 1, minWidth: 0, gap: 2 },
   name: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
   desc: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   price: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink },
   consult: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
-  more: { minHeight: 44, justifyContent: 'center' },
   note: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
   ownerLink: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
   ownerLinkText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.primary },

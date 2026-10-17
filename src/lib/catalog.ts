@@ -12,6 +12,8 @@ export interface ServiceItem {
   confirmed_at: string | null;
   /** Lo calcula el servidor: el precio se fijó o confirmó hace menos de 90 días. */
   fresh: boolean;
+  /** Sección que eligió el dueño («Almuerzos», «Cortes»); vacía = sin sección. */
+  section?: string;
 }
 
 /** Cuántos servicios se ven antes de «Ver todos». */
@@ -86,4 +88,234 @@ export function parsePriceInput(raw: string): number | null | undefined {
   if (digits === '') return undefined;
   const n = Number(digits);
   return n > 10_000_000 ? undefined : n;
+}
+
+// ---------- El catálogo en el perfil (3.27/3.28, `perfil_integrado.html`) ----------
+// El modelo es el mismo para cualquier negocio. Lo único que cambia por categoría son los TEXTOS: cómo se llama la
+// lista, su buscador, las secciones que se le sugieren al dueño y el mensaje para preguntar por un ítem. El catálogo y
+// las ofertas son cosas distintas: aquí nunca se mezcla una oferta.
+
+export interface CatalogCopy {
+  /** Título del apartado y del chip del índice: «Carta», «Servicios», «Productos»… */
+  noun: string;
+  one: string;
+  plural: string;
+  /** Texto del buscador de la pantalla completa. */
+  search: string;
+  /** Secciones que se le sugieren al dueño al crear un ítem. */
+  suggest: string[];
+  /** Mensaje ya escrito para preguntar por un ítem (el nombre va en minúscula inicial). */
+  ask: (item: string) => string;
+  /** Preguntas rápidas que se pueden sumar al mensaje. */
+  quick: string[];
+}
+
+const GENERIC: CatalogCopy = {
+  noun: 'Servicios',
+  one: 'servicio',
+  plural: 'servicios',
+  search: 'Buscar un servicio',
+  suggest: [],
+  ask: (i) => `Hola, quisiera información sobre ${i}.`,
+  quick: ['¿Cuánto cuesta?', '¿Atienden hoy?', '¿Cómo puedo pedirlo?'],
+};
+
+const FOOD: CatalogCopy = {
+  noun: 'Carta',
+  one: 'plato',
+  plural: 'platos',
+  search: 'Buscar en la carta',
+  suggest: ['Almuerzos', 'Platos fuertes', 'Bebidas', 'Postres'],
+  ask: (i) => `Hola, ¿hoy tienen ${i}? ¿Hacen domicilio?`,
+  quick: ['¿Hacen domicilio?', '¿Tienen mesa disponible?', '¿Hasta qué hora atienden?'],
+};
+
+const BY_CATEGORY: Record<string, CatalogCopy> = {
+  restaurantes: FOOD,
+  'cafeterias y postres': { ...FOOD, one: 'producto', plural: 'productos', suggest: ['Café', 'Panadería', 'Postres', 'Bebidas'] },
+  'bares y vida nocturna': {
+    ...FOOD,
+    one: 'producto',
+    plural: 'productos',
+    suggest: ['Cócteles', 'Cervezas', 'Para picar'],
+    ask: (i) => `Hola, ¿hoy tienen ${i}? ¿Hay que reservar?`,
+    quick: ['¿Hay que reservar?', '¿Hasta qué hora abren?', '¿Hay música en vivo?'],
+  },
+  'belleza y peluqueria': {
+    ...GENERIC,
+    suggest: ['Cortes', 'Barba', 'Color', 'Uñas'],
+    ask: (i) => `Hola, ¿tienen turno hoy para ${i}?`,
+    quick: ['¿Tienen turno hoy?', '¿Atienden sin cita?', '¿Cuánto se demora?'],
+  },
+  'salud y bienestar': {
+    ...GENERIC,
+    suggest: ['Consultas', 'Terapias', 'Exámenes'],
+    ask: (i) => `Hola, quisiera pedir una cita para ${i}.`,
+    quick: ['¿Qué días atienden?', '¿Reciben mi seguro?', '¿Cuánto dura?'],
+  },
+  'deporte y recreacion': {
+    ...GENERIC,
+    noun: 'Planes',
+    one: 'plan',
+    plural: 'planes',
+    search: 'Buscar un plan',
+    suggest: ['Mensualidades', 'Clases', 'Alquiler'],
+    quick: ['¿Tienen clase de prueba?', '¿Qué horarios hay?'],
+  },
+  'tiendas y comercio': {
+    ...GENERIC,
+    noun: 'Productos',
+    one: 'producto',
+    plural: 'productos',
+    search: 'Buscar un producto',
+    suggest: ['Hombre', 'Mujer', 'Calzado', 'Accesorios'],
+    ask: (i) => `Hola, ¿tienen ${i} disponible?`,
+    quick: ['¿Qué tallas tienen?', '¿Hacen envíos?', '¿Puedo apartarlo?'],
+  },
+  tecnologia: {
+    ...GENERIC,
+    search: 'Buscar un servicio o producto',
+    suggest: ['Reparaciones', 'Accesorios', 'Software'],
+    ask: (i) => `Hola, ¿cuánto sale ${i} para mi equipo? ¿Lo hacen hoy?`,
+    quick: ['¿Lo hacen hoy?', '¿Dan garantía?', '¿Revisan sin costo?'],
+  },
+  mascotas: {
+    ...GENERIC,
+    suggest: ['Consultas', 'Vacunas', 'Estética', 'Tienda'],
+    ask: (i) => `Hola, quisiera pedir una cita para ${i} para mi mascota.`,
+    quick: ['¿Atienden gatos?', '¿Tienen urgencias?', '¿Van a domicilio?'],
+  },
+  'servicios del hogar': {
+    ...GENERIC,
+    suggest: ['Reparaciones', 'Instalaciones', 'Mantenimiento'],
+    ask: (i) => `Hola, ¿pueden venir para ${i}? ¿Cuándo tienen disponibilidad?`,
+    quick: ['¿Pueden venir hoy?', '¿Cobran la visita?', '¿Dan garantía?'],
+  },
+  automotriz: {
+    ...GENERIC,
+    suggest: ['Mecánica', 'Lavado', 'Repuestos'],
+    ask: (i) => `Hola, ¿cuánto sale ${i} para mi carro? ¿Lo hacen hoy?`,
+    quick: ['¿Lo hacen hoy?', '¿Hay que dejar el carro?'],
+  },
+  educacion: {
+    ...GENERIC,
+    noun: 'Cursos',
+    one: 'curso',
+    plural: 'cursos',
+    search: 'Buscar un curso',
+    suggest: ['Niños', 'Adultos', 'Virtual'],
+    ask: (i) => `Hola, quisiera información sobre ${i}: horarios y cuándo empieza.`,
+    quick: ['¿Cuándo empieza?', '¿Es presencial?', '¿Tienen clase de prueba?'],
+  },
+  'turismo y hospedaje': {
+    ...GENERIC,
+    noun: 'Planes',
+    one: 'plan',
+    plural: 'planes',
+    search: 'Buscar un plan',
+    suggest: ['Habitaciones', 'Tours', 'Paquetes'],
+    ask: (i) => `Hola, ¿tienen disponibilidad para ${i}? ¿Para qué fechas?`,
+    quick: ['¿Incluye desayuno?', '¿Aceptan mascotas?', '¿Cómo se reserva?'],
+  },
+  'eventos y fiestas': {
+    ...GENERIC,
+    suggest: ['Decoración', 'Comida', 'Sonido'],
+    ask: (i) => `Hola, quisiera cotizar ${i} para un evento.`,
+    quick: ['¿Tienen la fecha libre?', '¿Para cuántas personas?'],
+  },
+  'fotografia y diseno': {
+    ...GENERIC,
+    suggest: ['Fotografía', 'Diseño', 'Impresión'],
+    ask: (i) => `Hola, quisiera cotizar ${i}.`,
+    quick: ['¿Cuánto se demora la entrega?', '¿Tienen ejemplos?'],
+  },
+};
+
+/** Sin tildes, sin «ñ», en minúsculas: para comparar textos escritos de distintas formas. */
+function plain(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/ñ/gi, 'n')
+    .toLowerCase()
+    .trim();
+}
+
+/** Los textos del catálogo según la categoría del negocio; una categoría que no se conoce usa los genéricos. */
+export function catalogCopy(categoryName: string | null | undefined): CatalogCopy {
+  return (categoryName && BY_CATEGORY[plain(categoryName)]) || GENERIC;
+}
+
+/** «12 platos», «1 servicio». */
+export function catalogCount(copy: CatalogCopy, n: number): string {
+  return `${n} ${n === 1 ? copy.one : copy.plural}`;
+}
+
+/** El mensaje para preguntar por un ítem, con el nombre en minúscula inicial («¿hoy tienen almuerzo ejecutivo?»). */
+export function askMessage(copy: CatalogCopy, itemName: string): string {
+  const name = itemName.trim();
+  return copy.ask(name.charAt(0).toLocaleLowerCase('es') + name.slice(1));
+}
+
+const bare = (t: string) =>
+  plain(t)
+    .replace(/[¿?¡!.,:]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/** Las preguntas rápidas que el mensaje todavía no hace (sin mayúsculas, tildes ni signos). */
+export function quickQuestions(copy: CatalogCopy, message: string): string[] {
+  const m = bare(message);
+  return copy.quick.filter((q) => !m.includes(bare(q)));
+}
+
+/** Suma una pregunta rápida al mensaje, si no está ya. */
+export function addQuestion(message: string, question: string): string {
+  if (bare(message).includes(bare(question))) return message;
+  return `${message.trim()} ${question}`.trim();
+}
+
+/** «Desde $6.000»: el precio habitual más bajo publicado (mayor que 0); null si no hay ninguno. */
+export function lowestPrice(items: Pick<ServiceItem, 'price'>[]): number | null {
+  const prices = items.map((i) => i.price).filter((p): p is number => p !== null && p !== undefined && p > 0);
+  return prices.length ? Math.min(...prices) : null;
+}
+
+export interface CatalogGroup<T> {
+  /** Vacío cuando el negocio no usa secciones (se muestra una sola lista sin título). */
+  section: string;
+  items: T[];
+}
+
+/** Nombre del grupo de lo que no tiene sección cuando el resto sí la tiene. */
+export const NO_SECTION = 'Más';
+
+/** Agrupa por sección en el orden en que aparecen; lo que no tiene sección va al final, bajo «Más». */
+export function catalogGroups<T extends Pick<ServiceItem, 'section'>>(items: T[]): CatalogGroup<T>[] {
+  const order: string[] = [];
+  const by = new Map<string, T[]>();
+  for (const it of items) {
+    const key = (it.section ?? '').trim();
+    if (!by.has(key)) {
+      by.set(key, []);
+      if (key) order.push(key);
+    }
+    by.get(key)?.push(it);
+  }
+  if (order.length === 0) return items.length ? [{ section: '', items }] : [];
+  const out = order.map((section) => ({ section, items: by.get(section) ?? [] }));
+  const none = by.get('') ?? [];
+  if (none.length) out.push({ section: NO_SECTION, items: none });
+  return out;
+}
+
+/** Filtra por texto (sin tildes ni mayúsculas, en nombre, descripción y sección) y por sección («» = todas). */
+export function filterCatalog<T extends Pick<ServiceItem, 'name' | 'description' | 'section'>>(items: T[], query: string, section: string): T[] {
+  const q = bare(query);
+  return items.filter((it) => {
+    const own = (it.section ?? '').trim();
+    if (section && own !== section && !(section === NO_SECTION && !own)) return false;
+    if (!q) return true;
+    return bare(`${it.name} ${it.description ?? ''} ${own}`).includes(q);
+  });
 }

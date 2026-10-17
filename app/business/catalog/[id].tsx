@@ -1,14 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { catalogApi } from '@/api/catalog';
+import { entitiesApi } from '@/api/endpoints';
 import { Button } from '@/components/Button';
 import { TextField } from '@/components/TextField';
-import { freshnessNote, parsePriceInput, priceText, type ServiceItem } from '@/lib/catalog';
+import { catalogCopy, freshnessNote, parsePriceInput, priceText, type ServiceItem } from '@/lib/catalog';
 import { useNow } from '@/lib/useNow';
 import { colors, fonts, radius, spacing } from '@/theme';
 
@@ -16,6 +17,9 @@ import { colors, fonts, radius, spacing } from '@/theme';
  * Catálogo del negocio (dueño): los servicios que ofrece habitualmente con su precio habitual. Un solo
  * formulario sirve para añadir y para editar. «Confirmar precios» da por vigente todo el catálogo hoy.
  * Las ofertas y promociones usan estos servicios; un precio temporal nunca se escribe aquí.
+ *
+ * Cada ítem puede llevar una sección («Almuerzos», «Cortes», «Calzado») para que el catálogo se agrupe en el perfil; se
+ * sugieren las del tipo de negocio y las que ya usa (3.27). El nombre del catálogo cambia según el negocio.
  */
 export default function CatalogEditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -25,13 +29,21 @@ export default function CatalogEditorScreen() {
   const now = useNow(60_000);
 
   const catalog = useQuery({ queryKey: ['catalog', id], queryFn: () => catalogApi.list(id ?? ''), enabled: Boolean(id) });
-  const items = catalog.data ?? [];
+  const business = useQuery({ queryKey: ['entity', id], queryFn: () => entitiesApi.get(id ?? ''), enabled: Boolean(id) });
+  const items = useMemo(() => catalog.data ?? [], [catalog.data]);
+  const copy = catalogCopy(business.data?.category?.name);
+  // Secciones para elegir de un toque: las que ya usa y las sugeridas para su tipo de negocio, sin repetir.
+  const sectionChoices = useMemo(() => {
+    const used = items.map((i) => (i.section ?? '').trim()).filter(Boolean);
+    return [...new Set([...used, ...copy.suggest])].slice(0, 8);
+  }, [items, copy.suggest]);
 
   const [editing, setEditing] = useState<ServiceItem | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [from, setFrom] = useState(false);
+  const [section, setSection] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -42,6 +54,7 @@ export default function CatalogEditorScreen() {
     setDescription('');
     setPrice('');
     setFrom(false);
+    setSection('');
     setError(null);
   };
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['catalog', id] });
@@ -52,6 +65,7 @@ export default function CatalogEditorScreen() {
     setDescription(item.description);
     setPrice(item.price === null ? '' : String(item.price));
     setFrom(item.price_from);
+    setSection(item.section ?? '');
     setError(null);
     setMessage(null);
   };
@@ -64,7 +78,7 @@ export default function CatalogEditorScreen() {
     setError(null);
     setMessage(null);
     try {
-      const input = { name: name.trim(), description: description.trim(), price: parsed, price_from: parsed === null ? false : from };
+      const input = { name: name.trim(), description: description.trim(), price: parsed, price_from: parsed === null ? false : from, section: section.trim() };
       if (editing) await catalogApi.update(id ?? '', editing.id, input);
       else await catalogApi.create(id ?? '', input);
       await refresh();
@@ -114,7 +128,7 @@ export default function CatalogEditorScreen() {
         <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={() => router.back()} hitSlop={8}>
           <Ionicons name="arrow-back" size={22} color={colors.ink} />
         </Pressable>
-        <Text style={styles.title}>Servicios y precios</Text>
+        <Text style={styles.title}>{copy.noun === 'Servicios' ? 'Servicios y precios' : `${copy.noun} y precios`}</Text>
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]} keyboardShouldPersistTaps="handled">
@@ -137,6 +151,19 @@ export default function CatalogEditorScreen() {
             <Switch value={from} onValueChange={setFrom} disabled={parsePriceInput(price) === null} accessibilityLabel="El precio es desde" />
           </View>
           <TextField label="Descripción (opcional)" placeholder="Con tijera y máquina" value={description} onChangeText={setDescription} autoCapitalize="sentences" maxLength={240} />
+          <TextField label="Sección (opcional)" placeholder={copy.suggest[0] ?? 'Por ejemplo, Principales'} value={section} onChangeText={setSection} autoCapitalize="sentences" maxLength={40} />
+          {sectionChoices.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sectionChips} keyboardShouldPersistTaps="handled">
+              {sectionChoices.map((s) => {
+                const on = s === section.trim();
+                return (
+                  <Pressable key={s} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setSection(on ? '' : s)} style={[styles.sectionChip, on && styles.sectionChipOn]}>
+                    <Text style={[styles.sectionChipText, on && styles.sectionChipTextOn]}>{s}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          ) : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <View style={styles.formButtons}>
             <Button title={editing ? 'Guardar cambios' : 'Añadir'} onPress={() => void onSave()} loading={saving} style={styles.grow} />
@@ -159,7 +186,7 @@ export default function CatalogEditorScreen() {
             <View key={item.id} style={styles.row}>
               <Pressable accessibilityRole="button" accessibilityLabel={`Editar ${item.name}`} onPress={() => startEdit(item)} style={styles.rowMain}>
                 <Text style={styles.rowName}>{item.name}</Text>
-                <Text style={styles.rowMeta}>{priceLabel ?? 'Sin precio publicado'}</Text>
+                <Text style={styles.rowMeta}>{[item.section, priceLabel ?? 'Sin precio publicado'].filter(Boolean).join(' · ')}</Text>
               </Pressable>
               <Pressable accessibilityRole="button" accessibilityLabel={`Quitar ${item.name}`} onPress={() => onRetire(item)} style={styles.remove}>
                 <Ionicons name="trash-outline" size={20} color={colors.danger} />
@@ -200,4 +227,9 @@ const styles = StyleSheet.create({
   rowMeta: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   remove: { width: 48, height: 56, alignItems: 'center', justifyContent: 'center' },
   confirmBox: { gap: spacing.sm, marginTop: spacing.sm },
+  sectionChips: { gap: 6 },
+  sectionChip: { minHeight: 44, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, justifyContent: 'center' },
+  sectionChipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  sectionChipText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
+  sectionChipTextOn: { color: '#fff' },
 });
