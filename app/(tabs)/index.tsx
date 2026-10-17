@@ -24,6 +24,7 @@ import type { Category, DiscoverItem, DiscoveryItem, DiscoverSectionId } from '@
 import { Button } from '@/components/Button';
 import { BusinessSheet } from '@/components/explore/BusinessSheet';
 import { type CardModel } from '@/components/explore/ExploreCards';
+import { AllCategoriesModal } from '@/components/explore/CategoryShelf';
 import { ExploreSheet } from '@/components/explore/ExploreSheet';
 import { type WithDistance } from '@/components/explore/FeaturedCard';
 import { PinMarker } from '@/components/explore/PinMarker';
@@ -40,6 +41,7 @@ import { SearchBar } from '@/components/explore/SearchBar';
 import { useFeaturedSheet } from '@/components/explore/useFeaturedSheet';
 import { DEFAULT_REGION } from '@/config';
 import { categoryColor } from '@/lib/categoryColor';
+import { rankCategories, SHELF_MAX } from '@/lib/categoryShelf';
 import { effectiveClaimStatus } from '@/lib/claims';
 import { boxAround, EXTRAS_MAX, openLine, pickExtras, reasonPill, relatedFrom, SEARCH_NEAR_KM, sheetHeader } from '@/lib/discover';
 import { formatDistance } from '@/lib/format';
@@ -76,6 +78,7 @@ export default function ExploreScreen() {
 
   const [categoryId, setCategoryId] = useState<string | undefined>();
   const [subcategoryId, setSubcategoryId] = useState<string | undefined>();
+  const [allCatsOpen, setAllCatsOpen] = useState(false);
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
   const [userCoords, setUserCoords] = useState<Coords | null>(null);
   // Región con la que se monta el mapa la PRIMERA vez: null mientras no
@@ -655,10 +658,16 @@ export default function ExploreScreen() {
     setAreaDirty(false);
     AccessibilityInfo.announceForAccessibility(removedAnnouncement('all'));
   };
-  // El chip de la categoría elegida va primero, para que siempre se vea y se pueda quitar.
-  const orderedCategories = [...(categories.data ?? [])].sort(
-    (a, b) => Number(b.id === categoryId) - Number(a.id === categoryId),
+  // El estante de categorías del panel: por relevancia entre los negocios ya cargados (ver lib/categoryShelf).
+  const shelfCategories = useMemo(
+    () => rankCategories(categories.data ?? [], known, categoryId).slice(0, SHELF_MAX),
+    [categories.data, known, categoryId],
   );
+  const openCategoryIds = useMemo(() => new Set(known.filter((e) => e.has_hours && e.is_open_now).map((e) => e.category_id)), [known]);
+  const chooseCategory = (id: string | undefined) => {
+    setCategoryId(id);
+    setSubcategoryId(undefined);
+  };
 
   const toModel = (e: WithDistance, line?: string): CardModel => ({
     id: e.id,
@@ -874,6 +883,7 @@ export default function ExploreScreen() {
               }}
               onClearSection={() => setSectionFilter(null)}
               zone={{ status: entities.isError ? 'error' : entities.isLoading ? 'loading' : 'ok', items: zoneModels, extras: extraModels, filterActive: activeFilterCount > 0 }}
+              shelf={{ categories: shelfCategories, selectedId: categoryId, openIds: openCategoryIds, onSelect: chooseCategory, onSeeAll: () => setAllCatsOpen(true) }}
               onOpenProfile={openBusiness}
               onClearFilters={clearAllFilters}
               onWiden={widenMap}
@@ -950,8 +960,11 @@ export default function ExploreScreen() {
               style={styles.filterScroll}
             >
               {zoneName ? <ZoneCapsule name={zoneName} /> : null}
-              {selectedSubcategory || radiusLabel || openNow ? (
+              {selectedCategory || selectedSubcategory || radiusLabel || openNow ? (
                 <View style={styles.activeChips}>
+                  {selectedCategory ? (
+                    <ActiveChip icon={(selectedCategory.icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap} label={selectedCategory.name} onRemove={() => chooseCategory(undefined)} />
+                  ) : null}
                   {selectedSubcategory ? (
                     <ActiveChip icon="pricetag-outline" label={selectedSubcategory.name} onRemove={() => setSubcategoryId(undefined)} />
                   ) : null}
@@ -964,28 +977,6 @@ export default function ExploreScreen() {
                   ) : null}
                 </View>
               ) : null}
-              {orderedCategories.map((category) => {
-                const active = categoryId === category.id;
-                return (
-                  <Pressable
-                    key={category.id}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
-                    accessibilityLabel={`Categoría ${category.name}`}
-                    accessibilityHint={active ? 'Toca para quitar el filtro' : undefined}
-                    onPress={() => {
-                      setCategoryId(active ? undefined : category.id);
-                      setSubcategoryId(undefined);
-                    }}
-                    hitSlop={4}
-                    style={[styles.categoryChip, active && styles.chipActive]}
-                  >
-                    <Ionicons name={(category.icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap} size={16} color={active ? '#fff' : colors.primary} />
-                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{category.name}</Text>
-                    {active ? <Ionicons name="close" size={14} color="#fff" /> : null}
-                  </Pressable>
-                );
-              })}
             </ScrollView>
           )}
           {mapLoading && !tall && !selectedEntity ? <LoadingChip /> : null}
@@ -998,6 +989,15 @@ export default function ExploreScreen() {
           </View>
         ) : null}
       </View>
+
+      <AllCategoriesModal
+        visible={allCatsOpen}
+        categories={categories.data ?? []}
+        selectedId={categoryId}
+        openIds={openCategoryIds}
+        onSelect={chooseCategory}
+        onClose={() => setAllCatsOpen(false)}
+      />
 
       <FiltersModal
         visible={filtersOpen}
@@ -1045,7 +1045,7 @@ function ActiveChip({
       <Text style={styles.activeChipText} numberOfLines={1}>
         {label}
       </Text>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Quitar filtro ${label}`} onPress={onRemove} hitSlop={8}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Quitar filtro ${label}`} onPress={onRemove} hitSlop={{ top: 10, bottom: 10, left: 14, right: 14 }}>
         <Ionicons name="close" size={14} color={colors.muted} />
       </Pressable>
     </View>
@@ -1373,18 +1373,6 @@ const styles = StyleSheet.create({
   listHeader: { marginBottom: spacing.md, gap: 2 },
   listTitle: { fontSize: 24, fontFamily: fonts.display.bold, color: colors.ink },
   listHint: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
-  categoryChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: spacing.md,
-    height: 36,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
-    ...shadow,
-  },
   empty: { textAlign: 'center', fontFamily: fonts.ui.medium, color: colors.muted, marginTop: spacing.xxl },
   loading: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   errorBanner: {

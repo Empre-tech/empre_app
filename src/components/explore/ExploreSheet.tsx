@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import type { DiscoverSection, DiscoverSectionId } from '@/api/types';
+import type { Category, DiscoverSection, DiscoverSectionId } from '@/api/types';
 import { SkeletonBlock, SkeletonRows } from '@/components/Skeleton';
 import { scopeText, type SearchScope } from '@/lib/discover';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
+import { CategoryShelf } from './CategoryShelf';
 import { DiscoverCard, MiniCard, MiniRow, type CardModel } from './ExploreCards';
 import { ZoneAll, ZoneDiscover } from './ZonePanel';
 import type { FeaturedSheetState } from './useFeaturedSheet';
@@ -36,6 +37,8 @@ interface Props {
    * zona). Todos suma los dos; Descubre, con pocos negocios, muestra los destacados como fichas.
    */
   zone: { status: Status; items: CardModel[]; extras: CardModel[]; filterActive: boolean };
+  /** El estante de categorías (primera fila del panel, solo sin búsqueda). */
+  shelf: { categories: Category[]; selectedId?: string; openIds: Set<string>; onSelect: (id: string | undefined) => void; onSeeAll: () => void };
   /** Abre el perfil de un negocio (la franja de oferta de una ficha). */
   onOpenProfile: (id: string) => void;
   /** Quita los filtros activos (categoría, distancia, «abiertos ahora»). */
@@ -149,6 +152,8 @@ function Body(p: Props) {
   const mid = anchor === 'medium';
   const count = p.searching ? p.results.items.length : p.zone.items.length + p.zone.extras.length;
   const tabs = <Tabs searching={p.searching} view={p.view} onView={p.onView} count={count} />;
+  // Sin búsqueda, las categorías son lo primero que se ve en el panel (intermedio y expandido).
+  const shelf = p.searching ? null : <CategoryShelf {...p.shelf} />;
 
   // ---- Descubre ----
   if (p.view === 'discover') {
@@ -219,7 +224,8 @@ function Body(p: Props) {
       );
     }
     return (
-      <ScrollView style={styles.body} scrollEnabled={!mid} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
+        {shelf}
         {tabs}
         {keep}
         {content}
@@ -306,12 +312,13 @@ function Body(p: Props) {
   const list = filter ? filter.items : p.zone.items;
   const filterHint = filter ? <Hint text={`Mostrando: ${filter.title}`} action="Quitar" onAction={p.onClearSection} /> : null;
   const loading = filter ? filter.status === 'loading' && list.length === 0 : p.zone.status === 'loading' && list.length === 0;
-  if (loading) return <View style={styles.body}>{tabs}{filterHint}<SkeletonRows count={3} /></View>;
+  if (loading) return <View style={styles.body}>{shelf}{tabs}{filterHint}<SkeletonRows count={3} /></View>;
   const extras = filter ? [] : p.zone.extras;
   const everything = [...list, ...extras];
   if (everything.length === 0 && filter) {
     return (
       <View style={styles.body}>
+        {shelf}
         {tabs}
         {filterHint}
         <View style={styles.state}>
@@ -323,7 +330,8 @@ function Body(p: Props) {
   }
   if (mid) {
     return (
-      <View style={styles.body}>
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+        {shelf}
         {tabs}
         {filterHint}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hscroll} contentContainerStyle={styles.hrow}>
@@ -332,12 +340,13 @@ function Body(p: Props) {
         <Pressable accessibilityRole="button" onPress={() => p.sheet.snapTo('full')} style={styles.more}>
           <Text style={styles.link}>Ver los {everything.length}</Text>
         </Pressable>
-      </View>
+      </ScrollView>
     );
   }
   if (!filter) {
     return (
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
+        {shelf}
         {tabs}
         <ZoneAll
           items={list}
@@ -355,6 +364,7 @@ function Body(p: Props) {
   }
   return (
     <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+      {shelf}
       {tabs}
       {filterHint}
       {list.map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
