@@ -6,11 +6,13 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { offersApi } from '@/api/offers';
 import type { Offer, OfferStat, OfferStatsSummary } from '@/api/types';
+import { FreshGlow } from '@/components/offer/FreshGlow';
 import { OfferTicket } from '@/components/offer/OfferTicket';
 import { formatEnded, offerTypeLabel } from '@/lib/offer';
 import { topOffers } from '@/lib/offerInsights';
 import { useNow } from '@/lib/useNow';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { useUploads } from '@/upload/uploadStore';
 
 /**
  * Ofertas del negocio (dueño), maqueta `ofertas_dueno.html`: arriba «Cómo te va» (o, sin datos suficientes, cuánto
@@ -24,6 +26,8 @@ export default function OffersScreen() {
   const queryClient = useQueryClient();
   const now = useNow(30_000);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // La oferta recién publicada brilla una vez al volver a la lista.
+  const { fresh } = useUploads();
 
   const offers = useQuery({ queryKey: ['offers', entityId], queryFn: () => offersApi.list(entityId ?? ''), enabled: Boolean(entityId) });
   const stats = useQuery({ queryKey: ['offer-stats', entityId], queryFn: () => offersApi.stats(entityId ?? ''), enabled: Boolean(entityId), staleTime: 60_000 });
@@ -72,7 +76,9 @@ export default function OffersScreen() {
         ) : (
           active.map((offer) => (
             <View key={offer.id} style={styles.activeWrap}>
-              <OfferTicket offer={offer} />
+              <FreshGlow active={fresh.includes(offer.id)}>
+                <OfferTicket offer={offer} />
+              </FreshGlow>
               <View style={styles.actions}>
                 <Pressable accessibilityRole="button" onPress={() => void quickAction(offer.id, 'extend', 30)} disabled={busyId === offer.id} style={styles.action}>
                   <Ionicons name="time-outline" size={16} color={colors.primary} />

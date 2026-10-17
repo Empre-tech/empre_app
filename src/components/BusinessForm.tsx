@@ -42,6 +42,7 @@ import { AIWritingAssist } from './AIWritingAssist';
 import { Button } from './Button';
 import { LocationPickerModal } from './LocationPickerModal';
 import { TextField } from './TextField';
+import { notify } from '@/upload/uploadStore';
 
 /** Datos con los que el asistente de IA prellena el formulario de creación
  * (solo aplica cuando no hay `initial`, es decir, al crear un negocio nuevo). */
@@ -317,6 +318,7 @@ export function BusinessForm({ initial, draft }: Props) {
         queryClient.invalidateQueries({ queryKey: ['entity', id] }),
       ]);
 
+      if (failed.length === 0) notify(initial ? 'Cambios guardados ✓' : 'Negocio creado ✓');
       if (failed.length > 0) {
         Alert.alert(
           'Negocio guardado',

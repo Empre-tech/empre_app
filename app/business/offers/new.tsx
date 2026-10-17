@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import { offerTypeLabel } from '@/lib/offer';
 import { bandHint, bestOffer, durationHint, slotsHint, suggestedSlots, type Hint } from '@/lib/offerInsights';
 import { useNow } from '@/lib/useNow';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { markFresh, notify } from '@/upload/uploadStore';
 
 const TYPES: OfferType[] = ['HORAS', 'DIA'];
 const HOURS_OPTIONS: Record<OfferType, number[]> = { HORAS: [1, 2, 3, 4], DIA: [8, 12], SEMANA: [168] };
@@ -42,6 +43,7 @@ export default function NewOfferScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const now = useNow(60_000);
+  const queryClient = useQueryClient();
 
   const catalog = useQuery({ queryKey: ['catalog', entityId], queryFn: () => catalogApi.list(entityId ?? ''), enabled: Boolean(entityId) });
   const offers = useQuery({ queryKey: ['offers', entityId], queryFn: () => offersApi.list(entityId ?? ''), enabled: Boolean(entityId) });
@@ -149,7 +151,7 @@ export default function NewOfferScreen() {
     setLoading(true);
     setError(null);
     try {
-      await offersApi.publish(entityId ?? '', {
+      const created = await offersApi.publish(entityId ?? '', {
         type,
         title: finalTitle,
         price: useCatalog ? (specialValue != null ? String(specialValue) : '') : price.trim(),
@@ -161,6 +163,16 @@ export default function NewOfferScreen() {
         service_item_ids: useCatalog && picked.length > 0 ? picked : undefined,
         special_price: useCatalog && specialValue != null ? specialValue : undefined,
       });
+      // Se ve al instante: la oferta entra a la lista ya guardada en la caché, y la lista, el perfil y las
+      // estadísticas se refrescan por detrás (antes esperaban a que la caché envejeciera).
+      queryClient.setQueryData<Offer[]>(['offers', entityId], (old) => [created, ...(old ?? []).filter((o) => o.id !== created.id)]);
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['offers', entityId] }),
+        queryClient.invalidateQueries({ queryKey: ['offers-active', entityId] }),
+        queryClient.invalidateQueries({ queryKey: ['offer-stats', entityId] }),
+      ]);
+      markFresh(created.id);
+      notify('Oferta publicada ✓');
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No pudimos publicar la oferta');
