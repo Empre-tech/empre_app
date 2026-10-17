@@ -1,3 +1,4 @@
+import type { ReviewSnippetData } from '@/lib/reviewSnippet';
 import type { Zone } from '@/lib/zoneName';
 import { request } from './client';
 import type {
@@ -78,6 +79,11 @@ export const discoveryApi = {
   cells: async (params: CellsParams): Promise<ApiCell[]> => {
     const res = await request<{ items?: ApiCell[] | null }>('/api/discovery/cells', { auth: false, query: { ...params } });
     return res.items ?? [];
+  },
+  /** La frase de reseña de cada negocio pedido (hasta 12); los que no tienen una que sirva no aparecen (público). */
+  reviewSnippets: async (ids: string[]): Promise<Record<string, ReviewSnippetData>> => {
+    const res = await request<{ snippets?: Record<string, ReviewSnippetData> | null }>('/api/discovery/review-snippets', { auth: false, query: { ids: ids.join(',') } });
+    return res.snippets ?? {};
   },
 };
 

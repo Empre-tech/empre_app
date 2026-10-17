@@ -24,7 +24,8 @@ import type { Category, DiscoverItem, DiscoveryItem, DiscoverSectionId } from '@
 import { Button } from '@/components/Button';
 import { BusinessSheet } from '@/components/explore/BusinessSheet';
 import { type CardModel } from '@/components/explore/ExploreCards';
-import { AllCategoriesModal } from '@/components/explore/CategoryShelf';
+import { AllCategoriesModal } from '@/components/explore/AllCategoriesModal';
+import { GroupRow } from '@/components/explore/GroupRow';
 import { ExploreSheet } from '@/components/explore/ExploreSheet';
 import { type WithDistance } from '@/components/explore/FeaturedCard';
 import { PinMarker } from '@/components/explore/PinMarker';
@@ -41,9 +42,10 @@ import { SearchBar } from '@/components/explore/SearchBar';
 import { useFeaturedSheet } from '@/components/explore/useFeaturedSheet';
 import { DEFAULT_REGION } from '@/config';
 import { categoryColor } from '@/lib/categoryColor';
-import { rankCategories, SHELF_MAX } from '@/lib/categoryShelf';
+import { buildGroups, categoryFilter, groupIdOf, type GroupId } from '@/lib/categoryGroups';
+import { snippetLines } from '@/lib/reviewSnippet';
 import { effectiveClaimStatus } from '@/lib/claims';
-import { boxAround, EXTRAS_MAX, openLine, pickExtras, reasonPill, relatedFrom, SEARCH_NEAR_KM, sheetHeader } from '@/lib/discover';
+import { boxAround, EXTRAS_MAX, ZONE_FICHA_MAX, openLine, pickExtras, reasonPill, relatedFrom, SEARCH_NEAR_KM, sheetHeader } from '@/lib/discover';
 import { formatDistance } from '@/lib/format';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
@@ -77,6 +79,8 @@ export default function ExploreScreen() {
   const mapRef = useRef<MapView>(null);
 
   const [categoryId, setCategoryId] = useState<string | undefined>();
+  // El grupo elegido (filtra por todas sus categorías) y, dentro, opcionalmente una categoría.
+  const [groupId, setGroupId] = useState<GroupId | undefined>();
   const [subcategoryId, setSubcategoryId] = useState<string | undefined>();
   const [allCatsOpen, setAllCatsOpen] = useState(false);
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
@@ -281,15 +285,15 @@ export default function ExploreScreen() {
   // donde ya no hay resultados relevantes. Comparamos contra el valor anterior
   // "a mano" (en vez de solo listar las deps) para no disparar esto también en
   // el primer render, que ya lo cubre el efecto de centrado inicial de arriba.
-  const previousFiltersRef = useRef({ categoryId, subcategoryId });
+  const previousFiltersRef = useRef({ groupId, categoryId, subcategoryId });
   useEffect(() => {
     const previous = previousFiltersRef.current;
-    const changed = previous.categoryId !== categoryId || previous.subcategoryId !== subcategoryId;
-    previousFiltersRef.current = { categoryId, subcategoryId };
+    const changed = previous.groupId !== groupId || previous.categoryId !== categoryId || previous.subcategoryId !== subcategoryId;
+    previousFiltersRef.current = { groupId, categoryId, subcategoryId };
     // Con búsqueda el mapa se encuadra en los resultados (más abajo), no en el usuario.
     if (!changed || !userCoords || debouncedSearch) return;
     mapRef.current?.animateToRegion({ ...userCoords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 500);
-  }, [categoryId, subcategoryId, debouncedSearch, userCoords]);
+  }, [groupId, categoryId, subcategoryId, debouncedSearch, userCoords]);
 
   // Una búsqueda nueva empieza en la zona de la persona (o, sin ubicación, donde mira el mapa), en la
   // vista de resultados; borrarla vuelve a Descubre.
@@ -335,6 +339,9 @@ export default function ExploreScreen() {
     };
   }, [region]);
   const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 5 * 60_000 });
+  const groups = useMemo(() => buildGroups(categories.data ?? []), [categories.data]);
+  // Lo que se manda como filtro: la categoría, o todas las del grupo elegido.
+  const catFilter = categoryFilter(groupId, categoryId, groups);
   const searching = debouncedSearch.length > 0;
   // Sin búsqueda: la zona visible. Con búsqueda: toda la ciudad, o la zona que el usuario pidió.
   // Sin búsqueda se pide un área más grande que la pantalla (el doble) y solo se vuelve a
@@ -349,7 +356,7 @@ export default function ExploreScreen() {
   const entities = useQuery({
     queryKey: [
       'discovery',
-      categoryId ?? 'all',
+      catFilter ?? 'all',
       subcategoryId ?? 'all',
       debouncedSearch,
       scope ? `${scope.min_lat},${scope.min_lng},${scope.max_lat},${scope.max_lng}` : 'ciudad',
@@ -361,7 +368,7 @@ export default function ExploreScreen() {
         // Referencia del usuario para la distancia; 0/0 = sin señal.
         lat: reference?.latitude,
         long: reference?.longitude,
-        category: categoryId,
+        category: catFilter,
         subcategory: subcategoryId,
         q: debouncedSearch || undefined,
         // Suficiente para poblar el mapa; el orden sigue siendo el ranking.
@@ -379,8 +386,8 @@ export default function ExploreScreen() {
   const level = useMapLevel(region.latitudeDelta);
   const bubbleMode = !searching && isBubbleLevel(level) && radiusKm === null && !openNow;
   const cellsQuery = useQuery({
-    queryKey: ['cells', categoryId ?? 'all', subcategoryId ?? 'all', bbox.min_lat, bbox.min_lng, bbox.max_lat, bbox.max_lng, Math.round(Math.log2(region.latitudeDelta) * 4)],
-    queryFn: () => discoveryApi.cells({ ...bbox, lat_delta: region.latitudeDelta, category: categoryId, subcategory: subcategoryId }),
+    queryKey: ['cells', catFilter ?? 'all', subcategoryId ?? 'all', bbox.min_lat, bbox.min_lng, bbox.max_lat, bbox.max_lng, Math.round(Math.log2(region.latitudeDelta) * 4)],
+    queryFn: () => discoveryApi.cells({ ...bbox, lat_delta: region.latitudeDelta, category: catFilter, subcategory: subcategoryId }),
     enabled: bubbleMode && startupRegion !== null,
     // Al mover el mapa se muestran las burbujas anteriores hasta que lleguen las nuevas.
     placeholderData: keepPreviousData,
@@ -389,15 +396,15 @@ export default function ExploreScreen() {
 
   // Descubre: lo arma el servidor para la zona visible (también se ve durante una búsqueda).
   const sectionsQuery = useQuery({
-    queryKey: ['discover-sections', categoryId ?? 'all', subcategoryId ?? 'all', bbox.min_lat, bbox.min_lng, bbox.max_lat, bbox.max_lng, refKey],
-    queryFn: () => discoverApi.sections({ ...bbox, lat: reference?.latitude, long: reference?.longitude, category: categoryId, subcategory: subcategoryId }),
+    queryKey: ['discover-sections', catFilter ?? 'all', subcategoryId ?? 'all', bbox.min_lat, bbox.min_lng, bbox.max_lat, bbox.max_lng, refKey],
+    queryFn: () => discoverApi.sections({ ...bbox, lat: reference?.latitude, long: reference?.longitude, category: catFilter, subcategory: subcategoryId }),
     enabled: startupRegion !== null,
     placeholderData: keepPreviousData,
   });
   // «Ver más» de una sección: la misma regla, con más negocios.
   const sectionMoreQuery = useQuery({
-    queryKey: ['discover-section', sectionFilter, categoryId ?? 'all', subcategoryId ?? 'all', bbox.min_lat, bbox.min_lng, bbox.max_lat, bbox.max_lng, refKey],
-    queryFn: () => discoverApi.sections({ ...bbox, lat: reference?.latitude, long: reference?.longitude, category: categoryId, subcategory: subcategoryId, section: sectionFilter ?? undefined, limit: 50 }),
+    queryKey: ['discover-section', sectionFilter, catFilter ?? 'all', subcategoryId ?? 'all', bbox.min_lat, bbox.min_lng, bbox.max_lat, bbox.max_lng, refKey],
+    queryFn: () => discoverApi.sections({ ...bbox, lat: reference?.latitude, long: reference?.longitude, category: catFilter, subcategory: subcategoryId, section: sectionFilter ?? undefined, limit: 50 }),
     enabled: sectionFilter !== null,
   });
   // Reclamos con QR activo: su negocio muestra «Tu QR» en vez de la pastilla de la oferta.
@@ -429,7 +436,7 @@ export default function ExploreScreen() {
   // Pines acumulados (sin búsqueda): cada respuesta SUMA negocios a los que ya estaban y solo se
   // quitan los que quedaron muy lejos; así una consulta nunca hace desaparecer un pin que se ve.
   // Cambiar de categoría o de filtros empieza de cero.
-  const filterKey = `${categoryId}|${subcategoryId}|${radiusKm}|${openNow}|${refKey}`;
+  const filterKey = `${catFilter}|${subcategoryId}|${radiusKm}|${openNow}|${refKey}`;
   const [pins, setPins] = useState<{ key: string; data: unknown; store: Map<string, WithDistance> }>(() => ({ key: '', data: null, store: new Map() }));
   if (!searching && entities.data && !entities.isPlaceholderData && (pins.data !== entities.data || pins.key !== filterKey)) {
     const base = pins.key === filterKey ? pins.store : new Map<string, WithDistance>();
@@ -451,7 +458,7 @@ export default function ExploreScreen() {
       alive = false;
     };
   }, []);
-  const defaultFilters = categoryId === undefined && subcategoryId === undefined && radiusKm === null && !openNow;
+  const defaultFilters = catFilter === undefined && subcategoryId === undefined && radiusKm === null && !openNow;
   const savedIdsRef = useRef<{ id: string }[]>([]);
   const freshItems = !entities.isPlaceholderData ? entities.data?.items : undefined;
   useEffect(() => {
@@ -512,7 +519,7 @@ export default function ExploreScreen() {
       return;
     }
     if (resultsStatus !== 'ok') return;
-    const key = `${debouncedSearch}|${categoryId}|${searchScope}`;
+    const key = `${debouncedSearch}|${catFilter}|${searchScope}`;
     if (fittedRef.current === key) return;
     fittedRef.current = key;
     if (sheet.getAnchor() === 'peek') sheet.snapTo('medium');
@@ -529,7 +536,7 @@ export default function ExploreScreen() {
         animated: true,
       });
     }
-  }, [searching, resultsStatus, debouncedSearch, categoryId, searchScope, plan, sheet, userCoords]);
+  }, [searching, resultsStatus, debouncedSearch, catFilter, searchScope, plan, sheet, userCoords]);
 
   // Medición (anónima): una búsqueda cuenta una vez por consulta y alcance, cuando llegan los resultados.
   const trackedSearch = useRef('');
@@ -547,15 +554,15 @@ export default function ExploreScreen() {
   }, [searching, resultsStatus, debouncedSearch, searchScope, items.length]);
 
   // Un filtro cuenta cuando se aplica (no al quitarlo ni al arrancar).
-  const prevFilters = useRef({ categoryId, subcategoryId, radiusKm, openNow });
+  const prevFilters = useRef({ groupId, categoryId, subcategoryId, radiusKm, openNow });
   useEffect(() => {
     const p = prevFilters.current;
-    if (categoryId && categoryId !== p.categoryId) track('filter_applied', undefined, { filter: 'category' });
+    if ((categoryId && categoryId !== p.categoryId) || (groupId && groupId !== p.groupId)) track('filter_applied', undefined, { filter: 'category' });
     if (subcategoryId && subcategoryId !== p.subcategoryId) track('filter_applied', undefined, { filter: 'subcategory' });
     if (radiusKm !== null && radiusKm !== p.radiusKm) track('filter_applied', undefined, { filter: 'radius' });
     if (openNow && !p.openNow) track('filter_applied', undefined, { filter: 'open' });
-    prevFilters.current = { categoryId, subcategoryId, radiusKm, openNow };
-  }, [categoryId, subcategoryId, radiusKm, openNow]);
+    prevFilters.current = { groupId, categoryId, subcategoryId, radiusKm, openNow };
+  }, [groupId, categoryId, subcategoryId, radiusKm, openNow]);
 
   const openBusiness = (id: string) => router.push({ pathname: '/business/[id]', params: { id, src: searching ? 'search' : 'map' } });
 
@@ -609,6 +616,7 @@ export default function ExploreScreen() {
   };
 
   const clearAllFilters = () => {
+    setGroupId(undefined);
     setCategoryId(undefined);
     setSubcategoryId(undefined);
     setRadiusKm(null);
@@ -620,14 +628,16 @@ export default function ExploreScreen() {
     setFiltersOpen(true);
   };
 
-  const activeFilterCount = (categoryId ? 1 : 0) + (subcategoryId ? 1 : 0) + (radiusKm !== null ? 1 : 0) + (openNow ? 1 : 0);
+  const activeFilterCount = (categoryId || groupId ? 1 : 0) + (subcategoryId ? 1 : 0) + (radiusKm !== null ? 1 : 0) + (openNow ? 1 : 0);
   const selectedCategory = (categories.data ?? []).find((c) => c.id === categoryId) ?? null;
+  const selectedGroup = groups.find((g) => g.id === groupId) ?? null;
   const selectedSubcategory = (selectedCategory?.subcategories ?? []).find((s) => s.id === subcategoryId) ?? null;
   const radiusLabel = radiusKm ? `< ${radiusKm} km` : null;
 
   // Fila de contexto (F12): zona, alcance y filtros activos, cada uno con su ✕.
   const contextFilters: { id: FilterId; label: string }[] = [];
   if (selectedCategory) contextFilters.push({ id: 'category', label: selectedCategory.name });
+  else if (selectedGroup) contextFilters.push({ id: 'category', label: selectedGroup.name });
   if (selectedSubcategory) contextFilters.push({ id: 'subcategory', label: selectedSubcategory.name });
   if (radiusLabel) contextFilters.push({ id: 'radius', label: radiusLabel });
   if (openNow) contextFilters.push({ id: 'open', label: 'Abiertos ahora' });
@@ -640,6 +650,7 @@ export default function ExploreScreen() {
   });
   const removeFilter = (id: FilterId) => {
     if (id === 'category') {
+      setGroupId(undefined);
       setCategoryId(undefined);
       setSubcategoryId(undefined);
     } else if (id === 'subcategory') setSubcategoryId(undefined);
@@ -658,16 +669,30 @@ export default function ExploreScreen() {
     setAreaDirty(false);
     AccessibilityInfo.announceForAccessibility(removedAnnouncement('all'));
   };
-  // El estante de categorías del panel: por relevancia entre los negocios ya cargados (ver lib/categoryShelf).
-  const shelfCategories = useMemo(
-    () => rankCategories(categories.data ?? [], known, categoryId).slice(0, SHELF_MAX),
-    [categories.data, known, categoryId],
-  );
-  const openCategoryIds = useMemo(() => new Set(known.filter((e) => e.has_hours && e.is_open_now).map((e) => e.category_id)), [known]);
+  // Elegir un grupo filtra por todas sus categorías; elegir una categoría (desde «Ver todas» o los filtros) fija
+  // también su grupo, para que la segunda fila de arriba muestre dónde está.
+  const chooseGroup = (id: GroupId | undefined) => {
+    setGroupId(id);
+    setCategoryId(undefined);
+    setSubcategoryId(undefined);
+  };
   const chooseCategory = (id: string | undefined) => {
     setCategoryId(id);
     setSubcategoryId(undefined);
+    setGroupId(id ? groupIdOf(id, groups) : undefined);
   };
+
+  // La reseña verificada más reciente de los destacados que se ven (y los adicionales): una sola consulta, hasta 12.
+  const extraEntities = useMemo(() => (searching ? [] : pickExtras(known, bbox, EXTRAS_MAX)), [searching, known, bbox]);
+  const snippetIds = searching ? [] : [...items.slice(0, ZONE_FICHA_MAX), ...extraEntities].map((e) => e.id);
+  const snippetsKey = [...snippetIds].sort().join(',');
+  const snippetsQuery = useQuery({
+    queryKey: ['review-snippets', snippetsKey],
+    queryFn: () => discoveryApi.reviewSnippets(snippetIds),
+    enabled: snippetIds.length > 0,
+    staleTime: 10 * 60_000,
+  });
+  const snippets = snippetsQuery.data;
 
   const toModel = (e: WithDistance, line?: string): CardModel => ({
     id: e.id,
@@ -686,6 +711,7 @@ export default function ExploreScreen() {
     rating: e.avg_rating,
     reviews: e.review_count,
     tagline: e.tagline || undefined,
+    review: snippets?.[e.id] ? snippetLines(snippets[e.id], now) : undefined,
   });
   const discoverModel = (it: DiscoverItem, sectionId: DiscoverSectionId): CardModel => ({
     id: it.entity_id,
@@ -705,10 +731,7 @@ export default function ExploreScreen() {
   });
   const zoneModels = searching ? [] : items.map((e) => toModel(e));
   // Adicionales: los pines acumulados que están cerca pero fuera de la zona que se ve, con el nombre de su zona.
-  const extraModels = useMemo(
-    () => (searching ? [] : pickExtras(known, bbox, EXTRAS_MAX)),
-    [searching, known, bbox],
-  ).map((e) => ({ ...toModel(e), zoneLabel: zoneAt(zones, e)?.zone.name ?? null }));
+  const extraModels = extraEntities.map((e) => ({ ...toModel(e), zoneLabel: zoneAt(zones, e)?.zone.name ?? null }));
   const widenMap = () =>
     mapRef.current?.animateToRegion(
       {
@@ -726,7 +749,7 @@ export default function ExploreScreen() {
     results: items.length,
     scope: searchScope,
     zoneCount: items.length,
-    categoryName: selectedCategory?.name,
+    categoryName: selectedCategory?.name ?? selectedGroup?.name,
     view,
     extraCount: extraModels.length,
   });
@@ -883,7 +906,6 @@ export default function ExploreScreen() {
               }}
               onClearSection={() => setSectionFilter(null)}
               zone={{ status: entities.isError ? 'error' : entities.isLoading ? 'loading' : 'ok', items: zoneModels, extras: extraModels, filterActive: activeFilterCount > 0 }}
-              shelf={{ categories: shelfCategories, selectedId: categoryId, openIds: openCategoryIds, onSelect: chooseCategory, onSeeAll: () => setAllCatsOpen(true) }}
               onOpenProfile={openBusiness}
               onClearFilters={clearAllFilters}
               onWiden={widenMap}
@@ -952,32 +974,32 @@ export default function ExploreScreen() {
               }}
             />
           ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={styles.filterScrollRow}
-              style={styles.filterScroll}
-            >
-              {zoneName ? <ZoneCapsule name={zoneName} /> : null}
-              {selectedCategory || selectedSubcategory || radiusLabel || openNow ? (
-                <View style={styles.activeChips}>
-                  {selectedCategory ? (
-                    <ActiveChip icon={(selectedCategory.icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap} label={selectedCategory.name} onRemove={() => chooseCategory(undefined)} />
-                  ) : null}
-                  {selectedSubcategory ? (
-                    <ActiveChip icon="pricetag-outline" label={selectedSubcategory.name} onRemove={() => setSubcategoryId(undefined)} />
-                  ) : null}
-                  {radiusLabel ? <ActiveChip icon="navigate" label={radiusLabel} onRemove={() => setRadiusKm(null)} /> : null}
-                  {openNow ? <ActiveChip icon="time-outline" label="Abiertos ahora" onRemove={() => setOpenNow(false)} /> : null}
-                  {activeFilterCount >= 2 ? (
-                    <Pressable accessibilityRole="button" accessibilityLabel="Limpiar todos los filtros" onPress={clearAllFilters} hitSlop={8} style={styles.clearChip}>
-                      <Text style={styles.clearChipText}>Limpiar</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-              ) : null}
-            </ScrollView>
+            <GroupRow
+              groups={groups}
+              groupId={groupId}
+              categoryId={categoryId}
+              onGroup={chooseGroup}
+              onCategory={(id) => {
+                setCategoryId(id);
+                setSubcategoryId(undefined);
+              }}
+              onSeeAll={() => setAllCatsOpen(true)}
+              leading={zoneName ? <ZoneCapsule name={zoneName} /> : null}
+              trailing={
+                selectedSubcategory || radiusLabel || openNow ? (
+                  <View style={styles.activeChips}>
+                    {selectedSubcategory ? <ActiveChip icon="pricetag-outline" label={selectedSubcategory.name} onRemove={() => setSubcategoryId(undefined)} /> : null}
+                    {radiusLabel ? <ActiveChip icon="navigate" label={radiusLabel} onRemove={() => setRadiusKm(null)} /> : null}
+                    {openNow ? <ActiveChip icon="time-outline" label="Abiertos ahora" onRemove={() => setOpenNow(false)} /> : null}
+                    {activeFilterCount >= 2 ? (
+                      <Pressable accessibilityRole="button" accessibilityLabel="Limpiar todos los filtros" onPress={clearAllFilters} hitSlop={8} style={styles.clearChip}>
+                        <Text style={styles.clearChipText}>Limpiar</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ) : null
+              }
+            />
           )}
           {mapLoading && !tall && !selectedEntity ? <LoadingChip /> : null}
         </Animated.View>
@@ -992,9 +1014,8 @@ export default function ExploreScreen() {
 
       <AllCategoriesModal
         visible={allCatsOpen}
-        categories={categories.data ?? []}
+        groups={groups}
         selectedId={categoryId}
-        openIds={openCategoryIds}
         onSelect={chooseCategory}
         onClose={() => setAllCatsOpen(false)}
       />
@@ -1003,10 +1024,7 @@ export default function ExploreScreen() {
         visible={filtersOpen}
         categories={categories.data ?? []}
         categoryId={categoryId}
-        onSelectCategory={(id) => {
-          setCategoryId(id);
-          setSubcategoryId(undefined);
-        }}
+        onSelectCategory={chooseCategory}
         subcategoryId={subcategoryId}
         onSelectSubcategory={setSubcategoryId}
         radiusValue={radiusKm}

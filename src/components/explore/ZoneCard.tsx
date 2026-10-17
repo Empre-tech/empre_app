@@ -2,7 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { ratingText, statusText } from '@/lib/discover';
+import { statusText } from '@/lib/discover';
+import { featuredRating } from '@/lib/reviewSnippet';
 import { resolveImageUrl } from '@/lib/image';
 import { colors, fonts, radius, spacing } from '@/theme';
 import type { CardModel } from './ExploreCards';
@@ -18,12 +19,13 @@ interface Props {
 
 /**
  * Ficha de «En esta zona» (variante B del mockup `en_esta_zona.html`): arriba el negocio y su
- * distancia; una línea fina; debajo píldoras con reseñas y estado; la frase corta y, si hay oferta,
+ * distancia; una línea fina; debajo píldoras con reseñas (la nota desde 3) y estado; la reseña verificada más
+ * reciente (o, sin ella, la frase corta) y, si hay oferta,
  * una franja naranja al pie con el tiempo que queda. Sin precios ni cantidades. En los adicionales
  * (cerca pero fuera de tu zona) la distancia lleva el nombre de su zona.
  */
 export function ZoneCard({ model, selected, onPress, onOpenProfile }: Props) {
-  const rating = ratingText(model.rating, model.reviews);
+  const rating = featuredRating(model.rating, model.reviews);
   const status = statusText(model.open);
   const src = model.image ? resolveImageUrl(model.image) : null;
   const chip = [model.zoneLabel, model.distance].filter(Boolean).join(' · ');
@@ -31,7 +33,8 @@ export function ZoneCard({ model, selected, onPress, onOpenProfile }: Props) {
   const label = [
     model.name,
     model.sub,
-    rating.hasReviews ? `${rating.text.replace('★ ', '')} reseñas` : rating.text,
+    rating.hasScore ? `nota ${rating.text.replace('★ ', '').replace(/ \((\d+)\)/, ' con $1 reseñas')}` : rating.text,
+    model.review ? `reseña: ${model.review.quote}, ${model.review.byline}` : null,
     status,
     model.zoneLabel ? `en ${model.zoneLabel}` : null,
     model.distance,
@@ -69,8 +72,8 @@ export function ZoneCard({ model, selected, onPress, onOpenProfile }: Props) {
         </View>
         <View style={styles.sep} />
         <View style={styles.facts}>
-          <View style={[styles.pill, rating.hasReviews ? styles.pillRating : null]}>
-            <Text style={[styles.pillText, rating.hasReviews ? styles.pillRatingText : styles.pillNoneText]}>{rating.text}</Text>
+          <View style={[styles.pill, rating.hasScore ? styles.pillRating : null]}>
+            <Text style={[styles.pillText, rating.hasScore ? styles.pillRatingText : styles.pillNoneText]}>{rating.text}</Text>
           </View>
           {status ? (
             <View style={[styles.pill, status === 'Abierto' ? styles.pillOpen : styles.pillClosed]}>
@@ -78,7 +81,16 @@ export function ZoneCard({ model, selected, onPress, onOpenProfile }: Props) {
             </View>
           ) : null}
         </View>
-        {model.tagline ? (
+        {model.review ? (
+          <View style={styles.review} accessible={false}>
+            <Text style={styles.quote} numberOfLines={2}>
+              {model.review.quote}
+            </Text>
+            <Text style={styles.byline} numberOfLines={1}>
+              {model.review.byline}
+            </Text>
+          </View>
+        ) : model.tagline ? (
           <Text style={styles.tagline} numberOfLines={2}>
             {model.tagline}
           </Text>
@@ -137,6 +149,9 @@ const styles = StyleSheet.create({
   pillClosed: { backgroundColor: '#FBE4E4' },
   pillClosedText: { color: '#8E2A2A' },
   tagline: { paddingHorizontal: spacing.md, paddingBottom: 10, fontSize: 12.5, fontFamily: fonts.ui.medium, fontStyle: 'italic', color: colors.ink },
+  review: { marginHorizontal: spacing.md, marginBottom: 10, paddingLeft: 10, borderLeftWidth: 3, borderLeftColor: colors.accent, gap: 2 },
+  quote: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, fontStyle: 'italic', color: colors.ink },
+  byline: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   strip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: spacing.md, backgroundColor: colors.accent },
   stripText: { flex: 1, fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   stripBold: { fontFamily: fonts.ui.extrabold },

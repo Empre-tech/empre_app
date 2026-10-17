@@ -35,6 +35,8 @@ export interface CardModel {
   reviews?: number;
   /** Frase corta del negocio. */
   tagline?: string;
+  /** La reseña verificada más reciente, ya en cita y firma (destacados). Manda sobre la frase corta. */
+  review?: { quote: string; byline: string };
   /** Zona del negocio cuando es un adicional (cerca, fuera de tu zona). */
   zoneLabel?: string | null;
 }
