@@ -182,3 +182,43 @@ export function recReason(c: { is_open_now: boolean; has_hours: boolean; has_act
   if (c.has_hours && c.is_open_now) return 'open';
   return null;
 }
+
+// ---------- La cita de una reseña ----------
+
+export const QUOTE_MIN_CHARS = 20;
+export const QUOTE_MAX_CHARS = 90;
+export const QUOTE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
+
+interface QuoteReview {
+  comment: string;
+  verified?: boolean;
+  created_at: string;
+  rating: number;
+  user: { name: string };
+}
+
+/** Una línea y de hasta 90 letras, cortando en una palabra y cerrando con «…». */
+export function trimQuote(text: string): string {
+  const flat = text.split(/\s+/).filter(Boolean).join(' ');
+  const chars = Array.from(flat);
+  if (chars.length <= QUOTE_MAX_CHARS) return flat;
+  const cut = chars.slice(0, QUOTE_MAX_CHARS).join('');
+  const i = cut.lastIndexOf(' ');
+  const base = i > QUOTE_MAX_CHARS / 2 ? cut.slice(0, i) : cut;
+  return `${base.replace(/[ ,.;:]+$/, '')}…`;
+}
+
+/**
+ * La cita del perfil: la reseña más reciente que sea verificada, con comentario de al menos 20 letras y de los últimos
+ * 90 días (la misma regla del servidor para los destacados); sin filtrar por nota. Sin ninguna, no hay cita.
+ */
+export function pickQuote(reviews: QuoteReview[], now: number): { text: string; author: string; rating: number; createdAt: string } | null {
+  const best = reviews
+    .filter((r) => r.verified && r.comment.trim().length >= QUOTE_MIN_CHARS)
+    .filter((r) => {
+      const age = now - Date.parse(r.created_at);
+      return age >= 0 && age <= QUOTE_MAX_AGE_MS;
+    })
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+  return best ? { text: trimQuote(best.comment), author: shortName(best.user.name), rating: best.rating, createdAt: best.created_at } : null;
+}

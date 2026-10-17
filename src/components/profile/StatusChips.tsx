@@ -8,6 +8,8 @@ interface Props {
   entityId: string;
   hasHours: boolean;
   isOpen: boolean;
+  /** Sin el chip de abierto/cerrado (la portada ya lo dice con la hora): solo disponibilidad y canjes. */
+  extrasOnly?: boolean;
 }
 
 /**
@@ -15,11 +17,12 @@ interface Props {
  * publicó (el servidor la oculta pasadas 6 h) y los canjes confirmados de la
  * semana. Cada chip dice su estado en texto además del color.
  */
-export function StatusChips({ entityId, hasHours, isOpen }: Props) {
+export function StatusChips({ entityId, hasHours, isOpen, extrasOnly }: Props) {
   const status = useQuery({ queryKey: ['status', entityId], queryFn: () => statusApi.get(entityId), enabled: Boolean(entityId) });
   const activity = useQuery({ queryKey: ['activity', entityId], queryFn: () => offersApi.activity(entityId), enabled: Boolean(entityId) });
 
-  const chips = statusChips({ hasHours, isOpen, availability: status.data?.availability, weekRedemptions: activity.data });
+  const all = statusChips({ hasHours, isOpen, availability: status.data?.availability, weekRedemptions: activity.data });
+  const chips = extrasOnly ? all.filter((c) => c.key !== 'open' && c.key !== 'closed') : all;
   if (chips.length === 0) return null;
 
   return (

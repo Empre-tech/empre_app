@@ -19,9 +19,10 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { catalogApi } from '@/api/catalog';
 import { entitiesApi, paymentsApi, reviewsApi } from '@/api/endpoints';
 import { novedadesApi } from '@/api/novedades';
-import type { Photo, Review } from '@/api/types';
+import type { Photo } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { AIWritingAssist } from '@/components/AIWritingAssist';
 import { AgendaStrip } from '@/components/agenda/AgendaStrip';
@@ -33,17 +34,25 @@ import { SkeletonProfile } from '@/components/Skeleton';
 import { useActiveOffers } from '@/components/OfferBanner';
 import { PromotionsSection } from '@/components/PromotionsSection';
 import { PostComposerSheet } from '@/components/PostComposerSheet';
+import { ACTION_BAR_HEIGHT, ActionBar } from '@/components/profile/ActionBar';
 import { CatalogSection } from '@/components/profile/CatalogSection';
 import { OffersFicha } from '@/components/profile/OffersFicha';
-import { OwnerDiscoverCard } from '@/components/profile/OwnerDiscoverCard';
-import { LatestStrip } from '@/components/profile/LatestStrip';
-import { ReviewsSummary, VerifiedStamp } from '@/components/profile/ReviewsSummary';
+import { OwnerPanel } from '@/components/profile/OwnerPanel';
+import { PhotosSection } from '@/components/profile/PhotosSection';
+import { ProfileHero } from '@/components/profile/ProfileHero';
+import { QuickIndex } from '@/components/profile/QuickIndex';
+import { Recommendations } from '@/components/profile/Recommendations';
+import { ReviewsSection } from '@/components/profile/ReviewsSection';
 import { StatusChips } from '@/components/profile/StatusChips';
-import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { agoLabel } from '@/lib/discover';
 import { hasLocation } from '@/lib/geo';
-import { formatReviewDate, formatRelativeTime } from '@/lib/format';
+import { formatRelativeTime } from '@/lib/format';
 import { resolveImageUrl } from '@/lib/image';
+import { openingFromHours, statusLine } from '@/lib/placeCard';
+import { blockOrder, pickQuote, photosPlan, sections, showQuickIndex, type BlockId, type SectionId } from '@/lib/profileLayout';
+import { featuredRating } from '@/lib/reviewSnippet';
+import { useNow } from '@/lib/useNow';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const PHONE_RE = /^[+\d\s()-]{7,}$/;
@@ -80,7 +89,6 @@ export default function BusinessScreen() {
   const business = query.data;
 
   const photos = useMemo(() => [...(business?.photos ?? [])].sort((a, b) => a.order - b.order), [business?.photos]);
-  const tile = (width - spacing.lg * 2 - 4) / 3;
 
   const isOwner = status === 'signedIn' && user?.id === business?.owner_id;
 
@@ -107,14 +115,20 @@ export default function BusinessScreen() {
     track('profile_opened', business.id, { origin: src ?? 'direct' });
   }, [business?.id, isOwner, src]);
 
-  // Publicaciones y Reseñas viven en pestañas (como Instagram: grilla /
-  // etiquetados), no apiladas una tras otra, para que se entienda de un
-  // vistazo que son dos cosas distintas.
-  const [activeTab, setActiveTab] = useState<'posts' | 'reviews'>('posts');
   // Las ofertas viven en la ficha del perfil (un boleto a la vez, sin pestaña ni cantidades).
   const activeOffers = useActiveOffers(id);
   const offerCount = activeOffers.data?.length ?? 0;
   const [showHours, setShowHours] = useState(false);
+
+  // Perfil: hora actual, servicios (para el índice rápido), pestaña del dueño y posición de las secciones.
+  const nowMs = useNow(60_000);
+  const catalog = useQuery({ queryKey: ['catalog', id], queryFn: () => catalogApi.list(id ?? ''), enabled: Boolean(id), staleTime: 60_000 });
+  const hasServices = (catalog.data?.length ?? 0) > 0;
+  const [ownerTab, setOwnerTab] = useState<'public' | 'mine'>('public');
+  const [activeSection, setActiveSection] = useState<SectionId>('offers');
+  const scrollRef = useRef<ScrollView>(null);
+  const sectionY = useRef<Record<string, number>>({});
+  const bodyY = useRef(0);
 
   // Descripción: se trunca a 3 líneas con un "Ver más" cuando es larga, en
   // vez de siempre mostrarla completa y alargar el perfil. El umbral de
@@ -353,13 +367,13 @@ export default function BusinessScreen() {
     );
   }
 
-  const bannerUrl = resolveImageUrl(business.banner_url);
   const contact = business.contact_info?.trim();
   const location = [business.address, business.city].filter(Boolean).join(', ');
-  const activePhoto = openIndex !== null ? photos[currentIndex] : null;
   const serviceMode = business.service_mode ? SERVICE_MODE_LABELS[business.service_mode]?.text : undefined;
   const infoLine = [location, serviceMode].filter(Boolean).join(' · ');
   const canCall = Boolean(contact && PHONE_RE.test(contact));
+  const hasHours = Boolean(business.hours && business.hours.length > 0);
+  const activePhoto = openIndex !== null ? photos[currentIndex] : null;
 
   const onMessage = () => {
     if (status !== 'signedIn') {
@@ -380,392 +394,248 @@ export default function BusinessScreen() {
     if (url) void Linking.openURL(url);
   };
 
-  return (
-    <View style={styles.screen}>
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xxl }}>
-        <View style={styles.bannerWrap}>
-          {bannerUrl ? <Image accessible={false} source={{ uri: bannerUrl }} style={styles.banner} contentFit="cover" /> : <View style={[styles.banner, styles.bannerEmpty]}><Ionicons name="storefront-outline" size={44} color={colors.primary} /></View>}
-          {photos.length > 0 ? (
-            <View style={styles.photoCountPill}>
-              <Ionicons name="images" size={12} color="#fff" />
-              <Text style={styles.photoCountPillText}>
-                {photos.length} {photos.length === 1 ? 'foto' : 'fotos'}
-              </Text>
+  const onCall = () => {
+    if (contact) void Linking.openURL(`tel:${contact.replace(/[^\d+]/g, '')}`);
+  };
+
+  // ---- Lo que dice la portada: nota (desde 3 reseñas), estado con hora y el plan de fotos.
+  const rating = featuredRating(ratingSummary.average, ratingSummary.count);
+  const opening = openingFromHours(business.hours, new Date(nowMs), Boolean(business.is_open_now));
+  const statusInfo = statusLine({ has_hours: hasHours, is_open_now: Boolean(business.is_open_now), ...opening });
+  const plan = photosPlan(photos.length);
+  const openState: boolean | null = hasHours ? Boolean(business.is_open_now) : null;
+  const quote = pickQuote(reviews.data?.data ?? [], nowMs);
+  const secs = sections({ offers: offerCount, hasServices, photos: photos.length, isOwner });
+  const ownerPanelOpen = isOwner && ownerTab === 'mine';
+  const showIndex = !ownerPanelOpen && showQuickIndex(secs);
+
+  const goTo = (id: SectionId) => {
+    const y = bodyY.current + (sectionY.current[id] ?? 0) - (isOwner ? 130 : 70);
+    scrollRef.current?.scrollTo({ y: Math.max(0, y), animated: true });
+    setActiveSection(id);
+  };
+  const onScroll = (e: { nativeEvent: { contentOffset: { y: number } } }) => {
+    const y = e.nativeEvent.contentOffset.y + 200;
+    let current: SectionId = secs[0] ?? 'reviews';
+    for (const id of secs) if (sectionY.current[id] !== undefined && bodyY.current + sectionY.current[id] <= y) current = id;
+    if (current !== activeSection) setActiveSection(current);
+  };
+  const mark = (id: SectionId) => (e: { nativeEvent: { layout: { y: number } } }) => {
+    sectionY.current[id] = e.nativeEvent.layout.y;
+  };
+
+  const openPhotos = () => router.push({ pathname: '/business/photos/[id]', params: { id: business.id } });
+  const openReviews = () => router.push({ pathname: '/business/reviews/[id]', params: { id: business.id } });
+
+  const aboutBlock = (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle} accessibilityRole="header">
+        Sobre el negocio
+      </Text>
+      {business.description ? (
+        <>
+          <Text style={styles.description} numberOfLines={descriptionExpanded ? undefined : 3}>
+            {business.description}
+          </Text>
+          {descriptionTruncatable ? (
+            <Pressable accessibilityRole="button" onPress={() => setDescriptionExpanded((v) => !v)} style={styles.readMoreHit}>
+              <Text style={styles.readMore}>{descriptionExpanded ? 'Ver menos' : 'Ver más'}</Text>
+            </Pressable>
+          ) : null}
+        </>
+      ) : null}
+      <View style={styles.infoBlock}>
+        {infoLine ? <InfoRow icon="location-outline" text={infoLine} /> : null}
+        {contact ? (
+          canCall ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={`Llamar al ${contact}`} onPress={onCall}>
+              <InfoRow icon="call-outline" text={contact} />
+            </Pressable>
+          ) : (
+            <InfoRow icon="call-outline" text={contact} />
+          )
+        ) : null}
+      </View>
+      {hasHours ? (
+        <View style={styles.hoursBlock}>
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: showHours }} onPress={() => setShowHours((v) => !v)} style={styles.hoursToggle}>
+            <Ionicons name="time-outline" size={18} color={colors.muted} />
+            <Text style={styles.infoText}>Ver horario de atención</Text>
+            <Ionicons name={showHours ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} />
+          </Pressable>
+          {showHours ? (
+            <View style={styles.hoursTable}>
+              {[...(business.hours ?? [])]
+                .sort((a, b) => a.weekday - b.weekday)
+                .map((h) => (
+                  <View key={h.weekday} style={styles.hoursTableRow}>
+                    <Text style={styles.hoursTableDay}>{WEEKDAY_LABELS[h.weekday]}</Text>
+                    <Text style={styles.hoursTableTime}>{formatHourRow(h)}</Text>
+                  </View>
+                ))}
             </View>
           ) : null}
         </View>
+      ) : null}
+    </View>
+  );
 
-        <View style={styles.body}>
-          <View style={[styles.avatarWrap, offerCount > 0 && styles.avatarRing]}>
-            <Avatar uri={business.profile_url} name={business.name} size={88} />
+  const block = (id: BlockId): React.ReactNode => {
+    switch (id) {
+      case 'closedNote':
+        return (
+          <View key={id} style={styles.closedNote} accessibilityRole="alert">
+            <Text style={styles.closedNoteText}>{isOwner ? 'Tu negocio está cerrado ahora.' : `${statusInfo?.text ?? 'Cerrado'}. Mira lo que está abierto cerca.`}</Text>
           </View>
-
-          <View style={styles.titleRow}>
-            <Text style={styles.name}>{business.name}</Text>
-            {business.is_verified ? <VerifiedBadge size={20} /> : null}
-          </View>
-          {business.category?.name ? (
-            <View style={styles.categoryPill}>
-              <Text style={styles.categoryPillText}>
-                {business.category.name}
-                {business.subcategories && business.subcategories.length > 0
-                  ? ` · ${business.subcategories[0].name}`
-                  : ''}
-              </Text>
-            </View>
-          ) : null}
-          <View style={styles.badgesRow}>
-            {ratingSummary.count > 0 ? (
-              <View style={styles.ratingBadgeRow}>
-                <StarRow rating={ratingSummary.average} size={14} />
-                <Text style={styles.ratingBadgeText}>
-                  {ratingSummary.average.toFixed(1)} ({ratingSummary.count})
-                </Text>
-              </View>
-            ) : null}
-          </View>
-          {isOwner && (followers.data ?? 0) > 0 ? (
-            <View style={styles.followersChip}>
-              <Ionicons name="people-outline" size={14} color={colors.primaryDark} />
-              <Text style={styles.followersText}>
-                {followers.data} {followers.data === 1 ? 'seguidor' : 'seguidores'}
-              </Text>
-            </View>
-          ) : null}
-          {!isOwner ? (
-            <View style={styles.infoActions}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Escribirle a ${business.name}`}
-                onPress={onMessage}
-                style={({ pressed }) => [styles.infoPrimary, pressed && styles.infoPressed]}
-              >
-                <Ionicons name="chatbubble-ellipses" size={17} color="#fff" />
-                <Text style={styles.infoPrimaryText}>Escribirle</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={isFavorite ? 'Dejar de seguir' : 'Seguir este negocio'}
-                accessibilityState={{ selected: isFavorite }}
-                onPress={() => void toggleFavorite()}
-                disabled={favoriting}
-                style={({ pressed }) => [styles.infoSecondary, isFavorite && styles.infoSecondaryOn, pressed && styles.infoPressed]}
-              >
-                {favoriting ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <>
-                    <Ionicons name={isFavorite ? 'checkmark' : 'add'} size={17} color={colors.primary} />
-                    <Text style={styles.infoSecondaryText}>{isFavorite ? 'Siguiendo' : 'Seguir'}</Text>
-                  </>
-                )}
-              </Pressable>
-            </View>
-          ) : null}
-          <StatusChips entityId={business.id} hasHours={Boolean(business.hours && business.hours.length > 0)} isOpen={Boolean(business.is_open_now)} />
-          {business.is_verified ? (
-            <View style={styles.verifiedNoteRow}>
-              <Ionicons name="shield-checkmark" size={14} color={colors.verified} />
-              <Text style={styles.verifiedNote}>Identidad verificada por Empre</Text>
-            </View>
-          ) : isOwner ? (
-            <Text style={styles.pendingNote}>
-              Tu negocio aún no está verificado. Puedes editarlo mientras tanto.
-            </Text>
-          ) : null}
-
-          {business.description ? (
-            <>
-              <Text style={styles.description} numberOfLines={descriptionExpanded ? undefined : 3}>
-                {business.description}
-              </Text>
-              {descriptionTruncatable ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setDescriptionExpanded((v) => !v)}
-                  hitSlop={6}
-                >
-                  <Text style={styles.readMore}>{descriptionExpanded ? 'Ver menos' : 'Ver más'}</Text>
-                </Pressable>
-              ) : null}
-            </>
-          ) : null}
-
-          <View style={styles.infoBlock}>
-            {infoLine ? <InfoRow icon="location-outline" text={infoLine} /> : null}
-            {contact ? (
-              canCall ? (
-                <Pressable accessibilityRole="button" accessibilityLabel={`Llamar al ${contact}`} onPress={() => void Linking.openURL(`tel:${contact.replace(/[^\d+]/g, '')}`)}>
-                  <InfoRow icon="call-outline" text={contact} />
-                </Pressable>
-              ) : (
-                <InfoRow icon="call-outline" text={contact} />
-              )
-            ) : null}
-          </View>
-
-          {business.hours && business.hours.length > 0 ? (
-            <View style={styles.hoursBlock}>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setShowHours((v) => !v)}
-                style={styles.hoursToggle}
-              >
-                <Ionicons name="time-outline" size={18} color={colors.muted} />
-                <Text style={styles.infoText}>Ver horario de atención</Text>
-                <Ionicons name={showHours ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} />
-              </Pressable>
-              {showHours ? (
-                <View style={styles.hoursTable}>
-                  {[...business.hours]
-                    .sort((a, b) => a.weekday - b.weekday)
-                    .map((h) => (
-                      <View key={h.weekday} style={styles.hoursTableRow}>
-                        <Text style={styles.hoursTableDay}>{WEEKDAY_LABELS[h.weekday]}</Text>
-                        <Text style={styles.hoursTableTime}>{formatHourRow(h)}</Text>
-                      </View>
-                    ))}
-                </View>
-              ) : null}
-            </View>
-          ) : null}
-
-          <View style={styles.actions}>
-            {isOwner && requiresPayment ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push({ pathname: '/business/subscription/[id]', params: { id: business.id } })}
-                style={({ pressed }) => [styles.trialBanner, pressed && styles.trialBannerPressed]}
-              >
-                <Ionicons name="sparkles" size={18} color={colors.primary} />
-                <View style={styles.trialBannerTextWrap}>
-                  <Text style={styles.trialBannerTitle}>Tu prueba gratis terminó</Text>
-                  <Text style={styles.trialBannerSubtitle}>
-                    Actívalo pronto o tu negocio se ocultará del mapa y las búsquedas.
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-              </Pressable>
-            ) : null}
-            {isOwner ? (
-              <OwnerDiscoverCard
-                business={business}
-                offer={activeOffers.data?.[0]}
-                onEdit={() => router.push({ pathname: '/business/edit/[id]', params: { id: business.id } })}
-                onPublishOffer={() => router.push({ pathname: '/business/offers', params: { entityId: business.id } })}
-              />
-            ) : null}
-            <CatalogSection entityId={business.id} isOwner={isOwner} />
+        );
+      case 'recsTop':
+        return <Recommendations key={id} business={business} closed title="Abiertos ahora cerca de aquí" />;
+      case 'offers':
+        return (
+          <View key={id} onLayout={mark('offers')}>
             <OffersFicha entityId={business.id} isOwner={isOwner} initialOfferId={offerParam} />
             <PromotionsSection entityId={business.id} trackViews={!isOwner} />
-            {FEATURES.agenda && !isOwner ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
-            {FEATURES.agenda && isOwner ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push({ pathname: '/business/agenda/[id]', params: { id: business.id } })}
-                style={({ pressed }) => [styles.subscriptionLink, pressed && styles.subscriptionLinkPressed]}
-              >
-                <Ionicons name="calendar-outline" size={16} color={colors.primary} />
-                <Text style={styles.subscriptionLinkText}>Agenda de citas</Text>
-              </Pressable>
-            ) : null}
-            {isOwner ? (
-              <Button
-                title="Editar negocio"
-                onPress={() => router.push({ pathname: '/business/edit/[id]', params: { id: business.id } })}
-              />
-            ) : null}
-            {isOwner ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push('/business/scan')}
-                style={({ pressed }) => [styles.subscriptionLink, pressed && styles.subscriptionLinkPressed]}
-              >
-                <Ionicons name="scan-outline" size={16} color={colors.primary} />
-                <Text style={styles.subscriptionLinkText}>Escanear canje</Text>
-              </Pressable>
-            ) : null}
-            {isOwner ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push({ pathname: '/business/subscription/[id]', params: { id: business.id } })}
-                style={({ pressed }) => [styles.subscriptionLink, pressed && styles.subscriptionLinkPressed]}
-              >
-                <Ionicons name="diamond-outline" size={16} color={colors.primary} />
-                <Text style={styles.subscriptionLinkText}>Suscripción del negocio</Text>
-                {requiresPayment ? <View style={styles.subscriptionLinkDot} /> : null}
-              </Pressable>
-            ) : null}
-            {isOwner && (hasLocation(business) || canCall) ? (
-              <View style={styles.secondaryActions}>
-                {hasLocation(business) ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={onDirections}
-                    style={({ pressed }) => [styles.secondaryAction, pressed && styles.secondaryActionPressed]}
-                  >
-                    <Ionicons name="navigate-outline" size={18} color={colors.ink} />
-                    <Text style={styles.secondaryActionText}>Cómo llegar</Text>
-                  </Pressable>
-                ) : null}
-                {hasLocation(business) && contact && PHONE_RE.test(contact) ? <View style={styles.secondaryDivider} /> : null}
-                {contact && PHONE_RE.test(contact) ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => void Linking.openURL(`tel:${contact.replace(/[^\d+]/g, '')}`)}
-                    style={({ pressed }) => [styles.secondaryAction, pressed && styles.secondaryActionPressed]}
-                  >
-                    <Ionicons name="call-outline" size={18} color={colors.ink} />
-                    <Text style={styles.secondaryActionText}>Llamar</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            ) : null}
           </View>
-        </View>
-
-        <LatestStrip
-          photos={photos}
-          offers={activeOffers.data ?? []}
-          reviews={reviews.data?.data ?? []}
-          onPress={(item) => setActiveTab(item.kind === 'post' ? 'posts' : item.kind === 'review' ? 'reviews' : activeTab)}
-        />
-
-        <View style={styles.tabBar}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ selected: activeTab === 'posts' }}
-            onPress={() => setActiveTab('posts')}
-            style={[styles.tabItem, activeTab === 'posts' && styles.tabItemActive]}
-          >
-            <Ionicons name="grid-outline" size={18} color={activeTab === 'posts' ? colors.ink : colors.muted} />
-            <Text style={[styles.tabLabel, activeTab === 'posts' && styles.tabLabelActive]}>
-              Publicaciones{photos.length > 0 ? ` (${photos.length})` : ''}
+        );
+      case 'quote':
+        return quote ? (
+          <View key={id} style={styles.card} accessible accessibilityLabel={`Reseña verificada de ${quote.author}: ${quote.text}`}>
+            <Text style={styles.quote}>“{quote.text}”</Text>
+            <Text style={styles.quoteBy}>
+              {[quote.author, `★ ${quote.rating}`, 'Reseña verificada', agoLabel(quote.createdAt, nowMs)].filter(Boolean).join(' · ')}
             </Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ selected: activeTab === 'reviews' }}
-            onPress={() => setActiveTab('reviews')}
-            style={[styles.tabItem, activeTab === 'reviews' && styles.tabItemActive]}
-          >
-            <Ionicons name="star-outline" size={18} color={activeTab === 'reviews' ? colors.ink : colors.muted} />
-            <Text style={[styles.tabLabel, activeTab === 'reviews' && styles.tabLabelActive]}>
-              Reseñas{ratingSummary.count > 0 ? ` (${ratingSummary.count})` : ''}
-            </Text>
-          </Pressable>
-        </View>
-
-        {activeTab === 'posts' ? (
-          <View style={styles.tabContent}>
-            {photos.length > 0 || isOwner ? (
-              <View style={styles.grid}>
-                {isOwner ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Nueva publicación"
-                    onPress={() => setComposerOpen(true)}
-                    style={({ pressed }) => [{ width: tile, height: tile }, styles.addTile, pressed && styles.tilePressed]}
-                  >
-                    <View style={styles.addTileIcon}>
-                      <Ionicons name="add" size={22} color={colors.primary} />
-                    </View>
-                    <Text style={styles.addTileText}>Nueva</Text>
-                  </Pressable>
-                ) : null}
-
-                {photos.map((photo, index) => {
-                  const isVideo = isVideoPost(photo);
-                  const isFeatured = index === 0;
-                  const size = isFeatured ? tile * 2 + 2 : tile;
-                  return (
-                    <Pressable
-                      key={photo.id}
-                      onPress={() => openViewer(index)}
-                      style={({ pressed }) => [
-                        { width: size, height: size },
-                        styles.tileWrap,
-                        pressed && styles.tilePressed,
-                      ]}
-                    >
-                      {isVideo ? (
-                        <GridVideoThumb uri={resolveImageUrl(photo.url) ?? ''} />
-                      ) : (
-                        <Image
-                          source={{ uri: resolveImageUrl(photo.url) ?? undefined }}
-                          style={styles.tileImage}
-                          contentFit="cover"
-                          transition={150}
-                        />
-                      )}
-                      {isFeatured ? (
-                        <View style={styles.featuredTileBadge}>
-                          <Ionicons name="sparkles" size={11} color="#fff" />
-                          <Text style={styles.featuredTileBadgeText}>Destacada</Text>
-                        </View>
-                      ) : null}
-                      {isVideo ? (
-                        <View style={styles.videoBadge}>
-                          <Ionicons name="play" size={10} color="#fff" />
-                        </View>
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ) : (
-              <View style={[styles.emptyPosts, styles.emptyPostsOutsideBody]}>
-                <Ionicons name="images-outline" size={28} color={colors.muted} />
-                <Text style={styles.emptyPostsText}>Este negocio todavía no tiene publicaciones.</Text>
-              </View>
-            )}
-
-            {isOwner && photos.length === 0 ? (
-              <Text style={styles.addHint}>Sube tu primera foto o video para atraer más clientes.</Text>
-            ) : null}
           </View>
+        ) : null;
+      case 'about':
+        return <View key={id}>{aboutBlock}</View>;
+      case 'services':
+        return (
+          <View key={id} onLayout={mark('services')}>
+            <CatalogSection entityId={business.id} isOwner={false} />
+          </View>
+        );
+      case 'photos':
+        return (
+          <View key={id} onLayout={mark('photos')}>
+            <PhotosSection photos={photos} color={business.category?.color} isOwner={isOwner} onOpenPhoto={openViewer} onAll={openPhotos} onNew={() => setComposerOpen(true)} />
+          </View>
+        );
+      case 'reviews':
+        return (
+          <View key={id} onLayout={mark('reviews')}>
+            <ReviewsSection
+              summary={reviews.data?.summary ?? { average: ratingSummary.average, count: ratingSummary.count, distribution: [0, 0, 0, 0, 0] }}
+              reviews={reviews.data?.data ?? []}
+              mine={myReview.data}
+              isOwner={isOwner}
+              loading={reviews.isLoading}
+              onWrite={openReviewModal}
+              onAll={openReviews}
+            />
+          </View>
+        );
+      case 'recsBottom':
+        return <Recommendations key={id} business={business} closed={false} title="Más como este, cerca de aquí" />;
+      default:
+        return null;
+    }
+  };
+
+  const ownerTabs = isOwner ? (
+    <View style={styles.ownerTabs} accessibilityRole="tablist">
+      {(
+        [
+          ['public', 'Así te ven'],
+          ['mine', 'Mi negocio'],
+        ] as const
+      ).map(([key, label]) => (
+        <Pressable key={key} accessibilityRole="tab" accessibilityState={{ selected: ownerTab === key }} onPress={() => setOwnerTab(key)} style={[styles.ownerTab, ownerTab === key && styles.ownerTabOn]}>
+          <Text style={[styles.ownerTabText, ownerTab === key && styles.ownerTabTextOn]}>{label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  ) : null;
+
+  const stickyChild =
+    ownerTabs || showIndex ? (
+      <View style={styles.sticky}>
+        {ownerTabs}
+        {showIndex ? <QuickIndex sections={secs} active={activeSection} onGo={goTo} /> : null}
+      </View>
+    ) : null;
+
+  const barSpace = isOwner ? 0 : ACTION_BAR_HEIGHT + insets.bottom;
+
+  return (
+    <View style={styles.screen}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={{ paddingBottom: insets.bottom + barSpace + spacing.xxl }}
+        stickyHeaderIndices={stickyChild && !ownerPanelOpen ? [1] : undefined}
+        onScroll={onScroll}
+        scrollEventThrottle={100}
+      >
+        {ownerPanelOpen ? (
+          <View style={{ height: insets.top + 56 }} />
         ) : (
-          <View style={[styles.tabContent, styles.body]}>
-            {!isOwner ? (
-              <View style={styles.tabContentHeaderInline}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={myReview.data ? 'Editar mi reseña' : 'Escribir una reseña'}
-                  onPress={openReviewModal}
-                  style={styles.addButton}
-                >
-                  <Ionicons name={myReview.data ? 'create-outline' : 'add'} size={16} color={colors.primary} />
-                  <Text style={styles.addButtonText}>{myReview.data ? 'Editar' : 'Escribir'}</Text>
-                </Pressable>
-              </View>
-            ) : null}
-
-            {reviews.data?.summary ? <ReviewsSummary summary={reviews.data.summary} /> : null}
-            {reviews.isLoading ? (
-              <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.md }} />
-            ) : (reviews.data?.data.length ?? 0) > 0 ? (
-              <View style={styles.reviewsList}>
-                {myReview.data ? <ReviewItem review={myReview.data} mine /> : null}
-                {reviews.data!.data
-                  .filter((review) => review.id !== myReview.data?.id)
-                  .map((review) => (
-                    <ReviewItem key={review.id} review={review} />
-                  ))}
-              </View>
-            ) : (
-              <View style={styles.emptyPosts}>
-                <Ionicons name="star-outline" size={28} color={colors.muted} />
-                <Text style={styles.emptyPostsText}>
-                  {isOwner ? 'Este negocio todavía no tiene reseñas.' : 'Sé el primero en dejar una reseña.'}
-                </Text>
-                {!isOwner ? (
-                  <Button title="Escribir reseña" variant="secondary" onPress={openReviewModal} style={styles.emptyPostsButton} />
-                ) : null}
-              </View>
-            )}
-          </View>
+          <ProfileHero
+            name={business.name}
+            categoryLabel={[business.category?.name, business.subcategories?.[0]?.name].filter(Boolean).join(' · ')}
+            color={business.category?.color}
+            icon={business.category?.icon}
+            profileUrl={business.profile_url}
+            photos={photos}
+            plan={plan}
+            rating={rating}
+            status={statusInfo}
+            hasOffer={offerCount > 0}
+            verified={Boolean(business.is_verified)}
+            topInset={insets.top}
+            onAllPhotos={openPhotos}
+            onOpenPhoto={openViewer}
+          >
+            <StatusChips entityId={business.id} hasHours={hasHours} isOpen={Boolean(business.is_open_now)} extrasOnly />
+          </ProfileHero>
         )}
+        {ownerPanelOpen ? ownerTabs : (stickyChild ?? <View />)}
+
+        <View style={styles.bodyList} onLayout={(e) => (bodyY.current = e.nativeEvent.layout.y)}>
+          {ownerPanelOpen ? (
+            <OwnerPanel
+              business={business}
+              offer={activeOffers.data?.[0]}
+              followers={followers.data ?? 0}
+              requiresPayment={requiresPayment}
+              agenda={FEATURES.agenda}
+              onEdit={() => router.push({ pathname: '/business/edit/[id]', params: { id: business.id } })}
+              onPublishOffer={() => router.push({ pathname: '/business/offers', params: { entityId: business.id } })}
+              onCatalog={() => router.push({ pathname: '/business/catalog/[id]', params: { id: business.id } })}
+              onScan={() => router.push('/business/scan')}
+              onSubscription={() => router.push({ pathname: '/business/subscription/[id]', params: { id: business.id } })}
+              onAgenda={() => router.push({ pathname: '/business/agenda/[id]', params: { id: business.id } })}
+              onDirections={hasLocation(business) ? onDirections : undefined}
+              onCall={canCall ? onCall : undefined}
+            />
+          ) : (
+            <>
+              {FEATURES.agenda && !isOwner ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
+              {blockOrder({ open: openState, isOwner }).map(block)}
+            </>
+          )}
+        </View>
       </ScrollView>
+      {!isOwner ? (
+        <ActionBar
+          name={business.name}
+          bottomInset={insets.bottom}
+          onMessage={onMessage}
+          onDirections={hasLocation(business) ? onDirections : undefined}
+          onCall={canCall ? onCall : undefined}
+          isFavorite={isFavorite}
+          favoriting={favoriting}
+          onToggleFavorite={() => void toggleFavorite()}
+        />
+      ) : null}
       {back}
 
       <Modal visible={openIndex !== null} animationType="slide" onRequestClose={closeViewer} presentationStyle="pageSheet">
@@ -938,16 +808,6 @@ function isVideoPost(photo: Photo): boolean {
   return photo.content_type?.startsWith('video/') ?? false;
 }
 
-/** Miniatura de video en la cuadrícula: reproduce en silencio y en bucle, como una vista previa. */
-function GridVideoThumb({ uri }: { uri: string }) {
-  const player = useVideoPlayer(uri, (p) => {
-    p.muted = true;
-    p.loop = true;
-    p.play();
-  });
-  return <VideoView player={player} style={styles.tileImage} contentFit="cover" nativeControls={false} />;
-}
-
 /** Video del visor a pantalla completa: solo reproduce mientras es la diapositiva activa, con silencio opcional. */
 function ViewerVideoSlide({ uri, active }: { uri: string; active: boolean }) {
   const player = useVideoPlayer(uri, (p) => {
@@ -980,43 +840,11 @@ function ViewerVideoSlide({ uri, active }: { uri: string; active: boolean }) {
   );
 }
 
-function ReviewItem({ review, mine = false }: { review: Review; mine?: boolean }) {
-  return (
-    <View style={[styles.reviewCard, mine && styles.reviewCardMine]}>
-      <View style={styles.reviewHeader}>
-        <Avatar uri={review.user.profile_picture_url} name={review.user.name} size={36} />
-        <View style={styles.reviewHeaderInfo}>
-          <Text style={styles.reviewName} numberOfLines={1}>
-            {mine ? 'Tu reseña' : review.user.name}
-          </Text>
-          <StarRow rating={review.rating} size={12} />
-        </View>
-        <Text style={styles.reviewDate}>{formatReviewDate(review.created_at)}</Text>
-      </View>
-      {review.comment ? <Text style={styles.reviewComment}>{review.comment}</Text> : null}
-      {review.verified ? <VerifiedStamp /> : null}
-    </View>
-  );
-}
-
 function InfoRow({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
   return (
     <View style={styles.infoRow}>
       <Ionicons name={icon} size={18} color={colors.muted} />
       <Text style={styles.infoText}>{text}</Text>
-    </View>
-  );
-}
-
-/** Fila de estrellas de solo lectura; admite medias estrellas para promedios. */
-function StarRow({ rating, size = 14 }: { rating: number; size?: number }) {
-  return (
-    <View style={styles.starRow}>
-      {[1, 2, 3, 4, 5].map((n) => {
-        const diff = rating - n + 1;
-        const name = diff >= 1 ? 'star' : diff >= 0.5 ? 'star-half' : 'star-outline';
-        return <Ionicons key={n} name={name} size={size} color={colors.accent} />;
-      })}
     </View>
   );
 }
@@ -1048,6 +876,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: spacing.md, gap: spacing.sm },
+  cardTitle: { fontSize: 12, fontFamily: fonts.ui.extrabold, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.muted },
+  closedNote: { padding: spacing.md, borderRadius: radius.lg, backgroundColor: '#FBE4E4' },
+  closedNoteText: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.extrabold, color: '#8E2A2A' },
+  quote: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, fontStyle: 'italic', color: colors.ink, borderLeftWidth: 3, borderLeftColor: colors.accent, paddingLeft: 10 },
+  quoteBy: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.muted, paddingLeft: 13 },
+  readMoreHit: { minHeight: 44, justifyContent: 'center' },
+  sticky: { backgroundColor: colors.bg },
+  bodyList: { paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.md },
+  ownerTabs: { flexDirection: 'row', gap: 6, paddingHorizontal: spacing.md, paddingTop: spacing.md },
+  ownerTab: { flex: 1, minHeight: 44, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  ownerTabOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  ownerTabText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  ownerTabTextOn: { color: '#fff' },
   infoActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   infoPrimary: { flex: 1.3, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: radius.md, backgroundColor: colors.primary },
   infoPrimaryText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
