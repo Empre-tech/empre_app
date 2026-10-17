@@ -1,100 +1,79 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import type { Photo } from '@/api/types';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { categoryColor } from '@/lib/categoryColor';
 import { resolveImageUrl } from '@/lib/image';
-import type { PhotosPlan } from '@/lib/profileLayout';
+import type { coverSource } from '@/lib/profileLayout';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
 
 interface Props {
   name: string;
   categoryLabel: string;
-  /** «90 m · 1 min a pie» (null si no se sabe la distancia). */
-  walk?: string | null;
-  /** Color de la categoría (hex del backend) para la portada sin foto. */
+  /** Color de la categoría (hex del backend) para la portada sin imagen. */
   color?: string | null;
   icon?: string | null;
   profileUrl?: string | null;
-  photos: Photo[];
-  plan: PhotosPlan;
+  /** La portada: la del dueño, la primera foto o el color (ver `coverSource`). */
+  cover: ReturnType<typeof coverSource>;
+  photosCount: number;
   rating: { text: string; hasScore: boolean };
   status: { text: string; tone: 'open' | 'closed' } | null;
   hasOffer: boolean;
   verified: boolean;
   topInset: number;
   onAllPhotos: () => void;
-  onOpenPhoto: (index: number) => void;
+  /** Tocar la portada cuando es una foto o un video: abre el visor. */
+  onOpenCover?: () => void;
+  /** Cerrado: un enlace pequeño baja hasta «Abiertos ahora cerca de aquí». */
+  onNearby?: () => void;
   /** Lo que va bajo las píldoras (disponibilidad, canjes de la semana). */
   children?: React.ReactNode;
 }
 
 const HERO_HEIGHT = 190;
-const isVideo = (p: Photo) => p.content_type?.startsWith('video/') ?? false;
 
 /**
- * Portada 2 de la maqueta `perfil_final.html`: foto (o galería de hasta 4 desde 3 fotos, o el color de la categoría) y,
- * montada sobre su borde, una tarjeta blanca con el avatar, el nombre, la categoría con la distancia y las píldoras de
- * nota y estado. El nombre va sobre blanco: se lee con cualquier foto del dueño.
+ * La portada del perfil (maqueta `perfil_secciones.html`): una sola imagen, la que eligió el dueño (o la primera foto,
+ * o el color de la categoría), y montada sobre su borde la tarjeta blanca con el avatar, el nombre, la categoría y las
+ * píldoras de nota y estado. Las fotos tienen su propia sección; la portada no es una galería.
  */
-export function ProfileHero({ name, categoryLabel, walk, color, icon, profileUrl, photos, plan, rating, status, hasOffer, verified, topInset, onAllPhotos, onOpenPhoto, children }: Props) {
-  const { width } = useWindowDimensions();
-  const [page, setPage] = useState(0);
+export function ProfileHero({ name, categoryLabel, color, icon, profileUrl, cover, photosCount, rating, status, hasOffer, verified, topInset, onAllPhotos, onOpenCover, onNearby, children }: Props) {
   const cat = categoryColor(color);
   const height = HERO_HEIGHT + topInset;
-  const slides = photos.slice(0, plan.coverCount);
-  const sub = [categoryLabel, walk].filter(Boolean).join(' · ');
-  const label = [name, sub, rating.text, status?.text].filter(Boolean).join('. ');
+  const label = [name, categoryLabel, rating.text, status?.text].filter(Boolean).join('. ');
+  const image = cover.kind === 'banner' || cover.kind === 'photo' ? resolveImageUrl(cover.url) : null;
+  const tappable = (cover.kind === 'photo' || cover.kind === 'video') && Boolean(onOpenCover);
 
   return (
     <View>
-      <View style={[styles.hero, { height, backgroundColor: cat.fg }]}>
-        {plan.cover === 'fallback' ? (
-          <View style={styles.fallback} accessible={false}>
-            <Ionicons name={(icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap} size={56} color="rgba(255,255,255,0.9)" />
-          </View>
+      <Pressable
+        accessible={tappable}
+        accessibilityRole={tappable ? 'button' : undefined}
+        accessibilityLabel={tappable ? (cover.kind === 'video' ? 'Ver el video de portada' : 'Ver la foto de portada') : undefined}
+        disabled={!tappable}
+        onPress={onOpenCover}
+        style={[styles.hero, { height, backgroundColor: cat.fg }]}
+      >
+        {image ? (
+          <Image accessible={false} source={{ uri: image }} style={styles.heroImage} contentFit="cover" transition={150} />
         ) : (
-          <FlatList
-            data={slides}
-            keyExtractor={(p) => p.id}
-            horizontal
-            pagingEnabled
-            scrollEnabled={slides.length > 1}
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / width))}
-            getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
-            renderItem={({ item, index }) => (
-              <Pressable accessibilityRole="button" accessibilityLabel={isVideo(item) ? 'Ver el video' : 'Ver la foto'} onPress={() => onOpenPhoto(index)} style={{ width, height }}>
-                {isVideo(item) ? (
-                  <View style={[styles.videoSlide, { backgroundColor: cat.fg }]}>
-                    <Ionicons name="play-circle" size={64} color="rgba(255,255,255,0.92)" />
-                  </View>
-                ) : (
-                  <Image accessible={false} source={{ uri: resolveImageUrl(item.url) ?? undefined }} style={styles.heroImage} contentFit="cover" transition={150} />
-                )}
-              </Pressable>
-            )}
-          />
+          <View style={styles.fallback}>
+            <Ionicons name={cover.kind === 'video' ? 'play-circle' : ((icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap)} size={cover.kind === 'video' ? 64 : 56} color="rgba(255,255,255,0.9)" />
+          </View>
         )}
-        {/* Velo suave arriba: el botón de volver se ve con cualquier foto. */}
+        {/* Velo suave arriba: el botón de volver se ve con cualquier imagen. */}
         <View style={[styles.topScrim, { height: topInset + 56 }]} pointerEvents="none" />
-        {photos.length > 0 ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Ver las ${photos.length} ${photos.length === 1 ? 'foto' : 'fotos'}`}
-            onPress={onAllPhotos}
-            style={styles.count}
-          >
-            <Text style={styles.countText}>
-              {plan.cover === 'gallery' ? `${Math.min(page + 1, slides.length)} / ${slides.length} · ` : ''}
-              {photos.length} {photos.length === 1 ? 'foto' : 'fotos'}
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
+      </Pressable>
+      {photosCount > 0 ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={`Ver las ${photosCount} ${photosCount === 1 ? 'foto' : 'fotos'}`} onPress={onAllPhotos} style={[styles.count, { top: height - 44 - 56 }]}>
+          <Ionicons name="images-outline" size={13} color="#fff" />
+          <Text style={styles.countText}>
+            {photosCount} {photosCount === 1 ? 'foto' : 'fotos'}
+          </Text>
+        </Pressable>
+      ) : null}
 
       <View style={styles.card} accessible accessibilityLabel={label}>
         <View style={[styles.avatarWrap, hasOffer && styles.avatarRing]}>
@@ -107,9 +86,9 @@ export function ProfileHero({ name, categoryLabel, walk, color, icon, profileUrl
             </Text>
             {verified ? <VerifiedBadge size={18} /> : null}
           </View>
-          {sub ? (
+          {categoryLabel ? (
             <Text style={styles.sub} numberOfLines={2}>
-              {sub}
+              {categoryLabel}
             </Text>
           ) : null}
         </View>
@@ -125,6 +104,11 @@ export function ProfileHero({ name, categoryLabel, walk, color, icon, profileUrl
           {children}
         </View>
       </View>
+      {onNearby ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Ver negocios abiertos cerca, al final del perfil" onPress={onNearby} style={styles.nearby}>
+          <Text style={styles.nearbyText}>Ver abiertos cerca ↓</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -133,9 +117,8 @@ const styles = StyleSheet.create({
   hero: { width: '100%', overflow: 'hidden' },
   heroImage: { width: '100%', height: '100%' },
   fallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  videoSlide: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   topScrim: { position: 'absolute', left: 0, right: 0, top: 0, backgroundColor: 'rgba(10,20,40,0.28)' },
-  count: { position: 'absolute', right: spacing.md, bottom: spacing.lg + 40, minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: 'rgba(10,20,40,0.7)' },
+  count: { position: 'absolute', right: spacing.md, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: 'rgba(10,20,40,0.7)' },
   countText: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: '#fff' },
   card: {
     marginTop: -44,
@@ -164,4 +147,6 @@ const styles = StyleSheet.create({
   pillOpenText: { color: '#1D6B3D' },
   pillClosed: { backgroundColor: '#FBE4E4' },
   pillClosedText: { color: '#8E2A2A' },
+  nearby: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', marginHorizontal: spacing.md + spacing.sm },
+  nearbyText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primary },
 });

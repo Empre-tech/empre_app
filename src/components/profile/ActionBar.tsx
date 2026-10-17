@@ -16,11 +16,12 @@ interface Props {
 }
 
 /** Alto aproximado de la barra (para dejar margen al contenido del perfil). */
-export const ACTION_BAR_HEIGHT = 74;
+export const ACTION_BAR_HEIGHT = 80;
 
 /**
  * La barra fija de un visitante: «Escribirle» como acción principal y «Cómo llegar», «Llamar» y «Seguir» al lado.
- * Quien decide no tiene que buscar nada. Todo control mide 44 pt o más.
+ * Quien decide no tiene que buscar nada. Todos miden 56 pt, con el icono arriba y un texto corto de una línea (el
+ * nombre completo, «Cómo llegar», va en la etiqueta del lector de pantalla).
  */
 export function ActionBar({ name, bottomInset, onMessage, onDirections, onCall, isFavorite, favoriting, onToggleFavorite }: Props) {
   return (
@@ -31,13 +32,17 @@ export function ActionBar({ name, bottomInset, onMessage, onDirections, onCall, 
       {onDirections ? (
         <Pressable accessibilityRole="button" accessibilityLabel="Cómo llegar" onPress={onDirections} style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}>
           <Ionicons name="navigate-outline" size={17} color={colors.ink} />
-          <Text style={styles.secondaryText}>Cómo llegar</Text>
+          <Text style={styles.secondaryText} numberOfLines={1}>
+            Llegar
+          </Text>
         </Pressable>
       ) : null}
       {onCall ? (
         <Pressable accessibilityRole="button" accessibilityLabel="Llamar" onPress={onCall} style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}>
           <Ionicons name="call-outline" size={17} color={colors.ink} />
-          <Text style={styles.secondaryText}>Llamar</Text>
+          <Text style={styles.secondaryText} numberOfLines={1}>
+            Llamar
+          </Text>
         </Pressable>
       ) : null}
       <Pressable
@@ -53,7 +58,9 @@ export function ActionBar({ name, bottomInset, onMessage, onDirections, onCall, 
         ) : (
           <>
             <Ionicons name={isFavorite ? 'checkmark' : 'add'} size={17} color={colors.primary} />
-            <Text style={[styles.secondaryText, isFavorite && styles.secondaryTextOn]}>{isFavorite ? 'Siguiendo' : 'Seguir'}</Text>
+            <Text style={[styles.secondaryText, isFavorite && styles.secondaryTextOn]} numberOfLines={1}>
+              {isFavorite ? 'Siguiendo' : 'Seguir'}
+            </Text>
           </>
         )}
       </Pressable>
@@ -63,9 +70,9 @@ export function ActionBar({ name, bottomInset, onMessage, onDirections, onCall, 
 
 const styles = StyleSheet.create({
   bar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.sm, backgroundColor: colors.surface, ...shadow },
-  primary: { flex: 1.5, minHeight: 48, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.sm },
+  primary: { flex: 1.5, minHeight: 56, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.sm },
   primaryText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  secondary: { flex: 1, minHeight: 48, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2, gap: 1 },
+  secondary: { flex: 1, minHeight: 56, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2, gap: 1 },
   secondaryOn: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
   secondaryText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink, textAlign: 'center' },
   secondaryTextOn: { color: colors.primaryDark },

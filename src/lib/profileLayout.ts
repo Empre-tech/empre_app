@@ -1,44 +1,40 @@
 // Reglas de montaje del perfil del negocio (maqueta `perfil_final.html`). Lógica pura, sin React, para probarla con Node.
 
 // ---------- Ofertas ----------
+// Mismo formato que Fotos y Reseñas (maqueta `perfil_secciones.html`): una muestra y «Ver todas».
 
-/** Cuántas ofertas se muestran como máximo en el perfil; con más, «Ver todas las ofertas». */
-export const OFFERS_MAX = 5;
+/** Cuántas ofertas se muestran en el perfil; con más, «Ver todas las ofertas» (sin número). */
+export const OFFERS_SAMPLE = 2;
 
-export type OffersMode = 'none' | 'single' | 'stack' | 'carousel';
+export type OffersMode = 'none' | 'single' | 'stack';
 
-/** 0 no sale; 1 tarjeta completa; 2 apiladas; 3 o más, carrusel. */
+/** 0 no sale; 1 tarjeta completa (con su ciclo y condiciones); 2 o más, hasta 2 apiladas. */
 export function offersMode(count: number): OffersMode {
   if (count <= 0) return 'none';
-  if (count === 1) return 'single';
-  if (count === 2) return 'stack';
-  return 'carousel';
+  return count === 1 ? 'single' : 'stack';
 }
 
-/** Con más de 5 ofertas el carrusel termina en «Ver todas las ofertas». */
+/** Con más de 2 ofertas la sección termina en «Ver todas las ofertas». */
 export function offersHasAll(count: number): boolean {
-  return count > OFFERS_MAX;
+  return count > OFFERS_SAMPLE;
 }
 
-/** Cuántas tarjetas de oferta se dibujan. */
+/** Cuántas tarjetas de oferta se dibujan en el perfil. */
 export function offersShown(count: number): number {
-  return Math.min(Math.max(count, 0), OFFERS_MAX);
+  return Math.min(Math.max(count, 0), OFFERS_SAMPLE);
 }
 
 // ---------- Reseñas ----------
 
-/** Desde cuántas reseñas el perfil muestra un adelanto de 3 y «Ver todas» (con menos se muestran todas). */
-export const REVIEWS_PREVIEW_FROM = 10;
+/** Cuántas reseñas de muestra salen en el perfil; «Ver todas las reseñas (N)» sale desde 1. */
 export const REVIEWS_PREVIEW_COUNT = 3;
 
-export type ReviewsMode = 'empty' | 'count' | 'all' | 'preview';
+export type ReviewsMode = 'empty' | 'count' | 'score';
 
-/** 0 vacío; 1 o 2 solo el número y las reseñas; 3 a 9 nota y todas; 10 o más nota y adelanto. */
+/** 0 vacío; 1 o 2 solo el número (un 5,0 de una persona engaña); 3 o más, nota y distribución. */
 export function reviewsMode(count: number): ReviewsMode {
   if (count <= 0) return 'empty';
-  if (count < 3) return 'count';
-  if (count < REVIEWS_PREVIEW_FROM) return 'all';
-  return 'preview';
+  return count < 3 ? 'count' : 'score';
 }
 
 interface ReviewLike {
@@ -64,38 +60,25 @@ export function shortName(full: string | null | undefined): string {
 
 // ---------- Fotos ----------
 
-/** Imágenes de la galería de la portada y celdas máximas del mosaico. */
-export const COVER_MAX = 4;
-export const MOSAIC_CELLS = 5;
+/** Cuántas fotos de muestra salen en el perfil (al dueño, una menos: la primera celda es «+ Nueva»). */
+export const PHOTOS_SAMPLE = 6;
 
-export type CoverMode = 'fallback' | 'single' | 'gallery';
-export type MosaicKind = 'none' | 'wide' | 'half' | 'big';
-
-export interface PhotosPlan {
-  cover: CoverMode;
-  /** Cuántas imágenes entran a la portada. */
-  coverCount: number;
-  mosaic: MosaicKind;
-  /** Cuántas celdas del mosaico se dibujan (la primera es la grande en el tipo «big»). */
-  cells: number;
-  /** Las que no caben y se anuncian con «+N» (0 = ninguna). */
-  extra: number;
+/** La portada: la que eligió el dueño; si no hay, la primera foto; si tampoco, el color de la categoría. */
+export function coverSource(bannerUrl: string | null | undefined, firstPhoto: { url: string; content_type?: string } | undefined): { kind: 'banner' | 'photo' | 'video' | 'fallback'; url: string | null } {
+  if (bannerUrl && bannerUrl.trim()) return { kind: 'banner', url: bannerUrl };
+  if (firstPhoto) return { kind: firstPhoto.content_type?.startsWith('video/') ? 'video' : 'photo', url: firstPhoto.url };
+  return { kind: 'fallback', url: null };
 }
 
 /**
- * 0 portada de color; 1 o 2 una portada fija; 3 o más galería de hasta 4. El mosaico muestra las que siguen a las
- * de la portada: 1 ancha, 2 medias, 3 a 5 una grande y las pequeñas que haya, 6 o más una grande, cuatro pequeñas y
- * «+N» en la última. Con 4 fotos o menos no hay mosaico (la portada ya las cubre).
+ * La muestra de «Fotos»: hasta 6 (5 al dueño); si hay más, la última celda lleva «+N» con las que no se ven. Sin fotos
+ * no hay sección (salvo al dueño, que ve «+ Nueva»).
  */
-export function photosPlan(count: number): PhotosPlan {
+export function photoSample(count: number, isOwner: boolean): { show: boolean; shown: number; extra: number } {
   const n = Math.max(0, Math.floor(count));
-  const cover: CoverMode = n === 0 ? 'fallback' : n <= 2 ? 'single' : 'gallery';
-  const coverCount = n === 0 ? 0 : n <= 2 ? 1 : Math.min(COVER_MAX, n);
-  const rest = Math.max(0, n - COVER_MAX);
-  if (rest === 0) return { cover, coverCount, mosaic: 'none', cells: 0, extra: 0 };
-  if (rest === 1) return { cover, coverCount, mosaic: 'wide', cells: 1, extra: 0 };
-  if (rest === 2) return { cover, coverCount, mosaic: 'half', cells: 2, extra: 0 };
-  return { cover, coverCount, mosaic: 'big', cells: Math.min(rest, MOSAIC_CELLS), extra: Math.max(0, rest - MOSAIC_CELLS) };
+  const max = isOwner ? PHOTOS_SAMPLE - 1 : PHOTOS_SAMPLE;
+  const shown = Math.min(n, max);
+  return { show: n > 0 || isOwner, shown, extra: Math.max(0, n - shown) };
 }
 
 // ---------- Secciones, índice rápido y orden ----------
@@ -109,44 +92,33 @@ export interface SectionInput {
   isOwner: boolean;
 }
 
-/** Las secciones que existen, en su orden; el dueño siempre tiene «Fotos» (ahí está «+ Nueva»). */
+/** Las secciones que existen, en su orden; el dueño siempre tiene «Ofertas» y «Fotos» (ahí publica). */
 export function sections(i: SectionInput): SectionId[] {
   const out: SectionId[] = [];
-  if (i.offers > 0) out.push('offers');
+  if (i.offers > 0 || i.isOwner) out.push('offers');
   if (i.hasServices) out.push('services');
-  if (i.photos > COVER_MAX || i.isOwner) out.push('photos');
+  if (i.photos > 0 || i.isOwner) out.push('photos');
   out.push('reviews');
   return out;
 }
 
-/** El índice rápido solo sale con 3 o más secciones. */
+/** El índice rápido sale con 2 o más secciones. */
 export function showQuickIndex(list: SectionId[]): boolean {
-  return list.length >= 3;
+  return list.length >= 2;
 }
 
 export const SECTION_LABEL: Record<SectionId, string> = { offers: 'Ofertas', services: 'Servicios', photos: 'Fotos', reviews: 'Reseñas' };
 
-export type BlockId = 'closedNote' | 'recsTop' | 'offers' | 'quote' | 'about' | 'services' | 'photos' | 'reviews' | 'recsBottom';
-
-export interface OrderInput {
-  /** true/false si publicó horario; null si no. */
-  open: boolean | null;
-  isOwner: boolean;
-}
+export type BlockId = 'offers' | 'quote' | 'about' | 'services' | 'photos' | 'reviews' | 'recs';
 
 /**
- * El orden de los bloques: cerrado, primero el aviso y las alternativas abiertas (salvo al dueño, que no ve
- * recomendaciones); luego ofertas, la cita de una reseña, sobre el negocio, servicios, fotos y reseñas; las
- * recomendaciones, al final cuando está abierto o no se sabe.
+ * El orden de los bloques: primero lo del negocio (ofertas, cita de una reseña, sobre el negocio, servicios, fotos y
+ * reseñas) y al final las recomendaciones, también cuando está cerrado (no se pone a otro negocio antes que el que
+ * se visita). El dueño no ve recomendaciones.
  */
-export function blockOrder(i: OrderInput): BlockId[] {
-  const out: BlockId[] = [];
-  if (i.open === false) {
-    out.push('closedNote');
-    if (!i.isOwner) out.push('recsTop');
-  }
-  out.push('offers', 'quote', 'about', 'services', 'photos', 'reviews');
-  if (i.open !== false && !i.isOwner) out.push('recsBottom');
+export function blockOrder(i: { isOwner: boolean }): BlockId[] {
+  const out: BlockId[] = ['offers', 'quote', 'about', 'services', 'photos', 'reviews'];
+  if (!i.isOwner) out.push('recs');
   return out;
 }
 

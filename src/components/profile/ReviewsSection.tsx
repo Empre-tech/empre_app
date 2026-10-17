@@ -18,14 +18,14 @@ interface Props {
 }
 
 /**
- * Las reseñas del perfil según cuántas haya: ninguna, mensaje; 1 o 2, el número y la lista (sin nota: un 5,0 de una
- * persona engaña); 3 a 9, nota, distribución y todas; 10 o más, nota, distribución, un adelanto de 3 (verificadas
- * primero) y «Ver todas las reseñas». Así el perfil mide lo mismo con 10 que con 300.
+ * «Reseñas» (maqueta `perfil_secciones.html`), con el mismo formato que Ofertas y Fotos: una muestra de hasta 3
+ * (verificadas y recientes primero) y «Ver todas las reseñas (N)» siempre que haya alguna. Con 1 o 2, solo el número
+ * (un 5,0 de una persona engaña); desde 3, nota y distribución. Sin reseñas, un mensaje.
  */
 export function ReviewsSection({ summary, reviews, mine, isOwner, loading, onWrite, onAll }: Props) {
   const mode = reviewsMode(summary.count);
   const others = reviews.filter((r) => r.id !== mine?.id);
-  const list = mode === 'preview' ? previewReviews(others) : others;
+  const list = previewReviews(others).slice(0, mine ? 2 : 3);
 
   return (
     <View style={styles.block}>
@@ -56,9 +56,9 @@ export function ReviewsSection({ summary, reviews, mine, isOwner, loading, onWri
         </>
       )}
       <View style={styles.actions}>
-        {mode === 'preview' ? (
+        {summary.count > 0 ? (
           <Pressable accessibilityRole="button" onPress={onAll} style={styles.btn}>
-            <Text style={styles.btnText}>Ver todas las reseñas ›</Text>
+            <Text style={styles.btnText}>Ver todas las reseñas ({summary.count})</Text>
           </Pressable>
         ) : null}
         {!isOwner ? (

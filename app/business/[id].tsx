@@ -49,7 +49,7 @@ import { hasLocation } from '@/lib/geo';
 import { formatRelativeTime } from '@/lib/format';
 import { resolveImageUrl } from '@/lib/image';
 import { openingFromHours, statusLine } from '@/lib/placeCard';
-import { blockOrder, pickQuote, photosPlan, sections, showQuickIndex, type BlockId, type SectionId } from '@/lib/profileLayout';
+import { blockOrder, coverSource, pickQuote, sections, showQuickIndex, type BlockId, type SectionId } from '@/lib/profileLayout';
 import { featuredRating } from '@/lib/reviewSnippet';
 import { useNow } from '@/lib/useNow';
 import { colors, fonts, radius, spacing } from '@/theme';
@@ -128,6 +128,7 @@ export default function BusinessScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const sectionY = useRef<Record<string, number>>({});
   const bodyY = useRef(0);
+  const recsY = useRef(0);
 
   // Descripción: se trunca a 3 líneas con un "Ver más" cuando es larga, en
   // vez de siempre mostrarla completa y alargar el perfil. El umbral de
@@ -401,7 +402,7 @@ export default function BusinessScreen() {
   const rating = featuredRating(ratingSummary.average, ratingSummary.count);
   const opening = openingFromHours(business.hours, new Date(nowMs), Boolean(business.is_open_now));
   const statusInfo = statusLine({ has_hours: hasHours, is_open_now: Boolean(business.is_open_now), ...opening });
-  const plan = photosPlan(photos.length);
+  const cover = coverSource(business.banner_url, photos[0]);
   const openState: boolean | null = hasHours ? Boolean(business.is_open_now) : null;
   const quote = pickQuote(reviews.data?.data ?? [], nowMs);
   const secs = sections({ offers: offerCount, hasServices, photos: photos.length, isOwner });
@@ -481,14 +482,6 @@ export default function BusinessScreen() {
 
   const block = (id: BlockId): React.ReactNode => {
     switch (id) {
-      case 'closedNote':
-        return (
-          <View key={id} style={styles.closedNote} accessibilityRole="alert">
-            <Text style={styles.closedNoteText}>{isOwner ? 'Tu negocio está cerrado ahora.' : `${statusInfo?.text ?? 'Cerrado'}. Mira lo que está abierto cerca.`}</Text>
-          </View>
-        );
-      case 'recsTop':
-        return <Recommendations key={id} business={business} closed title="Abiertos ahora cerca de aquí" />;
       case 'offers':
         return (
           <View key={id} onLayout={mark('offers')}>
@@ -532,8 +525,12 @@ export default function BusinessScreen() {
             />
           </View>
         );
-      case 'recsBottom':
-        return <Recommendations key={id} business={business} closed={false} title="Más como este, cerca de aquí" />;
+      case 'recs':
+        return (
+          <View key={id} onLayout={(e) => (recsY.current = e.nativeEvent.layout.y)}>
+            <Recommendations business={business} closed={openState === false} title={openState === false ? 'Abiertos ahora cerca de aquí' : 'Más como este, cerca de aquí'} />
+          </View>
+        );
       default:
         return null;
     }
@@ -582,15 +579,16 @@ export default function BusinessScreen() {
             color={business.category?.color}
             icon={business.category?.icon}
             profileUrl={business.profile_url}
-            photos={photos}
-            plan={plan}
+            cover={cover}
+            photosCount={photos.length}
             rating={rating}
             status={statusInfo}
             hasOffer={offerCount > 0}
             verified={Boolean(business.is_verified)}
             topInset={insets.top}
             onAllPhotos={openPhotos}
-            onOpenPhoto={openViewer}
+            onOpenCover={cover.kind === 'photo' || cover.kind === 'video' ? () => openViewer(0) : undefined}
+            onNearby={openState === false && !isOwner ? () => scrollRef.current?.scrollTo({ y: Math.max(0, bodyY.current + recsY.current - 70), animated: true }) : undefined}
           >
             <StatusChips entityId={business.id} hasHours={hasHours} isOpen={Boolean(business.is_open_now)} extrasOnly />
           </ProfileHero>
@@ -617,7 +615,7 @@ export default function BusinessScreen() {
           ) : (
             <>
               {FEATURES.agenda && !isOwner ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
-              {blockOrder({ open: openState, isOwner }).map(block)}
+              {blockOrder({ isOwner }).map(block)}
             </>
           )}
         </View>
