@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Region } from 'react-native-maps';
 
-import { clusterByScreenDistance, type Cluster } from '@/lib/cluster';
+import { CLUSTER_PX, clusterByScreenDistance, type Cluster } from '@/lib/cluster';
 import type { ApiCell } from '@/api/offers';
 import { hasLocation } from '@/lib/geo';
 import { levelOf, MAX_DRAWN, type MapLevel } from '@/lib/mapLevels';
@@ -85,10 +85,9 @@ export function useMapMarkers({ known, region, mapSize, selectedId, myEntityIds,
   // Lo guardado más lejos sigue en memoria pero no se pinta (antes ~150 marcadores para ~42 visibles).
   const visible = useMemo(() => pickPins(mapped, region, selectedId), [mapped, region, selectedId]);
   const tier = zoomTier(region);
-  // Lejos los pines son puntos de 18 pt; de cerca, portales de ~44 pt: el umbral
-  // de agrupación acompaña. Al acercar el zoom los negocios se alejan en pantalla
-  // y la pila se abre sola.
-  const clusterPx = tier === 'far' ? 22 : 44;
+  // El umbral de agrupación es el diámetro del pin más un hueco (3.31): dos marcadores nunca se pisan. Al acercar el
+  // zoom los negocios se alejan en pantalla y el grupo se abre solo.
+  const clusterPx = CLUSTER_PX[tier];
   const clusters = useMemo(
     () => clusterByScreenDistance(visible, region, mapSize, clusterPx),
     [visible, region, mapSize, clusterPx],
@@ -132,8 +131,9 @@ export function useMapMarkers({ known, region, mapSize, selectedId, myEntityIds,
           const selected = item.id === selectedId;
           return {
             kind: 'business',
-            // Llave estable: el aspecto cambia con `look` dentro del marcador, sin desmontarlo.
-            key: `p-${item.id}`,
+            // Lo que cambia el aspecto va en la llave (3.31): el marcador se vuelve a crear. Redibujarlo montado dejaba en
+            // Android imágenes viejas o el pin rojo por defecto del mapa.
+            key: `${item.id}-e${emphasis}-${selected ? 's' : ''}-${item.has_active_offer ? 'o' : ''}-${item.is_open_now ? 'a' : 'c'}`,
             entity: item,
             coordinate: { latitude: item.latitude, longitude: item.longitude },
             selected,
@@ -149,20 +149,19 @@ export function useMapMarkers({ known, region, mapSize, selectedId, myEntityIds,
           const selected = only.id === selectedId;
           return {
             kind: 'business',
-            // Llave estable (el id): al cambiar de nivel o de selección el pin se redibuja sin desmontarse.
-            key: `p-${only.id}`,
+            // Lo que cambia el aspecto va en la llave (3.31), como en la búsqueda.
+            key: `${only.id}-${tier}-${selected ? 's' : ''}-${only.has_active_offer ? 'o' : ''}-${only.is_open_now ? 'a' : 'c'}`,
             entity: only,
             coordinate: { latitude: cluster.latitude, longitude: cluster.longitude },
             selected,
             mine: myEntityIds.has(only.id),
           };
         }
-        // Varios negocios muy juntos: pila de miniaturas, nunca un número. La llave es la de la pila; el nivel de
-        // zoom se redibuja dentro del marcador.
-        return { kind: 'stack', key: cluster.key, cluster };
+        // Varios negocios muy juntos: un solo círculo con cuántos hay (3.31). El nivel va en la llave.
+        return { kind: 'stack', key: `${cluster.key}-${tier}`, cluster };
       });
     },
-    [bubbles, emphasized, clusters, selectedId, myEntityIds],
+    [bubbles, emphasized, clusters, selectedId, myEntityIds, tier],
   );
 
   return { tier, markers };

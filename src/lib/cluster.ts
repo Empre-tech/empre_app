@@ -19,6 +19,12 @@ export interface MapSize {
   height: number;
 }
 
+/**
+ * Distancia mínima en pantalla entre dos marcadores, por nivel (3.31): el diámetro del pin más ~14 pt de aire. Lejos el
+ * punto mide 18; en medio, 34; cerca, 46.
+ */
+export const CLUSTER_PX = { far: 26, mid: 48, near: 60 } as const;
+
 function single<T extends Coords & { id: string }>(item: T): Cluster<T> {
   return { key: item.id, latitude: item.latitude, longitude: item.longitude, items: [item] };
 }
@@ -59,6 +65,31 @@ export function clusterByScreenDistance<T extends Coords & { id: string }>(
     });
     if (group) group.push(item);
     else groups.push([item]);
+  }
+
+  // Un grupo se dibuja en el promedio de sus miembros, que puede quedar encima de otro marcador: se juntan los que
+  // quedaron a menos del umbral hasta que no quede ninguno (3.31). Con 60 marcadores como mucho, es poco trabajo.
+  const center = (ms: T[]) => ({
+    latitude: ms.reduce((s, m) => s + m.latitude, 0) / ms.length,
+    longitude: ms.reduce((s, m) => s + m.longitude, 0) / ms.length,
+  });
+  let merged = true;
+  while (merged) {
+    merged = false;
+    outer: for (let i = 0; i < groups.length; i++) {
+      for (let j = i + 1; j < groups.length; j++) {
+        const a = center(groups[i]);
+        const b = center(groups[j]);
+        const dx = (a.longitude - b.longitude) * pxPerLng;
+        const dy = (a.latitude - b.latitude) * pxPerLat;
+        if (dx * dx + dy * dy < limit) {
+          groups[i] = [...groups[i], ...groups[j]];
+          groups.splice(j, 1);
+          merged = true;
+          break outer;
+        }
+      }
+    }
   }
 
   return groups.map((members) => {
