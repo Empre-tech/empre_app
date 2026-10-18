@@ -14,6 +14,10 @@ export interface ServiceItem {
   fresh: boolean;
   /** Sección que eligió el dueño («Almuerzos», «Cortes»); vacía = sin sección. */
   section?: string;
+  /** Duración en minutos (5–480); null = no publicada. */
+  duration_min?: number | null;
+  /** Se puede reservar por Empre (exige duración). */
+  bookable?: boolean;
 }
 
 /** Cuántos servicios se ven antes de «Ver todos». */

@@ -36,18 +36,23 @@ interface Props {
   summary: AgendaSummary;
   onClose: () => void;
   onBooked: (appointment: Appointment) => void;
+  /** Servicio con el que abre (p. ej. el que se eligió en «Pregúntale»). */
+  initialServiceId?: string;
 }
 
 /**
  * Hoja "Elegir día y hora": días, horas libres (solo las libres: las ocupadas
  * no se muestran), servicio si el negocio definió varios y una nota opcional.
  */
-export function BookingSheet({ visible, entityId, entityName, summary, onClose, onBooked }: Props) {
+export function BookingSheet({ visible, entityId, entityName, summary, onClose, onBooked, initialServiceId }: Props) {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const days = useMemo(() => nextDays(Math.min(summary.horizon_days + 1, 15)), [summary.horizon_days]);
   const [day, setDay] = useState(() => dayKey(days[0]));
-  const [serviceId, setServiceId] = useState<string | undefined>(summary.services[0]?.id);
+  const startService = summary.services.some((s) => s.id === initialServiceId) ? initialServiceId : summary.services[0]?.id;
+  const [serviceId, setServiceId] = useState<string | undefined>(startService);
+  // Una clave por apertura de la hoja: reintentar la misma hora con la misma clave nunca crea dos citas.
+  const [session, setSession] = useState(() => Math.random().toString(36).slice(2, 10));
   const [slot, setSlot] = useState<string | null>(null);
   const [note, setNote] = useState('');
 
@@ -56,9 +61,10 @@ export function BookingSheet({ visible, entityId, entityName, summary, onClose, 
     if (!visible) return;
     setSlot(null);
     setNote('');
-    setServiceId(summary.services[0]?.id);
+    setServiceId(startService);
+    setSession(Math.random().toString(36).slice(2, 10));
     setDay(dayKey(summary.next_slot ? new Date(summary.next_slot) : days[0]));
-  }, [visible, summary.next_slot, summary.services, days]);
+  }, [visible, summary.next_slot, startService, days]);
 
   const needsService = summary.services.length > 0;
   const slots = useQuery({
@@ -73,7 +79,10 @@ export function BookingSheet({ visible, entityId, entityName, summary, onClose, 
 
   const book = useMutation({
     mutationFn: () =>
-      agendaApi.book({ entity_id: entityId, service_id: serviceId, starts_at: slot as string, note: note.trim() || undefined }),
+      agendaApi.book(
+        { entity_id: entityId, service_id: serviceId, starts_at: slot as string, note: note.trim() || undefined },
+        `${session}-${Date.parse(slot as string).toString(36)}-${(serviceId ?? 'x').slice(0, 8)}`,
+      ),
     onSuccess: (appointment) => {
       void queryClient.invalidateQueries({ queryKey: ['appointments'] });
       void queryClient.invalidateQueries({ queryKey: ['agenda-summary', entityId] });

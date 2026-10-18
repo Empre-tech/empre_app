@@ -51,11 +51,11 @@ export const DEFAULT_REGION = {
 /**
  * Funciones que existen en la app pero todavía no están listas de extremo a extremo. En `false`
  * quedan sin ninguna entrada visible (el código se conserva para reactivarlas).
- * - agenda: citas y agenda de negocios. La app las tiene, pero el backend de esta rama no tiene
- *   modelo ni rutas de citas, así que cualquier toque terminaría en un error.
+ * - agenda: citas y agenda de negocios. Encendida desde que el servidor tiene la agenda (traída de main y
+ *   unida al catálogo: CONVERSACIONES_Y_AGENDA.md, fase 3).
  */
 export const FEATURES = {
-  agenda: false,
+  agenda: true,
 } as const;
 
 /** Máximo de caracteres de un mensaje de chat (el backend rechaza los más largos). */

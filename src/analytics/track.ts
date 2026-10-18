@@ -22,7 +22,9 @@ export type EventName =
   | 'promotion_viewed'
   | 'contact_started'
   | 'directions_tapped'
-  | 'follow_toggled';
+  | 'follow_toggled'
+  | 'question_asked'
+  | 'booking_started';
 
 interface Saved {
   id: string;

@@ -9,6 +9,10 @@ export interface ServiceInput {
   price_from: boolean;
   /** Sección opcional («Almuerzos», «Cortes»); vacía, sin sección. */
   section?: string;
+  /** Duración en minutos (5–480); 0 la quita. Sin el campo, no se toca. */
+  duration_min?: number;
+  /** Se puede reservar por Empre (exige duración). Sin el campo, no se toca. */
+  bookable?: boolean;
 }
 
 /** Catálogo del negocio: lectura pública y gestión del dueño. */

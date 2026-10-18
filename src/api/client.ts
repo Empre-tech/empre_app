@@ -116,6 +116,8 @@ interface RequestOptions {
   /** false = endpoint público: no se envía ni se renueva el token. Por defecto true. */
   auth?: boolean;
   signal?: AbortSignal;
+  /** Cabeceras extra (p. ej. Idempotency-Key al reservar). */
+  headers?: Record<string, string>;
 }
 
 function buildUrl(path: string, query?: Query): string {
@@ -149,10 +151,10 @@ async function readError(res: Response): Promise<string> {
 }
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, query, formData, auth = true, signal } = options;
+  const { method = 'GET', body, query, formData, auth = true, signal, headers: extra } = options;
 
   const send = async () => {
-    const headers: Record<string, string> = { Accept: 'application/json' };
+    const headers: Record<string, string> = { Accept: 'application/json', ...extra };
     // En multipart NO fijamos Content-Type: fetch añade el boundary por su cuenta.
     if (body !== undefined && !formData) headers['Content-Type'] = 'application/json';
     const token = auth ? await getValidAccessToken() : null;

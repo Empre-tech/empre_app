@@ -374,7 +374,7 @@ export interface Offer {
   /** Solo existe con referencia y precio especial menor. */
   saving?: number;
   /** Servicios del catálogo incluidos, tal como estaban al publicar. */
-  items?: { name: string; price?: number }[];
+  items?: { name: string; price?: number; service_item_id?: string }[];
 }
 
 /** Una oferta del negocio con sus resultados (GET /api/entities/:id/offers/stats, solo el dueño). */
@@ -492,7 +492,7 @@ export interface Promotion {
   /** Editor por plantillas: mensaje para clientes, plantilla y servicios destacados (copia congelada). */
   public_message?: string;
   template?: string;
-  items?: { name: string; price?: number }[];
+  items?: { name: string; price?: number; service_item_id?: string }[];
   /** Solo lo recibe el dueño: el porqué de la campaña. */
   motive_internal?: string;
   /** Portada: ruta pública del medio (/api/images/{id}); no caduca. */

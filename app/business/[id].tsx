@@ -25,7 +25,12 @@ import { novedadesApi } from '@/api/novedades';
 import type { Photo } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { AIWritingAssist } from '@/components/AIWritingAssist';
+import { agendaApi } from '@/api/agenda';
+import { statusApi } from '@/api/offers';
 import { AgendaStrip } from '@/components/agenda/AgendaStrip';
+import { BookingSheet } from '@/components/agenda/BookingSheet';
+import { AskEmpreCard, AskEmpreSheet } from '@/components/profile/AskEmpre';
+import type { AnswerData, Intent } from '@/lib/answers';
 import { track } from '@/analytics/track';
 import { FEATURES } from '@/config';
 import { Avatar } from '@/components/Avatar';
@@ -134,6 +139,16 @@ export default function BusinessScreen() {
   const indexY = useRef(0);
   // Preguntar por un ítem del catálogo: el mensaje ya escrito según el tipo de negocio (3.27).
   const [asking, setAsking] = useState<ServiceItem | null>(null);
+  // «Pregúntale» (fase 1): la hoja de respuestas y, desde ella, la hoja de reservar con el servicio elegido.
+  const [askStart, setAskStart] = useState<{ intent: Intent; label: string } | { text: string } | null>(null);
+  const [bookingFor, setBookingFor] = useState<{ serviceId?: string } | null>(null);
+  const bizStatus = useQuery({ queryKey: ['status', id], queryFn: () => statusApi.get(id ?? ''), enabled: Boolean(id), staleTime: 60_000 });
+  const agendaSummary = useQuery({
+    queryKey: ['agenda-summary', id],
+    queryFn: () => agendaApi.summary(id ?? ''),
+    enabled: FEATURES.agenda && status === 'signedIn' && Boolean(id),
+    staleTime: 20_000,
+  });
   const scrollRef = useRef<ScrollView>(null);
   const sectionY = useRef<Record<string, number>>({});
   const bodyY = useRef(0);
@@ -427,6 +442,37 @@ export default function BusinessScreen() {
   const openState: boolean | null = hasHours ? Boolean(business.is_open_now) : null;
   // El catálogo se llama según el negocio (Carta, Servicios, Productos…) y su precio más bajo va en el vistazo.
   const copy = catalogCopy(business.category?.name);
+  const askData: AnswerData = {
+    name: business.name,
+    noun: copy.noun,
+    services: catalog.data ?? [],
+    offers: (activeOffers.data ?? []).map((o) => ({ id: o.id, title: o.title, conditions: o.conditions, ends_at: o.ends_at, items: o.items })),
+    hours: business.hours ?? [],
+    isOpenNow: hasHours ? Boolean(business.is_open_now) : null,
+    availability: bizStatus.data?.availability || null,
+    serviceMode: business.service_mode ?? '',
+    agendaOn: FEATURES.agenda && Boolean(agendaSummary.data?.enabled),
+  };
+  const askHandlers = {
+    onSeeSlots: (serviceId?: string) => {
+      setAskStart(null);
+      if (status !== 'signedIn') {
+        router.push('/(auth)/login');
+        return;
+      }
+      track('booking_started', business.id, { origin: 'ask' });
+      setBookingFor({ serviceId });
+    },
+    onMessage: (draft: string) => {
+      setAskStart(null);
+      sendAsk(draft);
+    },
+    onOpenOffer: () => {
+      setAskStart(null);
+      goTo('offers');
+    },
+    onAsked: (intent: Intent, answered: boolean) => track('question_asked', business.id, { intent, answered }),
+  };
   const fromPrice = lowestPrice(catalog.data ?? []);
   const secs = sections({ offers: offerCount, hasServices, photos: photos.length, isOwner, reviews: ratingSummary.count });
   const ownerPanelOpen = isOwner && ownerTab === 'mine';
@@ -528,6 +574,7 @@ export default function BusinessScreen() {
         return (
           <View key={id} onLayout={mark('offers')}>
             <OffersFicha entityId={business.id} isOwner={isOwner} initialOfferId={offerParam} />
+            {!isOwner ? <AskEmpreCard data={askData} onAsk={setAskStart} /> : null}
           </View>
         );
       case 'services':
@@ -703,6 +750,21 @@ export default function BusinessScreen() {
         back
       )}
       <AskSheet item={asking?.name ?? null} businessName={business.name} copy={copy} onClose={() => setAsking(null)} onSend={sendAsk} />
+      <AskEmpreSheet data={askData} start={askStart} onClose={() => setAskStart(null)} handlers={askHandlers} />
+      {agendaSummary.data?.enabled ? (
+        <BookingSheet
+          visible={bookingFor !== null}
+          entityId={business.id}
+          entityName={business.name}
+          summary={agendaSummary.data}
+          initialServiceId={bookingFor?.serviceId}
+          onClose={() => setBookingFor(null)}
+          onBooked={(appointment) => {
+            setBookingFor(null);
+            router.push({ pathname: '/appointment/[id]', params: { id: appointment.id } });
+          }}
+        />
+      ) : null}
 
       <Modal visible={openIndex !== null} animationType="slide" onRequestClose={closeViewer} presentationStyle="pageSheet">
         <View style={styles.viewer}>

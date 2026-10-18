@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
+import { FEATURES } from '@/config';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -44,6 +45,9 @@ export default function CatalogEditorScreen() {
   const [price, setPrice] = useState('');
   const [from, setFrom] = useState(false);
   const [section, setSection] = useState('');
+  // Agenda (D2): duración y «se puede reservar» viven en el mismo servicio del catálogo.
+  const [duration, setDuration] = useState('');
+  const [bookable, setBookable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -55,6 +59,8 @@ export default function CatalogEditorScreen() {
     setPrice('');
     setFrom(false);
     setSection('');
+    setDuration('');
+    setBookable(false);
     setError(null);
   };
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['catalog', id] });
@@ -66,6 +72,8 @@ export default function CatalogEditorScreen() {
     setPrice(item.price === null ? '' : String(item.price));
     setFrom(item.price_from);
     setSection(item.section ?? '');
+    setDuration(item.duration_min ? String(item.duration_min) : '');
+    setBookable(Boolean(item.bookable));
     setError(null);
     setMessage(null);
   };
@@ -74,11 +82,14 @@ export default function CatalogEditorScreen() {
     const parsed = parsePriceInput(price);
     if (name.trim().length < 2) return setError('Escribe el nombre del servicio (mínimo 2 letras)');
     if (parsed === undefined) return setError('El precio debe ser un número, por ejemplo 25.000');
+    const dur = duration.trim() === '' ? 0 : Number(duration.trim());
+    if (!Number.isInteger(dur) || (dur !== 0 && (dur < 5 || dur > 480))) return setError('La duración va en minutos, de 5 a 480');
+    if (bookable && dur === 0) return setError('Para reservar por Empre, escribe cuánto dura');
     setSaving(true);
     setError(null);
     setMessage(null);
     try {
-      const input = { name: name.trim(), description: description.trim(), price: parsed, price_from: parsed === null ? false : from, section: section.trim() };
+      const input = { name: name.trim(), description: description.trim(), price: parsed, price_from: parsed === null ? false : from, section: section.trim(), duration_min: dur, bookable: FEATURES.agenda ? bookable && dur > 0 : undefined };
       if (editing) await catalogApi.update(id ?? '', editing.id, input);
       else await catalogApi.create(id ?? '', input);
       await refresh();
@@ -150,6 +161,13 @@ export default function CatalogEditorScreen() {
             <Text style={styles.switchLabel}>El precio es «desde»</Text>
             <Switch value={from} onValueChange={setFrom} disabled={parsePriceInput(price) === null} accessibilityLabel="El precio es desde" />
           </View>
+          <TextField label="Duración en minutos (opcional)" placeholder="30" value={duration} onChangeText={setDuration} keyboardType="number-pad" maxLength={3} />
+          {FEATURES.agenda ? (
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>Se puede reservar en Empre</Text>
+              <Switch value={bookable} onValueChange={setBookable} disabled={duration.trim() === ''} accessibilityLabel="Se puede reservar en Empre" />
+            </View>
+          ) : null}
           <TextField label="Descripción (opcional)" placeholder="Con tijera y máquina" value={description} onChangeText={setDescription} autoCapitalize="sentences" maxLength={240} />
           <TextField label="Sección (opcional)" placeholder={copy.suggest[0] ?? 'Por ejemplo, Principales'} value={section} onChangeText={setSection} autoCapitalize="sentences" maxLength={40} />
           {sectionChoices.length > 0 ? (
@@ -186,7 +204,7 @@ export default function CatalogEditorScreen() {
             <View key={item.id} style={styles.row}>
               <Pressable accessibilityRole="button" accessibilityLabel={`Editar ${item.name}`} onPress={() => startEdit(item)} style={styles.rowMain}>
                 <Text style={styles.rowName}>{item.name}</Text>
-                <Text style={styles.rowMeta}>{[item.section, priceLabel ?? 'Sin precio publicado'].filter(Boolean).join(' · ')}</Text>
+                <Text style={styles.rowMeta}>{[item.section, priceLabel ?? 'Sin precio publicado', item.duration_min ? `${item.duration_min} min` : null, item.bookable ? 'Se reserva' : null].filter(Boolean).join(' · ')}</Text>
               </Pressable>
               <Pressable accessibilityRole="button" accessibilityLabel={`Quitar ${item.name}`} onPress={() => onRetire(item)} style={styles.remove}>
                 <Ionicons name="trash-outline" size={20} color={colors.danger} />

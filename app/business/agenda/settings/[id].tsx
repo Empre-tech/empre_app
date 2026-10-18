@@ -22,7 +22,33 @@ const EMPTY: AgendaSettingsInput = {
   buffer_min: 0,
   min_notice_min: 45,
   horizon_days: 14,
+  intake_mode: 'rules',
+  review_no_shows: 2,
+  review_first_visit: false,
+  review_notice_min: 120,
+  notify_every: 60,
+  quiet_mode: 'hours',
+  quiet_from: '21:00',
+  quiet_to: '07:00',
 };
+
+// Cómo recibe las solicitudes (§9b, mockup conversaciones_agenda.html): con reglas por defecto.
+const INTAKE: { key: AgendaSettingsInput['intake_mode']; title: string; help: string }[] = [
+  { key: 'manual', title: 'Revisar cada una', help: 'Tú aceptas o rechazas. Para pocos clientes o servicios que hay que evaluar.' },
+  { key: 'rules', title: 'Automático con reglas', help: 'Se confirman solas; solo revisas las que no cumplen tus reglas.' },
+  { key: 'auto', title: 'Todo automático', help: 'Hora libre = cita confirmada. Nunca dos citas en la misma hora.' },
+];
+const NOTIFY: { value: number; label: string }[] = [
+  { value: 0, label: 'Al instante' },
+  { value: 30, label: 'Cada 30 min' },
+  { value: 60, label: 'Cada hora' },
+  { value: 360, label: '2 veces al día' },
+];
+const QUIET: { key: AgendaSettingsInput['quiet_mode']; label: string }[] = [
+  { key: 'hours', label: 'Fuera de mi horario' },
+  { key: 'custom', label: 'Elegir horas' },
+  { key: 'off', label: 'Nunca' },
+];
 
 function pad(clock: string): string {
   const [h, m] = clock.split(':');
@@ -55,10 +81,17 @@ export default function AgendaSettingsScreen() {
       if ((lunchStart || lunchEnd) && !(CLOCK_RE.test(lunchStart) && CLOCK_RE.test(lunchEnd))) {
         return Promise.reject(new Error('El almuerzo va en formato 12:00 a 13:00.'));
       }
+      const qFrom = form.quiet_from.trim();
+      const qTo = form.quiet_to.trim();
+      if (form.quiet_mode === 'custom' && !(CLOCK_RE.test(qFrom) && CLOCK_RE.test(qTo) && pad(qFrom) !== pad(qTo))) {
+        return Promise.reject(new Error('El silencio va en formato 21:00 a 07:00, con horas distintas.'));
+      }
       return agendaApi.saveSettings(id, {
         ...form,
         lunch_start: lunchStart ? pad(lunchStart) : '',
         lunch_end: lunchEnd ? pad(lunchEnd) : '',
+        quiet_from: CLOCK_RE.test(qFrom) ? pad(qFrom) : '',
+        quiet_to: CLOCK_RE.test(qTo) ? pad(qTo) : '',
       });
     },
     onSuccess: () => {
@@ -116,6 +149,82 @@ export default function AgendaSettingsScreen() {
             </View>
             <Switch value={form.enabled} onValueChange={(v) => set('enabled', v)} trackColor={{ true: colors.primary }} />
           </View>
+        </View>
+
+        <View style={styles.card} accessibilityRole="radiogroup">
+          <Text style={styles.cardTitle}>Cómo recibes las solicitudes</Text>
+          {INTAKE.map((m) => {
+            const on = form.intake_mode === m.key;
+            return (
+              <Pressable
+                key={m.key}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: on }}
+                onPress={() => set('intake_mode', m.key)}
+                style={[styles.mode, on && styles.modeOn]}
+              >
+                <View style={[styles.radio, on && styles.radioOn]}>{on ? <View style={styles.radioDot} /> : null}</View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modeTitle}>
+                    {m.title}
+                    {m.key === 'rules' ? <Text style={styles.rec}>{'  Recomendado'}</Text> : null}
+                  </Text>
+                  <Text style={styles.help}>{m.help}</Text>
+                </View>
+              </Pressable>
+            );
+          })}
+          {form.intake_mode === 'rules' ? (
+            <View style={{ marginTop: spacing.xs }}>
+              <Text style={styles.subTitle}>Revisar yo cuando…</Text>
+              <View style={styles.switchRow}>
+                <Text style={[styles.help, { flex: 1 }]}>El cliente tiene 2 faltas o más</Text>
+                <Switch value={form.review_no_shows > 0} onValueChange={(v) => set('review_no_shows', v ? 2 : 0)} trackColor={{ true: colors.primary }} accessibilityLabel="Revisar clientes con 2 faltas o más" />
+              </View>
+              <View style={styles.switchRow}>
+                <Text style={[styles.help, { flex: 1 }]}>Es su primera vez contigo</Text>
+                <Switch value={form.review_first_visit} onValueChange={(v) => set('review_first_visit', v)} trackColor={{ true: colors.primary }} accessibilityLabel="Revisar clientes nuevos" />
+              </View>
+              <View style={styles.switchRow}>
+                <Text style={[styles.help, { flex: 1 }]}>Pide con menos de 2 horas de anticipación</Text>
+                <Switch value={form.review_notice_min > 0} onValueChange={(v) => set('review_notice_min', v ? 120 : 0)} trackColor={{ true: colors.primary }} accessibilityLabel="Revisar reservas con poca anticipación" />
+              </View>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Avisos</Text>
+          <Text style={styles.help}>Cómo te llegan las solicitudes y las citas nuevas.</Text>
+          <View style={styles.chips} accessibilityRole="radiogroup">
+            {NOTIFY.map((n) => (
+              <Pressable key={n.value} accessibilityRole="radio" accessibilityState={{ checked: form.notify_every === n.value }} onPress={() => set('notify_every', n.value)} style={[styles.chip, form.notify_every === n.value && styles.chipOn]}>
+                <Text style={[styles.chipText, form.notify_every === n.value && styles.onText]}>{n.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={[styles.subTitle, { marginTop: spacing.sm }]}>Cuándo no te molestamos</Text>
+          <View style={styles.chips} accessibilityRole="radiogroup">
+            {QUIET.map((q) => (
+              <Pressable key={q.key} accessibilityRole="radio" accessibilityState={{ checked: form.quiet_mode === q.key }} onPress={() => set('quiet_mode', q.key)} style={[styles.chip, form.quiet_mode === q.key && styles.chipOn]}>
+                <Text style={[styles.chipText, form.quiet_mode === q.key && styles.onText]}>{q.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          {form.quiet_mode === 'custom' ? (
+            <View style={styles.lunchRow}>
+              <TextInput value={form.quiet_from} onChangeText={(v) => set('quiet_from', v)} placeholder="21:00" style={[styles.input, { flex: 1 }]} keyboardType="numbers-and-punctuation" accessibilityLabel="Silencio desde" />
+              <Text style={styles.help}>a</Text>
+              <TextInput value={form.quiet_to} onChangeText={(v) => set('quiet_to', v)} placeholder="07:00" style={[styles.input, { flex: 1 }]} keyboardType="numbers-and-punctuation" accessibilityLabel="Silencio hasta" />
+            </View>
+          ) : null}
+          <Text style={styles.note}>
+            {form.quiet_mode === 'hours'
+              ? 'Usamos tu horario de atención: si lo cambias, esto cambia solo. Lo que llegue cerrado te espera en un resumen al abrir.'
+              : form.quiet_mode === 'custom'
+                ? 'Lo que llegue en esas horas te espera en un resumen al terminar el silencio.'
+                : 'Te avisamos a cualquier hora.'}
+          </Text>
         </View>
 
         <View style={styles.card}>
@@ -232,4 +341,12 @@ const styles = StyleSheet.create({
   serviceName: { flex: 1, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
   serviceMin: { fontSize: 13.5, fontFamily: fonts.ui.medium, color: colors.muted },
   lunchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  subTitle: { fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.ink },
+  mode: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start', minHeight: 60, padding: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line },
+  modeOn: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  modeTitle: { fontSize: 14.5, fontFamily: fonts.ui.bold, color: colors.ink },
+  rec: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.success },
+  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.muted, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  radioOn: { borderColor: colors.primary },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
 });

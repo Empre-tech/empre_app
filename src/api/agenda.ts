@@ -60,6 +60,18 @@ export interface AgendaSettings {
   buffer_min: number;
   min_notice_min: number;
   horizon_days: number;
+  /** Cómo recibe las solicitudes (§9b): manual | rules | auto. */
+  intake_mode: 'manual' | 'rules' | 'auto';
+  /** Revisar clientes con al menos N faltas (0 = apagada). */
+  review_no_shows: number;
+  review_first_visit: boolean;
+  /** Revisar si piden con menos de N minutos (0 = apagada). */
+  review_notice_min: number;
+  /** Resumen de avisos cada N minutos (0 = al instante). */
+  notify_every: number;
+  quiet_mode: 'hours' | 'custom' | 'off';
+  quiet_from: string;
+  quiet_to: string;
 }
 
 export type AgendaSettingsInput = Omit<AgendaSettings, 'entity_id'>;
@@ -100,7 +112,9 @@ export const agendaApi = {
     return res.slots ?? [];
   },
 
-  book: (input: BookingInput) => request<Appointment>('/api/appointments', { method: 'POST', body: input }),
+  /** `idemKey`: la misma clave en un reintento devuelve la misma cita (nunca dos). */
+  book: (input: BookingInput, idemKey?: string) =>
+    request<Appointment>('/api/appointments', { method: 'POST', body: input, headers: idemKey ? { 'Idempotency-Key': idemKey } : undefined }),
   mine: async () => list(await request<{ data?: Appointment[] | null }>('/api/appointments/mine')),
   get: (id: string) => request<Appointment>(`/api/appointments/${id}`),
   accept: (id: string) => request<Appointment>(`/api/appointments/${id}/accept`, { method: 'POST' }),
