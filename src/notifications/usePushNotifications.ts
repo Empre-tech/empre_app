@@ -34,7 +34,8 @@ type NotificationData = {
     | 'appointment_cancelled'
     | 'appointment_expired'
     | 'appointment_reminder'
-    | 'appointment_closing';
+    | 'appointment_closing'
+    | 'appointment_digest';
   entity_id?: string;
   user_id?: string;
   appointment_id?: string;
@@ -97,6 +98,14 @@ export function usePushNotifications() {
   useEffect(() => {
     if (!lastResponse || !FEATURES.agenda) return;
     const data = lastResponse.notification.request.content.data as NotificationData;
+    // El resumen («3 solicitudes por revisar», §9b) no es de una cita: abre la agenda de ese negocio.
+    if (data?.type === 'appointment_digest' && data.entity_id) {
+      const key = `${lastResponse.notification.request.identifier}:digest`;
+      if (handled.current.has(key)) return;
+      handled.current.add(key);
+      router.push({ pathname: '/business/agenda/[id]', params: { id: data.entity_id } });
+      return;
+    }
     if (!data?.type?.startsWith('appointment_') || !data.appointment_id) return;
     const key = `${lastResponse.notification.request.identifier}:${lastResponse.actionIdentifier}`;
     if (handled.current.has(key)) return;

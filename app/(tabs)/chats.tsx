@@ -12,12 +12,16 @@ import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { NovedadesStrip } from '@/components/novedades/NovedadesStrip';
 import { SignInPrompt } from '@/components/SignInPrompt';
+import { useInboxSummary } from '@/chat/useInboxSummary';
 import { formatMessageTime } from '@/lib/format';
+import { requestsLabel } from '@/lib/inbox';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 type Tab = 'personal' | 'business';
 
 export default function ChatsScreen() {
+  // Conteo de pendientes por pestaña y solicitudes de cita por negocio (3.37); la misma fuente que la barra.
+  const inbox = useInboxSummary();
   const { status } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -94,6 +98,7 @@ export default function ChatsScreen() {
           style={[styles.tab, tab === 'personal' && styles.tabActive]}
         >
           <Text style={[styles.tabText, tab === 'personal' && styles.tabTextActive]}>Personales</Text>
+          <TabCount n={inbox.personal} on={tab === 'personal'} />
         </Pressable>
         <Pressable
           accessibilityRole="tab"
@@ -103,6 +108,7 @@ export default function ChatsScreen() {
           style={[styles.tab, tab === 'business' && styles.tabActive]}
         >
           <Text style={[styles.tabText, tab === 'business' && styles.tabTextActive]}>Mis negocios</Text>
+          <TabCount n={inbox.business} on={tab === 'business'} />
         </Pressable>
       </View>
 
@@ -133,6 +139,19 @@ export default function ChatsScreen() {
             <Ionicons name="chevron-back" size={18} color={colors.primary} />
             <Text style={styles.backText}>{selectedBusiness?.name ?? 'Volver'}</Text>
           </Pressable>
+          {(inbox.byEntity.get(selectedBusinessId)?.requests ?? 0) > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push({ pathname: '/business/agenda/[id]', params: { id: selectedBusinessId } })}
+              style={({ pressed }) => [styles.reqBanner, pressed && { opacity: 0.85 }]}
+            >
+              <Ionicons name="calendar-outline" size={20} color={colors.accentInk} />
+              <Text style={styles.reqBannerText}>
+                {inbox.byEntity.get(selectedBusinessId)?.requests === 1 ? '1 solicitud de cita por revisar' : `${inbox.byEntity.get(selectedBusinessId)?.requests} solicitudes de cita por revisar`}
+              </Text>
+              <Text style={styles.reqBannerLink}>Ver agenda</Text>
+            </Pressable>
+          ) : null}
           <ConversationList
             loading={conversations.isLoading}
             error={conversations.isError}
@@ -166,10 +185,20 @@ export default function ChatsScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
-            <BusinessRow business={item} count={sumUnread(conversationsByEntity.get(item.id))} onPress={() => setSelectedBusinessId(item.id)} />
+            <BusinessRow business={item} count={sumUnread(conversationsByEntity.get(item.id))} requests={inbox.byEntity.get(item.id)?.requests ?? 0} onPress={() => setSelectedBusinessId(item.id)} />
           )}
         />
       )}
+    </View>
+  );
+}
+
+/** Conteo de una pestaña de Mensajes: nada en 0. */
+function TabCount({ n, on }: { n: number; on: boolean }) {
+  if (n <= 0) return null;
+  return (
+    <View style={[styles.tabCount, on && styles.tabCountOn]} accessibilityLabel={`${n} sin leer`}>
+      <Text style={[styles.tabCountText, on && styles.tabCountTextOn]}>{n > 9 ? '9+' : n}</Text>
     </View>
   );
 }
@@ -179,11 +208,11 @@ function sumUnread(conversations?: Conversation[]): number {
   return (conversations ?? []).reduce((total, c) => total + c.unread_count, 0);
 }
 
-function BusinessRow({ business, count, onPress }: { business: EntityOwnerItem; count: number; onPress: () => void }) {
+function BusinessRow({ business, count, requests, onPress }: { business: EntityOwnerItem; count: number; requests: number; onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={count > 0 ? `${business.name}, ${count} ${count === 1 ? 'mensaje sin leer' : 'mensajes sin leer'}` : business.name}
+      accessibilityLabel={[business.name, count > 0 ? `${count} ${count === 1 ? 'mensaje sin leer' : 'mensajes sin leer'}` : null, requests > 0 ? `${requestsLabel(requests)}` : null].filter(Boolean).join(', ')}
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}
     >
@@ -195,6 +224,12 @@ function BusinessRow({ business, count, onPress }: { business: EntityOwnerItem; 
         <Text style={styles.snippet} numberOfLines={1}>
           {business.category_name}
         </Text>
+        {requests > 0 ? (
+          <View style={styles.reqPill}>
+            <Ionicons name="calendar-outline" size={12} color={colors.accentInk} />
+            <Text style={styles.reqPillText}>{requestsLabel(requests)}</Text>
+          </View>
+        ) : null}
       </View>
       {count > 0 ? (
         <View style={styles.countBadge}>
@@ -279,6 +314,9 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontFamily: fonts.display.semibold, color: colors.ink, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   tabs: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
   tab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingVertical: 8,
     paddingHorizontal: spacing.md,
     borderRadius: radius.pill,
@@ -316,6 +354,15 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.bg,
   },
+  tabCount: { minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 5, backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center' },
+  tabCountOn: { backgroundColor: '#fff' },
+  tabCountText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  tabCountTextOn: { color: colors.primaryDark },
+  reqPill: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: colors.accentSoft },
+  reqPillText: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.accentInk },
+  reqBanner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, marginHorizontal: spacing.lg, marginBottom: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.accentSoft },
+  reqBannerText: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.accentInk },
+  reqBannerLink: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   countBadge: {
     minWidth: 22,
     height: 22,

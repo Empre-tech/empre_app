@@ -217,13 +217,19 @@ export function BookingSheet({ visible, entityId, entityName, summary, onClose, 
           </ScrollView>
 
           <Button
-            title="Pedir cita"
+            title={!summary.intake_mode || summary.intake_mode === 'manual' ? 'Pedir cita' : 'Reservar'}
             onPress={() => book.mutate()}
             disabled={!slot}
             loading={book.isPending}
             style={{ marginTop: spacing.md }}
           />
-          <Text style={styles.hint}>El negocio tiene que aceptarla. Te avisamos apenas responda.</Text>
+          <Text style={styles.hint}>
+            {summary.intake_mode === 'auto'
+              ? 'Se confirma al instante.'
+              : summary.intake_mode === 'rules'
+                ? 'Casi siempre se confirma al instante. Si el negocio necesita revisarla, te avisamos apenas responda.'
+                : 'El negocio tiene que aceptarla. Te avisamos apenas responda.'}
+          </Text>
         </View>
       </KeyboardAvoidingView>
     </Modal>

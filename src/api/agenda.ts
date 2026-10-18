@@ -82,6 +82,8 @@ export interface AgendaSummary {
   slot_minutes: number;
   horizon_days: number;
   services: AppointmentService[];
+  /** Cómo recibe el negocio: decide si la hoja dice «se confirma al instante» o «el negocio tiene que aceptarla». */
+  intake_mode?: 'manual' | 'rules' | 'auto';
 }
 
 export interface BookingInput {

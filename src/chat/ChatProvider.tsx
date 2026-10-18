@@ -108,6 +108,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // desconectados (p. ej. la app en segundo plano) y que el servidor no
         // pudo entregar en tiempo real: los recuperamos con un refetch.
         void queryClient.invalidateQueries({ queryKey: ['conversations'] });
+        void queryClient.invalidateQueries({ queryKey: ['inbox-summary'] });
       };
 
       ws.onmessage = (event) => {
@@ -133,6 +134,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           }
         }
         void queryClient.invalidateQueries({ queryKey: ['conversations'] });
+        // Las insignias (barra, Mensajes, perfil) se actualizan con cada mensaje o cambio de cita (3.37).
+        void queryClient.invalidateQueries({ queryKey: ['inbox-summary'] });
       };
 
       ws.onclose = () => {

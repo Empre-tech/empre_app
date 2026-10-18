@@ -14,6 +14,8 @@ import { FEATURES } from '@/config';
 import { SignInPrompt } from '@/components/SignInPrompt';
 import { verificationLabel } from '@/lib/format';
 import { pickImage } from '@/lib/images';
+import { useInboxSummary } from '@/chat/useInboxSummary';
+import { requestsLabel } from '@/lib/inbox';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const STATUS_STYLE: Record<VerificationStatus, { fg: string; bg: string; icon: keyof typeof Ionicons.glyphMap }> = {
@@ -23,6 +25,7 @@ const STATUS_STYLE: Record<VerificationStatus, { fg: string; bg: string; icon: k
 };
 
 export default function ProfileScreen() {
+  const inbox = useInboxSummary();
   const { status, user, signOut, refreshUser } = useAuth();
   // Medición anónima de uso (se puede apagar; al apagarla se cambia el identificador de la instalación).
   const [analyticsOn, setAnalyticsOn] = useState(true);
@@ -229,6 +232,21 @@ export default function ProfileScreen() {
             >
               <Ionicons name="create-outline" size={22} color={colors.primary} />
             </Pressable>
+            {/* Solo lo de la agenda (3.37): solicitudes de cita por revisar, en su propia línea al pie de la tarjeta. */}
+            {(inbox.byEntity.get(entity.id)?.requests ?? 0) > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${entity.name}: ${requestsLabel(inbox.byEntity.get(entity.id)?.requests ?? 0)}. Ver agenda`}
+                onPress={() => router.push({ pathname: '/business/agenda/[id]', params: { id: entity.id } })}
+                style={({ pressed }) => [styles.reqStrip, pressed && { opacity: 0.85 }]}
+              >
+                <Ionicons name="calendar-outline" size={16} color={colors.accentInk} />
+                <Text style={styles.reqStripText} numberOfLines={1}>
+                  {(inbox.byEntity.get(entity.id)?.requests ?? 0) === 1 ? '1 solicitud por revisar' : `${inbox.byEntity.get(entity.id)?.requests} solicitudes por revisar`}
+                </Text>
+                <Text style={styles.reqStripLink}>Ver agenda</Text>
+              </Pressable>
+            ) : null}
           </Pressable>
         ))
       )}
@@ -239,6 +257,10 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  // La franja ocupa todo el ancho y pasa a su propia línea (la tarjeta envuelve).
+  reqStrip: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.accentSoft },
+  reqStripText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.bold, color: colors.accentInk },
+  reqStripLink: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, marginBottom: spacing.md },
@@ -296,6 +318,7 @@ const styles = StyleSheet.create({
   empty: { color: colors.muted, fontSize: 14, fontFamily: fonts.ui.medium },
   card: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: spacing.md,
     padding: spacing.md,
