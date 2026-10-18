@@ -20,10 +20,10 @@ export interface MapSize {
 }
 
 /**
- * Distancia mínima en pantalla entre dos marcadores, por nivel (3.31): el diámetro del pin más ~14 pt de aire. Lejos el
- * punto mide 18; en medio, 34; cerca, 46.
+ * Distancia mínima en pantalla entre dos marcadores, por nivel (3.31): media pila más medio pin más aire, para que un pin
+ * nunca toque una pila vecina. Lejos el punto mide 18; en medio y cerca, la pila mide 58 de ancho (3.33) y el pin 34 o 46.
  */
-export const CLUSTER_PX = { far: 26, mid: 48, near: 60 } as const;
+export const CLUSTER_PX = { far: 26, mid: 56, near: 62 } as const;
 
 function single<T extends Coords & { id: string }>(item: T): Cluster<T> {
   return { key: item.id, latitude: item.latitude, longitude: item.longitude, items: [item] };
