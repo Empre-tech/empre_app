@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Marker } from 'react-native-maps';
 
 import { bubbleSize, bubbleText } from '@/lib/mapLevels';
+import { bubbleLabel } from '@/lib/markerLabels';
 import { colors, fonts, radius } from '@/theme';
 import { useMarkerTracking } from './useMarkerTracking';
 
@@ -36,6 +37,8 @@ function BubbleMarkerView({ latitude, longitude, count, hasOffer, color, label, 
       anchor={{ x: 0.5, y: 0.5 }}
       zIndex={count}
       tracksViewChanges={tracking}
+      accessibilityRole="button"
+      accessibilityLabel={bubbleLabel(count, label ?? null, hasOffer)}
       onPress={(event) => {
         event.stopPropagation();
         onPress();

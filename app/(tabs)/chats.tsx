@@ -9,6 +9,7 @@ import type { Conversation, EntityOwnerItem } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
+import { EmptyState } from '@/components/EmptyState';
 import { NovedadesStrip } from '@/components/novedades/NovedadesStrip';
 import { SignInPrompt } from '@/components/SignInPrompt';
 import { formatMessageTime } from '@/lib/format';
@@ -86,14 +87,18 @@ export default function ChatsScreen() {
 
       <View style={styles.tabs}>
         <Pressable
-          accessibilityRole="button"
+          accessibilityRole="tab"
+          accessibilityState={{ selected: tab === 'personal' }}
+          hitSlop={{ top: 6, bottom: 6 }}
           onPress={() => switchTab('personal')}
           style={[styles.tab, tab === 'personal' && styles.tabActive]}
         >
           <Text style={[styles.tabText, tab === 'personal' && styles.tabTextActive]}>Personales</Text>
         </Pressable>
         <Pressable
-          accessibilityRole="button"
+          accessibilityRole="tab"
+          accessibilityState={{ selected: tab === 'business' }}
+          hitSlop={{ top: 6, bottom: 6 }}
           onPress={() => switchTab('business')}
           style={[styles.tab, tab === 'business' && styles.tabActive]}
         >
@@ -110,7 +115,12 @@ export default function ChatsScreen() {
           data={personalConversations}
           onRetry={() => void conversations.refetch()}
           onOpen={open}
-          emptyText="Aún no tienes conversaciones. Abre el perfil de un negocio y escríbele."
+          empty={{
+            icon: 'chatbubbles-outline',
+            title: 'Aún no tienes conversaciones',
+            body: 'Abre el perfil de un negocio y toca «Escribirle».',
+            action: { title: 'Explorar negocios', onPress: () => router.navigate('/') },
+          }}
         />
       ) : selectedBusinessId ? (
         <>
@@ -129,7 +139,11 @@ export default function ChatsScreen() {
             data={selectedBusinessConversations}
             onRetry={() => void conversations.refetch()}
             onOpen={open}
-            emptyText="Todavía no tienes conversaciones con clientes de este negocio."
+            empty={{
+              icon: 'chatbubble-ellipses-outline',
+              title: 'Sin conversaciones todavía',
+              body: 'Cuando un cliente le escriba a este negocio, aparecerá aquí.',
+            }}
           />
         </>
       ) : myEntities.isLoading ? (
@@ -140,9 +154,12 @@ export default function ChatsScreen() {
           <Button title="Reintentar" variant="secondary" onPress={() => void myEntities.refetch()} />
         </View>
       ) : (myEntities.data ?? []).length === 0 ? (
-        <View style={styles.center}>
-          <Text style={styles.empty}>Todavía no tienes negocios registrados.</Text>
-        </View>
+        <EmptyState
+          icon="storefront-outline"
+          title="Todavía no tienes negocios"
+          body="Registra tu negocio para recibir mensajes de clientes."
+          action={{ title: 'Registrar mi negocio', onPress: () => router.push('/business/new') }}
+        />
       ) : (
         <FlatList
           data={myEntities.data ?? []}
@@ -164,7 +181,12 @@ function sumUnread(conversations?: Conversation[]): number {
 
 function BusinessRow({ business, count, onPress }: { business: EntityOwnerItem; count: number; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={count > 0 ? `${business.name}, ${count} ${count === 1 ? 'mensaje sin leer' : 'mensajes sin leer'}` : business.name}
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}
+    >
       <Avatar uri={business.profile_url} name={business.name} size={52} />
       <View style={styles.rowInfo}>
         <Text style={styles.name} numberOfLines={1}>
@@ -190,14 +212,14 @@ function ConversationList({
   data,
   onRetry,
   onOpen,
-  emptyText,
+  empty,
 }: {
   loading: boolean;
   error: boolean;
   data: Conversation[];
   onRetry: () => void;
   onOpen: (c: Conversation) => void;
-  emptyText: string;
+  empty: { icon: keyof typeof Ionicons.glyphMap; title: string; body: string; action?: { title: string; onPress: () => void } };
 }) {
   if (loading) return <ActivityIndicator style={styles.center} color={colors.primary} />;
   if (error) {
@@ -213,11 +235,17 @@ function ConversationList({
       data={data}
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.list}
-      ListEmptyComponent={<Text style={styles.empty}>{emptyText}</Text>}
+      ListEmptyComponent={<EmptyState icon={empty.icon} title={empty.title} body={empty.body} action={empty.action} />}
       renderItem={({ item }) => {
         const unread = item.unread_count > 0;
         return (
-          <Pressable onPress={() => onOpen(item)} style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${item.other_party.name}${unread ? `, ${item.unread_count} sin leer` : ''}. ${item.content}`}
+            accessibilityHint="Abre la conversación"
+            onPress={() => onOpen(item)}
+            style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}
+          >
             <View>
               <Avatar uri={item.other_party.profile_url} name={item.other_party.name} size={52} />
               {unread ? <View style={styles.unreadDot} /> : null}

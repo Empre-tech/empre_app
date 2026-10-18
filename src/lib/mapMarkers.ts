@@ -86,3 +86,16 @@ export function shouldMoveList(list: RegionLike, next: RegionLike, step: number 
   if (zoom >= 1 + step || zoom <= 1 / (1 + step)) return true;
   return Math.abs(next.latitude - list.latitude) >= next.latitudeDelta * step || Math.abs(next.longitude - list.longitude) >= next.longitudeDelta * step;
 }
+
+/**
+ * Quién es el marcador, sin su aspecto (3.32): la llave lleva el nivel de zoom y el estado, así que cambia al acercar o
+ * al elegir. Si la ola de aparición usara la llave, un cambio de nivel vaciaría el mapa un momento y lo volvería a llenar
+ * en tandas. Con la identidad, solo entran en tandas los negocios que de verdad son nuevos en pantalla.
+ */
+export function identityOf(
+  m: { kind: 'business'; entity: { id: string } } | { kind: 'stack'; cluster: { key: string } } | { kind: 'bubble'; key: string },
+): string {
+  if (m.kind === 'business') return `b:${m.entity.id}`;
+  if (m.kind === 'stack') return `s:${m.cluster.key}`;
+  return m.key;
+}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import type { Coords } from '@/lib/geo';
-import { nextReveal, revealOrder, REVEAL_MS } from '@/lib/mapMarkers';
+import { identityOf, nextReveal, revealOrder, REVEAL_MS } from '@/lib/mapMarkers';
 import type { MarkerModel } from './useMapMarkers';
 
 /** Dónde está un marcador (burbuja, pin o pila). */
@@ -23,7 +23,7 @@ export function useRevealedMarkers(markers: MarkerModel[], center: Coords, reduc
   const [shown, setShown] = useState<ReadonlySet<string>>(() => new Set());
   const { latitude, longitude } = center;
   const pending = useMemo(
-    () => revealOrder(markers.map((m) => ({ key: m.key, ...pointOf(m) })), shown, { latitude, longitude }),
+    () => revealOrder(markers.map((m) => ({ key: identityOf(m), ...pointOf(m) })), shown, { latitude, longitude }),
     [markers, shown, latitude, longitude],
   );
 
@@ -33,7 +33,7 @@ export function useRevealedMarkers(markers: MarkerModel[], center: Coords, reduc
     const t = setTimeout(
       () =>
         setShown((prev) => {
-          const next = new Set(prev.size > SHOWN_MAX ? markers.map((m) => m.key).filter((k) => prev.has(k)) : prev);
+          const next = new Set(prev.size > SHOWN_MAX ? markers.map(identityOf).filter((k) => prev.has(k)) : prev);
           for (const b of batch) next.add(b.key);
           return next;
         }),
@@ -42,5 +42,5 @@ export function useRevealedMarkers(markers: MarkerModel[], center: Coords, reduc
     return () => clearTimeout(t);
   }, [pending, reduce, markers]);
 
-  return useMemo(() => markers.filter((m) => shown.has(m.key) || (m.kind === 'business' && m.selected)), [markers, shown]);
+  return useMemo(() => markers.filter((m) => shown.has(identityOf(m)) || (m.kind === 'business' && m.selected)), [markers, shown]);
 }

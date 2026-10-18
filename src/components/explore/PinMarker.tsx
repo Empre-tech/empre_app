@@ -4,6 +4,7 @@ import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Marker } from 'react-native-maps';
 import { categoryColor } from '@/lib/categoryColor';
+import { pinLabel } from '@/lib/markerLabels';
 import { resolveImageUrl } from '@/lib/image';
 import type { EmphasisTier } from '@/lib/proximity';
 import { colors, fonts, radius } from '@/theme';
@@ -65,6 +66,8 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
         opacity={dimmed ? DIM_OPACITY : 1}
         zIndex={selected ? 1000 : emphasis === 'big' ? 30 : emphasis === 'mid' ? 20 : emphasis === 'dot' ? 10 : 1}
         tracksViewChanges={tracking}
+        accessibilityRole="button"
+        accessibilityLabel={pinLabel(entity, selected)}
         onPress={(event) => {
           event.stopPropagation();
           onPress();
@@ -114,6 +117,8 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
       opacity={dimmed ? DIM_OPACITY : 1}
       zIndex={selected ? 1000 : 1}
       tracksViewChanges={tracking}
+      accessibilityRole="button"
+      accessibilityLabel={pinLabel(entity, selected)}
       onPress={(event) => {
         event.stopPropagation();
         onPress();

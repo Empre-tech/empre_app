@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { Marker } from 'react-native-maps';
 import type { Cluster } from '@/lib/cluster';
+import { stackLabel } from '@/lib/markerLabels';
 import { BusinessStack } from './BusinessStack';
 import type { WithDistance } from './FeaturedCard';
 import { useMarkerTracking } from './useMarkerTracking';
@@ -25,6 +26,8 @@ function StackMarkerView({ cluster, tier, onPress }: Props) {
       ref={markerRef}
       coordinate={{ latitude: cluster.latitude, longitude: cluster.longitude }}
       tracksViewChanges={tracking}
+      accessibilityRole="button"
+      accessibilityLabel={stackLabel(cluster.items)}
       onPress={(event) => {
         event.stopPropagation();
         onPress();
