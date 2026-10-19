@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { categoryColor } from '@/lib/categoryColor';
 import { resolveImageUrl } from '@/lib/image';
 import { displayIcon } from '@/lib/mapView';
-import { distanceLabel, priceView, tileA11y, timeBadge, type MarketItem } from '@/lib/offerMarket';
+import { distanceLabel, priceView, tileA11y, timeBadge, zoneSubtitle, type MarketItem, type MarketZone } from '@/lib/offerMarket';
 import { colors, fonts, radius, spacing } from '@/theme';
 import { LiveDot } from './MarketMotion';
 
@@ -44,6 +44,8 @@ function Price({ item }: { item: MarketItem }) {
 export function OfferTile({ item, now, onPress, width = TILE_W }: { item: MarketItem; now: number; onPress: () => void; width?: number }) {
   const t = timeBadge(item.ends_at, now);
   const dist = distanceLabel(item.distance_meters);
+  // Con «En tendencia» a la izquierda no caben las dos etiquetas largas: la del tiempo se acorta («49 min»).
+  const timeText = item.trending && t.urgent ? t.text.replace(/^Termina en /, '') : t.text;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={tileA11y(item, now)} onPress={onPress} style={({ pressed }) => [styles.tile, { width }, pressed && styles.pressed]}>
       <Photo item={item} style={styles.tilePhoto} iconSize={34} />
@@ -54,7 +56,7 @@ export function OfferTile({ item, now, onPress, width = TILE_W }: { item: Market
         </View>
       ) : null}
       <View style={[styles.badge, styles.badgeRight, t.urgent ? styles.badgeUrgent : styles.badgeDark]}>
-        <Text style={[styles.badgeText, t.urgent ? styles.urgentText : styles.darkText]}>{t.text}</Text>
+        <Text style={[styles.badgeText, t.urgent ? styles.urgentText : styles.darkText]}>{timeText}</Text>
       </View>
       <View style={styles.tileBody}>
         <Text style={styles.title} numberOfLines={2}>
@@ -96,6 +98,43 @@ export function OfferRow({ item, now, onPress }: { item: MarketItem; now: number
   );
 }
 
+/** Tarjeta de «Por zona» (3.39): mosaico de hasta 3 categorías, nombre y qué tan lejos queda. Lleva a la lista de esa
+ * zona. Sin conteos. */
+export function ZoneCard({ zone, onPress }: { zone: MarketZone; onPress: () => void }) {
+  const looks = zone.looks.length ? zone.looks : [{}];
+  const tiles = [0, 1, 2].map((i) => looks[i % looks.length]);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Ver ofertas de ${zone.name}, ${zoneSubtitle(zone).toLowerCase()}`}
+      onPress={onPress}
+      style={({ pressed }) => [styles.zone, pressed && styles.pressed]}
+    >
+      <View style={styles.mosaic}>
+        {tiles.map((l, i) => (
+          <View key={i} style={[styles.mosaicCell, { backgroundColor: categoryColor(l.color).fg }]}>
+            <Ionicons name={displayIcon(l.icon) as keyof typeof Ionicons.glyphMap} size={18} color="rgba(255,255,255,0.92)" />
+          </View>
+        ))}
+      </View>
+      <View style={styles.zoneBody}>
+        <Text style={styles.title} numberOfLines={1}>
+          {zone.name}
+        </Text>
+        <Text style={styles.meta} numberOfLines={1}>
+          {zoneSubtitle(zone)}
+        </Text>
+        {zone.here ? (
+          <View style={styles.here}>
+            <Text style={styles.hereText}>Tu zona</Text>
+          </View>
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
+
+export const ZONE_W = 168;
 export const TILE_W = 216;
 export const TILE_GAP = 10;
 
@@ -125,4 +164,10 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: spacing.md, padding: spacing.sm + 2, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
   rowPhoto: { width: 76, height: 76, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   rowBody: { flex: 1, minWidth: 0, justifyContent: 'center' },
+  zone: { width: 168, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
+  mosaic: { flexDirection: 'row', height: 64 },
+  mosaicCell: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  zoneBody: { padding: spacing.sm + 2, paddingTop: spacing.sm, gap: 2 },
+  here: { alignSelf: 'flex-start', marginTop: 4, backgroundColor: colors.primarySoft, borderRadius: 6, paddingHorizontal: 6 },
+  hereText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
 });

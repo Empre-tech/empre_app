@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { Animated, Easing, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useEffect, useLayoutEffect, useState, type ReactNode } from 'react';
+import { Animated, Easing, StyleSheet, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors } from '@/theme';
@@ -54,7 +54,62 @@ export function LiveDot({ color = colors.danger }: { color?: string }) {
   );
 }
 
+/**
+ * Texto que «rueda» cuando cambia (3.39, encabezado de Ofertas): el viejo sale hacia arriba (160 ms, salida rápida) y
+ * el nuevo entra desde abajo (280 ms, curva enfática). Solo al cambiar, nunca en bucle. Con «Reducir movimiento», el
+ * cambio es inmediato.
+ */
+export function RollText({ text, style, numberOfLines = 1 }: { text: string; style?: StyleProp<TextStyle>; numberOfLines?: number }) {
+  const reduce = useReduceMotion();
+  const [shown, setShown] = useState(text);
+  const [leaving, setLeaving] = useState<string | null>(null);
+  const [turn, setTurn] = useState(0); // cuántas veces cambió: cada cambio arranca una animación
+  const [inV] = useState(() => new Animated.Value(1));
+  const [outV] = useState(() => new Animated.Value(0));
+  // Estado derivado en el render (no en un efecto): el texto nuevo se guarda y el viejo pasa a «saliendo».
+  if (text !== shown) {
+    setLeaving(reduce ? null : shown);
+    setShown(text);
+    setTurn((n) => n + 1);
+  }
+  // Antes de pintar: así el texto nuevo no se ve un instante en su sitio antes de entrar.
+  useLayoutEffect(() => {
+    if (turn === 0 || reduce) {
+      inV.setValue(1);
+      outV.setValue(1);
+      return;
+    }
+    inV.setValue(0);
+    outV.setValue(0);
+    const a = Animated.parallel([
+      Animated.timing(outV, { toValue: 1, duration: 160, easing: EXIT, useNativeDriver: true }),
+      Animated.timing(inV, { toValue: 1, duration: 280, delay: 60, easing: EMPHASIZED, useNativeDriver: true }),
+    ]);
+    a.start(({ finished }) => {
+      if (finished) setLeaving(null);
+    });
+    return () => a.stop();
+  }, [turn, reduce, inV, outV]);
+  const lift = (v: Animated.Value, from: number, to: number) => ({ transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [from, to] }) }] });
+  return (
+    <View style={styles.rollWrap}>
+      {leaving !== null ? (
+        <Animated.Text accessible={false} numberOfLines={numberOfLines} style={[style, styles.rollGhost, { opacity: outV.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }, lift(outV, 0, -12)]}>
+          {leaving}
+        </Animated.Text>
+      ) : null}
+      <Animated.Text numberOfLines={numberOfLines} style={[style, { opacity: inV }, lift(inV, 12, 0)]}>
+        {shown}
+      </Animated.Text>
+    </View>
+  );
+}
+
+const EXIT = Easing.bezier(0.4, 0, 1, 1);
+
 const styles = StyleSheet.create({
+  rollWrap: { overflow: 'hidden', flexShrink: 1 },
+  rollGhost: { position: 'absolute', left: 0, right: 0, top: 0 },
   dotWrap: { width: 7, height: 7, alignItems: 'center', justifyContent: 'center' },
   dot: { width: 7, height: 7, borderRadius: 3.5 },
   ring: { position: 'absolute' },
