@@ -1,3 +1,4 @@
+import type { GrowthItem } from '@/lib/growth';
 import { request, uploadFile } from './client';
 import type {
   AIChatMessage,
@@ -138,6 +139,10 @@ export const entitiesApi = {
   // pueda devolver `is_favorite` correcto (visitantes sin sesión igual pueden
   // ver el negocio; simplemente no se manda cabecera si no hay token).
   get: (id: string) => request<EntityDetail>(`/api/entities/${id}`),
+
+  /** «Haz que tu negocio destaque» (3.40): los 8 puntos y si están hechos. Solo el dueño. */
+  completeness: async (id: string): Promise<GrowthItem[]> =>
+    (await request<{ items?: GrowthItem[] | null }>(`/api/entities/${id}/completeness`)).items ?? [],
 
   mine: async () =>
     unwrapList<EntityOwnerItem>(await request<unknown>('/api/entities/mine', { query: { pageSize: 50 } })),

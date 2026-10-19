@@ -11,9 +11,8 @@ import { offersApi } from '@/api/offers';
 import { Button } from '@/components/Button';
 import { UpdatingBar } from '@/components/explore/LoadingMotion';
 import { Reveal, RollText } from '@/components/offers/MarketMotion';
-import { OfferRow, OfferTile, TILE_GAP, TILE_W, ZONE_W, ZoneCard } from '@/components/offers/OfferTiles';
+import { CategoryTile, FeaturedOffer, OfferRow, OfferTile, TILE_GAP, TILE_W, ZONE_W, ZoneCard } from '@/components/offers/OfferTiles';
 import { SkeletonBlock } from '@/components/Skeleton';
-import { buildGroups, categoryFilter, type GroupId } from '@/lib/categoryGroups';
 import { loadLastCity, saveLastCity } from '@/lib/lastCityStore';
 import {
   effectiveSort,
@@ -23,6 +22,7 @@ import {
   listTitle,
   nearEnd,
   placeLine,
+  shortCategory,
   showZones,
   sortOptions,
   visibleSections,
@@ -57,7 +57,7 @@ export default function OffersScreen() {
   const [coords, setCoords] = useState<Coords | null>(null);
   const [locAsked, setLocAsked] = useState(false);
   const [lastCity, setLastCity] = useState<string | null>(null); // null = aún leyendo el teléfono
-  const [group, setGroup] = useState<GroupId | undefined>();
+  const [catId, setCatId] = useState<string | undefined>(); // categoría elegida en la fila con iconos
   const [term, setTerm] = useState<string | undefined>();
   const [sort, setSort] = useState<MarketSort>('near');
   const [zone, setZone] = useState<string | undefined>();
@@ -104,8 +104,7 @@ export default function OffersScreen() {
   }, [text]);
 
   const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 5 * 60_000 });
-  const groups = useMemo(() => buildGroups(categories.data ?? []), [categories.data]);
-  const category = categoryFilter(group, undefined, groups);
+  const category = catId;
   const hasLoc = coords !== null;
   const sortNow = effectiveSort(sort, hasLoc);
   const ready = lastCity !== null;
@@ -264,10 +263,10 @@ export default function OffersScreen() {
           </View>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          <Chip label="Todas" active={!group} onPress={() => setGroup(undefined)} />
-          {groups.map((g) => (
-            <Chip key={g.id} label={g.name} active={group === g.id} onPress={() => setGroup(group === g.id ? undefined : g.id)} />
+        {/* 3.40: las categorías con su icono y color; tocar la elegida la quita. */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats} accessibilityLabel="Categorías">
+          {(categories.data ?? []).map((c) => (
+            <CategoryTile key={c.id} name={c.name} short={shortCategory(c.name)} icon={c.icon} color={c.color} active={catId === c.id} onPress={() => setCatId(catId === c.id ? undefined : c.id)} />
           ))}
         </ScrollView>
 
@@ -293,6 +292,12 @@ export default function OffersScreen() {
               ))}
             </View>
           </View>
+        ) : null}
+
+        {data?.featured && !q ? (
+          <Reveal key={`featured|${key}|${data.featured.id}`} style={styles.sec}>
+            <FeaturedOffer item={data.featured} now={now} onPress={() => open(data.featured!)} />
+          </Reveal>
         ) : null}
 
         {data
@@ -442,7 +447,7 @@ const styles = StyleSheet.create({
   miniCity: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink, flexShrink: 0 },
   miniZone: { flex: 1, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.primaryDark },
   miniBtn: { marginLeft: 'auto', width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  chips: { gap: 6, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: 4 },
+  cats: { gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: 4 },
   terms: { gap: 6, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
   chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },

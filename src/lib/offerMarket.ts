@@ -39,6 +39,8 @@ export interface MarketResponse {
   /** Zona donde está la persona; vacía si no está en ninguna. */
   zone: string;
   zones: MarketZone[];
+  /** «Mayor ahorro de hoy» (3.40): por regla a la vista, nunca pagada; null si ninguna termina hoy con ahorro. */
+  featured: MarketItem | null;
   near: MarketItem[];
   searched: { terms: { term: string; label: string }[]; term: string; items: MarketItem[] };
   trending: MarketItem[];
@@ -186,4 +188,57 @@ export function flattenPages(pages: MarketPage[] | undefined): MarketItem[] {
 /** Hay que pedir otra tanda cuando quedan menos de `margin` px por recorrer. */
 export function nearEnd(e: { contentOffset: { y: number }; layoutMeasurement: { height: number }; contentSize: { height: number } }, margin = 600): boolean {
   return e.contentSize.height - (e.contentOffset.y + e.layoutMeasurement.height) < margin;
+}
+
+// ---------------------------------------------------------------------------
+// 3.40 · Vitrina viva (mockup vitrina_viva.html)
+// ---------------------------------------------------------------------------
+
+/** Inicial del negocio para la tarjeta sin foto, sin el artículo («La Sazón» → «S»). */
+export function initialOf(name: string): string {
+  const clean = name.trim().replace(/^(la|el|los|las)\s+/i, '');
+  const ch = Array.from(clean)[0] ?? '';
+  return ch.toLocaleUpperCase('es');
+}
+
+const SHORT: Record<string, string> = {
+  restaurantes: 'Comida',
+  'cafeterias y postres': 'Café',
+  'bares y vida nocturna': 'Bares',
+  'tiendas y comercio': 'Tiendas',
+  'belleza y peluqueria': 'Belleza',
+  'salud y bienestar': 'Salud',
+  'servicios del hogar': 'Hogar',
+  'turismo y hospedaje': 'Turismo',
+  automotriz: 'Autos',
+  'eventos y fiestas': 'Eventos',
+  'fotografia y diseno': 'Fotos',
+  'deporte y recreacion': 'Deporte',
+};
+const fold = (s: string) => s.toLocaleLowerCase('es').normalize('NFD').replace(/\p{M}/gu, '').trim();
+
+/** Nombre corto de la categoría para la fila con iconos (una sola línea bajo el icono). */
+export function shortCategory(name: string): string {
+  const known = SHORT[fold(name)];
+  if (known) return known;
+  const first = name.trim().split(/\s+/)[0] ?? '';
+  return first.length <= 10 ? first : `${first.slice(0, 9)}…`;
+}
+
+/** Etiqueta de tiempo de la tarjeta: bajo una hora, solo los minutos con reloj («38 min»); si no, como siempre. */
+export function tileClock(endsAt: string, now: number): { text: string; urgent: boolean } {
+  const t = timeBadge(endsAt, now);
+  return t.urgent ? { text: t.text.replace(/^Termina en /, ''), urgent: true } : t;
+}
+
+/** Reloj de la destacada: «Termina en 38 min» o «Quedan 2 h». */
+export function featuredClock(endsAt: string, now: number): { text: string; urgent: boolean } {
+  const t = timeBadge(endsAt, now);
+  if (t.urgent || t.text === 'Terminó') return t;
+  return { text: `Quedan ${t.text}`, urgent: false };
+}
+
+/** Lo que lee el lector de pantalla en la destacada: la regla primero, para que nadie la tome por publicidad. */
+export function featuredA11y(o: MarketItem, now: number): string {
+  return `Mayor ahorro de hoy: ${tileA11y(o, now)}`;
 }

@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { EntityDetail, Offer } from '@/api/types';
 import { Button } from '@/components/Button';
+import { GrowthCard } from '@/components/profile/GrowthCard';
 import { OwnerDiscoverCard } from '@/components/profile/OwnerDiscoverCard';
 import { colors, fonts, radius, spacing } from '@/theme';
 
@@ -15,6 +16,8 @@ interface Props {
   onEdit: () => void;
   onPublishOffer: () => void;
   onCatalog: () => void;
+  /** Subir fotos al perfil (el compositor de publicaciones). */
+  onPhotos: () => void;
   onScan: () => void;
   onSubscription: () => void;
   onAgenda: () => void;
@@ -24,11 +27,10 @@ interface Props {
 
 /**
  * «Mi negocio»: las herramientas del dueño, aparte de lo que ve un cliente (que está en «Así te ven»). Primero lo que
- * pide atención (prueba gratis terminada, portada), luego la tarjeta de Descubre con lo que falta, y las acciones
- * como botones de 44 pt o más.
+ * pide atención (prueba gratis terminada), luego «Haz que tu negocio destaque» (se va al completarlo), la tarjeta de
+ * Descubre y las acciones como botones de 44 pt o más.
  */
-export function OwnerPanel({ business, offer, followers, requiresPayment, agenda, onEdit, onPublishOffer, onCatalog, onScan, onSubscription, onAgenda, onDirections, onCall }: Props) {
-  const noCover = !business.banner_url && (business.photos ?? []).length === 0;
+export function OwnerPanel({ business, offer, followers, requiresPayment, agenda, onEdit, onPublishOffer, onCatalog, onPhotos, onScan, onSubscription, onAgenda, onDirections, onCall }: Props) {
   return (
     <View style={styles.wrap}>
       {requiresPayment ? (
@@ -42,14 +44,10 @@ export function OwnerPanel({ business, offer, followers, requiresPayment, agenda
         </Pressable>
       ) : null}
 
-      {noCover ? (
-        <View style={styles.tip} accessibilityRole="alert">
-          <Text style={styles.tipText}>Tu perfil no tiene portada. Una foto horizontal de tu local o de lo que ofreces hace que se vea mucho mejor.</Text>
-          <Pressable accessibilityRole="button" onPress={onEdit} style={styles.tipBtn}>
-            <Text style={styles.tipBtnText}>Agregar portada</Text>
-          </Pressable>
-        </View>
-      ) : null}
+      <GrowthCard
+        entityId={business.id}
+        onGo={(target) => (target === 'catalog' ? onCatalog() : target === 'offer' ? onPublishOffer() : target === 'photos' ? onPhotos() : onEdit())}
+      />
 
       {followers > 0 ? (
         <View style={styles.followers}>

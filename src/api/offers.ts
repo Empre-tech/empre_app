@@ -184,6 +184,7 @@ export const offersApi = {
       city: r.city ?? '',
       zone: r.zone ?? '',
       zones: (r.zones ?? []).map((z) => ({ ...z, looks: z.looks ?? [] })),
+      featured: r.featured ?? null,
       near: r.near ?? [],
       searched: { terms: r.searched?.terms ?? [], term: r.searched?.term ?? '', items: r.searched?.items ?? [] },
       trending: r.trending ?? [],

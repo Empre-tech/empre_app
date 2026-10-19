@@ -716,6 +716,7 @@ export default function BusinessScreen() {
               onEdit={() => router.push({ pathname: '/business/edit/[id]', params: { id: business.id } })}
               onPublishOffer={() => router.push({ pathname: '/business/offers', params: { entityId: business.id } })}
               onCatalog={() => router.push({ pathname: '/business/catalog/[id]', params: { id: business.id } })}
+              onPhotos={() => setComposerOpen(true)}
               onScan={() => router.push('/business/scan')}
               onSubscription={() => router.push({ pathname: '/business/subscription/[id]', params: { id: business.id } })}
               onAgenda={() => router.push({ pathname: '/business/agenda/[id]', params: { id: business.id } })}
