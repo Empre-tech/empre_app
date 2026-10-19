@@ -1,5 +1,6 @@
 import type { ReviewSnippetData } from '@/lib/reviewSnippet';
 import type { Zone } from '@/lib/zoneName';
+import type { MarketResponse, MarketSort } from '@/lib/offerMarket';
 import { request } from './client';
 import type {
   BusinessStatus,
@@ -171,6 +172,20 @@ export const offersApi = {
       promotions?: OffersFeed['promotions'] | null;
     }>('/api/offers', { auth: false, query: { ...params } });
     return { relampagos: res.relampagos ?? [], promotions: res.promotions ?? [] };
+  },
+
+  /** Vitrina (3.38): cerca, lo más buscado, tendencia, recomendado y todas; sin repetir ofertas entre secciones. Con
+   * sesión suma «Recomendado para ti»; sin ella, las mejor valoradas. */
+  market: async (params: { lat?: number; long?: number; category?: string; term?: string; sort?: MarketSort } = {}): Promise<MarketResponse> => {
+    const r = await request<Partial<MarketResponse>>('/api/offers/market', { query: { ...params } });
+    return {
+      has_location: Boolean(r.has_location),
+      near: r.near ?? [],
+      searched: { terms: r.searched?.terms ?? [], term: r.searched?.term ?? '', items: r.searched?.items ?? [] },
+      trending: r.trending ?? [],
+      for_you: { top_rated: Boolean(r.for_you?.top_rated), items: r.for_you?.items ?? [] },
+      all: r.all ?? [],
+    };
   },
 };
 
