@@ -7,6 +7,7 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   Animated,
+  AppState,
   Linking,
   Modal,
   Pressable,
@@ -18,7 +19,7 @@ import {
 import MapView, { Circle, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { categoriesApi, entitiesApi } from '@/api/endpoints';
-import { claimsApi, discoverApi, discoveryApi } from '@/api/offers';
+import { claimsApi, discoverApi, discoveryApi, zonesApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
 import type { Category, DiscoverItem, DiscoveryItem, DiscoverSectionId } from '@/api/types';
 import { Button } from '@/components/Button';
@@ -40,6 +41,7 @@ import { LocationStrip } from '@/components/explore/LocationStrip';
 import { PlaceSheet } from '@/components/explore/PlaceSheet';
 import { PhotoViewer, type ViewerTarget } from '@/components/explore/PhotoViewer';
 import { MapLegend, YouDot, YOU_DOT } from '@/components/explore/MapReferences';
+import { PulseRing, ZoneGlows } from '@/components/explore/MapLive';
 import { ExploreGuide, type GuideRect } from '@/components/explore/ExploreGuide';
 import { StackMarker } from '@/components/explore/StackMarker';
 import { SearchBar } from '@/components/explore/SearchBar';
@@ -71,7 +73,9 @@ import { loadPinsCache, savePinsCache } from '@/lib/pinsCacheStore';
 import { isBubbleLevel } from '@/lib/mapLevels';
 import { NEAR_ME_M, zoneAt } from '@/lib/zoneName';
 import { cameraTargets, emphasize, isFarResult } from '@/lib/proximity';
-import { MAP_STYLE } from '@/lib/mapStyle';
+import { MAP_STYLE, MAP_STYLE_NIGHT } from '@/lib/mapStyle';
+import { pulseTargets, resolveTheme, showGlow, type FreshOffer, type MapThemePref } from '@/lib/mapLive';
+import { DEFAULT_MAP_PREFS, loadMapPrefs, saveMapPrefs, type MapPrefs } from '@/lib/mapPrefsStore';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
 
 /** Opciones del filtro "cerca de mí". `null` = sin límite de distancia. */
@@ -438,6 +442,30 @@ export default function ExploreScreen() {
     placeholderData: keepPreviousData,
   });
   const zones = useZones();
+
+  // Mapa vivo (3.41): tema, brillo de zonas (solo de lejos) y pulso de ofertas recién publicadas (solo de cerca). Todo
+  // con datos reales de /zones/activity. Por defecto el mapa queda como hoy: de día.
+  const [mapPrefs, setMapPrefs] = useState<MapPrefs>(DEFAULT_MAP_PREFS);
+  useEffect(() => {
+    void loadMapPrefs().then(setMapPrefs);
+  }, []);
+  const updateMapPrefs = useCallback((p: Partial<MapPrefs>) => {
+    setMapPrefs((prev) => {
+      const next = { ...prev, ...p };
+      void saveMapPrefs(next);
+      return next;
+    });
+  }, []);
+  const hour = new Date(useNow(5 * 60_000)).getHours();
+  const mapTheme = resolveTheme(mapPrefs.theme, hour);
+  const activityQuery = useQuery({
+    queryKey: ['zones-activity', region.latitude.toFixed(1), region.longitude.toFixed(1)],
+    queryFn: () => zonesApi.activity({ lat: region.latitude, long: region.longitude }),
+    enabled: startupRegion !== null,
+    staleTime: 2 * 60_000,
+    placeholderData: keepPreviousData,
+  });
+  const glowOn = showGlow(level, mapPrefs.zones, searching);
 
   // Descubre (3.26, `carga_descubre.html`): lo arma el servidor para la MISMA área con holgura que los pines (`fetchBox`,
   // 2× la pantalla) y el teléfono deja solo lo que se ve (`sectionsInView`). Un movimiento corto no pide nada: se vuelve
@@ -888,6 +916,25 @@ export default function ExploreScreen() {
   // El buscador y los chips se desvanecen mientras el dedo mueve el mapa, y los chips
   // se esconden con el panel expandido (queda una franja de mapa con el buscador).
   const reduceMotion = useReduceMotion();
+  // Pulso (3.41): solo de cerca (niveles 3 a 5), sin «Reducir movimiento», con la app al frente; cada oferta una vez.
+  const pulseSeen = useRef(new Set<string>());
+  const [pulses, setPulses] = useState<FreshOffer[]>([]);
+  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => setAppActive(st === 'active'));
+    return () => sub.remove();
+  }, []);
+  const fresh = activityQuery.data?.fresh_offers;
+  useEffect(() => {
+    if (reduceMotion || !appActive || level <= 2 || !fresh?.length) return;
+    const next = pulseTargets(fresh, region, pulseSeen.current);
+    if (!next.length) return;
+    next.forEach((o) => pulseSeen.current.add(o.offer_id));
+    // Fuera del render: el pulso empieza cuando el mapa ya se quedó quieto en la zona.
+    const t = setTimeout(() => setPulses((cur) => [...cur, ...next].slice(-3)), 250);
+    return () => clearTimeout(t);
+  }, [fresh, region, level, reduceMotion, appActive]);
+  const endPulse = useCallback((id: string) => setPulses((cur) => cur.filter((p) => p.offer_id !== id)), []);
   // Los marcadores nuevos entran en tandas desde el centro, no todos de golpe (3.29).
   const revealed = useRevealedMarkers(markers, { latitude: pinRegion.latitude, longitude: pinRegion.longitude }, reduceMotion);
   const [topFade] = useState(() => new Animated.Value(1));
@@ -1100,7 +1147,7 @@ export default function ExploreScreen() {
               // los negocios de Empre y solo generan ruido visual (hallazgo de UI:
               // "el mapa conserva etiquetas ajenas al filtro").
               showsPointsOfInterests={false}
-              customMapStyle={MAP_STYLE}
+              customMapStyle={mapTheme === 'night' ? MAP_STYLE_NIGHT : MAP_STYLE}
               onMapReady={() => setMapReady(true)}
               onPanDrag={onMapDrag}
               onRegionChange={onMapChange}
@@ -1119,6 +1166,11 @@ export default function ExploreScreen() {
                   fillColor="rgba(36,104,198, 0.12)"
                 />
               ) : null}
+              {/* Brillo de zonas (3.41): solo de lejos, debajo de las burbujas; de cerca no hay círculo de zona (3.30). */}
+              {glowOn && activityQuery.data?.zones.length ? <ZoneGlows zones={activityQuery.data.zones} /> : null}
+              {level > 2
+                ? pulses.map((p) => <PulseRing key={p.offer_id} offer={p} baseMeters={region.latitudeDelta * 111_000 * 0.035} onDone={() => endPulse(p.offer_id)} />)
+                : null}
               {/* Sin círculo ni nombre de la zona (3.30): la franja de arriba ya dice dónde estás. */}
               {revealed.map((m) =>
                 m.kind === 'bubble' ? (
@@ -1173,7 +1225,12 @@ export default function ExploreScreen() {
 
           {youDot ? <YouDot bottom={youDotBottom} angle={youDot.angle} distance={youDistance} onPress={() => void goToMe()} /> : null}
           {!selectedEntity && !placeItems && !tall ? (
-            <MapLegend bottom={locateBottom} open={legendOpen && guideStep === null} onToggle={() => setLegendOpen((v) => !v)} />
+            <MapLegend
+              bottom={locateBottom}
+              open={legendOpen && guideStep === null}
+              onToggle={() => setLegendOpen((v) => !v)}
+              layers={{ theme: mapPrefs.theme, onTheme: (t: MapThemePref) => updateMapPrefs({ theme: t }), zones: mapPrefs.zones, onZones: (on) => updateMapPrefs({ zones: on }) }}
+            />
           ) : null}
 
           {!selectedEntity && !placeItems ? (
