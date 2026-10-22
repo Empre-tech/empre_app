@@ -1,6 +1,6 @@
-// Mapa vivo (3.41, mockup mapa_vivo.html): el tema del mapa, el brillo de cada zona y el pulso de las ofertas nuevas.
-// Todo sale de datos reales (GET /api/zones/activity); nada simula ventas ni afluencia. Sin React para probarlo con
-// Node. Riesgo bajo por diseño: el brillo solo se ve de lejos (niveles de burbujas) y el pulso solo de cerca.
+// Mapa vivo (3.41, mockup mapa_vivo.html): el tema del mapa y el pulso de las ofertas nuevas, con datos reales
+// (GET /api/zones/activity); nada simula ventas ni afluencia. Sin React para probarlo con Node. El brillo de zonas se
+// quitó después de verlo en el teléfono: sobre el mapa real de Google eran manchas que ensuciaban los pines.
 
 export type MapTheme = 'day' | 'night';
 export type MapThemePref = MapTheme | 'auto';
@@ -31,38 +31,6 @@ export function resolveTheme(pref: MapThemePref, hour: number): MapTheme {
   return hour >= 18 || hour < 6 ? 'night' : 'day';
 }
 
-/** El brillo se ve solo de lejos: en los niveles de burbujas (1 y 2), con la capa encendida y sin búsqueda. */
-export function showGlow(level: number, layerOn: boolean, searching: boolean): boolean {
-  return layerOn && !searching && level <= 2;
-}
-
-export interface GlowCircle {
-  radius: number;
-  fill: string;
-  stroke: string;
-  strokeWidth: number;
-}
-
-const ORANGE = '245,130,32';
-const TEAL = '20,184,166';
-const PURPLE = 'rgba(139,92,246,0.75)';
-
-/**
- * Dos círculos por zona (halo y centro) que hacen el brillo sin pintar píxeles. El tamaño y la intensidad salen de los
- * negocios registrados (respecto a la zona con más); naranja si hay ofertas vigentes; aro morado si crece.
- */
-export function zoneGlow(z: ZoneActivity, maxBusinesses: number): [GlowCircle, GlowCircle] {
-  const ratio = maxBusinesses > 0 ? Math.min(1, z.businesses / maxBusinesses) : 0;
-  const rgb = z.has_offers ? ORANGE : TEAL;
-  const base = Math.max(300, z.radius_m);
-  const outer = Math.round(base * (1.05 + 0.45 * ratio));
-  const a1 = round2(0.08 + 0.1 * ratio);
-  const a2 = round2(0.14 + 0.16 * ratio);
-  return [
-    { radius: outer, fill: `rgba(${rgb},${a1})`, stroke: z.growing ? PURPLE : 'rgba(0,0,0,0)', strokeWidth: z.growing ? 2 : 0 },
-    { radius: Math.round(outer * 0.5), fill: `rgba(${rgb},${a2})`, stroke: 'rgba(0,0,0,0)', strokeWidth: 0 },
-  ];
-}
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export const PULSE_MS = 1600; // un anillo

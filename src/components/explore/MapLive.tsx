@@ -1,33 +1,7 @@
-import { memo, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Circle } from 'react-native-maps';
 
-import { pulseFrame, zoneGlow, type FreshOffer, type ZoneActivity } from '@/lib/mapLive';
-
-/**
- * Brillo de las zonas (3.41): dos círculos del mapa por zona, sin pintar píxeles ni marcadores nuevos (no cuestan como
- * un pin). Solo se dibuja de lejos; los círculos siempre quedan debajo de las burbujas y los pines, así que no tapan nada
- * ni se pueden tocar por error.
- */
-export const ZoneGlows = memo(function ZoneGlows({ zones }: { zones: ZoneActivity[] }) {
-  const max = zones.reduce((m, z) => Math.max(m, z.businesses), 0);
-  return (
-    <>
-      {zones.map((z) =>
-        zoneGlow(z, max).map((c, i) => (
-          <Circle
-            key={`${z.id}-${i}`}
-            center={{ latitude: z.latitude, longitude: z.longitude }}
-            radius={c.radius}
-            fillColor={c.fill}
-            strokeColor={c.stroke}
-            strokeWidth={c.strokeWidth}
-            zIndex={0}
-          />
-        )),
-      )}
-    </>
-  );
-});
+import { pulseFrame, type FreshOffer } from '@/lib/mapLive';
 
 /**
  * Pulso de una oferta recién publicada (3.41): un anillo naranja que crece y se desvanece dos veces y se detiene. Lo

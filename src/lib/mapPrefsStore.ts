@@ -2,14 +2,13 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 import type { MapThemePref } from './mapLive';
 
-// Preferencias del mapa (3.41): el tema (día, noche o automático) y si se ve el brillo de las zonas. Se guardan en el
-// teléfono. Por defecto, el mapa queda como hoy: de día y con el brillo encendido (solo se ve de lejos).
+// Preferencias del mapa (3.41): el tema (día, noche o automático). Se guardan en el teléfono. Por defecto, el mapa
+// queda como hoy: de día.
 export interface MapPrefs {
   theme: MapThemePref;
-  zones: boolean;
 }
 
-export const DEFAULT_MAP_PREFS: MapPrefs = { theme: 'day', zones: true };
+export const DEFAULT_MAP_PREFS: MapPrefs = { theme: 'day' };
 const FILE = `${FileSystem.documentDirectory ?? ''}map_prefs.json`;
 
 export async function loadMapPrefs(): Promise<MapPrefs> {
@@ -19,7 +18,7 @@ export async function loadMapPrefs(): Promise<MapPrefs> {
     if (!info.exists) return DEFAULT_MAP_PREFS;
     const raw = JSON.parse(await FileSystem.readAsStringAsync(FILE));
     const theme: MapThemePref = raw?.theme === 'night' || raw?.theme === 'auto' ? raw.theme : 'day';
-    return { theme, zones: raw?.zones !== false };
+    return { theme };
   } catch {
     return DEFAULT_MAP_PREFS;
   }

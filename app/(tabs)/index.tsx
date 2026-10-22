@@ -41,7 +41,7 @@ import { LocationStrip } from '@/components/explore/LocationStrip';
 import { PlaceSheet } from '@/components/explore/PlaceSheet';
 import { PhotoViewer, type ViewerTarget } from '@/components/explore/PhotoViewer';
 import { MapLegend, YouDot, YOU_DOT } from '@/components/explore/MapReferences';
-import { PulseRing, ZoneGlows } from '@/components/explore/MapLive';
+import { PulseRing } from '@/components/explore/MapLive';
 import { ExploreGuide, type GuideRect } from '@/components/explore/ExploreGuide';
 import { StackMarker } from '@/components/explore/StackMarker';
 import { SearchBar } from '@/components/explore/SearchBar';
@@ -74,7 +74,7 @@ import { isBubbleLevel } from '@/lib/mapLevels';
 import { NEAR_ME_M, zoneAt } from '@/lib/zoneName';
 import { cameraTargets, emphasize, isFarResult } from '@/lib/proximity';
 import { MAP_STYLE, MAP_STYLE_NIGHT } from '@/lib/mapStyle';
-import { pulseTargets, resolveTheme, showGlow, type FreshOffer, type MapThemePref } from '@/lib/mapLive';
+import { pulseTargets, resolveTheme, type FreshOffer, type MapThemePref } from '@/lib/mapLive';
 import { DEFAULT_MAP_PREFS, loadMapPrefs, saveMapPrefs, type MapPrefs } from '@/lib/mapPrefsStore';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
 
@@ -443,8 +443,8 @@ export default function ExploreScreen() {
   });
   const zones = useZones();
 
-  // Mapa vivo (3.41): tema, brillo de zonas (solo de lejos) y pulso de ofertas recién publicadas (solo de cerca). Todo
-  // con datos reales de /zones/activity. Por defecto el mapa queda como hoy: de día.
+  // Mapa vivo (3.41): tema y pulso de ofertas recién publicadas (solo de cerca), con datos reales de /zones/activity.
+  // Por defecto el mapa queda como hoy: de día. El brillo de zonas se quitó: sobre el mapa real se veía como manchas.
   const [mapPrefs, setMapPrefs] = useState<MapPrefs>(DEFAULT_MAP_PREFS);
   useEffect(() => {
     void loadMapPrefs().then(setMapPrefs);
@@ -465,7 +465,6 @@ export default function ExploreScreen() {
     staleTime: 2 * 60_000,
     placeholderData: keepPreviousData,
   });
-  const glowOn = showGlow(level, mapPrefs.zones, searching);
 
   // Descubre (3.26, `carga_descubre.html`): lo arma el servidor para la MISMA área con holgura que los pines (`fetchBox`,
   // 2× la pantalla) y el teléfono deja solo lo que se ve (`sectionsInView`). Un movimiento corto no pide nada: se vuelve
@@ -1166,8 +1165,6 @@ export default function ExploreScreen() {
                   fillColor="rgba(36,104,198, 0.12)"
                 />
               ) : null}
-              {/* Brillo de zonas (3.41): solo de lejos, debajo de las burbujas; de cerca no hay círculo de zona (3.30). */}
-              {glowOn && activityQuery.data?.zones.length ? <ZoneGlows zones={activityQuery.data.zones} /> : null}
               {level > 2
                 ? pulses.map((p) => <PulseRing key={p.offer_id} offer={p} baseMeters={region.latitudeDelta * 111_000 * 0.035} onDone={() => endPulse(p.offer_id)} />)
                 : null}
@@ -1229,7 +1226,7 @@ export default function ExploreScreen() {
               bottom={locateBottom}
               open={legendOpen && guideStep === null}
               onToggle={() => setLegendOpen((v) => !v)}
-              layers={{ theme: mapPrefs.theme, onTheme: (t: MapThemePref) => updateMapPrefs({ theme: t }), zones: mapPrefs.zones, onZones: (on) => updateMapPrefs({ zones: on }) }}
+              layers={{ theme: mapPrefs.theme, onTheme: (t: MapThemePref) => updateMapPrefs({ theme: t }) }}
             />
           ) : null}
 
