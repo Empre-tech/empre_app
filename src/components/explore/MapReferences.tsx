@@ -1,8 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { MapThemePref } from '@/lib/mapLive';
-
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
 
 /** Lado de la zona táctil del punto «Tú» (la flecha se calcula desde su centro). */
@@ -34,24 +32,11 @@ export function YouDot({ bottom, angle, distance, onPress }: { bottom: Animated.
   );
 }
 
-/** Capas del mapa (3.41) dentro de la misma tarjeta: el tema. Sin botón nuevo sobre el mapa. */
-export interface MapLayersProps {
-  theme: MapThemePref;
-  onTheme: (t: MapThemePref) => void;
-}
-
-const THEMES: { key: MapThemePref; label: string }[] = [
-  { key: 'day', label: 'Día' },
-  { key: 'night', label: 'Noche' },
-  { key: 'auto', label: 'Automático' },
-];
-
 /**
- * Leyenda y capas del mapa (3.25, 3.41): un botón de 44 pt al lado izquierdo, pegado al panel como el de ubicación, que
- * no tapa pines. Al tocarlo se abre la explicación (rayo = oferta, punto verde = abierto) y, si se pasan `layers`, el
- * tema del mapa.
+ * Leyenda del mapa (3.25): un botón «i» de 44 pt al lado izquierdo, pegado al panel como el de ubicación, que no tapa
+ * pines. Al tocarlo se abre la explicación: rayo = oferta y punto verde = abierto.
  */
-export function MapLegend({ bottom, open, onToggle, layers }: { bottom: Animated.AnimatedInterpolation<number> | Animated.Value | Animated.AnimatedAddition<number>; open: boolean; onToggle: () => void; layers?: MapLayersProps }) {
+export function MapLegend({ bottom, open, onToggle }: { bottom: Animated.AnimatedInterpolation<number> | Animated.Value | Animated.AnimatedAddition<number>; open: boolean; onToggle: () => void }) {
   return (
     <Animated.View style={[styles.legendWrap, { bottom }]} pointerEvents="box-none">
       {open ? (
@@ -67,26 +52,6 @@ export function MapLegend({ bottom, open, onToggle, layers }: { bottom: Animated
             <View style={styles.green} />
             <Text style={styles.cardText}>Punto verde: está abierto.</Text>
           </View>
-          {layers ? (
-            <>
-              <View style={styles.divider} />
-              <Text style={styles.cardTitle}>Mapa</Text>
-              <View style={styles.seg} accessibilityRole="radiogroup">
-                {THEMES.map((t) => (
-                  <Pressable
-                    key={t.key}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: layers.theme === t.key }}
-                    accessibilityLabel={t.key === 'auto' ? 'Automático: de noche desde las 6 de la tarde' : `Mapa de ${t.label.toLowerCase()}`}
-                    onPress={() => layers.onTheme(t.key)}
-                    style={[styles.segBtn, layers.theme === t.key && styles.segOn]}
-                  >
-                    <Text style={[styles.segText, layers.theme === t.key && styles.segTextOn]}>{t.label}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </>
-          ) : null}
           <Pressable accessibilityRole="button" onPress={onToggle} style={styles.ok}>
             <Text style={styles.okText}>Entendido</Text>
           </Pressable>
@@ -94,12 +59,12 @@ export function MapLegend({ bottom, open, onToggle, layers }: { bottom: Animated
       ) : null}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={layers ? 'Leyenda y capas del mapa' : 'Qué significan los pines'}
+        accessibilityLabel="Qué significan los pines"
         accessibilityState={{ expanded: open }}
         onPress={onToggle}
         style={({ pressed }) => [styles.info, open && styles.infoOn, pressed && styles.pressed]}
       >
-        <Ionicons name={open ? 'close' : layers ? 'layers-outline' : 'information'} size={20} color={open ? '#fff' : colors.primary} />
+        <Ionicons name={open ? 'close' : 'information'} size={20} color={open ? '#fff' : colors.primary} />
       </Pressable>
     </Animated.View>
   );
@@ -133,10 +98,4 @@ const styles = StyleSheet.create({
   cardText: { flex: 1, fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.semibold, color: colors.ink },
   ok: { alignSelf: 'flex-end', minHeight: 44, minWidth: 44, justifyContent: 'center', paddingHorizontal: spacing.sm },
   okText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primary },
-  divider: { height: 1, backgroundColor: colors.line },
-  seg: { flexDirection: 'row', gap: 6 },
-  segBtn: { flex: 1, minHeight: 40, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
-  segOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-  segText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
-  segTextOn: { color: '#fff' },
 });

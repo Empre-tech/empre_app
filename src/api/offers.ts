@@ -1,7 +1,6 @@
 import type { ReviewSnippetData } from '@/lib/reviewSnippet';
 import type { Zone } from '@/lib/zoneName';
 import type { MarketPage, MarketResponse, MarketSort } from '@/lib/offerMarket';
-import type { FreshOffer, ZoneActivity } from '@/lib/mapLive';
 import { request } from './client';
 import type {
   BusinessStatus,
@@ -115,12 +114,6 @@ export const zonesApi = {
   list: async (city?: string): Promise<Zone[]> => {
     const res = await request<{ items?: Zone[] | null }>('/api/zones', { auth: false, query: city ? { city } : {} });
     return res.items ?? [];
-  },
-
-  /** Mapa vivo (3.41): actividad real por zona y ofertas recién publicadas de la ciudad de la ubicación. Público. */
-  activity: async (params: { lat?: number; long?: number; city?: string }): Promise<{ city: string; zones: ZoneActivity[]; fresh_offers: FreshOffer[] }> => {
-    const r = await request<{ city?: string; zones?: ZoneActivity[] | null; fresh_offers?: FreshOffer[] | null }>('/api/zones/activity', { auth: false, query: { ...params } });
-    return { city: r.city ?? '', zones: r.zones ?? [], fresh_offers: r.fresh_offers ?? [] };
   },
 };
 
