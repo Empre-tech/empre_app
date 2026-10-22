@@ -160,6 +160,8 @@ export default function AdminScreen() {
               <Pressable
                 onPress={() => router.push({ pathname: '/business/[id]', params: { id: item.id } })}
                 style={styles.card}
+                accessibilityRole="button"
+                accessibilityHint="Abre el negocio"
               >
                 <Avatar uri={item.profile_url} name={item.name} size={48} />
                 <View style={styles.cardInfo}>

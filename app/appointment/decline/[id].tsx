@@ -103,7 +103,14 @@ export default function DeclineScreen() {
           ) : (
             <View style={styles.chips}>
               {suggestions.map((iso) => (
-                <Pressable key={iso} onPress={() => toggle(iso)} style={[styles.chip, picked.includes(iso) && styles.chipOn]}>
+                <Pressable
+                  key={iso}
+                  accessibilityRole="checkbox"
+                  accessibilityLabel={`Proponer ${formatDay(iso)} ${formatClock(iso)}`}
+                  accessibilityState={{ checked: picked.includes(iso) }}
+                  onPress={() => toggle(iso)}
+                  style={[styles.chip, picked.includes(iso) && styles.chipOn]}
+                >
                   <Text style={[styles.chipText, picked.includes(iso) && styles.chipTextOn]}>
                     {formatDay(iso) === 'Hoy' ? '' : `${formatDay(iso)} `}
                     {formatClock(iso)}

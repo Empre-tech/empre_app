@@ -196,6 +196,8 @@ export default function ProfileScreen() {
             key={entity.id}
             onPress={() => router.push({ pathname: '/business/[id]', params: { id: entity.id } })}
             style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}
+            accessibilityRole="button"
+            accessibilityHint="Abre tu negocio"
           >
             <Avatar uri={entity.profile_url} name={entity.name} size={48} />
             <View style={styles.cardInfo}>

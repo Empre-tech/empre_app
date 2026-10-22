@@ -364,7 +364,7 @@ function CategoryModal({
       }}
     >
       <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Cerrar" />
         <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
           <Text style={styles.modalTitle}>{category ? 'Editar categoría' : 'Nueva categoría'}</Text>
           <TextField label="Nombre" value={name} onChangeText={setName} autoCapitalize="words" placeholder="Ej. Restaurantes" />
@@ -441,7 +441,7 @@ function SubcategoryModal({
       }}
     >
       <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Cerrar" />
         <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
           <Text style={styles.modalTitle}>{title}</Text>
           <TextField label="Nombre" value={name} onChangeText={setName} autoCapitalize="words" placeholder="Ej. Comida rápida" autoFocus />

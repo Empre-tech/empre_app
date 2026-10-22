@@ -88,11 +88,11 @@ export default function ScanScreen() {
     <View style={[styles.screen, { paddingTop: insets.top + spacing.md }]}>
       <View style={styles.header}>
         <Text style={styles.title}>Escanear canje</Text>
-        <View style={styles.modeToggle}>
-          <Pressable onPress={() => setMode('scan')} style={[styles.modeBtn, mode === 'scan' && styles.modeBtnActive]}>
+        <View style={styles.modeToggle} accessibilityRole="tablist">
+          <Pressable accessibilityRole="tab" accessibilityLabel="Usar escáner" accessibilityState={{ selected: mode === 'scan' }} hitSlop={{ top: 8, bottom: 8 }} onPress={() => setMode('scan')} style={[styles.modeBtn, mode === 'scan' && styles.modeBtnActive]}>
             <Text style={[styles.modeText, mode === 'scan' && styles.modeTextActive]}>Escáner</Text>
           </Pressable>
-          <Pressable onPress={() => setMode('manual')} style={[styles.modeBtn, mode === 'manual' && styles.modeBtnActive]}>
+          <Pressable accessibilityRole="tab" accessibilityLabel="Escribir código a mano" accessibilityState={{ selected: mode === 'manual' }} hitSlop={{ top: 8, bottom: 8 }} onPress={() => setMode('manual')} style={[styles.modeBtn, mode === 'manual' && styles.modeBtnActive]}>
             <Text style={[styles.modeText, mode === 'manual' && styles.modeTextActive]}>Manual</Text>
           </Pressable>
         </View>

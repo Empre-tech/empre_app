@@ -230,9 +230,9 @@ export default function AgendaSettingsScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>¿De cuánto es cada espacio?</Text>
           <Text style={styles.help}>Si no defines servicios, cada cita dura esto.</Text>
-          <View style={styles.chips}>
+          <View style={styles.chips} accessibilityRole="radiogroup">
             {SLOT_OPTIONS.map((m) => (
-              <Pressable key={m} onPress={() => set('slot_minutes', m)} style={[styles.chip, form.slot_minutes === m && styles.chipOn]}>
+              <Pressable key={m} accessibilityRole="radio" accessibilityLabel={`Cada cita dura ${formatDuration(m)}`} accessibilityState={{ checked: form.slot_minutes === m }} onPress={() => set('slot_minutes', m)} style={[styles.chip, form.slot_minutes === m && styles.chipOn]}>
                 <Text style={[styles.chipText, form.slot_minutes === m && styles.onText]}>{formatDuration(m)}</Text>
               </Pressable>
             ))}
@@ -253,9 +253,9 @@ export default function AgendaSettingsScreen() {
             </View>
           ))}
           <TextInput value={svcName} onChangeText={setSvcName} placeholder="Nombre del servicio" placeholderTextColor={colors.muted} style={styles.input} maxLength={60} />
-          <View style={styles.chips}>
+          <View style={styles.chips} accessibilityRole="radiogroup">
             {SERVICE_DURATIONS.map((m) => (
-              <Pressable key={m} onPress={() => setSvcMin(m)} style={[styles.chip, svcMin === m && styles.chipOn]}>
+              <Pressable key={m} accessibilityRole="radio" accessibilityLabel={`Servicio de ${formatDuration(m)}`} accessibilityState={{ checked: svcMin === m }} onPress={() => setSvcMin(m)} style={[styles.chip, svcMin === m && styles.chipOn]}>
                 <Text style={[styles.chipText, svcMin === m && styles.onText]}>{formatDuration(m)}</Text>
               </Pressable>
             ))}
@@ -276,9 +276,9 @@ export default function AgendaSettingsScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Margen entre citas</Text>
           <Text style={styles.help}>Para limpiar el puesto o desplazarte.</Text>
-          <View style={styles.chips}>
+          <View style={styles.chips} accessibilityRole="radiogroup">
             {BUFFER_OPTIONS.map((m) => (
-              <Pressable key={m} onPress={() => set('buffer_min', m)} style={[styles.chip, form.buffer_min === m && styles.chipOn]}>
+              <Pressable key={m} accessibilityRole="radio" accessibilityLabel={m === 0 ? 'Sin tiempo entre citas' : `${m} min entre citas`} accessibilityState={{ checked: form.buffer_min === m }} onPress={() => set('buffer_min', m)} style={[styles.chip, form.buffer_min === m && styles.chipOn]}>
                 <Text style={[styles.chipText, form.buffer_min === m && styles.onText]}>{m === 0 ? 'Ninguno' : `${m} min`}</Text>
               </Pressable>
             ))}
@@ -288,17 +288,17 @@ export default function AgendaSettingsScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Anticipación mínima</Text>
           <Text style={styles.help}>Mínimo 45 minutos: 15 para que respondas y 30 para que el cliente llegue.</Text>
-          <View style={styles.chips}>
+          <View style={styles.chips} accessibilityRole="radiogroup">
             {[45, 60, 120, 240].map((m) => (
-              <Pressable key={m} onPress={() => set('min_notice_min', m)} style={[styles.chip, form.min_notice_min === m && styles.chipOn]}>
+              <Pressable key={m} accessibilityRole="radio" accessibilityLabel={`Anticipación de ${formatDuration(m)}`} accessibilityState={{ checked: form.min_notice_min === m }} onPress={() => set('min_notice_min', m)} style={[styles.chip, form.min_notice_min === m && styles.chipOn]}>
                 <Text style={[styles.chipText, form.min_notice_min === m && styles.onText]}>{formatDuration(m)}</Text>
               </Pressable>
             ))}
           </View>
           <Text style={[styles.cardTitle, { marginTop: spacing.md }]}>Hasta cuántos días adelante</Text>
-          <View style={styles.chips}>
+          <View style={styles.chips} accessibilityRole="radiogroup">
             {[7, 14, 30].map((d) => (
-              <Pressable key={d} onPress={() => set('horizon_days', d)} style={[styles.chip, form.horizon_days === d && styles.chipOn]}>
+              <Pressable key={d} accessibilityRole="radio" accessibilityLabel={`Reservas hasta ${d} días adelante`} accessibilityState={{ checked: form.horizon_days === d }} onPress={() => set('horizon_days', d)} style={[styles.chip, form.horizon_days === d && styles.chipOn]}>
                 <Text style={[styles.chipText, form.horizon_days === d && styles.onText]}>{d} días</Text>
               </Pressable>
             ))}

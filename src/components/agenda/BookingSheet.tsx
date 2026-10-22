@@ -109,7 +109,7 @@ export function BookingSheet({ visible, entityId, entityName, summary, onClose, 
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Cerrar" />
+      <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="Cerrar" />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
           <View style={styles.handle} />
@@ -129,7 +129,7 @@ export function BookingSheet({ visible, entityId, entityName, summary, onClose, 
             {needsService ? (
               <View style={styles.block}>
                 <Text style={styles.label}>Servicio</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row} accessibilityRole="radiogroup">
                   {summary.services.map((s) => (
                     <Pressable
                       key={s.id}
@@ -138,6 +138,9 @@ export function BookingSheet({ visible, entityId, entityName, summary, onClose, 
                         setSlot(null);
                       }}
                       style={[styles.chip, serviceId === s.id && styles.chipActive]}
+                      accessibilityRole="radio"
+                      accessibilityLabel={`${s.name}, ${formatDuration(s.duration_min)}`}
+                      accessibilityState={{ checked: serviceId === s.id }}
                     >
                       <Text style={[styles.chipText, serviceId === s.id && styles.chipTextActive]}>
                         {s.name} · {formatDuration(s.duration_min)}
@@ -160,7 +163,9 @@ export function BookingSheet({ visible, entityId, entityName, summary, onClose, 
                       setSlot(null);
                     }}
                     style={[styles.dayChip, active && styles.chipActive]}
-                    accessibilityLabel={`${formatDay(d)}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Ver horas del ${formatDay(d)}`}
+                    accessibilityState={{ selected: active }}
                   >
                     <Text style={[styles.dayWeek, active && styles.chipTextActive]}>{weekdayShort(d)}</Text>
                     <Text style={[styles.dayNum, active && styles.chipTextActive]}>{dayNumber(d)}</Text>

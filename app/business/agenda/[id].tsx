@@ -128,7 +128,14 @@ export default function BusinessAgendaScreen() {
               const key = dayKey(d);
               const active = key === day;
               return (
-                <Pressable key={key} onPress={() => setDay(key)} style={[styles.dayChip, active && styles.dayChipOn]}>
+                <Pressable
+                  key={key}
+                  onPress={() => setDay(key)}
+                  style={[styles.dayChip, active && styles.dayChipOn]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Ver ${formatDay(d)}`}
+                  accessibilityState={{ selected: active }}
+                >
                   <Text style={[styles.dayWeek, active && styles.onText]}>{weekdayShort(d)}</Text>
                   <Text style={[styles.dayNum, active && styles.onText]}>{dayNumber(d)}</Text>
                   <Text style={[styles.dayMonth, active && styles.onText]}>{monthShort(d)}</Text>
@@ -143,7 +150,11 @@ export default function BusinessAgendaScreen() {
                 <Text style={styles.section}>Solicitudes por responder ({pending.length})</Text>
                 {pending.map((a) => (
                   <View key={a.id} style={styles.requestCard}>
-                    <Pressable onPress={() => router.push({ pathname: '/appointment/[id]', params: { id: a.id } })}>
+                    <Pressable
+                      onPress={() => router.push({ pathname: '/appointment/[id]', params: { id: a.id } })}
+                      accessibilityRole="button"
+                      accessibilityHint="Abre el detalle de la solicitud"
+                    >
                       <Text style={styles.reqWhen}>
                         {formatDay(a.starts_at)}, {formatClock(a.starts_at)}
                       </Text>
@@ -277,24 +288,24 @@ function BlockSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Cerrar" />
+      <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="Cerrar" />
       <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
         <View style={styles.handle} />
         <Text style={styles.sheetTitle}>Bloquear horas · {formatDay(dayStartIso(day))}</Text>
         <Text style={styles.sheetSub}>Desde</Text>
         <ScrollView style={{ maxHeight: 190 }}>
-          <View style={styles.chips}>
+          <View style={styles.chips} accessibilityRole="radiogroup">
             {options.map((iso) => (
-              <Pressable key={iso} onPress={() => setStart(iso)} style={[styles.chip, start === iso && styles.chipOn]}>
+              <Pressable key={iso} accessibilityRole="radio" accessibilityLabel={`Bloquear desde ${formatClock(iso)}`} accessibilityState={{ checked: start === iso }} hitSlop={{ top: 2, bottom: 2 }} onPress={() => setStart(iso)} style={[styles.chip, start === iso && styles.chipOn]}>
                 <Text style={[styles.chipText, start === iso && styles.onText]}>{formatClock(iso)}</Text>
               </Pressable>
             ))}
           </View>
         </ScrollView>
         <Text style={styles.sheetSub}>Duración</Text>
-        <View style={styles.chips}>
+        <View style={styles.chips} accessibilityRole="radiogroup">
           {BLOCK_DURATIONS.map((m) => (
-            <Pressable key={m} onPress={() => setMinutes(m)} style={[styles.chip, minutes === m && styles.chipOn]}>
+            <Pressable key={m} accessibilityRole="radio" accessibilityLabel={`Bloquear ${formatDuration(m)}`} accessibilityState={{ checked: minutes === m }} hitSlop={{ top: 2, bottom: 2 }} onPress={() => setMinutes(m)} style={[styles.chip, minutes === m && styles.chipOn]}>
               <Text style={[styles.chipText, minutes === m && styles.onText]}>{formatDuration(m)}</Text>
             </Pressable>
           ))}
