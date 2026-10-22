@@ -40,7 +40,8 @@ interface Props {
 function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, dimmed, onPress }: Props) {
   // Lo que cambia la imagen del pin; al cambiar, se redibuja sin desmontarse (3.29).
   const look = [tier, emphasis ?? '', selected ? 's' : '', mine ? 'm' : '', entity.has_active_offer ? 'o' : '', entity.is_open_now ? 'a' : 'c', distanceLabel ?? ''].join('|');
-  const { tracking, onLayout, onImageSettled, markerRef } = useMarkerTracking(look);
+  const { tracking, ready, onLayout, onImageSettled, markerRef } = useMarkerTracking(look);
+  const shown = ready ? (dimmed ? DIM_OPACITY : 1) : 0;
 
   const cat = categoryColor(entity.category_color);
   const open = entity.has_hours ? entity.is_open_now : true;
@@ -63,7 +64,7 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
         coordinate={coordinate}
         // El centro del pin queda sobre el negocio aunque el grande lleve etiqueta.
         anchor={{ x: 0.5, y: 0.5 }}
-        opacity={dimmed ? DIM_OPACITY : 1}
+        opacity={shown}
         zIndex={selected ? 1000 : emphasis === 'big' ? 30 : emphasis === 'mid' ? 20 : emphasis === 'dot' ? 10 : 1}
         tracksViewChanges={tracking}
         accessibilityRole="button"
@@ -110,11 +111,15 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
     );
   }
 
+  // Lo que va arriba del círculo se repite como espacio vacío abajo: así el centro de la imagen es el centro del círculo
+  // y el ancla (0.5, 0.5) lo deja justo sobre el negocio en cualquier nivel (auditoría del 22 oct).
+  const above = (mine ? OWNER_LABEL_H : 0) + (showRayo ? BADGE_H : 0);
   return (
     <Marker
       ref={markerRef}
       coordinate={coordinate}
-      opacity={dimmed ? DIM_OPACITY : 1}
+      anchor={{ x: 0.5, y: 0.5 }}
+      opacity={shown}
       zIndex={selected ? 1000 : 1}
       tracksViewChanges={tracking}
       accessibilityRole="button"
@@ -150,10 +155,15 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
             {entity.has_hours ? <View style={[styles.statusDot, { backgroundColor: statusColor }]} /> : null}
           </View>
         )}
+        {above > 0 ? <View style={{ height: above }} /> : null}
       </View>
     </Marker>
   );
 }
+
+// Alturas fijas de lo que va arriba del círculo, para compensarlas abajo.
+const OWNER_LABEL_H = 21; // 18 de la etiqueta + 3 de margen
+const BADGE_H = 14; // 16 del rayo − 2 de margen negativo
 
 /**
  * Cada consulta trae objetos nuevos aunque el negocio sea el mismo; sin esto,
@@ -182,7 +192,7 @@ export const PinMarker = memo(PinMarkerView, (a, b) =>
 const styles = StyleSheet.create({
   pinWrap: { alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44, paddingHorizontal: 10, paddingVertical: 6 },
   pinWrapSelected: { transform: [{ scale: 1.15 }] },
-  pinOwnerLabel: { backgroundColor: colors.primaryDark, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.sm, marginBottom: 3 },
+  pinOwnerLabel: { height: 18, justifyContent: 'center', backgroundColor: colors.primaryDark, paddingHorizontal: 6, borderRadius: radius.sm, marginBottom: 3 },
   pinOwnerLabelText: { fontSize: 10, fontFamily: fonts.ui.bold, color: '#fff' },
   offerBadge: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#fff', marginBottom: -2 },
   pinFar: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: '#fff' },

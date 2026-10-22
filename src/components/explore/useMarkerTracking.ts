@@ -29,9 +29,14 @@ const REDRAW_AT_MS = [80, 400];
  * `look` resume lo que cambia el aspecto del marcador (nivel de zoom, elegido, oferta…). Antes iba en la `key` y, al
  * cambiar de nivel, todos los marcadores se desmontaban y volvían a crear a la vez (3.29); ahora el marcador sigue
  * montado y solo vuelve a rastrear un momento para tomar la imagen nueva.
+ *
+ * `ready` (auditoría del 22 oct): en Android, si el mapa crea el marcador antes de que su vista esté dibujada, muestra
+ * su pin rojo por defecto hasta tomar la imagen. Quien lo usa pone `opacity={ready ? … : 0}`: el marcador existe desde
+ * el principio pero no se ve hasta el primer redibujo después del layout.
  */
 export function useMarkerTracking(look = '') {
   const [tracking, setTracking] = useState(true);
+  const [ready, setReady] = useState(false);
   const [seenLook, setSeenLook] = useState(look);
   if (look !== seenLook) {
     // Estado derivado durante el render (patrón de React): cambió el aspecto, se vuelve a rastrear.
@@ -40,6 +45,7 @@ export function useMarkerTracking(look = '') {
   }
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const redraws = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const readyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const markerRef = useRef<MapMarker>(null);
 
   const settle = useCallback(() => {
@@ -61,10 +67,14 @@ export function useMarkerTracking(look = '') {
   }, [tracking, seenLook, settle, redrawSoon]);
 
   useEffect(() => {
-    const fallback = setTimeout(() => setTracking(false), FALLBACK_MS);
+    const fallback = setTimeout(() => {
+      setTracking(false);
+      setReady(true);
+    }, FALLBACK_MS);
     return () => {
       clearTimeout(fallback);
       if (timer.current) clearTimeout(timer.current);
+      if (readyTimer.current) clearTimeout(readyTimer.current);
       for (const t of redraws.current) clearTimeout(t);
     };
   }, []);
@@ -74,6 +84,8 @@ export function useMarkerTracking(look = '') {
     setTracking(true);
     settle();
     redrawSoon();
+    // Se muestra después del primer redibujo (80 ms): para entonces el mapa ya tomó la imagen del marcador.
+    if (!readyTimer.current) readyTimer.current = setTimeout(() => setReady(true), REDRAW_AT_MS[0] + 40);
   }, [settle, redrawSoon]);
 
   /** Una foto terminó de cargar o falló: el marcador se vuelve a dibujar y se reinicia la espera. */
@@ -83,5 +95,5 @@ export function useMarkerTracking(look = '') {
     redrawSoon();
   }, [settle, redrawSoon]);
 
-  return { tracking, onLayout, onImageSettled, markerRef };
+  return { tracking, ready, onLayout, onImageSettled, markerRef };
 }

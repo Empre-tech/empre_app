@@ -20,10 +20,13 @@ export interface MapSize {
 }
 
 /**
- * Distancia mínima en pantalla entre dos marcadores, por nivel (3.31): media pila más medio pin más aire, para que un pin
- * nunca toque una pila vecina. Lejos el punto mide 18; en medio y cerca, la pila mide 58 de ancho (3.33) y el pin 34 o 46.
+ * Distancia mínima en pantalla entre los puntos de dos marcadores, por nivel, para que nunca se toquen (auditoría del
+ * 22 oct). Todos se anclan en el centro de su círculo principal, pero la pila de miniaturas (3.33) no es simétrica: desde
+ * ese centro se extiende 38 pt a la izquierda, 20 a la derecha, 24 hacia arriba (rayo) y 34 hacia abajo. Pila contra pila
+ * pide 38 + 20 + aire = 66. Lejos, punto de 18 con el rayo encima (hasta 23 pt hacia arriba): 30. Cerca el pin mide 46
+ * con el rayo encima (37 hacia arriba): 70.
  */
-export const CLUSTER_PX = { far: 26, mid: 56, near: 62 } as const;
+export const CLUSTER_PX = { far: 30, mid: 66, near: 70 } as const;
 
 function single<T extends Coords & { id: string }>(item: T): Cluster<T> {
   return { key: item.id, latitude: item.latitude, longitude: item.longitude, items: [item] };
@@ -37,8 +40,9 @@ function single<T extends Coords & { id: string }>(item: T): Cluster<T> {
  *   líder, no de cualquier miembro: así los grupos no se encadenan.
  * - Al acercar el zoom, los negocios se alejan en pantalla y el grupo se abre
  *   solo, sin saltos entre celdas como pasaba con la cuadrícula anterior.
- * - Un grupo se dibuja en el promedio de sus miembros; un negocio solo, en su
- *   posición.
+ * - Un grupo se dibuja exactamente en el punto de su líder, nunca en el promedio: así la pila no se mueve cuando entra
+ *   o sale un negocio, siempre está sobre un negocio real y, como dos líderes nunca quedan a menos del umbral, dos
+ *   marcadores nunca se pisan (auditoría del 22 oct).
  * - Sin tamaño de mapa medido todavía, devuelve cada negocio por separado.
  */
 export function clusterByScreenDistance<T extends Coords & { id: string }>(
@@ -67,31 +71,6 @@ export function clusterByScreenDistance<T extends Coords & { id: string }>(
     else groups.push([item]);
   }
 
-  // Un grupo se dibuja en el promedio de sus miembros, que puede quedar encima de otro marcador: se juntan los que
-  // quedaron a menos del umbral hasta que no quede ninguno (3.31). Con 60 marcadores como mucho, es poco trabajo.
-  const center = (ms: T[]) => ({
-    latitude: ms.reduce((s, m) => s + m.latitude, 0) / ms.length,
-    longitude: ms.reduce((s, m) => s + m.longitude, 0) / ms.length,
-  });
-  let merged = true;
-  while (merged) {
-    merged = false;
-    outer: for (let i = 0; i < groups.length; i++) {
-      for (let j = i + 1; j < groups.length; j++) {
-        const a = center(groups[i]);
-        const b = center(groups[j]);
-        const dx = (a.longitude - b.longitude) * pxPerLng;
-        const dy = (a.latitude - b.latitude) * pxPerLat;
-        if (dx * dx + dy * dy < limit) {
-          groups[i] = [...groups[i], ...groups[j]];
-          groups.splice(j, 1);
-          merged = true;
-          break outer;
-        }
-      }
-    }
-  }
-
   return groups.map((members) => {
     const [leader, second] = members;
     if (!leader) return null;
@@ -99,8 +78,8 @@ export function clusterByScreenDistance<T extends Coords & { id: string }>(
     return {
       // La clave cambia si cambia la composición, para que el marcador se vuelva a dibujar.
       key: `stack-${leader.id}-${members.length}-${second.id.slice(0, 6)}`,
-      latitude: members.reduce((sum, m) => sum + m.latitude, 0) / members.length,
-      longitude: members.reduce((sum, m) => sum + m.longitude, 0) / members.length,
+      latitude: leader.latitude,
+      longitude: leader.longitude,
       items: members,
     };
   }).filter((c): c is Cluster<T> => c !== null);
