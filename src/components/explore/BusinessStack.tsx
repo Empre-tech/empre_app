@@ -55,7 +55,7 @@ function Layer({
  * desfasadas), nunca como un número. Se volvió a esta forma tras probar un solo círculo con número (3.33): se entiende
  * mejor que son varios negocios. La pila mide 58 pt de ancho y el umbral de agrupación la tiene en cuenta. Arriba va un negocio con oferta si lo
  * hay, y el borde ámbar con el rayo avisa que hay oferta dentro del grupo.
- * Lejos se reduce a un punto del color del negocio de arriba.
+ * Se ve igual a cualquier distancia: ya no hay punto de lejos (auditoría del 22 oct).
  */
 export function BusinessStack({ items, tier, onImageLoad, onLayout }: Props) {
   // Con oferta primero; el orden del ranking decide entre iguales (el sort es estable).
@@ -63,14 +63,6 @@ export function BusinessStack({ items, tier, onImageLoad, onLayout }: Props) {
   const [top, second, third] = ordered;
   if (!top) return null;
   const hasOffer = items.some((i) => i.has_active_offer);
-
-  if (tier === 'far') {
-    return (
-      <View collapsable={false} onLayout={onLayout} style={styles.wrap}>
-        <View style={[styles.dot, { backgroundColor: categoryColor(top.category_color).fg }]} />
-      </View>
-    );
-  }
 
   return (
     <View collapsable={false} onLayout={onLayout} style={styles.wrap}>
@@ -91,20 +83,20 @@ export function BusinessStack({ items, tier, onImageLoad, onLayout }: Props) {
 const styles = StyleSheet.create({
   // Margen alrededor: el marcador se dibuja como imagen y recortaría sombras y el rayo.
   wrap: { alignItems: 'center', justifyContent: 'center', padding: 8 },
-  dot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: '#fff' },
-  stack: { width: 58, height: 52 },
+  // En diagonal: la de arriba a la derecha y las otras bajando hacia la izquierda, 12 pt de lado y 11 hacia abajo.
+  stack: { width: 58, height: 56 },
   layer: {
     position: 'absolute',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     borderWidth: 3,
     overflow: 'hidden',
     backgroundColor: '#fff',
   },
-  back: { left: 0, top: 14, opacity: 0.8, transform: [{ scale: 0.88 }] },
-  middle: { left: 10, top: 8, opacity: 0.92, transform: [{ scale: 0.94 }] },
-  top: { left: 20, top: 0 },
+  back: { left: 0, top: 22, opacity: 0.85, transform: [{ scale: 0.9 }] },
+  middle: { left: 12, top: 11, opacity: 0.95, transform: [{ scale: 0.95 }] },
+  top: { left: 24, top: 0 },
   face: { width: '100%', height: '100%', backgroundColor: colors.primarySoft },
   fallback: { alignItems: 'center', justifyContent: 'center' },
   bolt: {

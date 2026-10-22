@@ -21,12 +21,12 @@ export interface MapSize {
 
 /**
  * Distancia mínima en pantalla entre los puntos de dos marcadores, por nivel, para que nunca se toquen (auditoría del
- * 22 oct). Todos se anclan en el centro de su círculo principal, pero la pila de miniaturas (3.33) no es simétrica: desde
- * ese centro se extiende 38 pt a la izquierda, 20 a la derecha, 24 hacia arriba (rayo) y 34 hacia abajo. Pila contra pila
- * pide 38 + 20 + aire = 66. Lejos, punto de 18 con el rayo encima (hasta 23 pt hacia arriba): 30. Cerca el pin mide 46
- * con el rayo encima (37 hacia arriba): 70.
+ * 22 oct). Todos se anclan en el centro de su círculo principal, pero la pila en diagonal no es simétrica: desde ese
+ * centro se extiende 41 pt a la izquierda, 17 a la derecha, 23 hacia arriba (rayo) y 39 hacia abajo. Pila contra pila:
+ * 41 + 17 + aire = 64 de lado, y una pila bajo un pin de 34 con rayo (31 hacia arriba): 39 + 31 + 2 = 72. Cerca el pin
+ * mide 46 con el rayo (37 hacia arriba): 39 + 37 = 76. Ya no hay puntos de lejos: lejos usa lo mismo que medio.
  */
-export const CLUSTER_PX = { far: 30, mid: 66, near: 70 } as const;
+export const CLUSTER_PX = { far: 72, mid: 72, near: 76 } as const;
 
 function single<T extends Coords & { id: string }>(item: T): Cluster<T> {
   return { key: item.id, latitude: item.latitude, longitude: item.longitude, items: [item] };

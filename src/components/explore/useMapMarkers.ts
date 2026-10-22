@@ -84,13 +84,27 @@ export function useMapMarkers({ known, region, mapSize, selectedId, myEntityIds,
   // lo que sobra, un anillo de media pantalla alrededor (3.30) para que al arrastrar el borde que entra ya tenga pines.
   // Lo guardado más lejos sigue en memoria pero no se pinta (antes ~150 marcadores para ~42 visibles).
   const visible = useMemo(() => pickPins(mapped, region, selectedId), [mapped, region, selectedId]);
-  const tier = zoomTier(region);
+  // Sin puntos sueltos (auditoría del 22 oct): de lejos se dibuja igual que en medio, con miniatura. Así un negocio no
+  // cambia de forma (ni se vuelve a crear) al alejar o acercar, y de lejos ya no son todos el mismo punto de color.
+  const tier: 'mid' | 'near' = zoomTier(region) === 'near' ? 'near' : 'mid';
   // El umbral de agrupación es el diámetro del pin más un hueco (3.31): dos marcadores nunca se pisan. Al acercar el
   // zoom los negocios se alejan en pantalla y el grupo se abre solo.
   const clusterPx = CLUSTER_PX[tier];
+  // Orden estable para agrupar: el elegido, luego los que tienen oferta, luego por id. Así el líder de cada pila (y su
+  // punto) no cambia al mover el mapa, que antes reordenaba la lista y rearmaba las pilas (parpadeo).
+  const stable = useMemo(
+    () =>
+      [...visible].sort(
+        (a, b) =>
+          Number(b.id === selectedId) - Number(a.id === selectedId) ||
+          Number(!!b.has_active_offer) - Number(!!a.has_active_offer) ||
+          (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+      ),
+    [visible, selectedId],
+  );
   const clusters = useMemo(
-    () => clusterByScreenDistance(visible, region, mapSize, clusterPx),
-    [visible, region, mapSize, clusterPx],
+    () => clusterByScreenDistance(stable, region, mapSize, clusterPx),
+    [stable, region, mapSize, clusterPx],
   );
 
   // Búsqueda (F11): un pin por resultado, el más cercano primero. Los lejanos salen tenues.
@@ -158,7 +172,8 @@ export function useMapMarkers({ known, region, mapSize, selectedId, myEntityIds,
           };
         }
         // Varios negocios muy juntos: un solo círculo con cuántos hay (3.31). El nivel va en la llave.
-        return { kind: 'stack', key: `${cluster.key}-${tier}`, cluster };
+        // La pila se ve igual en medio y cerca: su llave no lleva el nivel (no se vuelve a crear al hacer zoom).
+        return { kind: 'stack', key: cluster.key, cluster };
       });
     },
     [bubbles, emphasized, clusters, selectedId, myEntityIds, tier],

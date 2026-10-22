@@ -76,10 +76,17 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
       >
         <View collapsable={false} onLayout={onLayout} style={styles.emphWrap}>
           {emphasis === 'big' ? <View style={styles.labelSpacer} /> : null}
-          {emphasis === 'far' ? (
-            <View style={[styles.pinFarOff, { backgroundColor: cat.fg }]} />
-          ) : emphasis === 'dot' ? (
-            <View style={[styles.pinDot, { backgroundColor: cat.fg }, faded]} />
+          {emphasis === 'far' || emphasis === 'dot' ? (
+            // Lejanos en la búsqueda: miniatura chica y tenue, nunca un punto de color suelto (auditoría del 22 oct).
+            <View style={[styles.pinSmall, { borderColor: '#ffffff' }, emphasis === 'far' ? styles.smallFar : styles.smallDot, faded]}>
+              {thumb ? (
+                <Image accessible={false} source={{ uri: thumb }} style={styles.thumbSmall} contentFit="cover" cachePolicy="memory-disk" recyclingKey={thumb} onLoad={onImageSettled} onError={onImageSettled} />
+              ) : (
+                <View style={[styles.thumbSmall, styles.fallback, { backgroundColor: cat.bg }]}>
+                  <Ionicons name={icon} size={11} color={cat.fg} />
+                </View>
+              )}
+            </View>
           ) : (
             <View style={faded}>
               {showRayo ? (
@@ -140,21 +147,18 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
             <Ionicons name="flash" size={11} color={colors.ink} />
           </View>
         ) : null}
-        {tier === 'far' ? (
-          <View style={[styles.pinFar, { backgroundColor: cat.fg }, selected && styles.pinFarSelected]} />
-        ) : (
-          <View style={[tier === 'near' ? styles.pinNear : styles.pinMid, { borderColor }]}>
-            {thumb ? (
-              // Sin transición: dentro de un marcador, el fundido se vería como un parpadeo.
-              <Image accessible={false} source={{ uri: thumb }} style={tier === 'near' ? styles.thumbNear : styles.thumbMid} contentFit="cover" cachePolicy="memory-disk" recyclingKey={thumb} onLoad={onImageSettled} onError={onImageSettled} />
-            ) : (
-              <View style={[tier === 'near' ? styles.thumbNear : styles.thumbMid, styles.fallback, { backgroundColor: cat.bg }]}>
-                <Ionicons name={icon} size={tier === 'near' ? 20 : 16} color={cat.fg} />
-              </View>
-            )}
-            {entity.has_hours ? <View style={[styles.statusDot, { backgroundColor: statusColor }]} /> : null}
-          </View>
-        )}
+        {/* Siempre miniatura (foto o icono de la categoría): de lejos ya no hay puntos sueltos (auditoría del 22 oct). */}
+        <View style={[tier === 'near' ? styles.pinNear : styles.pinMid, { borderColor }]}>
+          {thumb ? (
+            // Sin transición: dentro de un marcador, el fundido se vería como un parpadeo.
+            <Image accessible={false} source={{ uri: thumb }} style={tier === 'near' ? styles.thumbNear : styles.thumbMid} contentFit="cover" cachePolicy="memory-disk" recyclingKey={thumb} onLoad={onImageSettled} onError={onImageSettled} />
+          ) : (
+            <View style={[tier === 'near' ? styles.thumbNear : styles.thumbMid, styles.fallback, { backgroundColor: cat.bg }]}>
+              <Ionicons name={icon} size={tier === 'near' ? 20 : 16} color={cat.fg} />
+            </View>
+          )}
+          {entity.has_hours ? <View style={[styles.statusDot, { backgroundColor: statusColor }]} /> : null}
+        </View>
         {above > 0 ? <View style={{ height: above }} /> : null}
       </View>
     </Marker>
@@ -195,8 +199,6 @@ const styles = StyleSheet.create({
   pinOwnerLabel: { height: 18, justifyContent: 'center', backgroundColor: colors.primaryDark, paddingHorizontal: 6, borderRadius: radius.sm, marginBottom: 3 },
   pinOwnerLabelText: { fontSize: 10, fontFamily: fonts.ui.bold, color: '#fff' },
   offerBadge: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#fff', marginBottom: -2 },
-  pinFar: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: '#fff' },
-  pinFarSelected: { borderColor: colors.primary, borderWidth: 3 },
   pinMid: { width: 34, height: 34, borderRadius: 17, borderWidth: 3, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   pinNear: { width: 46, height: 46, borderRadius: 23, borderWidth: 3, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   thumbMid: { width: 28, height: 28, borderRadius: 14 },
@@ -207,8 +209,10 @@ const styles = StyleSheet.create({
   labelDistance: { color: '#FFD2A6', fontFamily: fonts.ui.extrabold },
   pinBig: { width: 56, height: 56, borderRadius: 28, borderWidth: 4, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   thumbBig: { width: 48, height: 48, borderRadius: 24 },
-  pinDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: '#fff', opacity: 0.8 },
-  pinFarOff: { width: 11, height: 11, borderRadius: 6, borderWidth: 1.5, borderColor: '#fff', opacity: 0.4 },
+  pinSmall: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
+  thumbSmall: { width: 20, height: 20, borderRadius: 10 },
+  smallDot: { opacity: 0.85 },
+  smallFar: { opacity: 0.45 },
   closedFade: { opacity: 0.6 },
   offerBadgeCorner: { position: 'absolute', top: -4, right: -4, zIndex: 2, marginBottom: 0 },
   thumbNear: { width: 40, height: 40, borderRadius: 20 },

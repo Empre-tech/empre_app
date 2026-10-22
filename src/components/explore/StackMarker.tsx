@@ -19,13 +19,13 @@ interface Props {
  * cambiar de nivel de zoom se redibuja sin desmontarse (3.29).
  */
 function StackMarkerView({ cluster, tier, onPress }: Props) {
-  const { tracking, ready, onLayout, onImageSettled, markerRef } = useMarkerTracking(tier);
+  const { tracking, ready, onLayout, onImageSettled, markerRef } = useMarkerTracking();
 
   return (
     <Marker
       ref={markerRef}
       coordinate={{ latitude: cluster.latitude, longitude: cluster.longitude }}
-      anchor={tier === 'far' ? CENTER : STACK_TOP_CENTER}
+      anchor={STACK_TOP_CENTER}
       opacity={ready ? 1 : 0}
       tracksViewChanges={tracking}
       accessibilityRole="button"
@@ -40,9 +40,8 @@ function StackMarkerView({ cluster, tier, onPress }: Props) {
   );
 }
 
-const CENTER = { x: 0.5, y: 0.5 };
-/** Centro de la miniatura de arriba dentro de la imagen de la pila (74 × 68 con el margen de 8; ver BusinessStack). */
-const STACK_TOP_CENTER = { x: 46 / 74, y: 26 / 68 };
+/** Centro de la miniatura de arriba dentro de la imagen de la pila (74 × 72 con el margen de 8; ver BusinessStack). */
+const STACK_TOP_CENTER = { x: 49 / 74, y: 25 / 72 };
 
 /** Igual que el pin: una consulta nueva con los mismos negocios no redibuja la pila. */
 export const StackMarker = memo(StackMarkerView, (a, b) =>
