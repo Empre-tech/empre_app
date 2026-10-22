@@ -68,7 +68,6 @@ import { distanceKm, hasLocation, type Coords } from '@/lib/geo';
 import { contextChips, removedAnnouncement, type FilterId } from '@/lib/context';
 import { sameIds } from '@/lib/pinsCache';
 import { loadPinsCache, savePinsCache } from '@/lib/pinsCacheStore';
-import { isBubbleLevel } from '@/lib/mapLevels';
 import { NEAR_ME_M, zoneAt } from '@/lib/zoneName';
 import { cameraTargets, emphasize, isFarResult } from '@/lib/proximity';
 import { MAP_STYLE } from '@/lib/mapStyle';
@@ -425,18 +424,9 @@ export default function ExploreScreen() {
     placeholderData: keepPreviousData,
   });
 
-  // Niveles 1 y 2 del mapa (F10): sin búsqueda ni filtros que el servidor no conozca, los negocios
-  // llegan agrupados en casillas con su conteo en vez de uno por uno. Con «abiertos ahora» o un radio
-  // el conteo del servidor no coincidiría, así que se vuelve a los pines.
+  // Sin burbujas con número (22 oct): a cualquier distancia se ven los pines y las pilas de miniaturas de siempre
+  // (3.33), nunca un conteo de negocios. El nivel se sigue usando para el tamaño de los pines.
   const level = useMapLevel(region.latitudeDelta);
-  const bubbleMode = !searching && isBubbleLevel(level) && radiusKm === null && !openNow;
-  const cellsQuery = useQuery({
-    queryKey: ['cells', catFilter ?? 'all', subcategoryId ?? 'all', bbox.min_lat, bbox.min_lng, bbox.max_lat, bbox.max_lng, Math.round(Math.log2(region.latitudeDelta) * 4)],
-    queryFn: () => discoveryApi.cells({ ...bbox, lat_delta: region.latitudeDelta, category: catFilter, subcategory: subcategoryId }),
-    enabled: bubbleMode && startupRegion !== null,
-    // Al mover el mapa se muestran las burbujas anteriores hasta que lleguen las nuevas.
-    placeholderData: keepPreviousData,
-  });
   const zones = useZones();
 
   // Descubre (3.26, `carga_descubre.html`): lo arma el servidor para la MISMA área con holgura que los pines (`fetchBox`,
@@ -542,13 +532,13 @@ export default function ExploreScreen() {
     level,
     // Burbujas solo cuando las casillas ya llegaron (y se mantienen las anteriores al mover el mapa):
     // mientras llegan, o si fallan, se ven los pines; el mapa nunca queda vacío esperando.
-    cells: bubbleMode ? cellsQuery.data ?? null : null,
+    cells: null,
     zones,
   });
 
   // Sin pines todavía y pidiendo la zona: el mapa lo dice en vez de verse vacío (con búsqueda ya lo
   // dice el panel: «Buscando…»).
-  const mapLoading = !searching && startupRegion !== null && markers.length === 0 && (entities.isFetching || cellsQuery.isFetching);
+  const mapLoading = !searching && startupRegion !== null && markers.length === 0 && entities.isFetching;
 
   // En qué zona está la persona (o qué zona mira el mapa): nombre del encabezado del panel.
   const viewPoint = useMemo(() => ({ latitude: region.latitude, longitude: region.longitude }), [region.latitude, region.longitude]);
