@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { ContextChip, FilterId } from '@/lib/context';
 import type { ZoneName } from '@/lib/zoneName';
-import { colors, fonts, radius, shadow } from '@/theme';
+import { colors, fonts, radius, shadow, DENSE_TEXT_SCALE } from '@/theme';
 import { ZoneCapsule } from './ZoneCapsule';
 
 interface Props {
@@ -58,7 +58,7 @@ export function ContextRow({ chips, zoneName, onRemoveScope, onRemoveFilter, onC
         if (chip.kind === 'clear') {
           return (
             <Pressable key="clear" accessibilityRole="button" accessibilityLabel="Quitar alcance y filtros" onPress={onClear} style={styles.clear}>
-              <Text style={styles.clearText}>Quitar todo</Text>
+              <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.clearText}>Quitar todo</Text>
             </Pressable>
           );
         }
@@ -66,7 +66,7 @@ export function ContextRow({ chips, zoneName, onRemoveScope, onRemoveFilter, onC
           <Pressable key="area" accessibilityRole="button" accessibilityLabel="Buscar en esta zona" onPress={onSearchArea} style={styles.areaHit}>
             <View style={styles.areaPill}>
               <Ionicons name="refresh" size={14} color="#fff" />
-              <Text style={styles.areaText}>Buscar en esta zona</Text>
+              <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.areaText}>Buscar en esta zona</Text>
             </View>
           </Pressable>
         );
@@ -89,7 +89,7 @@ function RemovableChip({
   return (
     <View style={[styles.chip, onRemove ? styles.chipRemovable : null]} accessible={!onRemove} accessibilityLabel={onRemove ? undefined : label}>
       <Ionicons name={icon} size={13} color={colors.primary} />
-      <Text style={styles.chipText} numberOfLines={1}>
+      <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.chipText} numberOfLines={1}>
         {label}
       </Text>
       {onRemove ? (

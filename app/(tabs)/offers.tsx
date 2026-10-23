@@ -3,7 +3,7 @@ import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-qu
 import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { categoriesApi } from '@/api/endpoints';
@@ -32,7 +32,8 @@ import {
 } from '@/lib/offerMarket';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { colors, fonts, radius, spacing, DENSE_TEXT_SCALE } from '@/theme';
+import { usePullRefresh } from '@/lib/usePullRefresh';
 
 type Coords = { latitude: number; longitude: number };
 
@@ -134,6 +135,8 @@ export default function OffersScreen() {
     enabled: ready,
   });
   const items = useMemo(() => flattenPages(all.data?.pages), [all.data?.pages]);
+  // Tirar para actualizar: la vitrina y la lista completa a la vez.
+  const pull = usePullRefresh(useCallback(() => Promise.all([market.refetch(), all.refetch()]), [market, all]));
 
   // La ciudad que puso la ubicación queda guardada en el teléfono para cuando no haya ubicación.
   const saved = useRef('');
@@ -210,11 +213,11 @@ export default function OffersScreen() {
         aria-hidden={!compact}
         style={[styles.mini, { top: insets.top, opacity: bar, transform: [{ translateY: bar.interpolate({ inputRange: [0, 1], outputRange: [-MINI_H, 0] }) }] }]}
       >
-        <Text style={styles.miniCity} numberOfLines={1}>
+        <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.miniCity} numberOfLines={1}>
           {city || 'Ofertas'}
         </Text>
         {hasLoc && data?.zone ? (
-          <Text style={styles.miniZone} numberOfLines={1}>
+          <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.miniZone} numberOfLines={1}>
             · {data.zone}
           </Text>
         ) : null}
@@ -231,7 +234,14 @@ export default function OffersScreen() {
         </Pressable>
       </Animated.View>
 
-      <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xl }} keyboardShouldPersistTaps="handled" onScroll={onScroll} scrollEventThrottle={64}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xl }}
+        keyboardShouldPersistTaps="handled"
+        onScroll={onScroll}
+        scrollEventThrottle={64}
+        refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
+      >
         <View style={styles.top}>
           <View style={styles.heroRow} accessible accessibilityRole="header" accessibilityLabel={hero.lead + hero.city}>
             <Text style={[styles.hero, hero.city ? styles.heroLead : null]}>{hero.lead}</Text>
@@ -276,7 +286,7 @@ export default function OffersScreen() {
               {locAsked ? 'Sin permiso de ubicación no podemos decir qué está cerca.' : city ? 'Con tu ubicación te mostramos primero lo que está cerca.' : 'Con tu ubicación te mostramos las ofertas de tu ciudad.'}
             </Text>
             <Pressable accessibilityRole="button" onPress={() => void askLocation()} style={styles.locBtn}>
-              <Text style={styles.locBtnText}>Activar</Text>
+              <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.locBtnText}>Activar</Text>
             </Pressable>
           </View>
         ) : null}
@@ -414,7 +424,7 @@ function Chip({ label, active, onPress, soft }: { label: string; active: boolean
       onPress={onPress}
       style={({ pressed }) => [styles.chip, active && (soft ? styles.chipSoftOn : styles.chipOn), pressed && styles.chipPressed]}
     >
-      <Text style={[styles.chipText, active && (soft ? styles.chipSoftText : styles.chipOnText)]} numberOfLines={1}>
+      <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={[styles.chipText, active && (soft ? styles.chipSoftText : styles.chipOnText)]} numberOfLines={1}>
         {label}
       </Text>
     </Pressable>

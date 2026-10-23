@@ -58,3 +58,9 @@ export const shadow = {
   shadowOffset: { width: 0, height: 2 },
   elevation: 4,
 } as const;
+
+/**
+ * Tope de crecimiento del texto dentro de chips, badges, pestañas y marcadores del mapa (con la letra grande del sistema).
+ * Crece hasta 1,3× y no más, para que esas piezas no se rompan; el texto de lectura escala sin tope.
+ */
+export const DENSE_TEXT_SCALE = 1.3;

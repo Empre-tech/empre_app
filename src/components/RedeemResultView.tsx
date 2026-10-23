@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RedeemResult } from '@/api/types';
 import { formatAgo, formatCurrency, formatSlotsLeft } from '@/lib/offer';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { hapticError, hapticSuccess, hapticWarning } from '@/lib/haptics';
 
 // Verde oscuro: con texto blanco pasa AA (≈ 5,3:1); el success de la marca no.
 const OK_GREEN = '#1F7A44';
@@ -85,6 +87,11 @@ interface Props {
  */
 export function RedeemResultView({ result, offline, onNext, onRetry }: Props) {
   const insets = useSafeAreaInsets();
+  // Una vibración por resultado: válido, rechazado o sin conexión (quien escanea no siempre mira la pantalla).
+  useEffect(() => {
+    if (offline) hapticWarning();
+    else if (result) (result.valid ? hapticSuccess : hapticError)();
+  }, [result, offline]);
   if (!result && !offline) return null;
 
   const look: Look = offline

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { AccessibilityInfo, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { removedAnnouncement } from '@/lib/context';
-import { colors, fonts, radius, shadow, spacing } from '@/theme';
+import { colors, fonts, radius, shadow, spacing, DENSE_TEXT_SCALE } from '@/theme';
 
 interface Props {
   value: string;
@@ -53,7 +53,7 @@ export function SearchBar({ value, onChangeText, onOpenFilters, filterCount }: P
         <Ionicons name="options-outline" size={18} color={active ? '#fff' : colors.primary} />
         {active ? (
           <View style={styles.badge}>
-            <Text style={styles.badgeText}>{filterCount}</Text>
+            <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.badgeText}>{filterCount}</Text>
           </View>
         ) : null}
       </Pressable>

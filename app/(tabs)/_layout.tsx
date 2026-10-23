@@ -1,11 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { StyleSheet, type ColorValue } from 'react-native';
+import { StyleSheet, Text, type ColorValue } from 'react-native';
 import { useInboxSummary } from '@/chat/useInboxSummary';
 import { badgeText, messagesA11y } from '@/lib/inbox';
-import { colors, fonts } from '@/theme';
+import { colors, DENSE_TEXT_SCALE, fonts } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
+
+// Nombre de la pestaña: crece con la letra grande del sistema hasta 1,3× (más arriba se cortaba en dos líneas o tapaba
+// el ícono).
+function TabLabel({ color, children }: { color: ColorValue; children: string }) {
+  return (
+    <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} numberOfLines={1} style={[styles.tabLabel, { color }]}>
+      {children}
+    </Text>
+  );
+}
 
 function tabIcon(name: IconName) {
   return ({ color, size }: { color: ColorValue; size: number }) => <Ionicons name={name} color={color} size={size} />;
@@ -21,7 +31,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line },
-        tabBarLabelStyle: { fontFamily: fonts.ui.bold, fontSize: 11 },
+        tabBarLabel: TabLabel,
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Explorar', tabBarIcon: tabIcon('map-outline') }} />
@@ -53,5 +63,6 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   badge: { backgroundColor: colors.danger, fontFamily: fonts.ui.extrabold, fontSize: 11 },
+  tabLabel: { fontFamily: fonts.ui.bold, fontSize: 11 },
   dot: { backgroundColor: colors.danger, minWidth: 10, maxHeight: 10, borderRadius: 5, top: 2 },
 });

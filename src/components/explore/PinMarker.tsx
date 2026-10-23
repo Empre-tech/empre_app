@@ -7,7 +7,7 @@ import { categoryColor } from '@/lib/categoryColor';
 import { pinLabel } from '@/lib/markerLabels';
 import { resolveImageUrl } from '@/lib/image';
 import type { EmphasisTier } from '@/lib/proximity';
-import { colors, fonts, radius } from '@/theme';
+import { colors, fonts, radius, DENSE_TEXT_SCALE } from '@/theme';
 import type { WithDistance } from './FeaturedCard';
 import { useMarkerTracking } from './useMarkerTracking';
 
@@ -107,7 +107,7 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
           )}
           {emphasis === 'big' ? (
             <View style={styles.label}>
-              <Text style={styles.labelText} numberOfLines={1}>
+              <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.labelText} numberOfLines={1}>
                 {entity.name}
                 {distanceLabel ? <Text style={styles.labelDistance}>{`  ${distanceLabel}`}</Text> : null}
               </Text>
@@ -139,7 +139,7 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
       <View collapsable={false} onLayout={onLayout} style={[styles.pinWrap, selected && styles.pinWrapSelected]}>
         {mine ? (
           <View style={styles.pinOwnerLabel}>
-            <Text style={styles.pinOwnerLabelText}>Tu negocio</Text>
+            <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.pinOwnerLabelText}>Tu negocio</Text>
           </View>
         ) : null}
         {showRayo ? (

@@ -16,6 +16,7 @@ import { ClaimRedeemed } from '@/components/claim/ClaimRedeemed';
 import { claimToShowForOffer, effectiveClaimStatus, mergeClaims } from '@/lib/claims';
 import { useNow } from '@/lib/useNow';
 import { colors, fonts, spacing } from '@/theme';
+import { hapticError, hapticSuccess } from '@/lib/haptics';
 
 /**
  * Reclamo de una oferta, en pasos según el estado:
@@ -112,7 +113,9 @@ export default function ClaimScreen() {
       void queryClient.invalidateQueries({ queryKey: ['claims', 'mine'] });
       if (userId) setJustSaved(await saveClaim(userId, created));
       setChosenId(created.id);
+      hapticSuccess();
     } catch (e) {
+      hapticError();
       setMessage(e instanceof Error ? e.message : 'No pudimos reclamar la oferta');
     } finally {
       setBusy(false);

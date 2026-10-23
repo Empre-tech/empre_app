@@ -14,6 +14,7 @@ import { SignInPrompt } from '@/components/SignInPrompt';
 import { useNow } from '@/lib/useNow';
 import { groupByDay, novedadText, type NovedadItem } from '@/lib/novedades';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { usePullRefresh } from '@/lib/usePullRefresh';
 
 /** Novedades: lo que publicaron los negocios que sigues desde que los sigues, agrupado por día. */
 export default function NovedadesScreen() {
@@ -23,6 +24,7 @@ export default function NovedadesScreen() {
   const queryClient = useQueryClient();
 
   const novedades = useQuery({ queryKey: ['novedades'], queryFn: novedadesApi.list, enabled: status === 'signedIn' });
+  const pull = usePullRefresh(novedades.refetch);
   const now = useNow(60_000);
   const items = useMemo(() => novedades.data ?? [], [novedades.data]);
 
@@ -78,6 +80,8 @@ export default function NovedadesScreen() {
           keyExtractor={(item) => `${item.kind}-${item.id}`}
           contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + spacing.xl }]}
           stickySectionHeadersEnabled={false}
+          refreshing={pull.refreshing}
+          onRefresh={pull.onRefresh}
           renderSectionHeader={({ section }) => <Text style={styles.day}>{section.title}</Text>}
           renderItem={({ item }) => <Row item={item} onPress={() => router.push({ pathname: '/business/[id]', params: { id: item.entity_id } })} />}
         />

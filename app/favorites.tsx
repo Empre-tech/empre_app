@@ -13,6 +13,7 @@ import { SkeletonRows } from '@/components/Skeleton';
 import { SignInPrompt } from '@/components/SignInPrompt';
 import { categoryColor } from '@/lib/categoryColor';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { usePullRefresh } from '@/lib/usePullRefresh';
 
 export default function FavoritesScreen() {
   const { status } = useAuth();
@@ -24,6 +25,7 @@ export default function FavoritesScreen() {
     queryFn: usersApi.favorites,
     enabled: status === 'signedIn',
   });
+  const pull = usePullRefresh(favorites.refetch);
 
   const back = (
     <Pressable
@@ -67,6 +69,8 @@ export default function FavoritesScreen() {
           data={favorites.data ?? []}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
+          refreshing={pull.refreshing}
+          onRefresh={pull.onRefresh}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           renderItem={({ item }) => (
             <FavoriteRow entity={item} onPress={() => router.push({ pathname: '/business/[id]', params: { id: item.id } })} />

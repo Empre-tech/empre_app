@@ -6,7 +6,7 @@ import { categoryColor } from '@/lib/categoryColor';
 import { resolveImageUrl } from '@/lib/image';
 import { displayIcon } from '@/lib/mapView';
 import { distanceLabel, featuredA11y, featuredClock, initialOf, priceView, tileA11y, tileClock, timeBadge, zoneSubtitle, type MarketItem, type MarketZone } from '@/lib/offerMarket';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { colors, fonts, radius, spacing, DENSE_TEXT_SCALE } from '@/theme';
 import { LiveDot } from './MarketMotion';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -30,7 +30,7 @@ function Photo({ item, style, size }: { item: MarketItem; style: object; size: '
             <Ionicons name={icon} size={d.ghost} color="rgba(255,255,255,0.2)" />
           </View>
           <View style={[styles.initial, { width: d.circle, height: d.circle, borderRadius: d.circle / 2 }]}>
-            <Text style={[styles.initialText, { fontSize: d.letter, color: cat.fg }]}>{initialOf(item.entity_name)}</Text>
+            <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={[styles.initialText, { fontSize: d.letter, color: cat.fg }]}>{initialOf(item.entity_name)}</Text>
             {size !== 'sm' ? (
               <View style={[styles.initialBadge, { backgroundColor: cat.fg }]}>
                 <Ionicons name={icon} size={11} color="#fff" />
@@ -60,7 +60,7 @@ function SaveTag({ item }: { item: MarketItem }) {
   const save = priceView(item).save;
   return save ? (
     <View style={styles.saveTag}>
-      <Text style={styles.saveTagText}>{save}</Text>
+      <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.saveTagText}>{save}</Text>
     </View>
   ) : null;
 }
@@ -71,7 +71,7 @@ function Clock({ endsAt, now }: { endsAt: string; now: number }) {
   return (
     <View style={[styles.badge, styles.badgeRight, t.urgent ? styles.badgeUrgent : styles.badgeDark]}>
       {t.urgent ? <Ionicons name="time-outline" size={12} color={colors.ink} /> : null}
-      <Text style={[styles.badgeText, t.urgent ? styles.urgentText : styles.darkText]}>{t.text}</Text>
+      <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={[styles.badgeText, t.urgent ? styles.urgentText : styles.darkText]}>{t.text}</Text>
     </View>
   );
 }
@@ -85,7 +85,7 @@ export function OfferTile({ item, now, onPress, width = TILE_W }: { item: Market
       {item.trending ? (
         <View style={[styles.badge, styles.badgeLeft]}>
           <LiveDot />
-          <Text style={styles.hotText}>En tendencia</Text>
+          <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.hotText}>En tendencia</Text>
         </View>
       ) : null}
       <Clock endsAt={item.ends_at} now={now} />
@@ -100,7 +100,7 @@ export function OfferTile({ item, now, onPress, width = TILE_W }: { item: Market
         <Price item={item} />
         {item.reason ? (
           <View style={styles.reason}>
-            <Text style={styles.reasonText} numberOfLines={1}>
+            <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.reasonText} numberOfLines={1}>
               {item.reason}
             </Text>
           </View>
@@ -128,7 +128,7 @@ export function OfferRow({ item, now, onPress }: { item: MarketItem; now: number
           <Price item={item} />
           {priceView(item).save ? (
             <View style={styles.save}>
-              <Text style={styles.saveText}>{priceView(item).save}</Text>
+              <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.saveText}>{priceView(item).save}</Text>
             </View>
           ) : null}
         </View>
@@ -149,12 +149,12 @@ export function FeaturedOffer({ item, now, onPress }: { item: MarketItem; now: n
     <Pressable accessibilityRole="button" accessibilityLabel={featuredA11y(item, now)} onPress={onPress} style={({ pressed }) => [styles.feat, pressed && styles.pressed]}>
       <Photo item={item} style={styles.featPhoto} size="lg" />
       <View style={[styles.badge, styles.badgeLeft]}>
-        <Text style={styles.ruleText}>Mayor ahorro de hoy</Text>
+        <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.ruleText}>Mayor ahorro de hoy</Text>
       </View>
       {save ? (
         <View style={styles.bigSave}>
-          <Text style={styles.bigSaveText}>{save.replace(' ', '')}</Text>
-          <Text style={styles.bigSaveSub}>AHORRO</Text>
+          <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.bigSaveText}>{save.replace(' ', '')}</Text>
+          <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.bigSaveSub}>AHORRO</Text>
         </View>
       ) : null}
       <View style={styles.featBody}>
@@ -168,7 +168,7 @@ export function FeaturedOffer({ item, now, onPress }: { item: MarketItem; now: n
           <Price item={item} big />
           <View style={[styles.clock, clock.urgent && styles.clockUrgent]}>
             <Ionicons name="time-outline" size={13} color={clock.urgent ? colors.ink : ACCENT_INK} />
-            <Text style={[styles.clockText, clock.urgent && styles.urgentText]}>{clock.text}</Text>
+            <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={[styles.clockText, clock.urgent && styles.urgentText]}>{clock.text}</Text>
           </View>
         </View>
       </View>
@@ -184,7 +184,7 @@ export function CategoryTile({ name, short, icon, color, active, onPress }: { na
       <View style={[styles.catIcon, { backgroundColor: c.bg }, active && { borderColor: colors.ink }]}>
         <Ionicons name={displayIcon(icon) as IconName} size={22} color={c.fg} />
       </View>
-      <Text style={[styles.catText, active && styles.catTextOn]} numberOfLines={1}>
+      <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={[styles.catText, active && styles.catTextOn]} numberOfLines={1}>
         {short}
       </Text>
     </Pressable>
@@ -219,7 +219,7 @@ export function ZoneCard({ zone, onPress }: { zone: MarketZone; onPress: () => v
         </Text>
         {zone.here ? (
           <View style={styles.here}>
-            <Text style={styles.hereText}>Tu zona</Text>
+            <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.hereText}>Tu zona</Text>
           </View>
         ) : null}
       </View>

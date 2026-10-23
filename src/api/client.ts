@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { API_URL } from '@/config';
+import { OFFLINE_MESSAGE, reportReachable } from '@/lib/connection';
 import type { TokenPair } from './types';
 
 export class ApiError extends Error {
@@ -166,12 +167,16 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
         body: formData ?? (body === undefined ? undefined : JSON.stringify(body)),
         signal,
       });
+      // Llegó una respuesta (aunque sea un error): hay conexión.
+      reportReachable(true);
       return { res, hadToken: token !== null };
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') throw error;
       const raw = error instanceof Error ? error.message : String(error);
       console.warn(`[api] fetch falló para ${method} ${path}:`, raw);
-      throw new ApiError(0, `No pudimos conectar con el servidor. Revisa tu conexión. (${raw})`);
+      reportReachable(false);
+      // A la persona, un mensaje claro; el detalle técnico queda en el registro.
+      throw new ApiError(0, OFFLINE_MESSAGE);
     }
   };
 
@@ -234,7 +239,8 @@ export async function uploadFile<T>(path: string, fileUri: string, options: Uplo
     } catch (error) {
       const raw = error instanceof Error ? error.message : String(error);
       console.warn(`[api] uploadAsync falló para ${path}:`, raw);
-      throw new ApiError(0, `No pudimos conectar con el servidor. Revisa tu conexión. (${raw})`);
+      reportReachable(false);
+      throw new ApiError(0, OFFLINE_MESSAGE);
     }
   };
 

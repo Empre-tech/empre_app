@@ -17,6 +17,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initAnalytics } from '@/analytics/track';
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
 import { ChatProvider } from '@/chat/ChatProvider';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { usePushNotifications } from '@/notifications/usePushNotifications';
 import { UploadCapsule } from '@/upload/UploadCapsule';
 import { initUploads } from '@/upload/uploadStore';
@@ -95,6 +96,7 @@ export default function RootLayout() {
             <StatusBar style="dark" />
             <AppStack />
             <UploadCapsule />
+            <OfflineBanner />
           </ChatProvider>
         </AuthProvider>
       </QueryClientProvider>

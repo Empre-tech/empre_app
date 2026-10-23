@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { chatApi, entitiesApi } from '@/api/endpoints';
@@ -16,6 +16,7 @@ import { useInboxSummary } from '@/chat/useInboxSummary';
 import { formatMessageTime } from '@/lib/format';
 import { requestsLabel } from '@/lib/inbox';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { usePullRefresh } from '@/lib/usePullRefresh';
 
 type Tab = 'personal' | 'business';
 
@@ -40,6 +41,7 @@ export default function ChatsScreen() {
     queryFn: entitiesApi.mine,
     enabled: status === 'signedIn' && tab === 'business',
   });
+  const businessPull = usePullRefresh(useCallback(() => Promise.all([myEntities.refetch(), conversations.refetch()]), [myEntities, conversations]));
 
   // Personales: yo soy el cliente hablando con un negocio (other_party es el negocio).
   const personalConversations = (conversations.data ?? []).filter((c) => c.other_party.type === 'entity');
@@ -120,6 +122,7 @@ export default function ChatsScreen() {
           error={conversations.isError}
           data={personalConversations}
           onRetry={() => void conversations.refetch()}
+          onRefresh={conversations.refetch}
           onOpen={open}
           empty={{
             icon: 'chatbubbles-outline',
@@ -157,6 +160,7 @@ export default function ChatsScreen() {
             error={conversations.isError}
             data={selectedBusinessConversations}
             onRetry={() => void conversations.refetch()}
+            onRefresh={conversations.refetch}
             onOpen={open}
             empty={{
               icon: 'chatbubble-ellipses-outline',
@@ -184,6 +188,8 @@ export default function ChatsScreen() {
           data={myEntities.data ?? []}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
+          refreshing={businessPull.refreshing}
+          onRefresh={businessPull.onRefresh}
           renderItem={({ item }) => (
             <BusinessRow business={item} count={sumUnread(conversationsByEntity.get(item.id))} requests={inbox.byEntity.get(item.id)?.requests ?? 0} onPress={() => setSelectedBusinessId(item.id)} />
           )}
@@ -246,6 +252,7 @@ function ConversationList({
   error,
   data,
   onRetry,
+  onRefresh,
   onOpen,
   empty,
 }: {
@@ -253,9 +260,11 @@ function ConversationList({
   error: boolean;
   data: Conversation[];
   onRetry: () => void;
+  onRefresh: () => Promise<unknown>;
   onOpen: (c: Conversation) => void;
   empty: { icon: keyof typeof Ionicons.glyphMap; title: string; body: string; action?: { title: string; onPress: () => void } };
 }) {
+  const pull = usePullRefresh(onRefresh);
   if (loading) return <ActivityIndicator style={styles.center} color={colors.primary} />;
   if (error) {
     return (
@@ -270,6 +279,8 @@ function ConversationList({
       data={data}
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.list}
+      refreshing={pull.refreshing}
+      onRefresh={pull.onRefresh}
       ListEmptyComponent={<EmptyState icon={empty.icon} title={empty.title} body={empty.body} action={empty.action} />}
       renderItem={({ item }) => {
         const unread = item.unread_count > 0;

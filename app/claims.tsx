@@ -15,6 +15,7 @@ import { effectiveClaimStatus, mergeClaims } from '@/lib/claims';
 import { formatClock } from '@/lib/offer';
 import { useNow } from '@/lib/useNow';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { usePullRefresh } from '@/lib/usePullRefresh';
 
 const LABEL: Record<ClaimStatus, string> = {
   RECLAMADO: 'Activo',
@@ -44,6 +45,7 @@ export default function ClaimsScreen() {
     queryFn: () => loadSavedClaims(user!.id),
     enabled: signedIn,
   });
+  const pull = usePullRefresh(mine.refetch);
   const claims = useMemo(() => mergeClaims(mine.data ?? [], saved.data ?? []), [mine.data, saved.data]);
 
   return (
@@ -63,8 +65,8 @@ export default function ClaimsScreen() {
           data={claims}
           keyExtractor={(c) => c.id}
           contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + spacing.xl }]}
-          refreshing={mine.isRefetching}
-          onRefresh={() => void mine.refetch()}
+          refreshing={pull.refreshing}
+          onRefresh={pull.onRefresh}
           ListEmptyComponent={
             mine.isLoading || saved.isLoading ? (
               <SkeletonRows count={3} />
