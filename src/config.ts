@@ -56,6 +56,8 @@ export const DEFAULT_REGION = {
  */
 export const FEATURES = {
   agenda: true,
+  /** «Mi negocio»: ventas, gastos, fiados y dictado por voz del dueño. */
+  ledger: true,
 } as const;
 
 /** Máximo de caracteres de un mensaje de chat (el backend rechaza los más largos). */

@@ -12,7 +12,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, AppState, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initAnalytics } from '@/analytics/track';
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
@@ -20,6 +20,7 @@ import { ChatProvider } from '@/chat/ChatProvider';
 import { usePushNotifications } from '@/notifications/usePushNotifications';
 import { UploadCapsule } from '@/upload/UploadCapsule';
 import { initUploads } from '@/upload/uploadStore';
+import { flushLedger, initLedgerOutbox } from '@/ledger/ledgerStore';
 import { colors } from '@/theme';
 
 // Se mantiene la splash nativa visible hasta que Nunito y Manrope estén
@@ -77,6 +78,15 @@ export default function RootLayout() {
   // Cola de subidas: se conecta con la caché (para mostrar lo publicado al instante) y recupera lo que quedó sin subir.
   useEffect(() => {
     void initUploads(queryClient);
+  }, [queryClient]);
+
+  // «Mi negocio»: registros guardados sin señal. Se envían al abrir la app y cada vez que vuelve al primer plano.
+  useEffect(() => {
+    void initLedgerOutbox(queryClient);
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') void flushLedger();
+    });
+    return () => sub.remove();
   }, [queryClient]);
 
   useEffect(() => {
