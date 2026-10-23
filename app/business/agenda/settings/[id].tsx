@@ -8,6 +8,7 @@ import { agendaApi, type AgendaSettingsInput } from '@/api/agenda';
 import { Button } from '@/components/Button';
 import { formatDuration } from '@/lib/agendaFormat';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { Chip } from '@/components/Chip';
 
 const SLOT_OPTIONS = [15, 30, 45, 60];
 const BUFFER_OPTIONS = [0, 5, 10, 15, 30];
@@ -198,17 +199,13 @@ export default function AgendaSettingsScreen() {
           <Text style={styles.help}>Cómo te llegan las solicitudes y las citas nuevas.</Text>
           <View style={styles.chips} accessibilityRole="radiogroup">
             {NOTIFY.map((n) => (
-              <Pressable key={n.value} accessibilityRole="radio" accessibilityState={{ checked: form.notify_every === n.value }} onPress={() => set('notify_every', n.value)} style={[styles.chip, form.notify_every === n.value && styles.chipOn]}>
-                <Text style={[styles.chipText, form.notify_every === n.value && styles.onText]}>{n.label}</Text>
-              </Pressable>
+              <Chip key={n.value} label={n.label} role="radio" tone="primary" size="lg" selected={form.notify_every === n.value} onPress={() => set('notify_every', n.value)} />
             ))}
           </View>
           <Text style={[styles.subTitle, { marginTop: spacing.sm }]}>Cuándo no te molestamos</Text>
           <View style={styles.chips} accessibilityRole="radiogroup">
             {QUIET.map((q) => (
-              <Pressable key={q.key} accessibilityRole="radio" accessibilityState={{ checked: form.quiet_mode === q.key }} onPress={() => set('quiet_mode', q.key)} style={[styles.chip, form.quiet_mode === q.key && styles.chipOn]}>
-                <Text style={[styles.chipText, form.quiet_mode === q.key && styles.onText]}>{q.label}</Text>
-              </Pressable>
+              <Chip key={q.key} label={q.label} role="radio" tone="primary" size="lg" selected={form.quiet_mode === q.key} onPress={() => set('quiet_mode', q.key)} />
             ))}
           </View>
           {form.quiet_mode === 'custom' ? (
@@ -232,9 +229,7 @@ export default function AgendaSettingsScreen() {
           <Text style={styles.help}>Si no defines servicios, cada cita dura esto.</Text>
           <View style={styles.chips} accessibilityRole="radiogroup">
             {SLOT_OPTIONS.map((m) => (
-              <Pressable key={m} accessibilityRole="radio" accessibilityLabel={`Cada cita dura ${formatDuration(m)}`} accessibilityState={{ checked: form.slot_minutes === m }} onPress={() => set('slot_minutes', m)} style={[styles.chip, form.slot_minutes === m && styles.chipOn]}>
-                <Text style={[styles.chipText, form.slot_minutes === m && styles.onText]}>{formatDuration(m)}</Text>
-              </Pressable>
+              <Chip key={m} label={formatDuration(m)} accessibilityLabel={`Cada cita dura ${formatDuration(m)}`} role="radio" tone="primary" size="lg" selected={form.slot_minutes === m} onPress={() => set('slot_minutes', m)} />
             ))}
           </View>
           <Text style={styles.note}>Tus días y horas de atención se editan en “Editar negocio”.</Text>
@@ -255,9 +250,7 @@ export default function AgendaSettingsScreen() {
           <TextInput value={svcName} onChangeText={setSvcName} placeholder="Nombre del servicio" placeholderTextColor={colors.muted} style={styles.input} maxLength={60} />
           <View style={styles.chips} accessibilityRole="radiogroup">
             {SERVICE_DURATIONS.map((m) => (
-              <Pressable key={m} accessibilityRole="radio" accessibilityLabel={`Servicio de ${formatDuration(m)}`} accessibilityState={{ checked: svcMin === m }} onPress={() => setSvcMin(m)} style={[styles.chip, svcMin === m && styles.chipOn]}>
-                <Text style={[styles.chipText, svcMin === m && styles.onText]}>{formatDuration(m)}</Text>
-              </Pressable>
+              <Chip key={m} label={formatDuration(m)} accessibilityLabel={`Servicio de ${formatDuration(m)}`} role="radio" tone="primary" size="lg" selected={svcMin === m} onPress={() => setSvcMin(m)} />
             ))}
           </View>
           <Button title="Agregar servicio" variant="secondary" disabled={!svcName.trim()} loading={addService.isPending} onPress={() => addService.mutate()} />
@@ -278,9 +271,7 @@ export default function AgendaSettingsScreen() {
           <Text style={styles.help}>Para limpiar el puesto o desplazarte.</Text>
           <View style={styles.chips} accessibilityRole="radiogroup">
             {BUFFER_OPTIONS.map((m) => (
-              <Pressable key={m} accessibilityRole="radio" accessibilityLabel={m === 0 ? 'Sin tiempo entre citas' : `${m} min entre citas`} accessibilityState={{ checked: form.buffer_min === m }} onPress={() => set('buffer_min', m)} style={[styles.chip, form.buffer_min === m && styles.chipOn]}>
-                <Text style={[styles.chipText, form.buffer_min === m && styles.onText]}>{m === 0 ? 'Ninguno' : `${m} min`}</Text>
-              </Pressable>
+              <Chip key={m} label={m === 0 ? 'Ninguno' : `${m} min`} accessibilityLabel={m === 0 ? 'Sin tiempo entre citas' : `${m} min entre citas`} role="radio" tone="primary" size="lg" selected={form.buffer_min === m} onPress={() => set('buffer_min', m)} />
             ))}
           </View>
         </View>
@@ -290,17 +281,13 @@ export default function AgendaSettingsScreen() {
           <Text style={styles.help}>Mínimo 45 minutos: 15 para que respondas y 30 para que el cliente llegue.</Text>
           <View style={styles.chips} accessibilityRole="radiogroup">
             {[45, 60, 120, 240].map((m) => (
-              <Pressable key={m} accessibilityRole="radio" accessibilityLabel={`Anticipación de ${formatDuration(m)}`} accessibilityState={{ checked: form.min_notice_min === m }} onPress={() => set('min_notice_min', m)} style={[styles.chip, form.min_notice_min === m && styles.chipOn]}>
-                <Text style={[styles.chipText, form.min_notice_min === m && styles.onText]}>{formatDuration(m)}</Text>
-              </Pressable>
+              <Chip key={m} label={formatDuration(m)} accessibilityLabel={`Anticipación de ${formatDuration(m)}`} role="radio" tone="primary" size="lg" selected={form.min_notice_min === m} onPress={() => set('min_notice_min', m)} />
             ))}
           </View>
           <Text style={[styles.cardTitle, { marginTop: spacing.md }]}>Hasta cuántos días adelante</Text>
           <View style={styles.chips} accessibilityRole="radiogroup">
             {[7, 14, 30].map((d) => (
-              <Pressable key={d} accessibilityRole="radio" accessibilityLabel={`Reservas hasta ${d} días adelante`} accessibilityState={{ checked: form.horizon_days === d }} onPress={() => set('horizon_days', d)} style={[styles.chip, form.horizon_days === d && styles.chipOn]}>
-                <Text style={[styles.chipText, form.horizon_days === d && styles.onText]}>{d} días</Text>
-              </Pressable>
+              <Chip key={d} label={`${d} días`} accessibilityLabel={`Reservas hasta ${d} días adelante`} role="radio" tone="primary" size="lg" selected={form.horizon_days === d} onPress={() => set('horizon_days', d)} />
             ))}
           </View>
         </View>
@@ -332,10 +319,6 @@ const styles = StyleSheet.create({
   note: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: { minHeight: 44, paddingHorizontal: spacing.lg, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
-  onText: { color: colors.white },
   input: { minHeight: 48, borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.line, paddingHorizontal: spacing.md, fontSize: 15, fontFamily: fonts.ui.regular, color: colors.ink, backgroundColor: colors.surface },
   serviceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 44 },
   serviceName: { flex: 1, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },

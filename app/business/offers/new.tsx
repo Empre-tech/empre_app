@@ -16,6 +16,7 @@ import { bandHint, bestOffer, durationHint, slotsHint, suggestedSlots, type Hint
 import { useNow } from '@/lib/useNow';
 import { colors, fonts, radius, spacing } from '@/theme';
 import { markFresh, notify } from '@/upload/uploadStore';
+import { Chip } from '@/components/Chip';
 
 const TYPES: OfferType[] = ['HORAS', 'DIA'];
 const HOURS_OPTIONS: Record<OfferType, number[]> = { HORAS: [1, 2, 3, 4], DIA: [8, 12], SEMANA: [168] };
@@ -218,7 +219,7 @@ export default function NewOfferScreen() {
         <Text style={styles.label}>¿Cuánto dura?</Text>
         <View style={styles.chips}>
           {TYPES.map((t) => (
-            <Chip key={t} label={offerTypeLabel(t)} on={type === t} onPress={() => selectType(t)} />
+            <Chip key={t} label={offerTypeLabel(t)} selected={type === t} onPress={() => selectType(t)} />
           ))}
         </View>
 
@@ -227,7 +228,7 @@ export default function NewOfferScreen() {
             <Text style={styles.label}>Servicios del catálogo (hasta 5)</Text>
             <View style={styles.chips}>
               {services.map((s) => (
-                <Chip key={s.id} label={s.name} on={picked.includes(s.id)} onPress={() => togglePick(s.id)} role="checkbox" />
+                <Chip key={s.id} label={s.name} selected={picked.includes(s.id)} onPress={() => togglePick(s.id)} role="checkbox" />
               ))}
             </View>
             {preview.reference !== null ? <Text style={styles.note}>Precio habitual: {formatPesos(preview.reference)} (de tu catálogo; no cambia).</Text> : null}
@@ -252,7 +253,7 @@ export default function NewOfferScreen() {
         <Text style={styles.label}>Cupos</Text>
         <View style={styles.chips}>
           {SLOT_OPTIONS.map((n) => (
-            <Chip key={n} label={`${n}`} star={starSlots === n} on={slots === n} onPress={() => setSlots(n)} a11y={`${n} cupos${starSlots === n ? ', lo que mejor te funcionó' : ''}`} />
+            <Chip key={n} label={`${n}`} trailing={starSlots === n ? <Text style={styles.star}> ★</Text> : null} selected={slots === n} onPress={() => setSlots(n)} accessibilityLabel={`${n} cupos${starSlots === n ? ', lo que mejor te funcionó' : ''}`} />
           ))}
           <View style={styles.stepper}>
             <Pressable accessibilityRole="button" accessibilityLabel="Un cupo menos" onPress={() => setSlots((s) => Math.max(1, s - 1))} style={styles.stepBtn}>
@@ -270,7 +271,7 @@ export default function NewOfferScreen() {
         <View style={styles.chips}>
           {HOURS_OPTIONS[type].map((h) => {
             const star = type === 'HORAS' && Boolean(summary?.enough && summary.prefer_short) && h === 2;
-            return <Chip key={h} label={`${h} h`} star={star} on={hours === h} onPress={() => setHours(h)} a11y={`${h} horas${star ? ', lo que mejor te funcionó' : ''}`} />;
+            return <Chip key={h} label={`${h} h`} trailing={star ? <Text style={styles.star}> ★</Text> : null} selected={hours === h} onPress={() => setHours(h)} accessibilityLabel={`${h} horas${star ? ', lo que mejor te funcionó' : ''}`} />;
           })}
         </View>
         {hints.duration ? <HintView hint={hints.duration} /> : null}
@@ -300,8 +301,8 @@ export default function NewOfferScreen() {
               <View style={styles.row}>
                 <Text style={styles.rowLabel}>Reclamos por persona</Text>
                 <View style={styles.chips}>
-                  <Chip label="Una vez" on={repeat === 'once'} onPress={() => setRepeat('once')} />
-                  <Chip label="Una al día" on={repeat === 'daily'} onPress={() => setRepeat('daily')} />
+                  <Chip label="Una vez" selected={repeat === 'once'} onPress={() => setRepeat('once')} />
+                  <Chip label="Una al día" selected={repeat === 'daily'} onPress={() => setRepeat('daily')} />
                 </View>
               </View>
               <Text style={styles.note}>Al reclamar, el cliente recibe un QR que sirve una sola vez.</Text>
@@ -318,23 +319,6 @@ export default function NewOfferScreen() {
         <Button title="Publicar oferta" onPress={onSubmit} loading={loading} disabled={Boolean(useCatalog && preview.error)} />
       </ScrollView>
     </View>
-  );
-}
-
-function Chip({ label, on, onPress, star, role = 'button', a11y }: { label: string; on: boolean; onPress: () => void; star?: boolean; role?: 'button' | 'checkbox'; a11y?: string }) {
-  return (
-    <Pressable
-      accessibilityRole={role}
-      accessibilityState={role === 'checkbox' ? { checked: on } : { selected: on }}
-      accessibilityLabel={a11y ?? label}
-      onPress={onPress}
-      style={[styles.chip, on && styles.chipOn]}
-    >
-      <Text style={[styles.chipText, on && styles.chipTextOn]}>
-        {label}
-        {star ? <Text style={styles.star}> ★</Text> : null}
-      </Text>
-    </Pressable>
   );
 }
 
@@ -355,10 +339,6 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
   note: { fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, alignItems: 'center' },
-  chip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
-  chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-  chipText: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink },
-  chipTextOn: { color: colors.white },
   star: { color: colors.star },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   stepBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },

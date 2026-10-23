@@ -8,6 +8,7 @@ import { agendaApi } from '@/api/agenda';
 import { Button } from '@/components/Button';
 import { DECLINE_REASONS, dayKey, formatClock, formatDay, formatWhen } from '@/lib/agendaFormat';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { Chip } from '@/components/Chip';
 
 /** Rechazar con motivo (un toque) y, si se puede, proponer hasta 3 horas alternativas. */
 export default function DeclineScreen() {
@@ -103,19 +104,17 @@ export default function DeclineScreen() {
           ) : (
             <View style={styles.chips}>
               {suggestions.map((iso) => (
-                <Pressable
+                <Chip
                   key={iso}
-                  accessibilityRole="checkbox"
+                  label={`${formatDay(iso) === 'Hoy' ? '' : `${formatDay(iso)} `}${formatClock(iso)}`}
                   accessibilityLabel={`Proponer ${formatDay(iso)} ${formatClock(iso)}`}
-                  accessibilityState={{ checked: picked.includes(iso) }}
+                  role="checkbox"
+                  tone="primary"
+                  shape="square"
+                  size="lg"
+                  selected={picked.includes(iso)}
                   onPress={() => toggle(iso)}
-                  style={[styles.chip, picked.includes(iso) && styles.chipOn]}
-                >
-                  <Text style={[styles.chipText, picked.includes(iso) && styles.chipTextOn]}>
-                    {formatDay(iso) === 'Hoy' ? '' : `${formatDay(iso)} `}
-                    {formatClock(iso)}
-                  </Text>
-                </Pressable>
+                />
               ))}
             </View>
           )}
@@ -180,8 +179,4 @@ const styles = StyleSheet.create({
   proposeTitle: { fontSize: 15.5, fontFamily: fonts.ui.bold, color: colors.ink },
   proposeText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: { minHeight: 46, paddingHorizontal: spacing.lg, borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
-  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
-  chipTextOn: { color: colors.white },
 });

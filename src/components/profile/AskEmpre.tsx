@@ -9,6 +9,7 @@ import { formatEndsWhen } from '@/lib/offer';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { alpha, colors, fonts, radius, spacing } from '@/theme';
 import { SectionHeader } from './SectionHeader';
+import { Chip } from '@/components/Chip';
 
 /**
  * «Pregúntale» (CONVERSACIONES_Y_AGENDA.md, fase 1; mockup `conversaciones_agenda.html`). Preguntas según lo que el
@@ -33,13 +34,9 @@ export function AskEmpreCard({ data, onAsk }: { data: AnswerData; onAsk: (q: { i
       <Text style={styles.cardSub}>Al instante, con lo que publicó el negocio.</Text>
       <View style={styles.chipsWrap}>
         {qs.map((q) => (
-          <Pressable key={q.intent} accessibilityRole="button" onPress={() => onAsk(q)} style={({ pressed }) => [styles.chip, pressed && styles.pressed]}>
-            <Text style={styles.chipText}>{q.label}</Text>
-          </Pressable>
+          <Chip key={q.intent} label={q.label} onPress={() => onAsk(q)} />
         ))}
-        <Pressable accessibilityRole="button" accessibilityLabel="Escribir otra pregunta" onPress={() => onAsk({ text: '' })} style={({ pressed }) => [styles.chip, styles.chipMore, pressed && styles.pressed]}>
-          <Text style={[styles.chipText, styles.chipMoreText]}>Otra pregunta</Text>
-        </Pressable>
+        <Chip label="Otra pregunta" look="dashed" accessibilityLabel="Escribir otra pregunta" onPress={() => onAsk({ text: '' })} />
       </View>
     </View>
   );
@@ -143,9 +140,7 @@ function SheetBody({ data, start, onClose, handlers }: { data: AnswerData; start
           {follow.length > 0 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.followRow} keyboardShouldPersistTaps="handled">
               {follow.map((q) => (
-                <Pressable key={q.intent} accessibilityRole="button" onPress={() => push(ask(q.intent, q.label))} style={({ pressed }) => [styles.chip, pressed && styles.pressed]}>
-                  <Text style={styles.chipText}>{q.label}</Text>
-                </Pressable>
+                <Chip key={q.intent} label={q.label} onPress={() => push(ask(q.intent, q.label))} />
               ))}
             </ScrollView>
           ) : null}
@@ -245,9 +240,7 @@ function BlockView({ b, onChoose }: { b: Block; onChoose?: (id: string, label: s
           <Text style={styles.bTitle}>{b.title}</Text>
           <View style={styles.chipsWrap}>
             {b.options.map((o) => (
-              <Pressable key={o.id} accessibilityRole="button" disabled={!onChoose} onPress={() => onChoose?.(o.id, o.label)} style={({ pressed }) => [styles.chip, styles.chipAct, pressed && styles.pressed]}>
-                <Text style={[styles.chipText, styles.chipActText]}>{o.label}</Text>
-              </Pressable>
+              <Chip key={o.id} label={o.label} look="outlined" disabled={!onChoose} onPress={() => onChoose?.(o.id, o.label)} />
             ))}
           </View>
         </View>
@@ -259,12 +252,6 @@ const styles = StyleSheet.create({
   card: { marginHorizontal: spacing.lg, marginTop: spacing.md, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, gap: 6 },
   cardSub: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
   chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
-  chip: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
-  chipText: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink },
-  chipMore: { borderStyle: 'dashed' },
-  chipMoreText: { color: colors.muted },
-  chipAct: { borderColor: colors.primary },
-  chipActText: { color: colors.primaryDark },
   pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: alpha(colors.ink, 0.45) },
   sheet: { height: '86%', backgroundColor: colors.bg, borderTopLeftRadius: radius.lg + 2, borderTopRightRadius: radius.lg + 2, overflow: 'hidden' },

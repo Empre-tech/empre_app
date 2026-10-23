@@ -28,6 +28,7 @@ import {
   weekdayShort,
 } from '@/lib/agendaFormat';
 import { alpha, colors, fonts, radius, spacing } from '@/theme';
+import { Chip } from '@/components/Chip';
 
 interface Props {
   visible: boolean;
@@ -131,21 +132,19 @@ export function BookingSheet({ visible, entityId, entityName, summary, onClose, 
                 <Text style={styles.label}>Servicio</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row} accessibilityRole="radiogroup">
                   {summary.services.map((s) => (
-                    <Pressable
+                    <Chip
                       key={s.id}
+                      label={`${s.name} · ${formatDuration(s.duration_min)}`}
+                      accessibilityLabel={`${s.name}, ${formatDuration(s.duration_min)}`}
+                      role="radio"
+                      tone="primary"
+                      size="lg"
+                      selected={serviceId === s.id}
                       onPress={() => {
                         setServiceId(s.id);
                         setSlot(null);
                       }}
-                      style={[styles.chip, serviceId === s.id && styles.chipActive]}
-                      accessibilityRole="radio"
-                      accessibilityLabel={`${s.name}, ${formatDuration(s.duration_min)}`}
-                      accessibilityState={{ checked: serviceId === s.id }}
-                    >
-                      <Text style={[styles.chipText, serviceId === s.id && styles.chipTextActive]}>
-                        {s.name} · {formatDuration(s.duration_min)}
-                      </Text>
-                    </Pressable>
+                    />
                   ))}
                 </ScrollView>
               </View>
@@ -258,18 +257,7 @@ const styles = StyleSheet.create({
   block: { marginTop: spacing.md },
   label: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted, marginBottom: spacing.sm },
   row: { flexDirection: 'row', gap: spacing.sm },
-  chip: {
-    minHeight: 44,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.pill,
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   chipTextActive: { color: colors.white },
   dayChip: {
     width: 58,

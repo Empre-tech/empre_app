@@ -12,6 +12,7 @@ import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { categoryColor } from '@/lib/categoryColor';
 import { resolveImageUrl } from '@/lib/image';
 import { alpha, colors, fonts, radius, spacing } from '@/theme';
+import { Chip } from '@/components/Chip';
 
 const PAGE = 30;
 const COLUMNS = 3;
@@ -96,15 +97,7 @@ export default function PhotosScreen() {
       <SubScreenHeader title={business.data ? `Fotos · ${business.data.name}` : 'Fotos'} />
       <View style={styles.filters} accessibilityRole="tablist">
         {FILTERS.map((f) => (
-          <Pressable
-            key={f.id}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: kind === f.id }}
-            onPress={() => setKind(f.id)}
-            style={[styles.chip, kind === f.id && styles.chipOn]}
-          >
-            <Text style={[styles.chipText, kind === f.id && styles.chipTextOn]}>{f.label}</Text>
-          </Pressable>
+          <Chip key={f.id} label={f.label} role="tab" selected={kind === f.id} onPress={() => setKind(f.id)} />
         ))}
       </View>
       {total > 0 ? <Text style={styles.count}>Mostrando {posts.length} de {total}</Text> : null}
@@ -169,10 +162,6 @@ export default function PhotosScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   filters: { flexDirection: 'row', gap: 6, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  chip: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-  chipText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  chipTextOn: { color: colors.white },
   count: { paddingHorizontal: spacing.md, paddingBottom: spacing.xs, fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   image: { width: '100%', height: '100%' },

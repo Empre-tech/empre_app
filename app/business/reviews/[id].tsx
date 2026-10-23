@@ -7,6 +7,7 @@ import type { Review } from '@/api/types';
 import { ReviewCard } from '@/components/profile/ReviewCard';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { Chip } from '@/components/Chip';
 
 const PAGE = 20;
 
@@ -40,9 +41,7 @@ export default function ReviewsScreen() {
   const toggle = (patch: Partial<Filter>) => setFilter((f) => ({ ...f, ...patch }));
 
   const chip = (label: string, on: boolean, onPress: () => void, a11y?: string) => (
-    <Pressable key={label} accessibilityRole="button" accessibilityLabel={a11y ?? label} accessibilityState={{ selected: on }} onPress={onPress} style={[styles.chip, on && styles.chipOn]}>
-      <Text style={[styles.chipText, on && styles.chipTextOn]}>{label}</Text>
-    </Pressable>
+    <Chip key={label} label={label} accessibilityLabel={a11y} selected={on} onPress={onPress} />
   );
 
   return (
@@ -97,10 +96,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   filtersWrap: { backgroundColor: colors.bg },
   filters: { gap: 6, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  chip: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-  chipText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  chipTextOn: { color: colors.white },
   count: { paddingHorizontal: spacing.md, paddingBottom: spacing.xs, fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
   list: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl },
   loader: { marginVertical: spacing.lg },

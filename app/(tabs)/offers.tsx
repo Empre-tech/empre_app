@@ -34,6 +34,7 @@ import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, DENSE_TEXT_SCALE, fonts, radius, spacing } from '@/theme';
 import { usePullRefresh } from '@/lib/usePullRefresh';
+import { Chip } from '@/components/Chip';
 
 type Coords = { latitude: number; longitude: number };
 
@@ -324,7 +325,7 @@ export default function OffersScreen() {
                     {header('Lo más buscado', `Lo que la gente busca esta semana${city ? ` en ${city}` : ' en Empre'}`)}
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.terms}>
                       {data.searched.terms.map((t) => (
-                        <Chip key={t.term} label={t.label} active={data.searched.term === t.term} soft onPress={() => setTerm(t.term)} />
+                        <Chip key={t.term} label={t.label} selected={data.searched.term === t.term} tone="soft" onPress={() => setTerm(t.term)} />
                       ))}
                     </ScrollView>
                     {data.searched.items.length ? rail(data.searched.items) : <Text style={styles.none}>Ahora no hay ofertas para esto. Si sigues negocios, te enteras cuando publiquen.</Text>}
@@ -363,16 +364,16 @@ export default function OffersScreen() {
               {header(q ? 'Resultados' : listTitle(city, zoneName), q ? `Con «${q}»${zoneName ? ` en ${zoneName}` : inCity}` : hasLoc ? 'Vigentes ahora, la más cercana primero' : 'Vigentes ahora')}
               {data && data.zones.length ? (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.terms}>
-                  <Chip label={city ? `Toda ${city}` : 'Todas las zonas'} active={!zoneId} soft onPress={() => setZone(undefined)} />
+                  <Chip label={city ? `Toda ${city}` : 'Todas las zonas'} selected={!zoneId} tone="soft" onPress={() => setZone(undefined)} />
                   {zoneFilterOrder(data.zones).map((z) => (
-                    <Chip key={z.id} label={z.name} active={zoneId === z.id} soft onPress={() => setZone(zoneId === z.id ? undefined : z.id)} />
+                    <Chip key={z.id} label={z.name} selected={zoneId === z.id} tone="soft" onPress={() => setZone(zoneId === z.id ? undefined : z.id)} />
                   ))}
                 </ScrollView>
               ) : null}
               {!q ? (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.terms}>
                   {sortOptions(hasLoc).map((o) => (
-                    <Chip key={o.key} label={o.label} active={sortNow === o.key} onPress={() => setSort(o.key)} />
+                    <Chip key={o.key} label={o.label} selected={sortNow === o.key} onPress={() => setSort(o.key)} />
                   ))}
                 </ScrollView>
               ) : null}
@@ -416,21 +417,6 @@ export default function OffersScreen() {
   );
 }
 
-function Chip({ label, active, onPress, soft }: { label: string; active: boolean; onPress: () => void; soft?: boolean }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      onPress={onPress}
-      style={({ pressed }) => [styles.chip, active && (soft ? styles.chipSoftOn : styles.chipOn), pressed && styles.chipPressed]}
-    >
-      <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={[styles.chipText, active && (soft ? styles.chipSoftText : styles.chipOnText)]} numberOfLines={1}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
 function EmptyOffers({ searching }: { searching: boolean }) {
   const router = useRouter();
   return (
@@ -459,13 +445,6 @@ const styles = StyleSheet.create({
   miniBtn: { marginLeft: 'auto', width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   cats: { gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: 4 },
   terms: { gap: 6, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
-  chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-  chipSoftOn: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
-  chipPressed: { transform: [{ scale: 0.97 }] },
-  chipText: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink },
-  chipOnText: { color: colors.white },
-  chipSoftText: { color: colors.primaryDark },
   loc: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.lg, marginTop: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
   locText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
   locBtn: { minHeight: 40, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.primary, justifyContent: 'center' },

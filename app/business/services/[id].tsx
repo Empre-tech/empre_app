@@ -13,6 +13,7 @@ import { CatalogRow } from '@/components/profile/CatalogSection';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { catalogCopy, catalogCount, catalogGroups, filterCatalog, type ServiceItem } from '@/lib/catalog';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { Chip } from '@/components/Chip';
 
 /**
  * El catálogo completo de un negocio (3.27/3.28): se llama según el tipo de negocio (Carta, Servicios, Productos…), con
@@ -76,9 +77,7 @@ export default function CatalogScreen() {
               {['', ...sections].map((s) => {
                 const on = s === section;
                 return (
-                  <Pressable key={s || 'all'} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setSection(s)} style={[styles.chip, on && styles.chipOn]}>
-                    <Text style={[styles.chipText, on && styles.chipTextOn]}>{s || 'Todos'}</Text>
-                  </Pressable>
+                  <Chip key={s || 'all'} label={s || 'Todos'} tone="primary" selected={on} onPress={() => setSection(s)} />
                 );
               })}
             </ScrollView>
@@ -131,10 +130,6 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, minHeight: 44, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink },
   clear: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   chips: { gap: 6 },
-  chip: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  chipTextOn: { color: colors.white },
   count: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   group: { gap: spacing.sm },
   groupTitle: { fontSize: 12, fontFamily: fonts.ui.extrabold, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.muted },

@@ -21,6 +21,7 @@ import {
   weekdayShort,
 } from '@/lib/agendaFormat';
 import { alpha, colors, fonts, radius, spacing } from '@/theme';
+import { Chip } from '@/components/Chip';
 
 const DAYS_AHEAD = 14;
 const BLOCK_DURATIONS = [30, 60, 120, 180, 240];
@@ -296,18 +297,14 @@ function BlockSheet({
         <ScrollView style={{ maxHeight: 190 }}>
           <View style={styles.chips} accessibilityRole="radiogroup">
             {options.map((iso) => (
-              <Pressable key={iso} accessibilityRole="radio" accessibilityLabel={`Bloquear desde ${formatClock(iso)}`} accessibilityState={{ checked: start === iso }} hitSlop={{ top: 2, bottom: 2 }} onPress={() => setStart(iso)} style={[styles.chip, start === iso && styles.chipOn]}>
-                <Text style={[styles.chipText, start === iso && styles.onText]}>{formatClock(iso)}</Text>
-              </Pressable>
+              <Chip key={iso} label={formatClock(iso)} accessibilityLabel={`Bloquear desde ${formatClock(iso)}`} role="radio" tone="primary" shape="square" size="lg" hitSlop={{ top: 2, bottom: 2 }} selected={start === iso} onPress={() => setStart(iso)} />
             ))}
           </View>
         </ScrollView>
         <Text style={styles.sheetSub}>Duración</Text>
         <View style={styles.chips} accessibilityRole="radiogroup">
           {BLOCK_DURATIONS.map((m) => (
-            <Pressable key={m} accessibilityRole="radio" accessibilityLabel={`Bloquear ${formatDuration(m)}`} accessibilityState={{ checked: minutes === m }} hitSlop={{ top: 2, bottom: 2 }} onPress={() => setMinutes(m)} style={[styles.chip, minutes === m && styles.chipOn]}>
-              <Text style={[styles.chipText, minutes === m && styles.onText]}>{formatDuration(m)}</Text>
-            </Pressable>
+            <Chip key={m} label={formatDuration(m)} accessibilityLabel={`Bloquear ${formatDuration(m)}`} role="radio" tone="primary" shape="square" size="lg" hitSlop={{ top: 2, bottom: 2 }} selected={minutes === m} onPress={() => setMinutes(m)} />
           ))}
         </View>
         <Button
@@ -409,7 +406,4 @@ const styles = StyleSheet.create({
   sheetTitle: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
   sheetSub: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted, marginTop: spacing.md, marginBottom: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: { minHeight: 42, paddingHorizontal: spacing.md, borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
 });

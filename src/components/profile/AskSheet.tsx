@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { addQuestion, askMessage, quickQuestions, type CatalogCopy } from '@/lib/catalog';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { alpha, colors, fonts, radius, spacing } from '@/theme';
+import { Chip } from '@/components/Chip';
 
 interface Props {
   /** El ítem por el que se pregunta; null = cerrada. */
@@ -46,9 +47,7 @@ function AskBody({ item, businessName, copy, onClose, onSend }: Props & { item: 
         {quick.length > 0 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} keyboardShouldPersistTaps="handled">
             {quick.map((q) => (
-              <Pressable key={q} accessibilityRole="button" accessibilityLabel={`Añadir: ${q}`} onPress={() => setText((t) => addQuestion(t, q))} style={styles.chip}>
-                <Text style={styles.chipText}>{q}</Text>
-              </Pressable>
+              <Chip key={q} label={q} accessibilityLabel={`Añadir: ${q}`} onPress={() => setText((t) => addQuestion(t, q))} />
             ))}
           </ScrollView>
         ) : null}
@@ -74,8 +73,6 @@ const styles = StyleSheet.create({
   sub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   input: { minHeight: 84, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, padding: spacing.md, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink, textAlignVertical: 'top' },
   chips: { gap: 6 },
-  chip: { minHeight: 44, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, justifyContent: 'center' },
-  chipText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
   send: { minHeight: 50, borderRadius: radius.pill, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: spacing.xs },
   sendOff: { opacity: 0.5 },
   sendText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.white },
