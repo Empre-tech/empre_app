@@ -2,6 +2,23 @@ import type { ExpoConfig } from 'expo/config';
 
 // Los identificadores (bundleIdentifier / package) son provisionales:
 // cámbialos antes de publicar en las tiendas.
+// Dictado de «Mi negocio». Es opcional: si el paquete aún no está instalado, la app compila igual y la hoja de dictado
+// funciona escribiendo (o con el micrófono del teclado). Se instala con: npx expo install expo-speech-recognition
+const speechPlugin: NonNullable<ExpoConfig['plugins']> = [];
+try {
+  (require as unknown as { resolve: (id: string) => string }).resolve('expo-speech-recognition');
+  speechPlugin.push([
+    'expo-speech-recognition',
+    {
+      microphonePermission: 'Empre usa el micrófono para que puedas dictar tus ventas y gastos.',
+      speechRecognitionPermission: 'Empre usa el reconocimiento de voz para convertir lo que dictas en texto.',
+      androidSpeechServicePackages: ['com.google.android.googlequicksearchbox'],
+    },
+  ]);
+} catch {
+  // sin el paquete: sin plugin
+}
+
 const config: ExpoConfig = {
   name: 'Empre',
   slug: 'empre',
@@ -45,6 +62,13 @@ const config: ExpoConfig = {
       },
     ],
     [
+      'expo-camera',
+      {
+        cameraPermission: 'Empre usa la cámara para escanear códigos QR.',
+        recordAudioAndroid: false,
+      },
+    ],
+    [
       'expo-notifications',
       {
         // Ícono/color del ícono pequeño de la notificación en Android. Usa el
@@ -53,6 +77,7 @@ const config: ExpoConfig = {
         color: '#F58220',
       },
     ],
+    ...speechPlugin,
   ],
 };
 

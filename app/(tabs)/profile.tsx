@@ -249,6 +249,21 @@ export default function ProfileScreen() {
                 <Text style={styles.reqStripLink}>Ver agenda</Text>
               </Pressable>
             ) : null}
+            {/* Administración del negocio (ventas, gastos, fiados): se está validando, por eso vive aquí y no en una pestaña. */}
+            {FEATURES.ledger ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Mi negocio: ventas, gastos y fiados de ${entity.name}`}
+                onPress={() => router.push({ pathname: '/business/ledger/[id]', params: { id: entity.id } })}
+                style={({ pressed }) => [styles.ledgerStrip, pressed && { opacity: 0.85 }]}
+              >
+                <Ionicons name="wallet-outline" size={18} color={colors.primaryDark} />
+                <Text style={styles.ledgerStripText} numberOfLines={1}>
+                  Mi negocio · ventas, gastos y fiados
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.primaryDark} />
+              </Pressable>
+            ) : null}
           </Pressable>
         ))
       )}
@@ -261,6 +276,8 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   // La franja ocupa todo el ancho y pasa a su propia línea (la tarjeta envuelve).
   reqStrip: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.accentSoft },
+  ledgerStrip: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
+  ledgerStripText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.bold, color: colors.primaryDark },
   reqStripText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.bold, color: colors.accentInk },
   reqStripLink: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   screen: { flex: 1, backgroundColor: colors.bg },
