@@ -155,6 +155,14 @@ habilitada — pídesela al equipo en vez de crear una propia, para no duplicar 
   descripción del negocio (al crear o editar) y junto al texto de cada publicación; abre una hoja con 2-3 opciones
   generadas para elegir una con un toque (o pedir otras), nunca se aplica nada sin que el dueño lo confirme.
   Usa el mismo backend/API key que el asistente conversacional.
+- **Mi negocio** (administración del negocio, solo el dueño): se entra desde Perfil, en la franja de cada negocio. Pantalla
+  **Hoy** (también semana y mes) con lo vendido, lo gastado y lo que quedó, por medio de pago y comparado con el
+  periodo anterior; **Vender** y **Gastar** en pocos toques (con productos del catálogo, que traen su precio);
+  **Fiados** (lo que te deben y lo que debes, con abonos); **Costos** del catálogo para calcular la ganancia por
+  venta; y **Dictar**: se habla o escribe lo que pasó y la IA lo convierte en tarjetas que el dueño revisa (con el
+  monto en letras) y confirma. Todo se guarda primero en el teléfono y se envía solo cuando hay señal (cola en
+  `src/ledger/ledgerStore.ts`, cada registro lleva un `client_id` y reenviar no duplica). Se enciende con
+  `FEATURES.ledger` en `src/config.ts`. Ver "Dictado por voz" más abajo.
 - **Foto de perfil del usuario**: toca tu avatar en la pestaña Perfil.
 - **Chat en tiempo real** (WebSocket) con historial, reconexión automática y lista de conversaciones; funciona
   tanto para clientes como para el dueño del negocio.
@@ -196,6 +204,25 @@ viene en el `data` de la notificación.
 - `is_read` no se actualiza: no hay indicador de mensajes no leídos.
 - Las URLs de las imágenes son firmadas y caducan a los 15 minutos; se renuevan al recargar los datos.
 
+## Dictado por voz (Mi negocio)
+
+El dictado usa el reconocedor de voz del teléfono (`expo-speech-recognition`) y solo manda el **texto** al backend;
+el audio nunca sale del teléfono. El paquete es opcional: sin él la app compila igual y la hoja de dictado funciona
+escribiendo (o con el micrófono del teclado).
+
+```bash
+npx expo install expo-speech-recognition
+npx expo run:android      # hay que reconstruir el build nativo
+```
+
+- `app.config.ts` agrega el plugin solo si el paquete está instalado (permiso de micrófono).
+- Idioma de reconocimiento: `es-CO`. El teléfono necesita el paquete de voz en español (Ajustes → Idiomas). En el
+  emulador de Android el micrófono casi nunca funciona: activa "Virtual microphone uses host audio input" en sus
+  controles extendidos, o prueba en un teléfono real por USB.
+- Requiere que el backend tenga `AI_API_KEY`; sin ella el dictado responde 503 y se registra a mano.
+- Pruebas de la lógica pura (formato de pesos, monto en letras, cola sin conexión): 
+  `node --test src/lib/ledger.test.ts src/lib/ledgerWords.test.ts`.
+
 ## Estructura
 
 ```
@@ -205,10 +232,12 @@ app/                    Rutas (Expo Router)
   business/[id].tsx     Perfil del negocio
   business/new.tsx      Crear negocio
   business/edit/[id].tsx  Editar negocio
+  business/ledger/      Mi negocio: [id] (Hoy), sale/, expense/, debts/ (fiados), costs/
   chat/[entityId].tsx   Conversación
 src/
   api/                  client.ts (fetch + refresh), endpoints.ts, types.ts (espejo de los DTOs del backend)
   auth/                 AuthContext + almacenamiento seguro de tokens
+  ledger/               Cola sin conexión de Mi negocio (ledgerStore) y dictado (speech)
   chat/                 ChatProvider: un solo WebSocket compartido, con reconexión
   notifications/        Registro del token push, navegación al tocar una notificación
   components/           Button, TextField, BusinessForm, LocationPickerModal, ...
