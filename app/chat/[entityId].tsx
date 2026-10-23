@@ -26,7 +26,7 @@ import { AppointmentCard } from '@/components/agenda/AppointmentCard';
 import { CHAT_MAX_CONTENT_BYTES, CHAT_MAX_CONTENT_CHARS, FEATURES } from '@/config';
 import { formatDayLabel, formatMessageTime } from '@/lib/format';
 import { utf8Length } from '@/lib/text';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 
 const LOCAL_PREFIX = 'local-';
 const PHONE_RE = /^[+\d\s()-]{7,}$/;
@@ -336,8 +336,8 @@ export default function ChatScreen() {
                             item.is_read
                               ? colors.accent
                               : item.id.startsWith(LOCAL_PREFIX)
-                                ? 'rgba(255,255,255,0.6)'
-                                : '#fff'
+                                ? alpha(colors.white, 0.6)
+                                : colors.white
                           }
                         />
                       ) : null}
@@ -396,7 +396,7 @@ export default function ChatScreen() {
             disabled={!text.trim() || !connected}
             style={[styles.send, (!text.trim() || !connected) && styles.sendDisabled]}
           >
-            <Ionicons name="send" size={18} color="#fff" />
+            <Ionicons name="send" size={18} color={colors.white} />
           </Pressable>
         </View>
       ) : null}
@@ -480,10 +480,10 @@ const styles = StyleSheet.create({
   bubbleMine: { backgroundColor: colors.primary, borderBottomRightRadius: 4 },
   bubbleTheirs: { backgroundColor: colors.surface, borderBottomLeftRadius: 4 },
   bubbleText: { fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink },
-  bubbleTextMine: { color: '#fff' },
+  bubbleTextMine: { color: colors.white },
   bubbleMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end' },
   time: { fontSize: 11, color: colors.muted },
-  timeMine: { color: 'rgba(255,255,255,0.8)' },
+  timeMine: { color: alpha(colors.white, 0.8) },
   error: { color: colors.danger, fontSize: 13, paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
   composer: {
     flexDirection: 'row',

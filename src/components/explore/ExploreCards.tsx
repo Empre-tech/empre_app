@@ -61,7 +61,7 @@ function Circle({ model, size }: { model: CardModel; size: number }) {
       {src ? (
         <Image accessible={false} source={{ uri: src }} style={{ width: size, height: size, borderRadius: size / 2 }} contentFit="cover" />
       ) : (
-        <Ionicons name={model.icon as keyof typeof Ionicons.glyphMap} size={size * 0.46} color="#fff" />
+        <Ionicons name={model.icon as keyof typeof Ionicons.glyphMap} size={size * 0.46} color={colors.white} />
       )}
     </View>
   );
@@ -72,7 +72,7 @@ export function PillView({ pill, mine, floating }: { pill?: Pill | null; mine?: 
   if (mine) {
     return (
       <View style={[styles.pill, styles.pillMine, floating && styles.pillFloating]}>
-        <Ionicons name="qr-code" size={11} color="#1D6B3D" />
+        <Ionicons name="qr-code" size={11} color={colors.successInk} />
         <Text style={[styles.pillText, styles.pillTextMine]}>Tu QR</Text>
       </View>
     );
@@ -134,7 +134,7 @@ export function DiscoverCard({ model, selected, onPress, onPhoto }: { model: Car
       <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.dcard, pressed && styles.pressed]}>
         <View style={[styles.cover, styles.noPhoto, { backgroundColor: model.color.bg }, selected && styles.coverSelected]}>
           <View style={[styles.noPhotoIcon, { backgroundColor: model.color.fg }]}>
-            <Ionicons name={model.icon as keyof typeof Ionicons.glyphMap} size={22} color="#fff" />
+            <Ionicons name={model.icon as keyof typeof Ionicons.glyphMap} size={22} color={colors.white} />
           </View>
           <Text style={styles.noPhotoText}>Sin fotos todavía</Text>
           <View style={styles.pillTop}>
@@ -226,16 +226,16 @@ const styles = StyleSheet.create({
   pillFloating: { position: 'absolute', left: 8, bottom: 8 },
   pillOffer: { backgroundColor: colors.accent },
   pillNew: { backgroundColor: colors.ink },
-  pillMine: { backgroundColor: '#E3F4EA' },
+  pillMine: { backgroundColor: colors.successSoft },
   pillText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  pillTextNew: { color: '#fff' },
-  pillTextMine: { color: '#1D6B3D' },
-  open: { color: '#1D6B3D', fontFamily: fonts.ui.bold },
-  closed: { color: '#9B2C2C', fontFamily: fonts.ui.bold },
+  pillTextNew: { color: colors.white },
+  pillTextMine: { color: colors.successInk },
+  open: { color: colors.successInk, fontFamily: fonts.ui.bold },
+  closed: { color: colors.dangerInk, fontFamily: fonts.ui.bold },
   why: { color: colors.primaryDark },
   pressed: { opacity: 0.85 },
   nearChip: { height: 22, paddingHorizontal: 9, borderRadius: radius.pill, backgroundColor: colors.primary, justifyContent: 'center' },
-  nearChipText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  nearChipText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.white },
   nearBorder: { borderColor: colors.primary },
   topRight: { alignItems: 'flex-end', gap: 4 },
   selected: { borderColor: colors.primary, borderWidth: 1.5 },

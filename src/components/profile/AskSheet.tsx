@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { addQuestion, askMessage, quickQuestions, type CatalogCopy } from '@/lib/catalog';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 
 interface Props {
   /** El ítem por el que se pregunta; null = cerrada. */
@@ -67,7 +67,7 @@ function AskBody({ item, businessName, copy, onClose, onSend }: Props & { item: 
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(22,35,58,0.45)' },
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: alpha(colors.ink, 0.45) },
   sheet: { backgroundColor: colors.surface, borderTopLeftRadius: radius.lg + 2, borderTopRightRadius: radius.lg + 2, padding: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm },
   handle: { width: 38, height: 5, borderRadius: 3, backgroundColor: colors.line, alignSelf: 'center', marginBottom: spacing.xs },
   title: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
   send: { minHeight: 50, borderRadius: radius.pill, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: spacing.xs },
   sendOff: { opacity: 0.5 },
-  sendText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  sendText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.white },
   pressed: { opacity: 0.85 },
   note: { fontSize: 11.5, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
 });

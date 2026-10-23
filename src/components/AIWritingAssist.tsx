@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { aiApi } from '@/api/endpoints';
 import type { AITextKind } from '@/api/types';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 
 interface Props {
   kind: AITextKind;
@@ -72,7 +72,7 @@ export function AIWritingAssist({ kind, currentText, businessName, categoryName,
           pressed && styles.triggerPressed,
         ]}
       >
-        <Ionicons name="sparkles" size={14} color={variant === 'dark' ? '#fff' : colors.primary} />
+        <Ionicons name="sparkles" size={14} color={variant === 'dark' ? colors.white : colors.primary} />
         {!compact ? (
           <Text style={[styles.triggerText, variant === 'dark' && styles.triggerTextDark]}>Mejorar con IA</Text>
         ) : null}
@@ -147,12 +147,12 @@ const styles = StyleSheet.create({
     height: 30,
     borderRadius: radius.pill,
   },
-  triggerLight: { backgroundColor: 'rgba(36,104,198,0.12)' },
-  triggerDark: { backgroundColor: 'rgba(255,255,255,0.18)' },
+  triggerLight: { backgroundColor: alpha(colors.primary, 0.12) },
+  triggerDark: { backgroundColor: alpha(colors.white, 0.18) },
   triggerPressed: { opacity: 0.7 },
   triggerText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.primary },
-  triggerTextDark: { color: '#fff' },
-  backdrop: { flex: 1, backgroundColor: 'rgba(22,35,58,0.5)', justifyContent: 'flex-end' },
+  triggerTextDark: { color: colors.white },
+  backdrop: { flex: 1, backgroundColor: alpha(colors.ink, 0.5), justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: colors.bg,
     borderTopLeftRadius: radius.lg,
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(36,104,198,0.12)',
+    backgroundColor: alpha(colors.primary, 0.12),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.xs,
   },
-  optionCardPressed: { borderColor: colors.primary, backgroundColor: 'rgba(36,104,198,0.08)' },
+  optionCardPressed: { borderColor: colors.primary, backgroundColor: alpha(colors.primary, 0.08) },
   optionText: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.ink },
   optionUseRow: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end' },
   optionUseText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.primary },

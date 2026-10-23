@@ -13,7 +13,7 @@ import {
   timeLeftShort,
 } from '@/lib/offer';
 import { useNow } from '@/lib/useNow';
-import { colors, fonts, radius, shadow, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, shadow, spacing } from '@/theme';
 
 interface Props {
   offer: Offer;
@@ -63,8 +63,8 @@ export function OfferTicket({ offer, cta, notchColor = colors.bg, showPrice = tr
     formatSlotsFree(offer.slots_left, offer.total_slots);
 
   const topBg = off ? styles.topOff : hot ? styles.topHot : warn ? styles.topWarn : styles.topCalm;
-  const ringColor = off ? '#9AA7B5' : hot ? colors.ink : warn ? colors.accentDark : colors.primary;
-  const ringTrack = hot ? 'rgba(22, 35, 58, 0.2)' : colors.line;
+  const ringColor = off ? colors.mutedLight : hot ? colors.ink : warn ? colors.accentDark : colors.primary;
+  const ringTrack = hot ? alpha(colors.ink, 0.2) : colors.line;
   const kind = hot ? 'Última llamada' : offerTypeLabel(offer.type);
 
   return (
@@ -73,7 +73,7 @@ export function OfferTicket({ offer, cta, notchColor = colors.bg, showPrice = tr
         <View style={[styles.top, topBg]}>
           <View style={styles.main}>
             <View style={styles.kindRow}>
-              <Ionicons name="flash" size={12} color={off ? '#9AA7B5' : hot ? colors.ink : colors.accent} />
+              <Ionicons name="flash" size={12} color={off ? colors.mutedLight : hot ? colors.ink : colors.accent} />
               <Text style={[styles.kind, hot && styles.kindHot, off && styles.kindOff]}>{kind}</Text>
             </View>
             <Text style={[styles.title, off && styles.titleOff]} numberOfLines={2}>
@@ -157,18 +157,18 @@ const styles = StyleSheet.create({
   topWarn: { backgroundColor: colors.accentSoft },
   // Última llamada: ámbar sólido con texto en tinta (6,1:1).
   topHot: { backgroundColor: colors.accent },
-  topOff: { backgroundColor: '#F1F4F8' },
+  topOff: { backgroundColor: colors.surfaceAlt },
   main: { flex: 1, gap: 4 },
   kindRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   kind: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, letterSpacing: 0.8, textTransform: 'uppercase', color: colors.accentInk },
   kindHot: { color: colors.ink },
-  kindOff: { color: '#5B6B80' },
+  kindOff: { color: colors.mutedDark },
   title: { fontSize: 19, lineHeight: 22, fontFamily: fonts.display.bold, color: colors.ink },
-  titleOff: { color: '#5B6B80' },
+  titleOff: { color: colors.mutedDark },
   priceRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 8, rowGap: 2 },
   price: { fontSize: 21, fontFamily: fonts.display.bold, color: colors.ink },
   normal: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted, textDecorationLine: 'line-through' },
-  normalHot: { color: '#5A2D00' },
+  normalHot: { color: colors.accentDeep },
   savings: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
   savingsHot: { color: colors.ink },
   clock: { width: 78, alignItems: 'center', gap: 4 },
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
   ringValue: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
   ringUnit: { fontSize: 9, fontFamily: fonts.ui.bold, letterSpacing: 0.4, color: colors.muted },
   when: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: colors.ink, textAlign: 'center' },
-  whenHot: { color: '#fff', backgroundColor: colors.ink, paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.pill, overflow: 'hidden' },
+  whenHot: { color: colors.white, backgroundColor: colors.ink, paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.pill, overflow: 'hidden' },
   perforation: { marginHorizontal: spacing.lg, height: 2 },
   notch: { position: 'absolute', top: -9, width: 20, height: 20, borderRadius: 10 },
   notchLeft: { left: -(spacing.lg + 10) },

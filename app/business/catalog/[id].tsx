@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   formButtons: { flexDirection: 'row', gap: spacing.sm },
   grow: { flex: 1 },
   error: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.danger },
-  ok: { fontSize: 14, fontFamily: fonts.ui.bold, color: '#1D6B3D' },
+  ok: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.successInk },
   listTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink, marginTop: spacing.sm },
   row: { flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   rowMain: { flex: 1, minHeight: 56, justifyContent: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
@@ -249,5 +249,5 @@ const styles = StyleSheet.create({
   sectionChip: { minHeight: 44, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, justifyContent: 'center' },
   sectionChipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   sectionChipText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
-  sectionChipTextOn: { color: '#fff' },
+  sectionChipTextOn: { color: colors.white },
 });

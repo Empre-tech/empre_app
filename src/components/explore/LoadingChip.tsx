@@ -1,6 +1,6 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { colors, fonts, radius, shadow } from '@/theme';
+import { alpha, colors, fonts, radius, shadow } from '@/theme';
 
 /**
  * «Cargando negocios…» sobre el mapa mientras todavía no hay ningún pin y se está pidiendo la
@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
     height: 34,
     paddingHorizontal: 14,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.96)',
+    backgroundColor: alpha(colors.white, 0.96),
     ...shadow,
   },
   text: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },

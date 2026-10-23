@@ -40,14 +40,14 @@ export function StatusChips({ entityId, hasHours, isOpen, extrasOnly }: Props) {
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.sm },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.pill, backgroundColor: colors.primarySoft },
-  open: { backgroundColor: '#E3F4EA' },
-  closed: { backgroundColor: '#FBE9E9' },
+  open: { backgroundColor: colors.successSoft },
+  closed: { backgroundColor: colors.dangerSoft },
   availability: { backgroundColor: colors.accentSoft },
   dot: { width: 7, height: 7, borderRadius: 4 },
   dotOpen: { backgroundColor: colors.success },
   dotClosed: { backgroundColor: colors.danger },
   text: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.primaryDark },
-  textOpen: { color: '#1D6B3D' },
-  textClosed: { color: '#9B2C2C' },
+  textOpen: { color: colors.successInk },
+  textClosed: { color: colors.dangerInk },
   textAvailability: { color: colors.accentInk },
 });

@@ -4,7 +4,7 @@ import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View 
 
 import { SETTLE_MS, shouldAnnounce, type StripText } from '@/lib/locationStrip';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { colors, fonts, radius, shadow, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, shadow, spacing } from '@/theme';
 
 interface Props {
   text: StripText;
@@ -16,7 +16,7 @@ interface Props {
 
 const SHIFT = 18;
 /** Verde oscuro para texto sobre blanco (el verde de estado da 3,3:1). */
-const HERE_INK = '#1D6B3D';
+const HERE_INK = colors.successInk;
 
 /**
  * Franja de arriba de Explorar: «Estás en Comuna 4 · Santa Marta» o «Explorando Mamatoco · Santa Marta» con
@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
     paddingLeft: spacing.sm,
     paddingRight: 4,
     borderRadius: radius.md,
-    backgroundColor: 'rgba(255,255,255,0.97)',
+    backgroundColor: alpha(colors.white, 0.97),
     ...shadow,
   },
   moving: { opacity: 0.72 },

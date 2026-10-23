@@ -91,7 +91,7 @@ export function GrowthCard({ entityId, onGo }: { entityId: string; onGo: (target
           {g.rows.map((r, i) => (
             <View key={r.key} style={[styles.row, i > 0 && styles.rowLine]}>
               <View style={[styles.check, r.done && styles.checkOn]} accessible={false}>
-                {r.done ? <Ionicons name="checkmark" size={15} color="#fff" /> : null}
+                {r.done ? <Ionicons name="checkmark" size={15} color={colors.white} /> : null}
               </View>
               <View style={styles.rowText} accessible accessibilityLabel={`${r.title}${r.done ? ', listo' : ''}. ${r.why}`}>
                 <Text style={[styles.rowTitle, r.done && styles.rowTitleDone]}>{r.title}</Text>
@@ -111,8 +111,8 @@ export function GrowthCard({ entityId, onGo }: { entityId: string; onGo: (target
   );
 }
 
-const GREEN = '#2E9E5B';
-const GREEN_INK = '#1B6B3C';
+const GREEN = colors.success;
+const GREEN_INK = colors.successInk;
 
 const styles = StyleSheet.create({
   card: { padding: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
@@ -133,9 +133,9 @@ const styles = StyleSheet.create({
   rowTitleDone: { color: colors.muted, textDecorationLine: 'line-through' },
   why: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.semibold, color: colors.muted, marginTop: 2 },
   go: { minHeight: 40, minWidth: 44, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  goText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  goText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.white },
   pressed: { transform: [{ scale: 0.97 }] },
   note: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted, marginTop: spacing.sm },
-  done: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: '#E5F5EC' },
+  done: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.successSoft },
   doneText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.bold, color: GREEN_INK },
 });

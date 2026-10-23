@@ -45,7 +45,7 @@ function BubbleMarkerView({ latitude, longitude, count, hasOffer, color, label, 
       }}
     >
       <View collapsable={false} onLayout={onLayout} style={styles.wrap}>
-        <View style={[styles.bubble, { width: size, height: size, borderRadius: size / 2, backgroundColor: color, borderColor: hasOffer ? colors.accent : '#ffffff' }]}>
+        <View style={[styles.bubble, { width: size, height: size, borderRadius: size / 2, backgroundColor: color, borderColor: hasOffer ? colors.accent : colors.white }]}>
           <Text style={styles.count}>{bubbleText(count)}</Text>
           {hasOffer ? (
             <View style={styles.bolt}>
@@ -79,7 +79,7 @@ export const BubbleMarker = memo(
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center', padding: 8 },
   bubble: { borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
-  count: { fontSize: 14, fontFamily: fonts.display.bold, color: '#fff' },
+  count: { fontSize: 14, fontFamily: fonts.display.bold, color: colors.white },
   bolt: {
     position: 'absolute',
     top: -6,
@@ -89,10 +89,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: colors.accent,
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
   label: { marginTop: 4, maxWidth: 150, height: 22, paddingHorizontal: 9, borderRadius: radius.pill, backgroundColor: colors.ink, justifyContent: 'center' },
-  labelText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  labelText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.white },
 });

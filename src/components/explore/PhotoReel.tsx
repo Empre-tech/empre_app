@@ -55,6 +55,6 @@ const styles = StyleSheet.create({
   row: { gap: 6, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   tile: { width: REEL_TILE, height: REEL_TILE, borderRadius: radius.md, overflow: 'hidden' },
   pressed: { opacity: 0.85 },
-  badge: { position: 'absolute', left: 4, bottom: 4, width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  badge: { position: 'absolute', left: 4, bottom: 4, width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.white, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontSize: 9, fontFamily: fonts.ui.extrabold, color: colors.surface },
 });

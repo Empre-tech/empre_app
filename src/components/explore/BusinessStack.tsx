@@ -35,7 +35,7 @@ function Face({ entity, onLoad }: { entity: WithDistance; onLoad?: () => void })
 function Layer({
   entity,
   style,
-  borderColor = '#ffffff',
+  borderColor = colors.white,
   onLoad,
 }: {
   entity: WithDistance;
@@ -69,7 +69,7 @@ export function BusinessStack({ items, tier, onImageLoad, onLayout }: Props) {
       <View style={styles.stack}>
         {third ? <Layer entity={third} style={styles.back} onLoad={onImageLoad} /> : null}
         {second ? <Layer entity={second} style={styles.middle} onLoad={onImageLoad} /> : null}
-        <Layer entity={top} style={styles.top} borderColor={hasOffer ? colors.accent : '#ffffff'} onLoad={onImageLoad} />
+        <Layer entity={top} style={styles.top} borderColor={hasOffer ? colors.accent : colors.white} onLoad={onImageLoad} />
         {hasOffer ? (
           <View style={styles.bolt}>
             <Ionicons name="flash" size={11} color={colors.ink} />
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     borderWidth: 3,
     overflow: 'hidden',
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
   },
   back: { left: 0, top: 22, opacity: 0.85, transform: [{ scale: 0.9 }] },
   middle: { left: 12, top: 11, opacity: 0.95, transform: [{ scale: 0.95 }] },
@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: colors.accent,
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { DiscoveryItem } from '@/api/types';
 import { formatDistance } from '@/lib/format';
 import { resolveImageUrl } from '@/lib/image';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 
 export type WithDistance = DiscoveryItem & { distanceKm: number | null };
 
@@ -92,9 +92,9 @@ const styles = StyleSheet.create({
   item: { width: 144, borderRadius: radius.md, overflow: 'hidden', backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line },
   image: { width: '100%', height: 88, backgroundColor: colors.primarySoft },
   statusBadge: { position: 'absolute', top: 6, left: 6, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.sm },
-  statusOpen: { backgroundColor: 'rgba(22, 163, 74, 0.92)' },
-  statusClosed: { backgroundColor: 'rgba(107, 114, 128, 0.92)' },
-  statusText: { fontSize: 10, fontFamily: fonts.ui.bold, color: '#fff' },
+  statusOpen: { backgroundColor: alpha(colors.successBright, 0.92) },
+  statusClosed: { backgroundColor: alpha(colors.neutral, 0.92) },
+  statusText: { fontSize: 10, fontFamily: fonts.ui.bold, color: colors.white },
   itemCompact: {
     width: 144,
     flexDirection: 'row',

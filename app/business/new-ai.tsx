@@ -164,7 +164,7 @@ export default function AIBusinessAssistantScreen() {
           <View style={[styles.bubbleRow, item.role === 'user' ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
             {item.role === 'assistant' ? (
               <View style={styles.aiAvatar}>
-                <Ionicons name="sparkles" size={13} color="#fff" />
+                <Ionicons name="sparkles" size={13} color={colors.white} />
               </View>
             ) : null}
             <View style={[styles.bubble, item.role === 'user' ? styles.bubbleMine : styles.bubbleTheirs]}>
@@ -176,7 +176,7 @@ export default function AIBusinessAssistantScreen() {
           sending ? (
             <View style={[styles.bubbleRow, styles.bubbleRowTheirs]}>
               <View style={styles.aiAvatar}>
-                <Ionicons name="sparkles" size={13} color="#fff" />
+                <Ionicons name="sparkles" size={13} color={colors.white} />
               </View>
               <View style={[styles.bubble, styles.bubbleTheirs]}>
                 <ActivityIndicator size="small" color={colors.accent} />
@@ -212,7 +212,7 @@ export default function AIBusinessAssistantScreen() {
           onPress={reviewDraft}
           style={[styles.reviewButton, ready && styles.reviewButtonReady]}
         >
-          <Ionicons name={ready ? 'checkmark-circle' : 'document-text-outline'} size={18} color="#fff" />
+          <Ionicons name={ready ? 'checkmark-circle' : 'document-text-outline'} size={18} color={colors.white} />
           <Text style={styles.reviewButtonText}>
             {ready ? '¡Listo! Revisar y crear negocio' : 'Revisar lo que llevamos hasta ahora'}
           </Text>
@@ -237,7 +237,7 @@ export default function AIBusinessAssistantScreen() {
           disabled={!input.trim() || sending}
           style={[styles.send, (!input.trim() || sending) && styles.sendDisabled]}
         >
-          <Ionicons name="send" size={18} color="#fff" />
+          <Ionicons name="send" size={18} color={colors.white} />
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1.5,
     borderColor: colors.accent,
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
   },
   starterChipText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.accentInk },
   bubbleRow: { flexDirection: 'row' },
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
   bubbleMine: { backgroundColor: colors.primary, borderBottomRightRadius: 4 },
   bubbleTheirs: { backgroundColor: colors.accentSoft, borderBottomLeftRadius: 4 },
   bubbleText: { fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink, lineHeight: 20 },
-  bubbleTextMine: { color: '#fff' },
+  bubbleTextMine: { color: colors.white },
   // Avatar con chispa para distinguir de un chat con una persona real.
   aiAvatar: {
     width: 26,
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ink,
   },
   reviewButtonReady: { backgroundColor: colors.verified },
-  reviewButtonText: { fontSize: 14, fontFamily: fonts.ui.bold, color: '#fff' },
+  reviewButtonText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.white },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',

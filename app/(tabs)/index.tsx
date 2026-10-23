@@ -71,7 +71,7 @@ import { loadPinsCache, savePinsCache } from '@/lib/pinsCacheStore';
 import { NEAR_ME_M, zoneAt } from '@/lib/zoneName';
 import { cameraTargets, emphasize, isFarResult } from '@/lib/proximity';
 import { MAP_STYLE } from '@/lib/mapStyle';
-import { colors, fonts, radius, shadow, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, shadow, spacing } from '@/theme';
 
 /** Opciones del filtro "cerca de mí". `null` = sin límite de distancia. */
 const RADIUS_OPTIONS: { label: string; km: number | null }[] = [
@@ -1106,7 +1106,7 @@ export default function ExploreScreen() {
                   radius={radiusKm * 1000}
                   strokeWidth={1.5}
                   strokeColor={colors.primary}
-                  fillColor="rgba(36,104,198, 0.12)"
+                  fillColor={alpha(colors.primary, 0.12)}
                 />
               ) : null}
               {/* Sin círculo ni nombre de la zona (3.30): la franja de arriba ya dice dónde estás. */}
@@ -1527,7 +1527,7 @@ function FiltersModal({
                 { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center' },
               ]}
             >
-              <Ionicons name="time-outline" size={14} color={openNow ? '#fff' : colors.ink} style={{ marginRight: 4 }} />
+              <Ionicons name="time-outline" size={14} color={openNow ? colors.white : colors.ink} style={{ marginRight: 4 }} />
               <Text style={[styles.radiusOptionText, openNow && styles.radiusOptionTextActive]}>Abiertos ahora</Text>
             </Pressable>
           </ScrollView>
@@ -1558,7 +1558,7 @@ function CategoryGridItem({
       style={styles.categoryItem}
     >
       <View style={[styles.categoryIconCircle, active && styles.categoryIconCircleActive]}>
-        <Ionicons name={icon} size={22} color={active ? '#fff' : colors.ink} />
+        <Ionicons name={icon} size={22} color={active ? colors.white : colors.ink} />
       </View>
       <Text style={[styles.categoryItemLabel, active && styles.categoryItemLabelActive]} numberOfLines={1}>
         {label}
@@ -1573,7 +1573,7 @@ const styles = StyleSheet.create({
   topBar: { position: 'absolute', top: 0, left: 0, right: 0, gap: spacing.sm, paddingHorizontal: spacing.md },
   topRows: { gap: spacing.sm },
   content: { flex: 1, position: 'relative' },
-  mapWrap: { flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#E8EEF6' },
+  mapWrap: { flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: colors.mapBg },
   map: { flex: 1 },
   mapStartupLoading: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
@@ -1581,7 +1581,7 @@ const styles = StyleSheet.create({
   filterScrollRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingRight: spacing.md },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 14, fontWeight: '600', fontFamily: fonts.ui.semibold, color: colors.ink },
-  chipTextActive: { color: '#fff' },
+  chipTextActive: { color: colors.white },
   activeChips: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   clearChip: { paddingHorizontal: spacing.xs, paddingVertical: 6 },
   clearChipText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.primary },
@@ -1623,7 +1623,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     marginBottom: 3,
   },
-  pinOwnerLabelText: { fontSize: 10, fontFamily: fonts.ui.bold, color: '#fff' },
+  pinOwnerLabelText: { fontSize: 10, fontFamily: fonts.ui.bold, color: colors.white },
   offerBadge: {
     width: 16,
     height: 16,
@@ -1632,7 +1632,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: '#fff',
+    borderColor: colors.white,
     marginBottom: -2,
   },
   pin: {
@@ -1641,13 +1641,13 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     backgroundColor: colors.primary,
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
   pinVerified: { backgroundColor: colors.verified },
   pinOwner: { borderColor: colors.accent, borderWidth: 3 },
-  pinFar: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: '#fff' },
+  pinFar: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: colors.white },
   pinFarSelected: { borderColor: colors.primary, borderWidth: 3 },
   pinMid: {
     width: 34,
@@ -1673,7 +1673,7 @@ const styles = StyleSheet.create({
   },
   pinNearThumb: { width: 40, height: 40, borderRadius: 20 },
   pinNearFallback: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  statusDot: { position: 'absolute', right: 1, bottom: 1, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#fff' },
+  statusDot: { position: 'absolute', right: 1, bottom: 1, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: colors.white },
   list: { padding: spacing.md, paddingBottom: spacing.xxl + 64 },
   listRow: {},
   separator: { height: spacing.md },
@@ -1707,7 +1707,7 @@ const styles = StyleSheet.create({
     ...shadow,
   },
   previewButton: { marginHorizontal: spacing.md, marginBottom: spacing.md },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalBackdrop: { flex: 1, backgroundColor: alpha(colors.black, 0.4), justifyContent: 'flex-end' },
   modalCard: {
     backgroundColor: colors.bg,
     borderTopLeftRadius: radius.lg,
@@ -1773,6 +1773,6 @@ const styles = StyleSheet.create({
   radiusOptionActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   modalOptionDisabled: { opacity: 0.4 },
   radiusOptionText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.ink },
-  radiusOptionTextActive: { fontFamily: fonts.ui.bold, color: '#fff' },
+  radiusOptionTextActive: { fontFamily: fonts.ui.bold, color: colors.white },
   modalApply: { marginTop: spacing.md },
 });

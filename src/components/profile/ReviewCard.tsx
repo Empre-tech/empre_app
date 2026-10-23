@@ -40,7 +40,7 @@ export function ReviewCard({ review, mine = false }: { review: Review; mine?: bo
           <Text style={styles.when}>{when}</Text>
           {review.verified ? (
             <View style={styles.stamp}>
-              <Ionicons name="shield-checkmark" size={11} color="#075E62" />
+              <Ionicons name="shield-checkmark" size={11} color={colors.verifiedInk} />
               <Text style={styles.stampText}>Verificada</Text>
             </View>
           ) : null}
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
   stars: { flexDirection: 'row' },
   when: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   stamp: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: colors.verifiedSoft },
-  stampText: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: '#075E62' },
+  stampText: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: colors.verifiedInk },
   comment: { fontSize: 13, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.ink },
   none: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   more: { minHeight: 44, justifyContent: 'center' },

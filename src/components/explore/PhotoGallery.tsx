@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { resolveImageUrl } from '@/lib/image';
 import { galleryLayout, photoLabel } from '@/lib/photoStrip';
-import { fonts, radius } from '@/theme';
+import { alpha, colors, fonts, radius } from '@/theme';
 
 interface Props {
   name: string;
@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   tile: { minHeight: 44, overflow: 'hidden' },
   pressed: { opacity: 0.85 },
-  more: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(22,35,58,0.55)', alignItems: 'center', justifyContent: 'center' },
-  moreText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  more: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: alpha(colors.ink, 0.55), alignItems: 'center', justifyContent: 'center' },
+  moreText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.white },
   over: { position: 'absolute', left: 8, top: 8 },
 });

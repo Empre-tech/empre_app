@@ -11,7 +11,7 @@ import { OfferTicket } from '@/components/offer/OfferTicket';
 import { formatEnded, offerTypeLabel } from '@/lib/offer';
 import { topOffers } from '@/lib/offerInsights';
 import { useNow } from '@/lib/useNow';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 import { useUploads } from '@/upload/uploadStore';
 
 /**
@@ -150,7 +150,7 @@ function HowItGoes({ summary }: { summary: OfferStatsSummary }) {
       </View>
       {summary.insights.slice(0, 2).map((i) => (
         <View key={i.kind} style={styles.insight}>
-          <Ionicons name={i.kind === 'band' ? 'time-outline' : i.kind === 'duration' ? 'hourglass-outline' : 'flash-outline'} size={16} color="#fff" />
+          <Ionicons name={i.kind === 'band' ? 'time-outline' : i.kind === 'duration' ? 'hourglass-outline' : 'flash-outline'} size={16} color={colors.white} />
           <Text style={styles.insightText}>{i.text}</Text>
         </View>
       ))}
@@ -231,14 +231,14 @@ const styles = StyleSheet.create({
   meter: { height: 8, borderRadius: 4, backgroundColor: colors.line, overflow: 'hidden', marginTop: 4 },
   meterFill: { height: 8, backgroundColor: colors.success },
   ins: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg + 2, backgroundColor: colors.ink },
-  insTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: '#fff' },
+  insTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.white },
   kpis: { flexDirection: 'row', gap: spacing.sm },
-  kpi: { flex: 1, padding: spacing.sm, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,0.12)' },
-  kpiValue: { fontSize: 18, fontFamily: fonts.display.bold, color: '#fff' },
-  kpiLabel: { fontSize: 10.5, fontFamily: fonts.ui.bold, color: '#C9D8EE' },
-  insight: { flexDirection: 'row', gap: spacing.sm, padding: spacing.sm, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,0.1)' },
-  insightText: { flex: 1, fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.bold, color: '#fff' },
-  insNote: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: '#C9D8EE' },
+  kpi: { flex: 1, padding: spacing.sm, borderRadius: radius.md, backgroundColor: alpha(colors.white, 0.12) },
+  kpiValue: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.white },
+  kpiLabel: { fontSize: 10.5, fontFamily: fonts.ui.bold, color: colors.onDarkKpi },
+  insight: { flexDirection: 'row', gap: spacing.sm, padding: spacing.sm, borderRadius: radius.md, backgroundColor: alpha(colors.white, 0.1) },
+  insightText: { flex: 1, fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.bold, color: colors.white },
+  insNote: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.onDarkKpi },
   bestRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   bestRank: { width: 22, fontSize: 18, fontFamily: fonts.display.bold, color: colors.primary },
   bestText: { flex: 1, minWidth: 0 },

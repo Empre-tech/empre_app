@@ -6,7 +6,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, Sc
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AIWritingAssist } from './AIWritingAssist';
 import { pickPostMedia, type PickedPostMedia } from '@/lib/images';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 import { enqueuePost } from '@/upload/uploadStore';
 
 interface Props {
@@ -130,7 +130,7 @@ export function PostComposerSheet({ visible, onClose, entityId, businessName, ca
                 )}
 
                 <Pressable accessibilityRole="button" accessibilityLabel="Elegir otro archivo" onPress={() => void pick()} style={styles.changeButton}>
-                  <Ionicons name="swap-horizontal" size={14} color="#fff" />
+                  <Ionicons name="swap-horizontal" size={14} color={colors.white} />
                   <Text style={styles.changeButtonText}>Cambiar</Text>
                 </Pressable>
               </View>
@@ -163,7 +163,7 @@ export function PostComposerSheet({ visible, onClose, entityId, businessName, ca
                   {error ? <Text style={styles.error}>{error}</Text> : null}
 
                   <Pressable accessibilityRole="button" onPress={publish} style={styles.publishButton}>
-                    <Ionicons name="paper-plane" size={16} color="#fff" />
+                    <Ionicons name="paper-plane" size={16} color={colors.white} />
                     <Text style={styles.publishButtonText}>Publicar</Text>
                   </Pressable>
               </>
@@ -187,7 +187,7 @@ function ComposerVideoPreview({ uri }: { uri: string }) {
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end' },
-  backdropTouch: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(22,35,58,0.55)' },
+  backdropTouch: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: alpha(colors.ink, 0.55) },
   sheetScroll: { flexGrow: 0, maxHeight: '100%' },
   sheet: {
     backgroundColor: colors.bg,
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: 'rgba(36,104,198,0.12)',
+    backgroundColor: alpha(colors.primary, 0.12),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pickButtonText: { fontSize: 14, fontFamily: fonts.ui.bold, color: '#fff' },
+  pickButtonText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.white },
   composeBlock: { gap: spacing.md },
   previewWrap: {
     alignSelf: 'center',
@@ -238,16 +238,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     height: 28,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: alpha(colors.black, 0.5),
   },
-  changeButtonText: { fontSize: 11, fontFamily: fonts.ui.bold, color: '#fff' },
+  changeButtonText: { fontSize: 11, fontFamily: fonts.ui.bold, color: colors.white },
   progressOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(22,35,58,0.65)',
+    backgroundColor: alpha(colors.ink, 0.65),
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
@@ -257,12 +257,12 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 32,
     borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderColor: alpha(colors.white, 0.35),
     alignItems: 'center',
     justifyContent: 'center',
   },
-  progressText: { fontSize: 15, fontFamily: fonts.ui.bold, color: '#fff' },
-  progressLabel: { fontSize: 13, fontFamily: fonts.ui.semibold, color: '#fff' },
+  progressText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.white },
+  progressLabel: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.white },
   captionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   captionLabel: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   captionInput: {
@@ -288,5 +288,5 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.primary,
   },
-  publishButtonText: { fontSize: 15, fontFamily: fonts.ui.bold, color: '#fff' },
+  publishButtonText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.white },
 });

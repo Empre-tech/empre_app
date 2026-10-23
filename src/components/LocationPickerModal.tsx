@@ -6,7 +6,7 @@ import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DEFAULT_REGION } from '@/config';
 import type { Coords } from '@/lib/geo';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 import { Button } from './Button';
 
 interface Props {
@@ -189,7 +189,7 @@ export function LocationPickerModal({ visible, initial, onCancel, onConfirm }: P
             style={styles.searchButton}
             disabled={searching}
           >
-            {searching ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="arrow-forward" size={18} color="#fff" />}
+            {searching ? <ActivityIndicator size="small" color={colors.white} /> : <Ionicons name="arrow-forward" size={18} color={colors.white} />}
           </Pressable>
         </View>
 
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    backgroundColor: 'rgba(255,255,255,0.97)',
+    backgroundColor: alpha(colors.white, 0.97),
     borderRadius: radius.pill,
     paddingHorizontal: spacing.md,
     height: 44,

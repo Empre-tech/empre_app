@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
   chip: { minHeight: 44, paddingHorizontal: spacing.lg, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
-  onText: { color: '#fff' },
+  onText: { color: colors.white },
   input: { minHeight: 48, borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.line, paddingHorizontal: spacing.md, fontSize: 15, fontFamily: fonts.ui.regular, color: colors.ink, backgroundColor: colors.surface },
   serviceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 44 },
   serviceName: { flex: 1, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },

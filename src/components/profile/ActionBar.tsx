@@ -71,7 +71,7 @@ export function ActionBar({ name, bottomInset, onMessage, onDirections, onCall, 
 const styles = StyleSheet.create({
   bar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.sm, backgroundColor: colors.surface, ...shadow },
   primary: { flex: 1.5, minHeight: 56, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.sm },
-  primaryText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  primaryText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.white },
   secondary: { flex: 1, minHeight: 56, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2, gap: 1 },
   secondaryOn: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
   secondaryText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink, textAlign: 'center' },

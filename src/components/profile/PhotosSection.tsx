@@ -9,7 +9,7 @@ import { resolveImageUrl } from '@/lib/image';
 import { isNewPhoto, photoSample, showMosaic } from '@/lib/profileLayout';
 import { useNow } from '@/lib/useNow';
 import { isVideoItem, type UploadItem } from '@/lib/uploadQueue';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 import { SectionHeader } from './SectionHeader';
 
 interface Props {
@@ -64,7 +64,7 @@ export function PhotosSection({ photos, color, isOwner, onOpenPhoto, onAll, onNe
       >
         {isVideo(p) ? (
           <View style={styles.videoFill}>
-            <Ionicons name="play" size={big ? 30 : 24} color="rgba(255,255,255,0.95)" />
+            <Ionicons name="play" size={big ? 30 : 24} color={alpha(colors.white, 0.95)} />
           </View>
         ) : (
           <Image accessible={false} source={{ uri: resolveImageUrl(p.url) ?? undefined }} style={styles.image} contentFit="cover" transition={200} cachePolicy="memory-disk" />
@@ -151,24 +151,24 @@ function UploadTile({ item, size, onRetry, onRemove }: { item: UploadItem; size:
             <Text style={styles.failedText}>No se subió</Text>
             <View style={styles.failedRow}>
               <Pressable accessibilityRole="button" accessibilityLabel="Reintentar la subida" onPress={onRetry} style={styles.iconBtn}>
-                <Ionicons name="refresh" size={18} color="#fff" />
+                <Ionicons name="refresh" size={18} color={colors.white} />
               </Pressable>
               <Pressable accessibilityRole="button" accessibilityLabel="Quitar la publicación" onPress={onRemove} style={styles.iconBtn}>
-                <Ionicons name="close" size={18} color="#fff" />
+                <Ionicons name="close" size={18} color={colors.white} />
               </Pressable>
             </View>
           </>
         ) : done ? (
-          <Ionicons name="checkmark-circle" size={34} color="#fff" />
+          <Ionicons name="checkmark-circle" size={34} color={colors.white} />
         ) : (
           <View style={styles.ringWrap}>
             <Svg width={RING} height={RING}>
-              <Circle cx={RING / 2} cy={RING / 2} r={R} stroke="rgba(255,255,255,0.35)" strokeWidth={STROKE} fill="none" />
+              <Circle cx={RING / 2} cy={RING / 2} r={R} stroke={alpha(colors.white, 0.35)} strokeWidth={STROKE} fill="none" />
               <Circle
                 cx={RING / 2}
                 cy={RING / 2}
                 r={R}
-                stroke="#fff"
+                stroke={colors.white}
                 strokeWidth={STROKE}
                 strokeLinecap="round"
                 fill="none"
@@ -188,14 +188,14 @@ function UploadTile({ item, size, onRetry, onRemove }: { item: UploadItem; size:
 
 const styles = StyleSheet.create({
   uploadCell: { backgroundColor: colors.ink },
-  uploadFailed: { borderWidth: 2, borderColor: '#B3261E' },
-  uploadVeil: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(10,20,40,0.55)', alignItems: 'center', justifyContent: 'center', gap: 4 },
-  uploadVeilDone: { backgroundColor: 'rgba(29,107,61,0.55)' },
+  uploadFailed: { borderWidth: 2, borderColor: colors.dangerStrong },
+  uploadVeil: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: alpha(colors.night, 0.55), alignItems: 'center', justifyContent: 'center', gap: 4 },
+  uploadVeilDone: { backgroundColor: alpha(colors.successInk, 0.55) },
   ringWrap: { width: RING, height: RING, alignItems: 'center', justifyContent: 'center' },
-  ringText: { position: 'absolute', fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  failedText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  ringText: { position: 'absolute', fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.white },
+  failedText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.white },
   failedRow: { flexDirection: 'row', gap: 4 },
-  iconBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
+  iconBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: alpha(colors.white, 0.18), alignItems: 'center', justifyContent: 'center' },
   section: { gap: spacing.sm },
   block: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: spacing.md, gap: spacing.sm },
   mosaic: { gap: GAP },
@@ -204,15 +204,15 @@ const styles = StyleSheet.create({
   mosaicRow: { flexDirection: 'row', gap: GAP },
   newBadge: { position: 'absolute', left: 6, top: 6, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: colors.accent },
   newBadgeText: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  caption: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 8, paddingTop: 16, paddingBottom: 6, backgroundColor: 'rgba(10,20,40,0.45)' },
-  captionText: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: '#fff' },
+  caption: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 8, paddingTop: 16, paddingBottom: 6, backgroundColor: alpha(colors.night, 0.45) },
+  captionText: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.white },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   cell: { borderRadius: 10, overflow: 'hidden', backgroundColor: colors.primarySoft },
   image: { width: '100%', height: '100%' },
   videoFill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  more: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(10,20,40,0.62)', alignItems: 'center', justifyContent: 'center' },
-  moreText: { fontSize: 18, fontFamily: fonts.display.bold, color: '#fff' },
+  more: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: alpha(colors.night, 0.62), alignItems: 'center', justifyContent: 'center' },
+  moreText: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.white },
   newCell: { borderWidth: 2, borderStyle: 'dashed', borderColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   newText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
-  hint: { padding: spacing.sm, borderRadius: radius.sm, backgroundColor: '#FFF4DC', fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#7A4B00' },
+  hint: { padding: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.warningSoft, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.warningInk },
 });

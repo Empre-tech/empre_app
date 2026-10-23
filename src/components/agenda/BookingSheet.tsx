@@ -27,7 +27,7 @@ import {
   nextDays,
   weekdayShort,
 } from '@/lib/agendaFormat';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 
 interface Props {
   visible: boolean;
@@ -242,7 +242,7 @@ export function BookingSheet({ visible, entityId, entityName, summary, onClose, 
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(22,35,58,0.45)' },
+  backdrop: { flex: 1, backgroundColor: alpha(colors.ink, 0.45) },
   sheet: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: radius.lg,
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
-  chipTextActive: { color: '#fff' },
+  chipTextActive: { color: colors.white },
   dayChip: {
     width: 58,
     minHeight: 76,

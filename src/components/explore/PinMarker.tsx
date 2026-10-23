@@ -7,7 +7,7 @@ import { categoryColor } from '@/lib/categoryColor';
 import { pinLabel } from '@/lib/markerLabels';
 import { resolveImageUrl } from '@/lib/image';
 import type { EmphasisTier } from '@/lib/proximity';
-import { colors, fonts, radius, DENSE_TEXT_SCALE } from '@/theme';
+import { colors, DENSE_TEXT_SCALE, fonts, radius } from '@/theme';
 import type { WithDistance } from './FeaturedCard';
 import { useMarkerTracking } from './useMarkerTracking';
 
@@ -50,13 +50,13 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
   // Borde: azul si está seleccionado, ámbar si hay oferta, blanco si no.
   const hasOffer = entity.has_active_offer;
   const showRayo = hasOffer && (entity.active_offer?.type === 'HORAS' || entity.active_offer?.type === 'DIA');
-  const borderColor = selected ? colors.primary : hasOffer ? colors.accent : '#ffffff';
-  const statusColor = open ? '#2E9E5B' : '#9AA7B5';
+  const borderColor = selected ? colors.primary : hasOffer ? colors.accent : colors.white;
+  const statusColor = open ? colors.success : colors.mutedLight;
   const coordinate = { latitude: entity.latitude, longitude: entity.longitude };
 
   if (emphasis) {
     const closed = entity.has_hours && !entity.is_open_now;
-    const ring = selected ? colors.primary : closed ? '#9AA7B5' : hasOffer ? colors.accent : emphasis === 'big' ? colors.primary : '#ffffff';
+    const ring = selected ? colors.primary : closed ? colors.mutedLight : hasOffer ? colors.accent : emphasis === 'big' ? colors.primary : colors.white;
     const faded = closed ? styles.closedFade : null;
     return (
       <Marker
@@ -78,7 +78,7 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
           {emphasis === 'big' ? <View style={styles.labelSpacer} /> : null}
           {emphasis === 'far' || emphasis === 'dot' ? (
             // Lejanos en la búsqueda: miniatura chica y tenue, nunca un punto de color suelto (auditoría del 22 oct).
-            <View style={[styles.pinSmall, { borderColor: '#ffffff' }, emphasis === 'far' ? styles.smallFar : styles.smallDot, faded]}>
+            <View style={[styles.pinSmall, { borderColor: colors.white }, emphasis === 'far' ? styles.smallFar : styles.smallDot, faded]}>
               {thumb ? (
                 <Image accessible={false} source={{ uri: thumb }} style={styles.thumbSmall} contentFit="cover" cachePolicy="memory-disk" recyclingKey={thumb} onLoad={onImageSettled} onError={onImageSettled} />
               ) : (
@@ -197,16 +197,16 @@ const styles = StyleSheet.create({
   pinWrap: { alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44, paddingHorizontal: 10, paddingVertical: 6 },
   pinWrapSelected: { transform: [{ scale: 1.15 }] },
   pinOwnerLabel: { height: 18, justifyContent: 'center', backgroundColor: colors.primaryDark, paddingHorizontal: 6, borderRadius: radius.sm, marginBottom: 3 },
-  pinOwnerLabelText: { fontSize: 10, fontFamily: fonts.ui.bold, color: '#fff' },
-  offerBadge: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#fff', marginBottom: -2 },
+  pinOwnerLabelText: { fontSize: 10, fontFamily: fonts.ui.bold, color: colors.white },
+  offerBadge: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.white, marginBottom: -2 },
   pinMid: { width: 34, height: 34, borderRadius: 17, borderWidth: 3, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   pinNear: { width: 46, height: 46, borderRadius: 23, borderWidth: 3, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   thumbMid: { width: 28, height: 28, borderRadius: 14 },
   emphWrap: { alignItems: 'center', justifyContent: 'center', padding: 8 },
   labelSpacer: { height: 26 },
   label: { marginTop: 4, maxWidth: 170, height: 22, paddingHorizontal: 9, borderRadius: radius.pill, backgroundColor: colors.ink, justifyContent: 'center' },
-  labelText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  labelDistance: { color: '#FFD2A6', fontFamily: fonts.ui.extrabold },
+  labelText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.white },
+  labelDistance: { color: colors.accentLight, fontFamily: fonts.ui.extrabold },
   pinBig: { width: 56, height: 56, borderRadius: 28, borderWidth: 4, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   thumbBig: { width: 48, height: 48, borderRadius: 24 },
   pinSmall: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
@@ -217,5 +217,5 @@ const styles = StyleSheet.create({
   offerBadgeCorner: { position: 'absolute', top: -4, right: -4, zIndex: 2, marginBottom: 0 },
   thumbNear: { width: 40, height: 40, borderRadius: 20 },
   fallback: { alignItems: 'center', justifyContent: 'center' },
-  statusDot: { position: 'absolute', right: 1, bottom: 1, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#fff' },
+  statusDot: { position: 'absolute', right: 1, bottom: 1, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: colors.white },
 });

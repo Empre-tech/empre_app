@@ -4,7 +4,7 @@ import { AccessibilityInfo, ActivityIndicator, Animated, Pressable, StyleSheet, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { announcement, capsule, type Capsule } from '@/lib/uploadQueue';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { colors, fonts, radius, shadow, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, shadow, spacing } from '@/theme';
 import { retryAllFailed, useUploads } from './uploadStore';
 
 /**
@@ -64,11 +64,11 @@ export function UploadCapsule() {
           style={[styles.pill, failed && styles.pillFailed, done && styles.pillDone]}
         >
           {failed ? (
-            <Ionicons name="refresh" size={16} color="#fff" />
+            <Ionicons name="refresh" size={16} color={colors.white} />
           ) : done ? (
-            <Ionicons name="checkmark-circle" size={16} color="#fff" />
+            <Ionicons name="checkmark-circle" size={16} color={colors.white} />
           ) : (
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color={colors.white} />
           )}
           <Text style={styles.text} numberOfLines={1}>
             {cap.text}
@@ -87,9 +87,9 @@ export function UploadCapsule() {
 const styles = StyleSheet.create({
   layer: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 1000, elevation: 1000 },
   pill: { minHeight: 44, maxWidth: 360, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: radius.pill, backgroundColor: colors.ink, overflow: 'hidden', ...shadow },
-  pillFailed: { backgroundColor: '#B3261E' },
-  pillDone: { backgroundColor: '#1D6B3D' },
-  text: { flexShrink: 1, fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  track: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, backgroundColor: 'rgba(255,255,255,0.2)' },
+  pillFailed: { backgroundColor: colors.dangerStrong },
+  pillDone: { backgroundColor: colors.successInk },
+  text: { flexShrink: 1, fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.white },
+  track: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, backgroundColor: alpha(colors.white, 0.2) },
   fill: { height: 3, backgroundColor: colors.accent },
 });

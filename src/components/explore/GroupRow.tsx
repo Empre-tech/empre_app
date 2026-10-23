@@ -2,7 +2,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Category } from '@/api/types';
 import { categoryColor } from '@/lib/categoryColor';
 import type { CategoryGroup, GroupId } from '@/lib/categoryGroups';
-import { colors, fonts, radius, shadow, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, shadow, spacing } from '@/theme';
 
 interface Props {
   groups: CategoryGroup<Category>[];
@@ -88,11 +88,11 @@ const styles = StyleSheet.create({
   pill: { height: 36, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 13, borderRadius: radius.pill, backgroundColor: colors.surface, ...shadow },
   pillOn: { backgroundColor: colors.ink, paddingRight: 8 },
   pillText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  pillTextOn: { color: '#fff' },
-  x: { fontSize: 18, lineHeight: 20, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  small: { height: 32, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.92)' },
+  pillTextOn: { color: colors.white },
+  x: { fontSize: 18, lineHeight: 20, fontFamily: fonts.ui.extrabold, color: colors.white },
+  small: { height: 32, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, borderRadius: radius.pill, backgroundColor: alpha(colors.white, 0.92) },
   smallOn: { backgroundColor: colors.primary },
   smallText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
-  smallTextOn: { color: '#fff' },
+  smallTextOn: { color: colors.white },
   dot: { width: 9, height: 9, borderRadius: 5 },
 });

@@ -37,7 +37,7 @@ import { hasLocation, type Coords } from '@/lib/geo';
 import { resolveImageUrl } from '@/lib/image';
 import { COLOMBIAN_CITIES } from '@/lib/cities';
 import { pickImage } from '@/lib/images';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 import { AIWritingAssist } from './AIWritingAssist';
 import { Button } from './Button';
 import { LocationPickerModal } from './LocationPickerModal';
@@ -471,7 +471,7 @@ export function BusinessForm({ initial, draft }: Props) {
             value={h.closed}
             onValueChange={(v) => onChange({ closed: v, is_24h: v ? false : h.is_24h })}
             trackColor={{ true: colors.primary + '55', false: colors.line }}
-            thumbColor={h.closed ? colors.primary : '#fff'}
+            thumbColor={h.closed ? colors.primary : colors.white}
           />
         </View>
         {!h.closed ? (
@@ -481,7 +481,7 @@ export function BusinessForm({ initial, draft }: Props) {
               value={h.is_24h}
               onValueChange={(v) => onChange({ is_24h: v })}
               trackColor={{ true: colors.primary + '55', false: colors.line }}
-              thumbColor={h.is_24h ? colors.primary : '#fff'}
+              thumbColor={h.is_24h ? colors.primary : colors.white}
             />
           </View>
         ) : null}
@@ -744,7 +744,7 @@ export function BusinessForm({ initial, draft }: Props) {
             <View key={label} style={styles.stepItem}>
               <View style={[styles.stepDot, active && styles.stepDotActive, done && styles.stepDotDone]}>
                 {done ? (
-                  <Ionicons name="checkmark" size={12} color="#fff" />
+                  <Ionicons name="checkmark" size={12} color={colors.white} />
                 ) : (
                   <Text style={[styles.stepDotText, active && styles.stepDotTextActive]}>{index + 1}</Text>
                 )}
@@ -1152,7 +1152,7 @@ function PhotoSlot({
         <>
           <Image accessible={false} source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
           <View style={styles.editBadge}>
-            <Ionicons name="pencil" size={14} color="#fff" />
+            <Ionicons name="pencil" size={14} color={colors.white} />
           </View>
         </>
       ) : (
@@ -1265,7 +1265,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: alpha(colors.black, 0.6),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1283,7 +1283,7 @@ const styles = StyleSheet.create({
   },
   nameSuggestionChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   nameSuggestionChipText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.ink },
-  nameSuggestionChipTextActive: { fontFamily: fonts.ui.bold, color: '#fff' },
+  nameSuggestionChipTextActive: { fontFamily: fonts.ui.bold, color: colors.white },
   serviceModeRow: { flexDirection: 'row', gap: spacing.sm },
   serviceModeOption: {
     flex: 1,
@@ -1333,7 +1333,7 @@ const styles = StyleSheet.create({
   hourTimeInputText: { fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink },
   navRow: { flexDirection: 'row', gap: spacing.sm },
   navButton: { flex: 1 },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  modalBackdrop: { flex: 1, backgroundColor: alpha(colors.black, 0.4) },
   modalSheet: {
     backgroundColor: colors.bg,
     borderTopLeftRadius: radius.lg,

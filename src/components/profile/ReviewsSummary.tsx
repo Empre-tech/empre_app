@@ -45,7 +45,7 @@ export function ReviewsSummary({ summary }: { summary: ReviewSummary }) {
 export function VerifiedStamp() {
   return (
     <View style={styles.stamp}>
-      <Ionicons name="shield-checkmark" size={11} color="#075E62" />
+      <Ionicons name="shield-checkmark" size={11} color={colors.verifiedInk} />
       <Text style={styles.stampText}>Canje verificado</Text>
     </View>
   );
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
   fill: { height: 6, borderRadius: 3, backgroundColor: colors.accent },
   barCount: { width: 22, textAlign: 'right', fontSize: 11.5, fontFamily: fonts.ui.medium, color: colors.muted },
   verified: { flexDirection: 'row', alignItems: 'center', gap: 6, width: '100%' },
-  verifiedText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#075E62' },
+  verifiedText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.verifiedInk },
   stamp: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: colors.verifiedSoft },
-  stampText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#075E62' },
+  stampText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.verifiedInk },
 });

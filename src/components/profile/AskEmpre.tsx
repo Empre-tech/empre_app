@@ -7,7 +7,7 @@ import { FadeIn } from '@/components/explore/LoadingMotion';
 import { answer, detectIntent, followUps, priceLabel, suggestQuestions, type Action, type Answer, type AnswerData, type Block, type Intent } from '@/lib/answers';
 import { formatEndsWhen } from '@/lib/offer';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 import { SectionHeader } from './SectionHeader';
 
 /**
@@ -162,7 +162,7 @@ function SheetBody({ data, start, onClose, handlers }: { data: AnswerData; start
               maxLength={200}
             />
             <Pressable accessibilityRole="button" accessibilityLabel="Preguntar" disabled={!text.trim()} onPress={submit} style={({ pressed }) => [styles.send, !text.trim() && styles.sendOff, pressed && styles.pressed]}>
-              <Ionicons name="arrow-forward" size={20} color="#fff" />
+              <Ionicons name="arrow-forward" size={20} color={colors.white} />
             </Pressable>
           </View>
         </View>
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
   chipAct: { borderColor: colors.primary },
   chipActText: { color: colors.primaryDark },
   pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
-  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(22,35,58,0.45)' },
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: alpha(colors.ink, 0.45) },
   sheet: { height: '86%', backgroundColor: colors.bg, borderTopLeftRadius: radius.lg + 2, borderTopRightRadius: radius.lg + 2, overflow: 'hidden' },
   handle: { width: 38, height: 5, borderRadius: 3, backgroundColor: colors.line, alignSelf: 'center', marginTop: spacing.sm },
   top: { flexDirection: 'row', alignItems: 'center', paddingLeft: spacing.lg, paddingRight: spacing.xs, paddingTop: spacing.xs, paddingBottom: spacing.sm },
@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
   turn: { marginBottom: spacing.md },
   turnMuted: { opacity: 0.75 },
   q: { alignSelf: 'flex-end', maxWidth: '82%', backgroundColor: colors.primary, borderRadius: 16, borderBottomRightRadius: 4, paddingHorizontal: 12, paddingVertical: 8, marginBottom: spacing.sm },
-  qText: { fontSize: 13.5, fontFamily: fonts.ui.semibold, color: '#fff' },
+  qText: { fontSize: 13.5, fontFamily: fonts.ui.semibold, color: colors.white },
   ans: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, gap: 6 },
   bTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink },
   bBody: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted, marginTop: 2 },
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
   offerNote: { fontSize: 11.5, fontFamily: fonts.ui.medium, color: colors.accentInk, marginTop: 2 },
   source: { fontSize: 11, fontFamily: fonts.ui.bold, color: colors.muted, marginTop: 4 },
   primary: { minHeight: 46, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  primaryText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.white },
   ghost: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   ghostText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   dock: { backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.sm, gap: spacing.sm },

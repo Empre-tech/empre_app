@@ -11,7 +11,7 @@ import { statusLine, swipeEnters, walkText } from '@/lib/placeCard';
 import { featuredRating } from '@/lib/reviewSnippet';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { colors, fonts, radius, shadow, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, shadow, spacing } from '@/theme';
 import type { WithDistance } from './FeaturedCard';
 
 interface Props {
@@ -110,7 +110,7 @@ export function BusinessSheet({ entity, isMine, qrOfferId, onClose, onDirections
             {photo ? (
               <Image accessible={false} source={{ uri: photo }} style={styles.photoImage} contentFit="cover" />
             ) : (
-              <Ionicons name={(entity.category_icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap} size={26} color="#fff" />
+              <Ionicons name={(entity.category_icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap} size={26} color={colors.white} />
             )}
           </View>
           <View style={styles.headText}>
@@ -211,7 +211,7 @@ function Strip({ kind, title, line, fraction, onPress }: { kind: 'calm' | 'hot' 
       style={({ pressed }) => [styles.strip, hot && styles.stripHot, mine && styles.stripMine, pressed && styles.pressed]}
     >
       <Animated.View style={[styles.bolt, hot && styles.boltHot, mine && styles.boltMine, { transform: [{ scale: pulse }] }]}>
-        <Ionicons name={mine ? 'qr-code' : 'flash'} size={16} color={hot ? colors.accent : mine ? '#fff' : colors.ink} />
+        <Ionicons name={mine ? 'qr-code' : 'flash'} size={16} color={hot ? colors.accent : mine ? colors.white : colors.ink} />
       </Animated.View>
       <View style={styles.stripText}>
         <Text style={styles.stripTitle} numberOfLines={1}>
@@ -221,7 +221,7 @@ function Strip({ kind, title, line, fraction, onPress }: { kind: 'calm' | 'hot' 
           {line}
         </Text>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={hot ? colors.ink : mine ? '#1D6B3D' : colors.accentInk} />
+      <Ionicons name="chevron-forward" size={18} color={hot ? colors.ink : mine ? colors.successInk : colors.accentInk} />
       {typeof fraction === 'number' ? (
         <View style={styles.bar}>
           <View style={[styles.barFill, hot && styles.barFillHot, { width: `${Math.round(fraction * 100)}%` }]} />
@@ -260,12 +260,12 @@ const styles = StyleSheet.create({
   fact: { minHeight: 28, paddingHorizontal: 10, borderRadius: radius.pill, backgroundColor: colors.bg, justifyContent: 'center' },
   factText: { fontSize: 12, fontFamily: fonts.ui.bold },
   factMuted: { color: colors.muted },
-  factRating: { backgroundColor: '#FFF4DC' },
-  factRatingText: { color: '#7A4B00' },
-  factOpen: { backgroundColor: '#E3F4EA' },
-  factOpenText: { color: '#1D6B3D' },
-  factClosed: { backgroundColor: '#FBE4E4' },
-  factClosedText: { color: '#8E2A2A' },
+  factRating: { backgroundColor: colors.warningSoft },
+  factRatingText: { color: colors.warningInk },
+  factOpen: { backgroundColor: colors.successSoft },
+  factOpenText: { color: colors.successInk },
+  factClosed: { backgroundColor: colors.dangerSoft },
+  factClosedText: { color: colors.dangerInk },
   review: { marginHorizontal: spacing.lg, paddingLeft: 10, borderLeftWidth: 3, borderLeftColor: colors.accent, gap: 2 },
   quote: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, fontStyle: 'italic', color: colors.ink },
   byline: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.muted },
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
   },
   // Última llamada: ámbar sólido con texto en tinta (6,1:1).
   stripHot: { backgroundColor: colors.accent },
-  stripMine: { backgroundColor: '#E3F4EA', borderColor: colors.success },
+  stripMine: { backgroundColor: colors.successSoft, borderColor: colors.success },
   bolt: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   boltHot: { backgroundColor: colors.ink },
   boltMine: { backgroundColor: colors.success },
@@ -293,8 +293,8 @@ const styles = StyleSheet.create({
   stripTitle: { fontSize: 14.5, fontFamily: fonts.display.bold, color: colors.ink },
   stripLine: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.accentInk },
   stripLineHot: { color: colors.ink },
-  stripLineMine: { color: '#1D6B3D' },
-  bar: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, backgroundColor: 'rgba(22,35,58,0.1)' },
+  stripLineMine: { color: colors.successInk },
+  bar: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, backgroundColor: alpha(colors.ink, 0.1) },
   barFill: { height: 3, backgroundColor: colors.accentDark },
   barFillHot: { backgroundColor: colors.ink },
   pressed: { opacity: 0.85 },

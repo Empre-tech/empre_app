@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, fonts, radius, shadow, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, shadow, spacing } from '@/theme';
 
 /** Lado de la zona táctil del punto «Tú» (la flecha se calcula desde su centro). */
 export const YOU_DOT = 44;
@@ -20,7 +20,7 @@ export function YouDot({ bottom, angle, distance, onPress }: { bottom: Animated.
         style={({ pressed }) => [styles.dotHit, pressed && styles.pressed]}
       >
         <View style={styles.dot}>
-          <Ionicons name="arrow-forward" size={13} color="#fff" style={{ transform: [{ rotate: `${angle}deg` }] }} />
+          <Ionicons name="arrow-forward" size={13} color={colors.white} style={{ transform: [{ rotate: `${angle}deg` }] }} />
         </View>
       </Pressable>
       {distance ? (
@@ -64,7 +64,7 @@ export function MapLegend({ bottom, open, onToggle }: { bottom: Animated.Animate
         onPress={onToggle}
         style={({ pressed }) => [styles.info, open && styles.infoOn, pressed && styles.pressed]}
       >
-        <Ionicons name={open ? 'close' : 'information'} size={20} color={open ? '#fff' : colors.primary} />
+        <Ionicons name={open ? 'close' : 'information'} size={20} color={open ? colors.white : colors.primary} />
       </Pressable>
     </Animated.View>
   );
@@ -79,16 +79,16 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#3B82F6',
+    backgroundColor: colors.youDot,
     borderWidth: 3,
-    borderColor: '#fff',
+    borderColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
     ...shadow,
   },
-  dotText: { marginTop: -4, paddingHorizontal: 5, borderRadius: 6, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.88)', fontSize: 10, fontFamily: fonts.ui.extrabold, color: '#1E4FA0' },
+  dotText: { marginTop: -4, paddingHorizontal: 5, borderRadius: 6, overflow: 'hidden', backgroundColor: alpha(colors.white, 0.88), fontSize: 10, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   legendWrap: { position: 'absolute', left: spacing.md, right: 84, alignItems: 'flex-start', gap: spacing.sm },
-  info: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center', ...shadow },
+  info: { width: 44, height: 44, borderRadius: 22, backgroundColor: alpha(colors.white, 0.92), alignItems: 'center', justifyContent: 'center', ...shadow },
   infoOn: { backgroundColor: colors.primary },
   bolt: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   green: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.success },

@@ -20,8 +20,8 @@ import { colors, fonts, radius, spacing } from '@/theme';
 
 const STATUS_STYLE: Record<VerificationStatus, { fg: string; bg: string; icon: keyof typeof Ionicons.glyphMap }> = {
   verified: { fg: colors.verified, bg: colors.verifiedSoft, icon: 'checkmark-circle' },
-  pending: { fg: colors.warning, bg: '#FBF0DA', icon: 'time-outline' },
-  rejected: { fg: colors.danger, bg: '#FBE4E4', icon: 'close-circle-outline' },
+  pending: { fg: colors.warning, bg: colors.warningSoft, icon: 'time-outline' },
+  rejected: { fg: colors.danger, bg: colors.dangerSoft, icon: 'close-circle-outline' },
 };
 
 export default function ProfileScreen() {
@@ -80,9 +80,9 @@ export default function ProfileScreen() {
           <Avatar uri={user.profile_picture_url} name={user.name} size={72} />
           <View style={styles.avatarBadge}>
             {uploadingPhoto ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={colors.white} />
             ) : (
-              <Ionicons name="camera" size={14} color="#fff" />
+              <Ionicons name="camera" size={14} color={colors.white} />
             )}
           </View>
         </Pressable>

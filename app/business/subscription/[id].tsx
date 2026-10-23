@@ -7,7 +7,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { paymentsApi } from '@/api/endpoints';
 import { Button } from '@/components/Button';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 
 const PLAN_PRICE_AMOUNT = '$39.900';
 const PLAN_PRICE_UNIT = 'COP / mes';
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1.5,
     borderColor: colors.primary,
-    backgroundColor: 'rgba(36,104,198,0.06)',
+    backgroundColor: alpha(colors.primary, 0.06),
   },
   planHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: spacing.sm },
   planName: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },

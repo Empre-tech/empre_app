@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
   groupHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: 6 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.muted },
   dotOffer: { backgroundColor: colors.accent },
-  dotOpen: { backgroundColor: '#2E9E5B' },
+  dotOpen: { backgroundColor: colors.success },
   dotExtra: { backgroundColor: colors.primary },
   groupTitle: { fontSize: 12, fontFamily: fonts.ui.extrabold, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.muted },
   groupNote: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
@@ -213,5 +213,5 @@ const styles = StyleSheet.create({
   btnPrimary: { backgroundColor: colors.primary },
   btnSecondary: { borderWidth: 1.5, borderColor: colors.line, backgroundColor: 'transparent' },
   btnText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink, textAlign: 'center' },
-  btnTextPrimary: { color: '#fff' },
+  btnTextPrimary: { color: colors.white },
 });

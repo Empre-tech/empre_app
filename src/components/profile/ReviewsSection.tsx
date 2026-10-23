@@ -46,7 +46,7 @@ export function ReviewsSection({ summary, reviews, mine, isOwner, loading, onWri
                   <View style={styles.scoreText}>
                     <View style={styles.stars}>
                       {[1, 2, 3, 4, 5].map((n) => (
-                        <Ionicons key={n} name={summary.average >= n - 0.25 ? 'star' : summary.average >= n - 0.75 ? 'star-half' : 'star-outline'} size={14} color="#E8A317" />
+                        <Ionicons key={n} name={summary.average >= n - 0.25 ? 'star' : summary.average >= n - 0.75 ? 'star-half' : 'star-outline'} size={14} color={colors.star} />
                       ))}
                     </View>
                     <Text style={styles.scoreSub}>

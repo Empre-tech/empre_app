@@ -4,7 +4,7 @@ import QRCode from 'react-native-qrcode-svg';
 import type { ClaimStatus, OfferClaim } from '@/api/types';
 import { Button } from '@/components/Button';
 import { formatClock, formatCurrency } from '@/lib/offer';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 
 interface Props {
   claim: OfferClaim;
@@ -40,10 +40,10 @@ export function ClaimQR({ claim, status, now, saved, message, busy, onDirections
   const pillText = !active ? styles.pillTextOff : msLeft < 60_000 ? styles.pillTextHot : msLeft < 5 * 60_000 ? styles.pillTextWarn : styles.pillTextCalm;
 
   const banner = active
-    ? { text: 'Cupo reservado a tu nombre', icon: 'checkmark' as const, style: styles.bannerOk, color: '#17673A' }
+    ? { text: 'Cupo reservado a tu nombre', icon: 'checkmark' as const, style: styles.bannerOk, color: colors.successInk }
     : status === 'CANCELADO'
-      ? { text: 'Cancelaste este reclamo', icon: 'close' as const, style: styles.bannerOff, color: '#4A5A70' }
-      : { text: `Venció a las ${formatClock(claim.expires_at)}`, icon: 'time-outline' as const, style: styles.bannerOff, color: '#4A5A70' };
+      ? { text: 'Cancelaste este reclamo', icon: 'close' as const, style: styles.bannerOff, color: colors.inkSoft }
+      : { text: `Venció a las ${formatClock(claim.expires_at)}`, icon: 'time-outline' as const, style: styles.bannerOff, color: colors.inkSoft };
 
   return (
     <>
@@ -62,7 +62,7 @@ export function ClaimQR({ claim, status, now, saved, message, busy, onDirections
         <View style={styles.qrFrame}>
           <View style={[styles.qrBox, !active && styles.qrBoxOff]}>
             {/* El QR lleva el id del reclamo; el escáner del negocio lo valida en el servidor. */}
-            <QRCode value={claim.id} size={176} color={colors.ink} backgroundColor="#ffffff" />
+            <QRCode value={claim.id} size={176} color={colors.ink} backgroundColor={colors.white} />
             {!active ? (
               <View style={styles.qrOverlay}>
                 <Text style={styles.qrOverlayText}>{status === 'CANCELADO' ? 'Cancelado' : 'Venció'}</Text>
@@ -95,7 +95,7 @@ export function ClaimQR({ claim, status, now, saved, message, busy, onDirections
 
         {active && saved ? (
           <View style={styles.savedChip}>
-            <Ionicons name="checkmark" size={12} color="#075E62" />
+            <Ionicons name="checkmark" size={12} color={colors.verifiedInk} />
             <Text style={styles.savedChipText}>Guardado en tu teléfono</Text>
           </View>
         ) : null}
@@ -144,21 +144,21 @@ const CORNER = 24;
 
 const styles = StyleSheet.create({
   banner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: 9 },
-  bannerOk: { backgroundColor: '#E3F4EA' },
-  bannerOff: { backgroundColor: '#EDF1F6' },
+  bannerOk: { backgroundColor: colors.successSoft },
+  bannerOff: { backgroundColor: colors.surfaceAlt },
   bannerText: { fontSize: 13, fontFamily: fonts.ui.extrabold, flex: 1 },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg + 2, padding: spacing.lg, alignItems: 'center', gap: spacing.sm },
   offerTitle: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
   business: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, marginTop: -4 },
   dim: { opacity: 0.55 },
   qrFrame: { marginVertical: spacing.sm, padding: 6 },
-  qrBox: { backgroundColor: '#fff', padding: 10, borderRadius: radius.md },
+  qrBox: { backgroundColor: colors.white, padding: 10, borderRadius: radius.md },
   qrBoxOff: { opacity: 0.35 },
   qrOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  qrOverlayText: { fontSize: 22, fontFamily: fonts.display.bold, color: '#4A5A70', backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 14, paddingVertical: 4, borderRadius: radius.pill, overflow: 'hidden' },
+  qrOverlayText: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.inkSoft, backgroundColor: alpha(colors.white, 0.9), paddingHorizontal: 14, paddingVertical: 4, borderRadius: radius.pill, overflow: 'hidden' },
   // Esquinas del marco: el QR se ve como algo que se apunta con la cámara.
   corner: { position: 'absolute', width: CORNER, height: CORNER, borderColor: colors.primary },
-  cornerOff: { borderColor: '#9AA7B5' },
+  cornerOff: { borderColor: colors.mutedLight },
   cornerTL: { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 12 },
   cornerTR: { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 12 },
   cornerBL: { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 12 },
@@ -168,22 +168,22 @@ const styles = StyleSheet.create({
   pillCalm: { backgroundColor: colors.primarySoft },
   pillWarn: { backgroundColor: colors.accentSoft },
   pillHot: { backgroundColor: colors.accent },
-  pillOff: { backgroundColor: '#EDF1F6' },
+  pillOff: { backgroundColor: colors.surfaceAlt },
   pillText: { fontSize: 13, fontFamily: fonts.ui.extrabold },
   pillTextCalm: { color: colors.primaryDark },
   pillTextWarn: { color: colors.accentInk },
   pillTextHot: { color: colors.ink },
-  pillTextOff: { color: '#4A5A70' },
+  pillTextOff: { color: colors.inkSoft },
   until: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   shortWrap: { alignSelf: 'stretch', alignItems: 'center', borderTopWidth: 1, borderTopColor: colors.line, borderStyle: 'dashed', paddingTop: spacing.sm, marginTop: spacing.xs },
   shortLabel: { fontSize: 10.5, fontFamily: fonts.ui.bold, letterSpacing: 0.9, color: colors.muted },
   shortCode: { fontSize: 30, fontFamily: fonts.display.bold, letterSpacing: 8, color: colors.ink },
   savedChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.verifiedSoft, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4 },
-  savedChipText: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: '#075E62' },
+  savedChipText: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.verifiedInk },
   callout: { flexDirection: 'row', gap: spacing.md, backgroundColor: colors.primarySoft, borderRadius: radius.md, padding: spacing.md },
   calloutWarn: { backgroundColor: colors.accentSoft },
   calloutText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.ink },
   bold: { fontFamily: fonts.ui.extrabold },
   message: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger, textAlign: 'center' },
-  cancel: { textAlign: 'center', fontSize: 13.5, fontFamily: fonts.ui.bold, color: '#9B2C2C', paddingVertical: spacing.sm },
+  cancel: { textAlign: 'center', fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.dangerInk, paddingVertical: spacing.sm },
 });

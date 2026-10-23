@@ -61,7 +61,7 @@ import { featuredRating } from '@/lib/reviewSnippet';
 import { useNow } from '@/lib/useNow';
 import { itemsFor } from '@/lib/uploadQueue';
 import { removeUpload, retryUpload, useUploads } from '@/upload/uploadStore';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 
 const PHONE_RE = /^[+\d\s()-]{7,}$/;
 
@@ -963,7 +963,7 @@ function ViewerVideoSlide({ uri, active }: { uri: string; active: boolean }) {
         onPress={() => setMuted((m) => !m)}
         style={styles.muteButton}
       >
-        <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={18} color="#fff" />
+        <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={18} color={colors.white} />
       </Pressable>
     </View>
   );
@@ -1001,14 +1001,14 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: alpha(colors.white, 0.92),
     alignItems: 'center',
     justifyContent: 'center',
   },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: spacing.md, gap: spacing.sm },
   cardTitle: { fontSize: 12, fontFamily: fonts.ui.extrabold, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.muted },
-  closedNote: { padding: spacing.md, borderRadius: radius.lg, backgroundColor: '#FBE4E4' },
-  closedNoteText: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.extrabold, color: '#8E2A2A' },
+  closedNote: { padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.dangerSoft },
+  closedNoteText: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.extrabold, color: colors.dangerInk },
   readMoreHit: { minHeight: 44, justifyContent: 'center' },
   sticky: { backgroundColor: colors.bg },
   floatIndex: { position: 'absolute', left: 0, right: 0, top: 0, backgroundColor: colors.bg },
@@ -1027,18 +1027,18 @@ const styles = StyleSheet.create({
   ownerTab: { flex: 1, minHeight: 44, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   ownerTabOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   ownerTabText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  ownerTabTextOn: { color: '#fff' },
+  ownerTabTextOn: { color: colors.white },
   infoActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   infoPrimary: { flex: 1.3, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: radius.md, backgroundColor: colors.primary },
-  infoPrimaryText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  infoPrimaryText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.white },
   infoSecondary: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.surface },
   infoSecondaryOn: { backgroundColor: colors.primarySoft },
   infoSecondaryText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primary },
   infoPressed: { opacity: 0.85 },
-  followButton: { position: 'absolute', right: spacing.md, minWidth: 96, height: 40, paddingHorizontal: spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.94)', borderWidth: 1.5, borderColor: colors.primary },
+  followButton: { position: 'absolute', right: spacing.md, minWidth: 96, height: 40, paddingHorizontal: spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 20, backgroundColor: alpha(colors.white, 0.94), borderWidth: 1.5, borderColor: colors.primary },
   followButtonOn: { backgroundColor: colors.primary },
   followText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.primary },
-  followTextOn: { color: '#fff' },
+  followTextOn: { color: colors.white },
   followersChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.pill, backgroundColor: colors.primarySoft },
   followersText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.primaryDark },
   bannerWrap: { width: '100%', height: 160 },
@@ -1053,9 +1053,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     height: 22,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(22,35,58,0.55)',
+    backgroundColor: alpha(colors.ink, 0.55),
   },
-  photoCountPillText: { fontSize: 11, fontFamily: fonts.ui.bold, color: '#fff' },
+  photoCountPillText: { fontSize: 11, fontFamily: fonts.ui.bold, color: colors.white },
   bannerEmpty: { backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   avatarRing: { borderColor: colors.accent },
   reviewCardMine: { borderWidth: 1.5, borderColor: colors.primary },
@@ -1108,7 +1108,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: spacing.md,
     borderRadius: radius.lg,
-    backgroundColor: 'rgba(36,104,198,0.08)',
+    backgroundColor: alpha(colors.primary, 0.08),
     borderWidth: 1,
     borderColor: colors.primary,
   },
@@ -1198,9 +1198,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     height: 20,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(22,35,58,0.55)',
+    backgroundColor: alpha(colors.ink, 0.55),
   },
-  featuredTileBadgeText: { fontSize: 10, fontFamily: fonts.ui.bold, color: '#fff' },
+  featuredTileBadgeText: { fontSize: 10, fontFamily: fonts.ui.bold, color: colors.white },
   // Celda "+" al inicio de la cuadrícula (estilo Instagram) para publicar sin
   // salir de la vista de publicaciones ni buscar un botón aparte.
   addTile: {
@@ -1217,7 +1217,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(36,104,198,0.12)',
+    backgroundColor: alpha(colors.primary, 0.12),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1230,7 +1230,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: alpha(colors.black, 0.55),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1263,7 +1263,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: alpha(colors.black, 0.5),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1304,9 +1304,9 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.4)',
+    backgroundColor: alpha(colors.white, 0.4),
   },
-  viewerDotActive: { backgroundColor: '#fff', width: 8, height: 8, borderRadius: 4 },
+  viewerDotActive: { backgroundColor: colors.white, width: 8, height: 8, borderRadius: 4 },
   viewerDetails: { flex: 1, backgroundColor: colors.surface, paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   viewerBizRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   viewerBizInfo: { flex: 1, minWidth: 0 },
@@ -1375,7 +1375,7 @@ const styles = StyleSheet.create({
   reviewName: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
   reviewDate: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
   reviewComment: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.ink },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(22,35,58,0.5)', alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
+  modalBackdrop: { flex: 1, backgroundColor: alpha(colors.ink, 0.5), alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
   reviewModalCard: {
     width: '100%',
     backgroundColor: colors.bg,

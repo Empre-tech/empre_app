@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { ContextChip, FilterId } from '@/lib/context';
 import type { ZoneName } from '@/lib/zoneName';
-import { colors, fonts, radius, shadow, DENSE_TEXT_SCALE } from '@/theme';
+import { alpha, colors, DENSE_TEXT_SCALE, fonts, radius, shadow } from '@/theme';
 import { ZoneCapsule } from './ZoneCapsule';
 
 interface Props {
@@ -65,7 +65,7 @@ export function ContextRow({ chips, zoneName, onRemoveScope, onRemoveFilter, onC
         return (
           <Pressable key="area" accessibilityRole="button" accessibilityLabel="Buscar en esta zona" onPress={onSearchArea} style={styles.areaHit}>
             <View style={styles.areaPill}>
-              <Ionicons name="refresh" size={14} color="#fff" />
+              <Ionicons name="refresh" size={14} color={colors.white} />
               <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.areaText}>Buscar en esta zona</Text>
             </View>
           </Pressable>
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 12,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.97)',
+    backgroundColor: alpha(colors.white, 0.97),
     ...shadow,
   },
   chipRemovable: { paddingRight: 2 },
@@ -134,5 +134,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ink,
     ...shadow,
   },
-  areaText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  areaText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.white },
 });

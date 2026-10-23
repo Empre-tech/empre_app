@@ -6,7 +6,7 @@ import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { categoryColor } from '@/lib/categoryColor';
 import { resolveImageUrl } from '@/lib/image';
 import type { coverSource } from '@/lib/profileLayout';
-import { colors, fonts, radius, shadow, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, shadow, spacing } from '@/theme';
 
 interface Props {
   name: string;
@@ -60,7 +60,7 @@ export function ProfileHero({ name, categoryLabel, color, icon, profileUrl, cove
           <Image accessible={false} source={{ uri: image }} style={styles.heroImage} contentFit="cover" transition={150} />
         ) : (
           <View style={styles.fallback}>
-            <Ionicons name={cover.kind === 'video' ? 'play-circle' : ((icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap)} size={cover.kind === 'video' ? 64 : 56} color="rgba(255,255,255,0.9)" />
+            <Ionicons name={cover.kind === 'video' ? 'play-circle' : ((icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap)} size={cover.kind === 'video' ? 64 : 56} color={alpha(colors.white, 0.9)} />
           </View>
         )}
         {/* Velo suave arriba: el botón de volver se ve con cualquier imagen. */}
@@ -68,7 +68,7 @@ export function ProfileHero({ name, categoryLabel, color, icon, profileUrl, cove
       </Pressable>
       {photosCount > 0 ? (
         <Pressable accessibilityRole="button" accessibilityLabel={`Ver las ${photosCount} ${photosCount === 1 ? 'foto' : 'fotos'}`} onPress={onAllPhotos} style={[styles.count, { top: height - 44 - 56 }]}>
-          <Ionicons name="images-outline" size={13} color="#fff" />
+          <Ionicons name="images-outline" size={13} color={colors.white} />
           <Text style={styles.countText}>
             {photosCount} {photosCount === 1 ? 'foto' : 'fotos'}
           </Text>
@@ -117,9 +117,9 @@ const styles = StyleSheet.create({
   hero: { width: '100%', overflow: 'hidden' },
   heroImage: { width: '100%', height: '100%' },
   fallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  topScrim: { position: 'absolute', left: 0, right: 0, top: 0, backgroundColor: 'rgba(10,20,40,0.28)' },
-  count: { position: 'absolute', right: spacing.md, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: 'rgba(10,20,40,0.7)' },
-  countText: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: '#fff' },
+  topScrim: { position: 'absolute', left: 0, right: 0, top: 0, backgroundColor: alpha(colors.night, 0.28) },
+  count: { position: 'absolute', right: spacing.md, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: alpha(colors.night, 0.7) },
+  countText: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.white },
   card: {
     marginTop: -44,
     marginHorizontal: spacing.md,
@@ -141,12 +141,12 @@ const styles = StyleSheet.create({
   pill: { minHeight: 28, paddingHorizontal: 10, borderRadius: radius.pill, backgroundColor: colors.bg, justifyContent: 'center' },
   pillText: { fontSize: 12, fontFamily: fonts.ui.bold },
   pillMuted: { color: colors.muted },
-  pillRating: { backgroundColor: '#FFF4DC' },
-  pillRatingText: { color: '#7A4B00' },
-  pillOpen: { backgroundColor: '#E3F4EA' },
-  pillOpenText: { color: '#1D6B3D' },
-  pillClosed: { backgroundColor: '#FBE4E4' },
-  pillClosedText: { color: '#8E2A2A' },
+  pillRating: { backgroundColor: colors.warningSoft },
+  pillRatingText: { color: colors.warningInk },
+  pillOpen: { backgroundColor: colors.successSoft },
+  pillOpenText: { color: colors.successInk },
+  pillClosed: { backgroundColor: colors.dangerSoft },
+  pillClosedText: { color: colors.dangerInk },
   nearby: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', marginHorizontal: spacing.md + spacing.sm },
   nearbyText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primary },
 });

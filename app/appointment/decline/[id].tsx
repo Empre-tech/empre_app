@@ -183,5 +183,5 @@ const styles = StyleSheet.create({
   chip: { minHeight: 46, paddingHorizontal: spacing.lg, borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
-  chipTextOn: { color: '#fff' },
+  chipTextOn: { color: colors.white },
 });

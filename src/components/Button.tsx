@@ -30,7 +30,7 @@ export function Button({ title, onPress, variant = 'primary', loading = false, d
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? '#fff' : colors.primary} />
+        <ActivityIndicator color={variant === 'primary' ? colors.white : colors.primary} />
       ) : (
         <Text style={[styles.label, variant !== 'primary' && styles.labelAlt]}>{title}</Text>
       )}
@@ -52,6 +52,6 @@ const styles = StyleSheet.create({
   ghost: { backgroundColor: 'transparent' },
   pressed: { opacity: 0.7 },
   disabled: { opacity: 0.5 },
-  label: { color: '#fff', fontSize: 15.5, fontFamily: fonts.ui.bold },
+  label: { color: colors.white, fontSize: 15.5, fontFamily: fonts.ui.bold },
   labelAlt: { color: colors.ink },
 });

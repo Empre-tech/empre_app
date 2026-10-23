@@ -86,7 +86,7 @@ export function Recommendations({ business, closed, title }: Props) {
               style={({ pressed }) => [styles.card, pressed && styles.pressed]}
             >
               <View style={[styles.image, { backgroundColor: cat.fg }]}>
-                {image ? <Image accessible={false} source={{ uri: image }} style={styles.imageFill} contentFit="cover" transition={120} /> : <Ionicons name={(p.category_icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap} size={28} color="#fff" />}
+                {image ? <Image accessible={false} source={{ uri: image }} style={styles.imageFill} contentFit="cover" transition={120} /> : <Ionicons name={(p.category_icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap} size={28} color={colors.white} />}
               </View>
               <View style={styles.text}>
                 <Text style={styles.name} numberOfLines={1}>
@@ -121,12 +121,12 @@ const styles = StyleSheet.create({
   text: { padding: 10, gap: 2 },
   name: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   sub: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.muted },
-  why: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: '#E3F4EA' },
+  why: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: colors.successSoft },
   whyOffer: { backgroundColor: colors.accent },
-  whyText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#1D6B3D' },
+  whyText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.successInk },
   whyTextOffer: { color: colors.ink },
-  error: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: '#FBE4E4' },
-  errorText: { flex: 1, fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#8E2A2A' },
+  error: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.dangerSoft },
+  errorText: { flex: 1, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.dangerInk },
   retry: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm },
-  retryText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: '#8E2A2A', textDecorationLine: 'underline' },
+  retryText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.dangerInk, textDecorationLine: 'underline' },
 });

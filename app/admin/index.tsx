@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
   },
   tabActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   tabText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
-  tabTextActive: { color: '#fff' },
+  tabTextActive: { color: colors.white },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg },
   empty: { color: colors.muted, fontSize: 14, fontFamily: fonts.ui.medium, textAlign: 'center' },
   list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.sm },

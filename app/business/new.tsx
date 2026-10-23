@@ -68,7 +68,7 @@ export default function NewBusinessScreen() {
         style={({ pressed }) => [styles.optionCard, styles.optionCardPrimary, pressed && styles.optionCardPressed]}
       >
         <View style={[styles.optionIcon, styles.optionIconPrimary]}>
-          <Ionicons name="sparkles" size={22} color="#fff" />
+          <Ionicons name="sparkles" size={22} color={colors.white} />
         </View>
         <View style={styles.optionText}>
           <View style={styles.optionTitleRow}>
@@ -140,6 +140,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     justifyContent: 'center',
   },
-  recommendedPillText: { fontSize: 10, fontFamily: fonts.ui.bold, color: '#fff' },
+  recommendedPillText: { fontSize: 10, fontFamily: fonts.ui.bold, color: colors.white },
   optionSubtitle: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, lineHeight: 18 },
 });

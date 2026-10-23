@@ -11,7 +11,7 @@ import { PostViewer, type ViewerSlide } from '@/components/profile/PostViewer';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { categoryColor } from '@/lib/categoryColor';
 import { resolveImageUrl } from '@/lib/image';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 
 const PAGE = 30;
 const COLUMNS = 3;
@@ -78,12 +78,12 @@ export default function PhotosScreen() {
         {first && !video ? <Image accessible={false} source={{ uri: resolveImageUrl(first.url) ?? undefined }} style={styles.image} contentFit="cover" transition={120} /> : null}
         {video ? (
           <View style={styles.videoFill}>
-            <Ionicons name="play" size={28} color="rgba(255,255,255,0.95)" />
+            <Ionicons name="play" size={28} color={alpha(colors.white, 0.95)} />
           </View>
         ) : null}
         {extraFiles ? (
           <View style={styles.badge}>
-            <Ionicons name="copy-outline" size={11} color="#fff" />
+            <Ionicons name="copy-outline" size={11} color={colors.white} />
             <Text style={styles.badgeText}>{item.items.length}</Text>
           </View>
         ) : null}
@@ -172,13 +172,13 @@ const styles = StyleSheet.create({
   chip: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   chipText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  chipTextOn: { color: '#fff' },
+  chipTextOn: { color: colors.white },
   count: { paddingHorizontal: spacing.md, paddingBottom: spacing.xs, fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   image: { width: '100%', height: '100%' },
   videoFill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  badge: { position: 'absolute', right: 6, top: 6, flexDirection: 'row', alignItems: 'center', gap: 3, minHeight: 22, paddingHorizontal: 6, borderRadius: 11, backgroundColor: 'rgba(10,20,40,0.7)' },
-  badgeText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  badge: { position: 'absolute', right: 6, top: 6, flexDirection: 'row', alignItems: 'center', gap: 3, minHeight: 22, paddingHorizontal: 6, borderRadius: 11, backgroundColor: alpha(colors.night, 0.7) },
+  badgeText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.white },
   state: { alignItems: 'center', gap: spacing.sm, padding: spacing.xl },
   stateTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
   retry: { minHeight: 44, paddingHorizontal: spacing.lg, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },

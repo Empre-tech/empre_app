@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { resolveImageUrl } from '@/lib/image';
 import { photoLabel } from '@/lib/photoStrip';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 
 export interface ViewerTarget {
   id: string;
@@ -51,7 +51,7 @@ function ViewerBody({ target, onClose, onProfile, onAllPhotos }: Props & { targe
     <View style={[styles.screen, { paddingTop: insets.top + spacing.sm, paddingBottom: insets.bottom + spacing.sm }]}>
       <View style={styles.top}>
         <Pressable accessibilityRole="button" accessibilityLabel="Cerrar fotos" onPress={onClose} style={styles.round}>
-          <Ionicons name="close" size={22} color="#fff" />
+          <Ionicons name="close" size={22} color={colors.white} />
         </Pressable>
         <Text style={styles.name} numberOfLines={1}>
           {target.name}
@@ -94,18 +94,18 @@ function ViewerBody({ target, onClose, onProfile, onAllPhotos }: Props & { targe
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#0B1220' },
+  screen: { flex: 1, backgroundColor: colors.night },
   top: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
-  round: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
-  name: { flex: 1, fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  counter: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#CBD5E1' },
+  round: { width: 44, height: 44, borderRadius: 22, backgroundColor: alpha(colors.white, 0.15), alignItems: 'center', justifyContent: 'center' },
+  name: { flex: 1, fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.white },
+  counter: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.onDarkMuted },
   pager: { flex: 1 },
   photo: { flex: 1 },
   bottom: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.sm },
   flex: { flex: 1 },
   primary: { minHeight: 44, paddingHorizontal: spacing.xl, borderRadius: radius.pill, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  secondary: { flex: 1, minHeight: 44, paddingHorizontal: spacing.lg, borderRadius: radius.pill, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.35)', alignItems: 'center', justifyContent: 'center' },
-  secondaryText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  primaryText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.white },
+  secondary: { flex: 1, minHeight: 44, paddingHorizontal: spacing.lg, borderRadius: radius.pill, borderWidth: 1.5, borderColor: alpha(colors.white, 0.35), alignItems: 'center', justifyContent: 'center' },
+  secondaryText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.white },
   pressed: { opacity: 0.8 },
 });

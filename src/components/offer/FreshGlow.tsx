@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { colors, fonts, radius } from '@/theme';
+import { alpha, colors, fonts, radius } from '@/theme';
 
 /**
  * Lo recién publicado se nota: un brillo naranja recorre la tarjeta una vez, el borde late dos veces y una etiqueta
@@ -55,7 +55,7 @@ export function FreshGlow({ active, children }: { active: boolean; children: Rea
 const styles = StyleSheet.create({
   ring: { position: 'absolute', left: -3, right: -3, top: -3, bottom: -3, borderRadius: radius.lg + 5, borderWidth: 2.5, borderColor: colors.accent },
   clip: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: radius.lg + 2, overflow: 'hidden' },
-  band: { position: 'absolute', top: 0, bottom: 0, backgroundColor: 'rgba(245,130,32,0.28)' },
+  band: { position: 'absolute', top: 0, bottom: 0, backgroundColor: alpha(colors.accent, 0.28) },
   tag: { position: 'absolute', top: -10, left: 14, paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: colors.accent },
   tagText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

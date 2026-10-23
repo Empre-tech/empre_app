@@ -32,7 +32,7 @@ import {
 } from '@/lib/offerMarket';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { colors, fonts, radius, spacing, DENSE_TEXT_SCALE } from '@/theme';
+import { colors, DENSE_TEXT_SCALE, fonts, radius, spacing } from '@/theme';
 import { usePullRefresh } from '@/lib/usePullRefresh';
 
 type Coords = { latitude: number; longitude: number };
@@ -464,12 +464,12 @@ const styles = StyleSheet.create({
   chipSoftOn: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
   chipPressed: { transform: [{ scale: 0.97 }] },
   chipText: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink },
-  chipOnText: { color: '#fff' },
+  chipOnText: { color: colors.white },
   chipSoftText: { color: colors.primaryDark },
   loc: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.lg, marginTop: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
   locText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
   locBtn: { minHeight: 40, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.primary, justifyContent: 'center' },
-  locBtnText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  locBtnText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.white },
   sec: { paddingTop: spacing.md },
   sh: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   shTitle: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },

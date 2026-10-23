@@ -6,7 +6,7 @@ import { categoryColor } from '@/lib/categoryColor';
 import { resolveImageUrl } from '@/lib/image';
 import { displayIcon } from '@/lib/mapView';
 import { distanceLabel, featuredA11y, featuredClock, initialOf, priceView, tileA11y, tileClock, timeBadge, zoneSubtitle, type MarketItem, type MarketZone } from '@/lib/offerMarket';
-import { colors, fonts, radius, spacing, DENSE_TEXT_SCALE } from '@/theme';
+import { alpha, colors, DENSE_TEXT_SCALE, fonts, radius, spacing } from '@/theme';
 import { LiveDot } from './MarketMotion';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -27,13 +27,13 @@ function Photo({ item, style, size }: { item: MarketItem; style: object; size: '
       ) : (
         <>
           <View style={[styles.ghost, size === 'lg' ? styles.ghostLeft : null]} pointerEvents="none">
-            <Ionicons name={icon} size={d.ghost} color="rgba(255,255,255,0.2)" />
+            <Ionicons name={icon} size={d.ghost} color={alpha(colors.white, 0.2)} />
           </View>
           <View style={[styles.initial, { width: d.circle, height: d.circle, borderRadius: d.circle / 2 }]}>
             <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={[styles.initialText, { fontSize: d.letter, color: cat.fg }]}>{initialOf(item.entity_name)}</Text>
             {size !== 'sm' ? (
               <View style={[styles.initialBadge, { backgroundColor: cat.fg }]}>
-                <Ionicons name={icon} size={11} color="#fff" />
+                <Ionicons name={icon} size={11} color={colors.white} />
               </View>
             ) : null}
           </View>
@@ -206,7 +206,7 @@ export function ZoneCard({ zone, onPress }: { zone: MarketZone; onPress: () => v
       <View style={styles.mosaic}>
         {tiles.map((l, i) => (
           <View key={i} style={[styles.mosaicCell, { backgroundColor: categoryColor(l.color).fg }]}>
-            <Ionicons name={displayIcon(l.icon) as IconName} size={18} color="rgba(255,255,255,0.92)" />
+            <Ionicons name={displayIcon(l.icon) as IconName} size={18} color={alpha(colors.white, 0.92)} />
           </View>
         ))}
       </View>
@@ -229,9 +229,9 @@ export function ZoneCard({ zone, onPress }: { zone: MarketZone; onPress: () => v
 
 export const ZONE_W = 168;
 // Verde del ahorro y tonos del reloj (los mismos del mockup vitrina_viva.html).
-const SAVE_GREEN = '#2E7D4F';
-const ACCENT_SOFT = '#FFF1E3';
-const ACCENT_INK = '#8F4300';
+const SAVE_GREEN = colors.successBadge;
+const ACCENT_SOFT = colors.accentSoft;
+const ACCENT_INK = colors.accentInk;
 export const TILE_W = 216;
 export const TILE_GAP = 10;
 
@@ -240,12 +240,12 @@ const styles = StyleSheet.create({
   pressed: { transform: [{ scale: 0.97 }], opacity: 0.95 },
   tilePhoto: { height: 112, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   badge: { position: 'absolute', top: 8, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 3 },
-  badgeLeft: { left: 8, backgroundColor: 'rgba(255,255,255,0.95)' },
+  badgeLeft: { left: 8, backgroundColor: alpha(colors.white, 0.95) },
   badgeRight: { right: 8 },
   badgeDark: { backgroundColor: colors.ink },
   badgeUrgent: { backgroundColor: colors.accent },
   badgeText: { fontSize: 11, fontFamily: fonts.ui.extrabold },
-  darkText: { color: '#fff' },
+  darkText: { color: colors.white },
   urgentText: { color: colors.ink },
   hotText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.danger },
   tileBody: { padding: spacing.sm + 2, paddingTop: spacing.sm, gap: 2 },
@@ -254,8 +254,8 @@ const styles = StyleSheet.create({
   priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4, flexWrap: 'wrap' },
   price: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
   was: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted, textDecorationLine: 'line-through' },
-  save: { backgroundColor: '#E5F5EC', borderRadius: 6, paddingHorizontal: 6 },
-  saveText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#1B6B3C' },
+  save: { backgroundColor: colors.successSoft, borderRadius: 6, paddingHorizontal: 6 },
+  saveText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.successInk },
   reason: { alignSelf: 'flex-start', marginTop: 6, backgroundColor: colors.primarySoft, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, maxWidth: '100%' },
   reasonText: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.primaryDark },
   row: { flexDirection: 'row', gap: spacing.md, padding: spacing.sm + 2, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
@@ -270,19 +270,19 @@ const styles = StyleSheet.create({
   // 3.40
   ghost: { position: 'absolute', right: -14, bottom: -22, transform: [{ rotate: '-12deg' }] },
   ghostLeft: { right: undefined, left: -18, bottom: -34 },
-  initial: { backgroundColor: 'rgba(255,255,255,0.96)', alignItems: 'center', justifyContent: 'center' },
+  initial: { backgroundColor: alpha(colors.white, 0.96), alignItems: 'center', justifyContent: 'center' },
   initialText: { fontFamily: fonts.display.bold },
-  initialBadge: { position: 'absolute', right: -4, bottom: -4, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
+  initialBadge: { position: 'absolute', right: -4, bottom: -4, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.white },
   saveTag: { position: 'absolute', left: 8, top: 80, height: 24, justifyContent: 'center', backgroundColor: SAVE_GREEN, borderRadius: 8, paddingHorizontal: 8 },
-  saveTagText: { fontSize: 14, fontFamily: fonts.display.bold, color: '#fff' },
+  saveTagText: { fontSize: 14, fontFamily: fonts.display.bold, color: colors.white },
   rowPrice: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   priceBig: { fontSize: 22 },
   feat: { marginHorizontal: spacing.lg, backgroundColor: colors.surface, borderRadius: 22, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
   featPhoto: { height: 150, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   ruleText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  bigSave: { position: 'absolute', right: 12, top: 98, width: 74, height: 74, borderRadius: 37, backgroundColor: SAVE_GREEN, borderWidth: 4, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  bigSaveText: { fontSize: 19, lineHeight: 22, fontFamily: fonts.display.bold, color: '#fff' },
-  bigSaveSub: { fontSize: 8.5, fontFamily: fonts.ui.extrabold, color: '#fff', letterSpacing: 0.4 },
+  bigSave: { position: 'absolute', right: 12, top: 98, width: 74, height: 74, borderRadius: 37, backgroundColor: SAVE_GREEN, borderWidth: 4, borderColor: colors.white, alignItems: 'center', justifyContent: 'center' },
+  bigSaveText: { fontSize: 19, lineHeight: 22, fontFamily: fonts.display.bold, color: colors.white },
+  bigSaveSub: { fontSize: 8.5, fontFamily: fonts.ui.extrabold, color: colors.white, letterSpacing: 0.4 },
   featBody: { padding: spacing.md, paddingTop: spacing.sm + 2, gap: 2 },
   featTitle: { fontSize: 18, lineHeight: 22, fontFamily: fonts.display.bold, color: colors.ink, paddingRight: 76 },
   featFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, marginTop: 4 },

@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
   chip: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
   chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  chipTextOn: { color: '#fff' },
+  chipTextOn: { color: colors.white },
   count: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   group: { gap: spacing.sm },
   groupTitle: { fontSize: 12, fontFamily: fonts.ui.extrabold, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.muted },

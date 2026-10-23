@@ -20,7 +20,7 @@ import {
   STATUS_LABEL,
   weekdayShort,
 } from '@/lib/agendaFormat';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 
 const DAYS_AHEAD = 14;
 const BLOCK_DURATIONS = [30, 60, 120, 180, 240];
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
   dayWeek: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.muted, textTransform: 'uppercase' },
   dayNum: { fontSize: 18, fontFamily: fonts.ui.extrabold, color: colors.ink },
   dayMonth: { fontSize: 11, fontFamily: fonts.ui.medium, color: colors.muted },
-  onText: { color: '#fff' },
+  onText: { color: colors.white },
   content: { padding: spacing.lg, gap: spacing.sm },
   section: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted, marginTop: spacing.sm },
   requestCard: {
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
   blockText: { flex: 1, fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.muted },
   blockUndo: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.primary },
   fabWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, backgroundColor: colors.bg },
-  backdrop: { flex: 1, backgroundColor: 'rgba(22,35,58,0.45)' },
+  backdrop: { flex: 1, backgroundColor: alpha(colors.ink, 0.45) },
   sheet: { backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line, marginBottom: spacing.md },
   sheetTitle: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },

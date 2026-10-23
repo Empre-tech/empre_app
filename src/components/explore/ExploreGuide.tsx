@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { GUIDE_STEPS, nextGuideStep } from '@/lib/exploreGuide';
-import { colors, fonts, radius, shadow, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, shadow, spacing } from '@/theme';
 
 export interface GuideRect {
   x: number;
@@ -19,7 +19,7 @@ interface Props {
   onStep: (next: number | null) => void;
 }
 
-const SHADE = 'rgba(11,18,32,0.62)';
+const SHADE = alpha(colors.night, 0.62);
 const PAD = 6;
 
 /**
@@ -73,7 +73,7 @@ export function ExploreGuide({ step, rects, size, onStep }: Props) {
 
 const styles = StyleSheet.create({
   shade: { position: 'absolute', backgroundColor: SHADE },
-  ring: { position: 'absolute', borderRadius: radius.lg, borderWidth: 2, borderColor: '#fff' },
+  ring: { position: 'absolute', borderRadius: radius.lg, borderWidth: 2, borderColor: colors.white },
   tip: { position: 'absolute', left: spacing.lg, right: spacing.lg, padding: spacing.lg, gap: spacing.sm, borderRadius: radius.lg, backgroundColor: colors.surface, ...shadow },
   title: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
   text: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.semibold, color: colors.ink },
@@ -82,5 +82,5 @@ const styles = StyleSheet.create({
   skipText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.muted },
   count: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
   next: { minHeight: 44, paddingHorizontal: spacing.lg, borderRadius: radius.md, backgroundColor: colors.primary, justifyContent: 'center' },
-  nextText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  nextText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.white },
 });

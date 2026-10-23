@@ -5,7 +5,7 @@ import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { isOffline, OFFLINE_NOTICE_DELAY_MS, subscribeConnection } from '@/lib/connection';
-import { colors, DENSE_TEXT_SCALE, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, DENSE_TEXT_SCALE, fonts, radius, spacing } from '@/theme';
 
 /**
  * Aviso «Sin conexión» (plan de experiencia, fase 0): una franja discreta arriba cuando las peticiones no logran salir.
@@ -35,7 +35,7 @@ export function OfflineBanner() {
   return (
     <View pointerEvents="box-none" style={[styles.wrap, { top: insets.top + spacing.xs }]}>
       <View style={styles.bar} accessibilityRole="alert">
-        <Ionicons name="cloud-offline-outline" size={18} color="#fff" />
+        <Ionicons name="cloud-offline-outline" size={18} color={colors.white} />
         <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.text} numberOfLines={2}>
           Sin conexión. Mostramos lo último que cargó.
         </Text>
@@ -58,8 +58,8 @@ export function OfflineBanner() {
 const styles = StyleSheet.create({
   wrap: { position: 'absolute', left: spacing.md, right: spacing.md, zIndex: 1000, elevation: 10 },
   bar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingLeft: spacing.md, paddingRight: spacing.xs, minHeight: 48, borderRadius: radius.md, backgroundColor: colors.ink },
-  text: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: '#fff' },
-  retry: { minHeight: 40, minWidth: 44, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
-  retryText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  text: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.white },
+  retry: { minHeight: 40, minWidth: 44, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: alpha(colors.white, 0.14), alignItems: 'center', justifyContent: 'center' },
+  retryText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.white },
   pressed: { opacity: 0.8 },
 });

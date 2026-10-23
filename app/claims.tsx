@@ -125,8 +125,8 @@ const styles = StyleSheet.create({
   text: { flex: 1, gap: 2 },
   name: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink },
   meta: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
-  chip: { paddingHorizontal: 10, height: 26, borderRadius: radius.pill, backgroundColor: '#EDF1F6', alignItems: 'center', justifyContent: 'center' },
+  chip: { paddingHorizontal: 10, height: 26, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
   chipActive: { backgroundColor: colors.primarySoft },
-  chipText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: '#4A5A70' },
+  chipText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.inkSoft },
   chipTextActive: { color: colors.primaryDark },
 });

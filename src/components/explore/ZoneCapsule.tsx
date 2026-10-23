@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { ZoneName } from '@/lib/zoneName';
-import { colors, fonts, radius, shadow } from '@/theme';
+import { alpha, colors, fonts, radius, shadow } from '@/theme';
 
 /**
  * En qué zona estás, como primer chip de la fila bajo el buscador: «Centro Histórico · Santa Marta». Si el mapa mira otro
@@ -38,7 +38,7 @@ const styles = StyleSheet.create({
     height: 32,
     paddingHorizontal: 13,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.96)',
+    backgroundColor: alpha(colors.white, 0.96),
     ...shadow,
   },
   title: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },

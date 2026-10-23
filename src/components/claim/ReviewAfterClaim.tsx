@@ -28,7 +28,7 @@ export function ReviewAfterClaim({ entityId, claimId, entityName }: Props) {
   if (state === 'sent') {
     return (
       <View style={styles.thanks}>
-        <Ionicons name="shield-checkmark" size={18} color="#075E62" />
+        <Ionicons name="shield-checkmark" size={18} color={colors.verifiedInk} />
         <Text style={styles.thanksText}>Tu reseña ya está publicada con el sello «Canje verificado».</Text>
       </View>
     );
@@ -95,5 +95,5 @@ const styles = StyleSheet.create({
   skip: { alignSelf: 'center', paddingVertical: spacing.xs },
   skipText: { fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.muted },
   thanks: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.verifiedSoft, borderRadius: radius.md, padding: spacing.md },
-  thanksText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.bold, color: '#075E62' },
+  thanksText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.bold, color: colors.verifiedInk },
 });

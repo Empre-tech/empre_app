@@ -22,7 +22,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/Button';
 import { SignInPrompt } from '@/components/SignInPrompt';
 import { TextField } from '@/components/TextField';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 
 // Íconos de Ionicons (variante outline) que un admin puede asignar a una
 // categoría; se usan también como marcador de esa categoría en el mapa.
@@ -177,7 +177,7 @@ export default function AdminCategoriesScreen() {
           style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]}
           hitSlop={8}
         >
-          <Ionicons name="add" size={16} color="#fff" />
+          <Ionicons name="add" size={16} color={colors.white} />
           <Text style={styles.addButtonText}>Nueva</Text>
         </Pressable>
       </View>
@@ -381,7 +381,7 @@ function CategoryModal({
                   onPress={() => setIcon(opt)}
                   style={[styles.iconOption, active && styles.iconOptionActive]}
                 >
-                  <Ionicons name={opt as keyof typeof Ionicons.glyphMap} size={20} color={active ? '#fff' : colors.ink} />
+                  <Ionicons name={opt as keyof typeof Ionicons.glyphMap} size={20} color={active ? colors.white : colors.ink} />
                 </Pressable>
               );
             })}
@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   addButtonPressed: { backgroundColor: colors.primaryDark },
-  addButtonText: { fontSize: 12, fontFamily: fonts.ui.bold, color: '#fff' },
+  addButtonText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.white },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: spacing.xl },
   empty: { color: colors.muted, fontSize: 14, fontFamily: fonts.ui.medium, textAlign: 'center' },
   list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
@@ -503,7 +503,7 @@ const styles = StyleSheet.create({
   subAction: { padding: 3 },
   addSubRow: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4 },
   addSubText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.primary },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalBackdrop: { flex: 1, backgroundColor: alpha(colors.black, 0.4), justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: colors.bg,
     borderTopLeftRadius: radius.lg,

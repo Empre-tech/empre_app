@@ -4,11 +4,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from 'r
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RedeemResult } from '@/api/types';
 import { formatAgo, formatCurrency, formatSlotsLeft } from '@/lib/offer';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 import { hapticError, hapticSuccess, hapticWarning } from '@/lib/haptics';
 
 // Verde oscuro: con texto blanco pasa AA (≈ 5,3:1); el success de la marca no.
-const OK_GREEN = '#1F7A44';
+const OK_GREEN = colors.successSolid;
 
 type Tone = 'ok' | 'bad' | 'warn' | 'grey';
 
@@ -108,8 +108,8 @@ export function RedeemResultView({ result, offline, onNext, onRetry }: Props) {
 
   const ok = look.tone === 'ok';
   const toneStyle = TONES[look.tone];
-  const textColor = ok ? '#fff' : colors.ink;
-  const mutedColor = ok ? 'rgba(255,255,255,0.92)' : '#4A5A70';
+  const textColor = ok ? colors.white : colors.ink;
+  const mutedColor = ok ? alpha(colors.white, 0.92) : colors.inkSoft;
 
   return (
     <View
@@ -119,7 +119,7 @@ export function RedeemResultView({ result, offline, onNext, onRetry }: Props) {
     >
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={[styles.iconWrap, toneStyle.icon]}>
-          <Ionicons name={look.icon} size={48} color={ok ? '#fff' : toneStyle.glyph} />
+          <Ionicons name={look.icon} size={48} color={ok ? colors.white : toneStyle.glyph} />
         </View>
         <Text style={[ok ? styles.titleOk : styles.title, { color: textColor }]}>{look.title}</Text>
         <Text style={[styles.why, { color: mutedColor }]}>{look.why}</Text>
@@ -151,7 +151,7 @@ export function RedeemResultView({ result, offline, onNext, onRetry }: Props) {
             onPress={onNext}
             style={[styles.btn, ok ? styles.btnLight : styles.btnDark]}
           >
-            <Text style={[styles.btnText, { color: ok ? OK_GREEN : '#fff' }]}>
+            <Text style={[styles.btnText, { color: ok ? OK_GREEN : colors.white }]}>
               {ok ? 'Escanear siguiente' : 'Escanear otro'}
             </Text>
           </Pressable>
@@ -190,7 +190,7 @@ function ValidDetails({ result }: { result: RedeemResult }) {
 
       {result.offer_conditions || slots ? (
         <View style={styles.verify}>
-          <Ionicons name="alert-circle-outline" size={18} color="#fff" />
+          <Ionicons name="alert-circle-outline" size={18} color={colors.white} />
           <Text style={styles.verifyText}>
             {result.offer_conditions ? `Recuerda la condición: ${result.offer_conditions}. ` : ''}
             {slots ?? ''}
@@ -231,10 +231,10 @@ function initials(name: string): string {
 
 /** Colores de cada tono: fondo, círculo del ícono y color del glifo. */
 const TONES: Record<Tone, { bg: ViewStyle; icon: ViewStyle; glyph: string }> = {
-  ok: { bg: { backgroundColor: OK_GREEN }, icon: { backgroundColor: 'rgba(255,255,255,0.22)' }, glyph: '#fff' },
-  bad: { bg: { backgroundColor: '#FBEDED' }, icon: { backgroundColor: '#F6CFCF' }, glyph: colors.danger },
-  warn: { bg: { backgroundColor: colors.accentSoft }, icon: { backgroundColor: '#FAD9B8' }, glyph: colors.accentInk },
-  grey: { bg: { backgroundColor: '#EDF1F6' }, icon: { backgroundColor: '#D7DFEA' }, glyph: '#4A5A70' },
+  ok: { bg: { backgroundColor: OK_GREEN }, icon: { backgroundColor: alpha(colors.white, 0.22) }, glyph: colors.white },
+  bad: { bg: { backgroundColor: colors.dangerWash }, icon: { backgroundColor: colors.dangerTint }, glyph: colors.danger },
+  warn: { bg: { backgroundColor: colors.accentSoft }, icon: { backgroundColor: colors.accentTint }, glyph: colors.accentInk },
+  grey: { bg: { backgroundColor: colors.surfaceAlt }, icon: { backgroundColor: colors.lineStrong }, glyph: colors.inkSoft },
 };
 
 const styles = StyleSheet.create({
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
   titleOk: { fontSize: 34, fontFamily: fonts.display.bold, textAlign: 'center', letterSpacing: 0.5 },
   why: { fontSize: 14.5, fontFamily: fonts.ui.semibold, textAlign: 'center', lineHeight: 21 },
 
-  deliver: { alignSelf: 'stretch', backgroundColor: '#fff', borderRadius: radius.lg, padding: spacing.md, marginTop: spacing.md },
+  deliver: { alignSelf: 'stretch', backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.md, marginTop: spacing.md },
   deliverLabel: { fontSize: 11, fontFamily: fonts.ui.bold, letterSpacing: 1, color: colors.muted },
   deliverTitle: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
   deliverPrice: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.primaryDark },
@@ -255,29 +255,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: alpha(colors.white, 0.18),
     borderRadius: radius.lg,
     padding: spacing.md,
   },
-  clientAvatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  clientAvatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
   clientInitials: { fontSize: 17, fontFamily: fonts.display.bold, color: OK_GREEN },
   clientText: { flex: 1 },
-  clientLabel: { fontSize: 11, fontFamily: fonts.ui.bold, letterSpacing: 1, color: 'rgba(255,255,255,0.88)' },
-  clientName: { fontSize: 22, fontFamily: fonts.display.bold, color: '#fff' },
-  clientMeta: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: 'rgba(255,255,255,0.92)' },
+  clientLabel: { fontSize: 11, fontFamily: fonts.ui.bold, letterSpacing: 1, color: alpha(colors.white, 0.88) },
+  clientName: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.white },
+  clientMeta: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: alpha(colors.white, 0.92) },
 
   verify: {
     alignSelf: 'stretch',
     flexDirection: 'row',
     gap: spacing.sm,
     alignItems: 'flex-start',
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    backgroundColor: alpha(colors.black, 0.2),
     borderRadius: radius.md,
     padding: spacing.md,
   },
-  verifyText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: '#fff', lineHeight: 19 },
+  verifyText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.white, lineHeight: 19 },
 
-  facts: { alignSelf: 'stretch', backgroundColor: '#fff', borderRadius: radius.lg, paddingHorizontal: spacing.md, marginTop: spacing.sm },
+  facts: { alignSelf: 'stretch', backgroundColor: colors.white, borderRadius: radius.lg, paddingHorizontal: spacing.md, marginTop: spacing.sm },
   factRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     alignItems: 'flex-start',
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderRadius: radius.md,
     padding: spacing.md,
     marginTop: spacing.sm,
@@ -304,10 +304,10 @@ const styles = StyleSheet.create({
   actions: { gap: spacing.sm },
   btn: { minHeight: 52, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
   btnText: { fontSize: 16, fontFamily: fonts.ui.extrabold },
-  btnLight: { backgroundColor: '#fff' },
+  btnLight: { backgroundColor: colors.white },
   btnDark: { backgroundColor: colors.ink },
   btnPrimary: { backgroundColor: colors.primary },
-  btnPrimaryText: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  btnPrimaryText: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: colors.white },
   btnGhost: { backgroundColor: colors.primarySoft },
   btnGhostText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.primaryDark },
 });

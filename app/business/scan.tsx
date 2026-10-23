@@ -9,7 +9,7 @@ import { claimsApi } from '@/api/offers';
 import { Button } from '@/components/Button';
 import { RedeemResultView } from '@/components/RedeemResultView';
 import { TextField } from '@/components/TextField';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 
 type Mode = 'scan' | 'manual';
 
@@ -111,7 +111,7 @@ export default function ScanScreen() {
                   }}
                 />
                 <View style={styles.overlay}>
-                  <Ionicons name="scan-outline" size={64} color="#fff" />
+                  <Ionicons name="scan-outline" size={64} color={colors.white} />
                 </View>
               </>
             ) : (
@@ -160,13 +160,13 @@ const styles = StyleSheet.create({
   modeBtn: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill },
   modeBtnActive: { backgroundColor: colors.primary },
   modeText: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted },
-  modeTextActive: { color: '#fff' },
+  modeTextActive: { color: colors.white },
   content: { padding: spacing.lg, gap: spacing.md, flexGrow: 1 },
   cameraWrap: { height: 360, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: colors.ink },
   camera: { flex: 1 },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.12)' },
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(colors.black, 0.12) },
   permissionBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, padding: spacing.lg },
-  permissionText: { fontSize: 14, fontFamily: fonts.ui.regular, color: '#fff', textAlign: 'center' },
+  permissionText: { fontSize: 14, fontFamily: fonts.ui.regular, color: colors.white, textAlign: 'center' },
   codeInput: { textAlign: 'center', fontSize: 24, letterSpacing: 8 },
   hint: { fontSize: 14, fontFamily: fonts.ui.regular, color: colors.muted, textAlign: 'center' },
   error: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.danger, textAlign: 'center' },

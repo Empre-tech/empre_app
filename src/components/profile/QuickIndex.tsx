@@ -58,5 +58,5 @@ const styles = StyleSheet.create({
   chip: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   text: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  textOn: { color: '#fff' },
+  textOn: { color: colors.white },
 });

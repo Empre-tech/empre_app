@@ -53,7 +53,7 @@ export function AllCategoriesModal({ visible, groups, selectedId, onSelect, onCl
                       style={styles.tile}
                     >
                       <View style={[styles.disc, { backgroundColor: categoryColor(c.color).fg }, selected && styles.discOn]}>
-                        <Ionicons name={(c.icon || 'storefront-outline') as IconName} size={24} color="#fff" />
+                        <Ionicons name={(c.icon || 'storefront-outline') as IconName} size={24} color={colors.white} />
                       </View>
                       <Text style={styles.label} numberOfLines={2}>
                         {c.name}
@@ -82,6 +82,6 @@ const styles = StyleSheet.create({
   tile: { width: '33.333%', minHeight: 88, alignItems: 'center', gap: 6, paddingVertical: 6 },
   disc: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   // La elegida: anillo blanco por dentro y tinta por fuera, para que se note sin depender del color.
-  discOn: { borderWidth: 3, borderColor: '#fff', outlineWidth: 3, outlineColor: colors.ink, outlineStyle: 'solid' },
+  discOn: { borderWidth: 3, borderColor: colors.white, outlineWidth: 3, outlineColor: colors.ink, outlineStyle: 'solid' },
   label: { fontSize: 11.5, lineHeight: 14, fontFamily: fonts.ui.bold, color: colors.ink, textAlign: 'center' },
 });
