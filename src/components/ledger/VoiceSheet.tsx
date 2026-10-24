@@ -14,7 +14,7 @@ import { colors, fonts, radius, spacing } from '@/theme';
 const TYPE_LABEL: Record<VoiceAction['type'], string> = { sale: 'Venta', expense: 'Gasto', payment: 'Abono' };
 const TYPE_ICON: Record<VoiceAction['type'], keyof typeof Ionicons.glyphMap> = { sale: 'cash-outline', expense: 'arrow-down-circle-outline', payment: 'swap-horizontal-outline' };
 
-function errorText(e: unknown): string {
+export function errorText(e: unknown): string {
   if (e instanceof ApiError) {
     if (e.status === 503) return 'El dictado no está disponible en este momento. Registra a mano mientras tanto.';
     if (e.status === 429) return 'Llegaste al límite de dictados de este mes. Puedes seguir registrando a mano.';

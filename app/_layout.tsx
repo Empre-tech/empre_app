@@ -17,12 +17,16 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initAnalytics } from '@/analytics/track';
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
 import { ChatProvider } from '@/chat/ChatProvider';
+import { useFinanceQuickAction } from '@/finance/quickActions';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { usePushNotifications } from '@/notifications/usePushNotifications';
 import { UploadCapsule } from '@/upload/UploadCapsule';
 import { initUploads } from '@/upload/uploadStore';
 import { flushLedger, initLedgerOutbox } from '@/ledger/ledgerStore';
 import { colors } from '@/theme';
+
+// Si la app se abre directo en una ruta (empre://finance), debajo queda Explorar: así cerrar no deja la pantalla vacía.
+export const unstable_settings = { initialRouteName: '(tabs)' };
 
 // Se mantiene la splash nativa visible hasta que Nunito y Manrope estén
 // listas, así se evita el "parpadeo" de la tipografía del sistema al abrir.
@@ -33,6 +37,8 @@ function AppStack() {
   // Registra el token push (si ya hay sesión) y navega al tocar una
   // notificación; vive aquí porque necesita el router y el estado de sesión.
   usePushNotifications();
+  // Acceso rápido del ícono (mantener pulsado → «Empre Finance»).
+  useFinanceQuickAction();
 
   if (status === 'loading') {
     return (
@@ -48,6 +54,8 @@ function AppStack() {
       <Stack.Screen name="(auth)" options={{ presentation: 'modal' }} />
       <Stack.Screen name="business/[id]" />
       <Stack.Screen name="chat/[entityId]" />
+      {/* Empre Finance (3.45): se abre encima de lo que haya, también desde empre://finance. */}
+      <Stack.Screen name="finance" options={{ presentation: 'transparentModal', animation: 'none', contentStyle: { backgroundColor: 'transparent' } }} />
     </Stack>
   );
 }

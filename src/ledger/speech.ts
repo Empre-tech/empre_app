@@ -29,6 +29,8 @@ export interface DictationHandlers {
   onText: (text: string, isFinal: boolean) => void;
   onEnd: () => void;
   onError: (message: string) => void;
+  /** Volumen de la voz, de -2 (silencio) a 10, unas 8 veces por segundo. Opcional (la voz de Finance lo usa). */
+  onVolume?: (value: number) => void;
 }
 
 const ERRORS: Record<string, string> = {
@@ -79,6 +81,10 @@ export async function startDictation(handlers: DictationHandlers, hints: string[
       handlers.onEnd();
     }),
   );
+  if (handlers.onVolume) {
+    const onVolume = handlers.onVolume;
+    subs.push(m.addListener('volumechange', (e: any) => typeof e?.value === 'number' && onVolume(e.value)));
+  }
 
   try {
     m.start({
@@ -88,6 +94,7 @@ export async function startDictation(handlers: DictationHandlers, hints: string[
       maxAlternatives: 1,
       // Los nombres del negocio ayudan al reconocedor a acertar «empanada» o «Don Jorge».
       contextualStrings: hints.slice(0, 80),
+      ...(handlers.onVolume ? { volumeChangeEventOptions: { enabled: true, intervalMillis: 120 } } : {}),
     });
   } catch {
     cleanup();

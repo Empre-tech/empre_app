@@ -27,6 +27,17 @@ function notify(kind: 'Success' | 'Warning' | 'Error'): void {
   }
 }
 
+/** Un toque leve: el doble toque que abre Empre Finance o un registro confirmado al mantener pulsado. */
+export function hapticTap(): void {
+  const h = load();
+  if (!h) return;
+  try {
+    void h.impactAsync(h.ImpactFeedbackStyle.Light).catch(() => undefined);
+  } catch {
+    // sin vibración
+  }
+}
+
 /** Algo salió bien y es importante (reclamo hecho, canje válido). */
 export const hapticSuccess = () => notify('Success');
 /** Atención: no salió, pero se puede resolver (por ejemplo, un código vencido). */

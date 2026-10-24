@@ -5,6 +5,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import type { Photo } from '@/api/types';
 import { categoryColor } from '@/lib/categoryColor';
+import { hapticTap } from '@/lib/haptics';
+import { useDoubleTap } from '@/lib/useDoubleTap';
 import { resolveImageUrl } from '@/lib/image';
 import { isNewPhoto, photoSample, showMosaic } from '@/lib/profileLayout';
 import { useNow } from '@/lib/useNow';
@@ -21,6 +23,8 @@ interface Props {
   onAll: () => void;
   /** El dueño sube una publicación nueva. */
   onNew: () => void;
+  /** Doble toque en «+ Nueva»: abre Empre Finance (3.45). Sin esto, «+ Nueva» responde al instante como siempre. */
+  onFinance?: () => void;
   /** Lo que el dueño está subiendo a este negocio: aparece primero, con su progreso. */
   pending?: UploadItem[];
   onRetry?: (id: string) => void;
@@ -39,8 +43,13 @@ const isVideo = (p: Photo) => p.content_type?.startsWith('video/') ?? false;
  * El ancho se mide en el contenedor de la cuadrícula (antes se medía la tarjeta sin su borde de 1 pt, la tercera celda
  * no cabía y quedaban 2 columnas con un hueco).
  */
-export function PhotosSection({ photos, color, isOwner, onOpenPhoto, onAll, onNew, pending = [], onRetry, onRemove }: Props) {
+export function PhotosSection({ photos, color, isOwner, onOpenPhoto, onAll, onNew, onFinance, pending = [], onRetry, onRemove }: Props) {
   const [w, setW] = useState(0);
+  // Con Finance, un toque espera ~280 ms por si llega el segundo; dos toques abren Finance y nunca las dos cosas.
+  const tapNew = useDoubleTap(onNew, () => {
+    hapticTap();
+    onFinance?.();
+  });
   const now = useNow(60_000);
   const sample = photoSample(photos.length, isOwner);
   const cat = categoryColor(color);
@@ -109,7 +118,16 @@ export function PhotosSection({ photos, color, isOwner, onOpenPhoto, onAll, onNe
           ) : size > 0 ? (
             <View style={styles.grid}>
               {isOwner ? (
-                <Pressable accessibilityRole="button" accessibilityLabel="Nueva publicación" onPress={onNew} style={[styles.cell, styles.newCell, { width: size, height: size }]}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Nueva publicación"
+                  accessibilityHint={onFinance ? 'Toca dos veces rápido para Empre Finance' : undefined}
+                  // Con el lector de pantalla, activar abre «Nueva» sin espera y Finance es una acción aparte.
+                  accessibilityActions={onFinance ? [{ name: 'activate' }, { name: 'finance', label: 'Abrir Empre Finance' }] : undefined}
+                  onAccessibilityAction={onFinance ? (e) => (e.nativeEvent.actionName === 'finance' ? onFinance() : onNew()) : undefined}
+                  onPress={onFinance ? tapNew : onNew}
+                  style={[styles.cell, styles.newCell, { width: size, height: size }]}
+                >
                   <Ionicons name="add" size={22} color={colors.primary} />
                   <Text style={styles.newText}>Nueva</Text>
                 </Pressable>

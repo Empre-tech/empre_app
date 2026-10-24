@@ -38,6 +38,7 @@ import { Button } from '@/components/Button';
 import { SkeletonProfile } from '@/components/Skeleton';
 import { useActiveOffers } from '@/components/OfferBanner';
 import { PostComposerSheet } from '@/components/PostComposerSheet';
+import { openFinance } from '@/finance/openFinance';
 import { ACTION_BAR_HEIGHT, ActionBar } from '@/components/profile/ActionBar';
 import { AskSheet } from '@/components/profile/AskSheet';
 import { CatalogSection } from '@/components/profile/CatalogSection';
@@ -607,6 +608,7 @@ export default function BusinessScreen() {
               onOpenPhoto={openViewer}
               onAll={openPhotos}
               onNew={() => setComposerOpen(true)}
+              onFinance={isOwner && FEATURES.ledger ? () => openFinance(router, business.id) : undefined}
               pending={isOwner ? itemsFor(uploads.items, business.id) : []}
               onRetry={retryUpload}
               onRemove={removeUpload}
