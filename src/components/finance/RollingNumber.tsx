@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Animated, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type TextStyle } from 'react-native';
 import { formatPesos } from '@/lib/ledger';
 import { useReduceMotion } from '@/lib/useReduceMotion';
+import { fin } from '@/finance/tokens';
 import { DENSE_TEXT_SCALE } from '@/theme';
 
 // Monto en pesos que rueda dígito por dígito al cambiar (adaptado de «Sliding Number» de ibelick en 21st.dev, sin la
@@ -15,7 +16,7 @@ function Digit({ digit, height, textStyle, reduce }: { digit: number; height: nu
   useEffect(() => {
     const to = -digit * height;
     if (reduce) y.setValue(to);
-    else Animated.spring(y, { toValue: to, useNativeDriver: true, stiffness: 280, damping: 20, mass: 0.6 }).start();
+    else Animated.spring(y, { toValue: to, useNativeDriver: true, ...fin.motion.roll }).start();
   }, [digit, height, reduce, y]);
   return (
     <View style={{ height, overflow: 'hidden' }}>

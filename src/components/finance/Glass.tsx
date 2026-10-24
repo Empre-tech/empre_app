@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { alpha, colors } from '@/theme';
+import { fin } from '@/finance/tokens';
 
 // Superficie de Empre Finance. Sólida, como las demás hojas de la app (AskSheet, BookingSheet): el vidrio translúcido
 // dejaba ver la pantalla de atrás en Android y no se parecía al resto de Empre. `dark` es la tarjeta de la voz.
@@ -10,6 +10,6 @@ export function Glass({ style, children, dark = false }: { style?: StyleProp<Vie
 
 const styles = StyleSheet.create({
   base: { overflow: 'hidden' },
-  light: { backgroundColor: colors.surface },
-  dark: { backgroundColor: alpha(colors.white, 0.1), borderWidth: 1, borderColor: alpha(colors.white, 0.14) },
+  light: { backgroundColor: fin.color.surface },
+  dark: { backgroundColor: fin.color.voice.card, borderWidth: 1, borderColor: fin.color.voice.cardEdge },
 });

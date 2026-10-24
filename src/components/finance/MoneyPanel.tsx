@@ -5,9 +5,14 @@ import type { PayMethod } from '@/api/ledger';
 import { bumpLine, draftTotal, qtyOf, removeLine, type DraftLine } from '@/lib/finance';
 import { EXPENSE_CATEGORIES, formatPesos, MAX_AMOUNT } from '@/lib/ledger';
 import type { KnownItem } from '@/finance/useFinance';
-import { colors, fonts, radius, shadow, spacing } from '@/theme';
+import { fin } from '@/finance/tokens';
 import { HoldButton } from './HoldButton';
 import { RollingNumber } from './RollingNumber';
+
+const C = fin.color;
+const T = fin.type;
+const R = fin.radius;
+const S = fin.space;
 
 // Panel de venta o gasto dentro del vidrio (3.45). Tres caminos que se suman en el mismo borrador: lo conocido
 // (catálogo o gastos «de siempre»), lo distinto a mano y lo distinto por voz. Nada se registra hasta mantener pulsado.
@@ -86,7 +91,7 @@ export function MoneyPanel({
     <View style={styles.wrap}>
       <View style={styles.top}>
         <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={onBack} style={styles.back} hitSlop={6}>
-          <Ionicons name="chevron-back" size={20} color={colors.ink} />
+          <Ionicons name="chevron-back" size={20} color={C.text} />
         </Pressable>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.title} accessibilityRole="header">
@@ -100,7 +105,7 @@ export function MoneyPanel({
       </View>
 
       <View style={styles.amountRow}>
-        <RollingNumber value={total} prefix={total > 0 ? sign : ''} style={{ ...styles.amount, color: sale ? colors.successInk : colors.accentInk }} />
+        <RollingNumber value={total} prefix={total > 0 ? sign : ''} style={{ ...styles.amount, color: sale ? C.in.ink : C.out.ink }} />
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.lines} accessibilityLabel={sale ? 'Lo que lleva la venta' : 'Lo que lleva el gasto'}>
@@ -109,14 +114,14 @@ export function MoneyPanel({
         ) : (
           draft.map((l) => (
             <View key={l.key} style={[styles.line, sale ? styles.lineIn : styles.lineOut]}>
-              <Text style={[styles.lineText, { color: sale ? colors.successInk : colors.accentInk }]} numberOfLines={1}>
+              <Text style={[styles.lineText, { color: sale ? C.in.ink : C.out.ink }]} numberOfLines={1}>
                 {l.qty > 1 ? `${l.qty} × ` : ''}
                 {l.name}
                 {l.source !== 'known' ? ` ${formatPesos(l.unitPrice)}` : ''}
                 {l.source === 'manual' ? '  · a mano' : l.source === 'voice' ? '  · por voz' : ''}
               </Text>
               <Pressable accessibilityRole="button" accessibilityLabel={`Quitar ${l.name}`} onPress={() => onDraft(removeLine(draft, l.key))} style={styles.lineX} hitSlop={6}>
-                <Ionicons name="close" size={13} color={colors.ink} />
+                <Ionicons name="close" size={13} color={C.text} />
               </Pressable>
             </View>
           ))
@@ -132,7 +137,7 @@ export function MoneyPanel({
           ] as const
         ).map(([key, label, icon]) => (
           <Pressable key={key} accessibilityRole="tab" accessibilityState={{ selected: tab === key }} onPress={() => setTab(key)} style={[styles.tab, tab === key && styles.tabOn]}>
-            {icon ? <Ionicons name={icon} size={15} color={tab === key ? colors.ink : colors.muted} /> : null}
+            {icon ? <Ionicons name={icon} size={15} color={tab === key ? C.text : C.textSoft} /> : null}
             <Text style={[styles.tabText, tab === key && styles.tabTextOn]}>{label}</Text>
           </Pressable>
         ))}
@@ -163,13 +168,13 @@ export function MoneyPanel({
                     </View>
                     <View style={styles.step}>
                       <Pressable accessibilityRole="button" accessibilityLabel={`Quitar uno de ${it.name}`} disabled={n === 0} onPress={() => onDraft(bumpLine(draft, line, -1))} style={styles.stepBtn}>
-                        <Ionicons name="remove" size={18} color={n === 0 ? colors.mutedLight : colors.ink} />
+                        <Ionicons name="remove" size={18} color={n === 0 ? C.disabled : C.text} />
                       </Pressable>
-                      <Text style={[styles.stepN, n === 0 && { color: colors.muted }]} accessibilityLabel={`${n} de ${it.name}`}>
+                      <Text style={[styles.stepN, n === 0 && { color: C.textSoft }]} accessibilityLabel={`${n} de ${it.name}`}>
                         {n}
                       </Text>
                       <Pressable accessibilityRole="button" accessibilityLabel={`Agregar uno de ${it.name}`} onPress={() => onDraft(bumpLine(draft, line, 1))} style={[styles.stepBtn, sale ? styles.plusIn : styles.plusOut]}>
-                        <Ionicons name="add" size={18} color={sale ? colors.white : colors.accentDeep} />
+                        <Ionicons name="add" size={18} color={sale ? C.in.on : C.out.on} />
                       </Pressable>
                     </View>
                   </View>
@@ -183,35 +188,35 @@ export function MoneyPanel({
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }} accessibilityRole="radiogroup">
                 {CATS.map((c) => (
                   <Pressable key={c} accessibilityRole="radio" accessibilityState={{ checked: cat === c }} onPress={() => setCat(c)} style={[styles.cat, cat === c && styles.catOn]}>
-                    <Text style={[styles.catText, cat === c && { color: colors.accentInk }]}>{EXPENSE_CATEGORIES.find((x) => x.key === c)?.label}</Text>
+                    <Text style={[styles.catText, cat === c && { color: C.out.ink }]}>{EXPENSE_CATEGORIES.find((x) => x.key === c)?.label}</Text>
                   </Pressable>
                 ))}
               </ScrollView>
             ) : null}
             <View style={styles.field}>
-              <TextInput value={desc} onChangeText={setDesc} placeholder={sale ? '¿Qué vendiste? Ej.: arreglo de barba' : '¿Qué fue? (opcional)'} placeholderTextColor={colors.muted} style={styles.input} maxLength={80} accessibilityLabel={sale ? 'Qué vendiste' : 'Qué fue el gasto'} />
-              <RollingNumber value={amount} style={{ ...styles.fieldAmount, color: sale ? colors.successInk : colors.accentInk }} />
+              <TextInput value={desc} onChangeText={setDesc} placeholder={sale ? '¿Qué vendiste? Ej.: arreglo de barba' : '¿Qué fue? (opcional)'} placeholderTextColor={C.textSoft} style={styles.input} maxLength={80} accessibilityLabel={sale ? 'Qué vendiste' : 'Qué fue el gasto'} />
+              <RollingNumber value={amount} style={{ ...styles.fieldAmount, color: sale ? C.in.ink : C.out.ink }} />
             </View>
             <View style={styles.keys}>
               {KEY_ROWS.map((row) => (
                 <View key={row.join('')} style={styles.keyRow}>
                   {row.map((k) => (
                     <Pressable key={k} accessibilityRole="button" accessibilityLabel={k === 'del' ? 'Borrar' : k} onPress={() => press(k)} style={({ pressed }) => [styles.key, pressed && styles.keyDown]}>
-                      {k === 'del' ? <Ionicons name="backspace-outline" size={20} color={colors.muted} /> : <Text style={[styles.keyText, k === '000' && styles.keyFn]}>{k}</Text>}
+                      {k === 'del' ? <Ionicons name="backspace-outline" size={20} color={C.textSoft} /> : <Text style={[styles.keyText, k === '000' && styles.keyFn]}>{k}</Text>}
                     </Pressable>
                   ))}
                 </View>
               ))}
             </View>
             <Pressable accessibilityRole="button" accessibilityState={{ disabled: amount === 0 }} disabled={amount === 0} onPress={addManual} style={[styles.addl, amount === 0 && { opacity: 0.45 }]}>
-              <Ionicons name="add" size={17} color={colors.primary} />
+              <Ionicons name="add" size={17} color={C.action.solid} />
               <Text style={styles.addlText}>{sale ? 'Agregar a la venta' : 'Agregar al gasto'}</Text>
             </Pressable>
           </View>
         ) : (
           <View style={styles.center}>
             <Pressable accessibilityRole="button" accessibilityLabel="Hablar" onPress={onVoice} style={styles.orb}>
-              <Ionicons name="mic" size={28} color={colors.white} />
+              <Ionicons name="mic" size={28} color={C.in.on} />
             </Pressable>
             <Text style={styles.centerTitle}>Dilo como lo dirías</Text>
             <Text style={styles.centerBody}>{sale ? '«Y un arreglo de cejas a cinco mil»' : '«Pagué el taxi, siete mil»'}</Text>
@@ -230,7 +235,7 @@ export function MoneyPanel({
             </Pressable>
           ))}
           <Pressable accessibilityRole="button" accessibilityLabel="Fiado: se registra en Empre" onPress={onFiado} style={styles.method}>
-            <Text style={[styles.methodText, { color: colors.primary }]}>Fiado</Text>
+            <Text style={[styles.methodText, { color: C.action.solid }]}>Fiado</Text>
             <Text style={styles.methodExt}>en Empre ›</Text>
           </Pressable>
         </View>
@@ -249,60 +254,60 @@ export function MoneyPanel({
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: spacing.sm },
-  top: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  back: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
-  sub: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
+  wrap: { gap: S.sm },
+  top: { flexDirection: 'row', alignItems: 'center', gap: S.sm },
+  back: { width: fin.size.touch, height: fin.size.touch, borderRadius: R.control, backgroundColor: C.inner, alignItems: 'center', justifyContent: 'center' },
+  title: T.panelTitle,
+  sub: { ...T.label, fontSize: 12 },
   amountRow: { alignItems: 'center', paddingTop: 2 },
-  amount: { fontSize: 40, fontFamily: fonts.display.bold },
+  amount: T.panelAmount,
   lines: { gap: 6, alignItems: 'center', minHeight: 34 },
-  linesEmpty: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
-  line: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32, paddingLeft: 10, paddingRight: 3, borderRadius: 999, maxWidth: 260 },
-  lineIn: { backgroundColor: colors.successSoft },
-  lineOut: { backgroundColor: colors.accentSoft },
-  lineText: { fontSize: 12, fontFamily: fonts.ui.bold, flexShrink: 1 },
-  lineX: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  tabs: { flexDirection: 'row', gap: 4, padding: 3, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt },
-  tab: { flex: 1, minHeight: 40, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
-  tabOn: { backgroundColor: colors.surface, ...shadow, shadowOpacity: 0.08, elevation: 1 },
-  tabText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  tabTextOn: { color: colors.ink },
+  linesEmpty: { ...T.label, fontSize: 12 },
+  line: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32, paddingLeft: S.md, paddingRight: 3, borderRadius: R.control, maxWidth: 260 },
+  lineIn: { backgroundColor: C.in.soft },
+  lineOut: { backgroundColor: C.out.soft },
+  lineText: { ...T.small, fontSize: 12, flexShrink: 1 },
+  lineX: { width: 26, height: 26, borderRadius: R.control, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center' },
+  tabs: { flexDirection: 'row', gap: S.xs, padding: 3, borderRadius: R.control, backgroundColor: C.control },
+  tab: { flex: 1, minHeight: fin.size.touch - 4, borderRadius: R.control, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
+  tabOn: { backgroundColor: C.surface, ...fin.elevation.card, shadowOpacity: 0.08, elevation: 1 },
+  tabText: { ...T.small, fontSize: 12.5, color: C.textSoft },
+  tabTextOn: { color: C.text },
   pane: { minHeight: 200 },
-  rows: { maxHeight: 236, borderRadius: radius.lg, backgroundColor: colors.bg },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52 },
-  rowLine: { borderTopWidth: 1, borderTopColor: colors.line },
-  rowName: { fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.ink },
-  rowPrice: { fontSize: 12.5, fontFamily: fonts.display.semibold, color: colors.muted },
-  step: { flexDirection: 'row', alignItems: 'center', gap: 2, padding: 2, borderRadius: radius.pill, backgroundColor: colors.surface },
-  stepBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  plusIn: { backgroundColor: colors.success },
-  plusOut: { backgroundColor: colors.accent },
-  stepN: { minWidth: 22, textAlign: 'center', fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
-  field: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line },
-  input: { flex: 1, minWidth: 0, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink, paddingVertical: 8 },
-  fieldAmount: { fontSize: 18, fontFamily: fonts.display.bold },
+  rows: { maxHeight: 236, borderRadius: R.inner, backgroundColor: C.inner },
+  row: { flexDirection: 'row', alignItems: 'center', gap: S.md, minHeight: fin.size.button },
+  rowLine: { borderTopWidth: 1, borderTopColor: C.line },
+  rowName: T.body,
+  rowPrice: { ...T.label, fontFamily: T.amount.fontFamily },
+  step: { flexDirection: 'row', alignItems: 'center', gap: 2, padding: 2, borderRadius: R.control, backgroundColor: C.surface },
+  stepBtn: { width: fin.size.touch - 4, height: fin.size.touch - 4, borderRadius: R.control, alignItems: 'center', justifyContent: 'center' },
+  plusIn: { backgroundColor: C.in.fill },
+  plusOut: { backgroundColor: C.out.fill },
+  stepN: { ...T.amount, fontSize: 16, minWidth: 22, textAlign: 'center' },
+  field: { minHeight: fin.size.key, flexDirection: 'row', alignItems: 'center', gap: S.sm, paddingHorizontal: S.md, borderRadius: R.key, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.line },
+  input: { ...T.body, fontSize: 13, flex: 1, minWidth: 0, paddingVertical: S.sm },
+  fieldAmount: T.amount,
   keys: { gap: 6 },
   keyRow: { flexDirection: 'row', gap: 6 },
-  key: { flex: 1, height: 44, borderRadius: radius.md, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
-  keyDown: { backgroundColor: colors.primarySoft },
-  keyText: { fontSize: 20, fontFamily: fonts.display.semibold, color: colors.ink },
-  keyFn: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted },
-  addl: { minHeight: 44, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.primarySoft },
-  addlText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primary },
-  cat: { minHeight: 40, paddingHorizontal: spacing.md, borderRadius: radius.pill, justifyContent: 'center', backgroundColor: colors.surfaceAlt },
-  catOn: { backgroundColor: colors.accentSoft, borderColor: colors.accent, borderWidth: 1.5 },
-  catText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.ink },
-  center: { minHeight: 200, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: spacing.md },
-  centerTitle: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
-  centerBody: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted, textAlign: 'center' },
-  orb: { width: 74, height: 74, borderRadius: 37, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  talk: { minHeight: 44, paddingHorizontal: 20, borderRadius: radius.pill, backgroundColor: colors.primary, justifyContent: 'center' },
-  talkText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.white },
-  methods: { flexDirection: 'row', gap: 4, padding: 3, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt },
-  method: { flex: 1, minHeight: 44, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
-  methodOn: { backgroundColor: colors.surface, ...shadow, shadowOpacity: 0.08, elevation: 1 },
-  methodText: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  methodTextOn: { color: colors.ink },
-  methodExt: { fontSize: 9.5, fontFamily: fonts.ui.bold, color: colors.primary },
+  key: { flex: 1, height: fin.size.key, borderRadius: R.key, backgroundColor: C.inner, alignItems: 'center', justifyContent: 'center' },
+  keyDown: { backgroundColor: C.action.soft },
+  keyText: T.key,
+  keyFn: { ...T.small, fontSize: 13, color: C.textSoft },
+  addl: { minHeight: fin.size.touch, borderRadius: R.control, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.action.soft },
+  addlText: { ...T.button, fontSize: 13, color: C.action.link },
+  cat: { minHeight: fin.size.touch - 4, paddingHorizontal: S.md, borderRadius: R.control, justifyContent: 'center', backgroundColor: C.control },
+  catOn: { backgroundColor: C.out.soft, borderColor: C.out.fill, borderWidth: 1.5 },
+  catText: { ...T.small, fontSize: 12, color: C.text },
+  center: { minHeight: 200, alignItems: 'center', justifyContent: 'center', gap: S.sm, paddingHorizontal: S.md },
+  centerTitle: { ...T.amount, fontSize: 17, textAlign: 'center' },
+  centerBody: { ...T.label, textAlign: 'center' },
+  orb: { width: 74, height: 74, borderRadius: R.control, backgroundColor: C.action.solid, alignItems: 'center', justifyContent: 'center' },
+  talk: { minHeight: fin.size.touch, paddingHorizontal: S.xl - 4, borderRadius: R.control, backgroundColor: C.action.solid, justifyContent: 'center' },
+  talkText: { ...T.button, fontSize: 13.5, color: C.action.on },
+  methods: { flexDirection: 'row', gap: S.xs, padding: 3, borderRadius: R.control, backgroundColor: C.control },
+  method: { flex: 1, minHeight: fin.size.touch, borderRadius: R.control, alignItems: 'center', justifyContent: 'center' },
+  methodOn: { backgroundColor: C.surface, ...fin.elevation.card, shadowOpacity: 0.08, elevation: 1 },
+  methodText: { ...T.small, color: C.textSoft },
+  methodTextOn: { color: C.text },
+  methodExt: { ...T.small, fontSize: 9.5, color: C.action.link },
 });

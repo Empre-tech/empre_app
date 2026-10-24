@@ -10,9 +10,15 @@ import { hapticSuccess } from '@/lib/haptics';
 import { categoryLabel, formatPesos, METHOD_LABEL } from '@/lib/ledger';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { speechAvailable, startDictation } from '@/ledger/speech';
-import { alpha, colors, fonts, radius } from '@/theme';
+import { fin } from '@/finance/tokens';
+import { alpha } from '@/theme';
 import { Glass } from './Glass';
 import { RollingNumber } from './RollingNumber';
+
+const C = fin.color;
+const V = fin.color.voice;
+const F = fin.font;
+const M = fin.motion;
 
 // La voz de Empre Finance a pantalla completa (3.45). Mientras hablas se ven tus palabras; en cada pausa el texto se
 // interpreta (solo viaja el texto, nunca el audio) y cada cosa entendida cae como tarjeta, con el total del día rodando
@@ -34,21 +40,21 @@ function signed(a: VoiceAction): number {
 function Card({ action, blockedWhy, onRemove, reduce }: { action: VoiceAction; blockedWhy: string | null; onRemove: () => void; reduce: boolean }) {
   const [enter] = useState(() => new Animated.Value(reduce ? 1 : 0));
   useEffect(() => {
-    if (!reduce) Animated.spring(enter, { toValue: 1, useNativeDriver: true, stiffness: 220, damping: 16 }).start();
+    if (!reduce) Animated.spring(enter, { toValue: 1, useNativeDriver: true, ...M.card }).start();
   }, [enter, reduce]);
   const isIn = action.type === 'sale';
   const sub = blockedWhy ?? (action.type === 'expense' ? `${categoryLabel(action.category ?? 'otro')} · ${METHOD_LABEL[action.method]}` : METHOD_LABEL[action.method]);
   return (
     <Animated.View style={{ opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [26, 0] }) }, { scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }] }}>
       <Glass dark style={[styles.card, blockedWhy ? styles.cardAsk : null]}>
-        <View style={[styles.cardIc, { backgroundColor: isIn ? colors.success : action.type === 'expense' ? colors.accent : colors.primary }]}>
-          <Ionicons name={isIn ? 'add' : action.type === 'expense' ? 'remove' : 'swap-horizontal'} size={18} color={isIn ? colors.white : colors.accentDeep} />
+        <View style={[styles.cardIc, { backgroundColor: isIn ? C.in.fill : action.type === 'expense' ? C.out.fill : C.action.solid }]}>
+          <Ionicons name={isIn ? 'add' : action.type === 'expense' ? 'remove' : 'swap-horizontal'} size={18} color={isIn ? V.text : C.out.on} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.cardTitle} numberOfLines={1}>
             {title(action)}
           </Text>
-          <Text style={[styles.cardSub, blockedWhy ? { color: colors.accentLight } : null]} numberOfLines={2}>
+          <Text style={[styles.cardSub, blockedWhy ? { color: V.warn } : null]} numberOfLines={2}>
             {sub}
           </Text>
         </View>
@@ -57,7 +63,7 @@ function Card({ action, blockedWhy, onRemove, reduce }: { action: VoiceAction; b
           {formatPesos(action.amount)}
         </Text>
         <Pressable accessibilityRole="button" accessibilityLabel={`Quitar ${title(action)}`} onPress={onRemove} hitSlop={10} style={styles.cardX}>
-          <Ionicons name="close" size={16} color={colors.onDarkSoft} />
+          <Ionicons name="close" size={16} color={V.textSoft} />
         </Pressable>
       </Glass>
     </Animated.View>
@@ -114,8 +120,8 @@ export function FinanceVoice({
     }
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.07, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1.07, duration: M.pulseMs, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: M.pulseMs, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
       ]),
     );
     loop.start();
@@ -126,7 +132,7 @@ export function FinanceVoice({
     if (reduce) return;
     const v = a.type === 'sale' ? tintIn : tintOut;
     v.setValue(1);
-    Animated.timing(v, { toValue: 0, duration: 900, useNativeDriver: true }).start();
+    Animated.timing(v, { toValue: 0, duration: M.flashMs, useNativeDriver: true }).start();
   };
 
   useEffect(
@@ -261,13 +267,13 @@ export function FinanceVoice({
   return (
     <View style={styles.screen} accessibilityViewIsModal>
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: alpha(colors.success, 0.22), opacity: tintIn }]} />
-        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: alpha(colors.accent, 0.22), opacity: tintOut }]} />
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: V.tintIn, opacity: tintIn }]} />
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: V.tintOut, opacity: tintOut }]} />
       </View>
 
       <View style={[styles.head, { paddingTop: insets.top + 8 }]}>
         <Pressable accessibilityRole="button" accessibilityLabel="Cerrar sin guardar" onPress={close} style={styles.x} hitSlop={6}>
-          <Ionicons name="close" size={22} color={colors.white} />
+          <Ionicons name="close" size={22} color={V.text} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.totLabel}>Hoy quedaría</Text>
@@ -308,7 +314,7 @@ export function FinanceVoice({
 
       {!canSpeak ? (
         <View style={styles.typeRow}>
-          <TextInput value={typed} onChangeText={setTyped} placeholder="Vendí dos cortes a veinte mil…" placeholderTextColor={colors.onDarkMuted} style={styles.typeInput} multiline maxLength={400} accessibilityLabel="Lo que quieres registrar" />
+          <TextInput value={typed} onChangeText={setTyped} placeholder="Vendí dos cortes a veinte mil…" placeholderTextColor={V.hint} style={styles.typeInput} multiline maxLength={400} accessibilityLabel="Lo que quieres registrar" />
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Entender"
@@ -319,7 +325,7 @@ export function FinanceVoice({
             }}
             style={[styles.typeGo, (!typed.trim() || busy) && { opacity: 0.4 }]}
           >
-            <Ionicons name="arrow-up" size={20} color={colors.ink} />
+            <Ionicons name="arrow-up" size={20} color={C.text} />
           </Pressable>
         </View>
       ) : null}
@@ -327,7 +333,7 @@ export function FinanceVoice({
       <View style={[styles.bottom, { paddingBottom: insets.bottom + 14 }]}>
         {canSpeak ? (
           <Pressable accessibilityRole="button" accessibilityLabel={listening ? 'Dejar de escuchar' : 'Hablar'} onPress={() => void listen()} style={[styles.mic, listening && styles.micOn]}>
-            <Ionicons name={listening ? 'stop' : 'mic'} size={28} color={listening ? colors.white : colors.primary} />
+            <Ionicons name={listening ? 'stop' : 'mic'} size={28} color={listening ? V.text : C.action.solid} />
           </Pressable>
         ) : null}
         <Pressable accessibilityRole="button" accessibilityState={{ disabled: usable.length === 0 || busy }} disabled={usable.length === 0 || busy} onPress={() => void primary()} style={[styles.save, (usable.length === 0 || busy) && { opacity: 0.4 }]}>
@@ -340,7 +346,7 @@ export function FinanceVoice({
       {saved !== null ? (
         <View style={styles.done} accessibilityLiveRegion="assertive">
           <View style={styles.doneOk}>
-            <Ionicons name="checkmark" size={36} color={colors.white} />
+            <Ionicons name="checkmark" size={36} color={V.text} />
           </View>
           <Text style={styles.doneTitle}>
             {saved} {saved === 1 ? 'registro guardado' : 'registros guardados'}
@@ -353,40 +359,40 @@ export function FinanceVoice({
 }
 
 const styles = StyleSheet.create({
-  screen: { ...StyleSheet.absoluteFill, backgroundColor: colors.ink, overflow: 'hidden', zIndex: 20 },
+  screen: { ...StyleSheet.absoluteFill, backgroundColor: V.bg, overflow: 'hidden', zIndex: 20 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
-  x: { width: 44, height: 44, borderRadius: 22, backgroundColor: alpha(colors.white, 0.14), alignItems: 'center', justifyContent: 'center' },
-  totLabel: { fontSize: 10.5, letterSpacing: 0.7, textTransform: 'uppercase', fontFamily: fonts.ui.extrabold, color: alpha(colors.white, 0.65) },
-  tot: { fontSize: 26, fontFamily: fonts.display.bold, color: colors.white },
-  count: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.white, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: alpha(colors.white, 0.14), overflow: 'hidden' },
+  x: { width: 44, height: 44, borderRadius: 22, backgroundColor: V.chip, alignItems: 'center', justifyContent: 'center' },
+  totLabel: { fontSize: 10.5, letterSpacing: 0.7, textTransform: 'uppercase', fontFamily: F.uiExtra, color: V.hint },
+  tot: { fontSize: 26, fontFamily: F.display, color: V.text },
+  count: { fontSize: 11.5, fontFamily: F.uiExtra, color: V.text, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: V.chip, overflow: 'hidden' },
   orb: { width: 118, height: 118, alignSelf: 'center', marginTop: 10, alignItems: 'center', justifyContent: 'center' },
-  orbRing: { position: 'absolute', width: 140, height: 140, borderRadius: 70, borderWidth: 2, borderColor: alpha(colors.onDarkLink, 0.35) },
-  orbCore: { width: 118, height: 118, borderRadius: 59, backgroundColor: colors.primary, borderWidth: 10, borderColor: alpha(colors.onDarkLink, 0.45) },
-  orbOn: { backgroundColor: colors.verified },
+  orbRing: { position: 'absolute', width: 140, height: 140, borderRadius: 70, borderWidth: 2, borderColor: V.ring },
+  orbCore: { width: 118, height: 118, borderRadius: 59, backgroundColor: C.action.solid, borderWidth: 10, borderColor: V.orbEdge },
+  orbOn: { backgroundColor: V.orbListening },
   said: { minHeight: 84, paddingHorizontal: 22, paddingTop: 12, alignItems: 'center', gap: 6 },
-  saidText: { fontSize: 20, lineHeight: 27, fontFamily: fonts.display.semibold, color: colors.white, textAlign: 'center' },
-  saidNum: { color: colors.onDarkLink, textDecorationLine: 'underline' },
-  hint: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.semibold, color: alpha(colors.white, 0.72), textAlign: 'center' },
-  busy: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.onDarkSoft },
-  error: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.accentLight, textAlign: 'center' },
+  saidText: { fontSize: 20, lineHeight: 27, fontFamily: F.displaySoft, color: V.text, textAlign: 'center' },
+  saidNum: { color: V.highlight, textDecorationLine: 'underline' },
+  hint: { fontSize: 13.5, lineHeight: 19, fontFamily: F.uiSemibold, color: V.hint, textAlign: 'center' },
+  busy: { fontSize: 12.5, fontFamily: F.uiBold, color: V.textSoft },
+  error: { fontSize: 13, fontFamily: F.uiSemibold, color: V.warn, textAlign: 'center' },
   cards: { paddingHorizontal: 12, paddingVertical: 4, gap: 8 },
-  card: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, paddingRight: 6, borderRadius: radius.lg },
-  cardAsk: { borderColor: alpha(colors.accentLight, 0.6) },
+  card: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, paddingRight: 6, borderRadius: fin.radius.inner },
+  cardAsk: { borderColor: alpha(V.warn, 0.6) },
   cardIc: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  cardTitle: { fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.white },
-  cardSub: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: alpha(colors.white, 0.7) },
-  cardAmt: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.white },
+  cardTitle: { fontSize: 13.5, fontFamily: F.uiBold, color: V.text },
+  cardSub: { fontSize: 11.5, fontFamily: F.uiSemibold, color: V.hint },
+  cardAmt: { fontSize: 16, fontFamily: F.display, color: V.text },
   cardX: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   typeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 14, paddingTop: 8 },
-  typeInput: { flex: 1, minHeight: 48, maxHeight: 110, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: alpha(colors.white, 0.12), color: colors.white, fontSize: 15, fontFamily: fonts.ui.medium },
-  typeGo: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
+  typeInput: { flex: 1, minHeight: 48, maxHeight: 110, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: alpha(V.text, 0.12), color: V.text, fontSize: 15, fontFamily: F.uiMedium },
+  typeGo: { width: fin.size.key, height: fin.size.key, borderRadius: fin.radius.control, backgroundColor: V.tile, alignItems: 'center', justifyContent: 'center' },
   bottom: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingTop: 10 },
-  mic: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
-  micOn: { backgroundColor: colors.danger },
-  save: { flex: 1, minHeight: 56, borderRadius: radius.pill, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
-  saveText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  done: { ...StyleSheet.absoluteFill, backgroundColor: alpha(colors.night, 0.75), alignItems: 'center', justifyContent: 'center', gap: 8 },
-  doneOk: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' },
-  doneTitle: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.white },
-  doneBody: { fontSize: 13, fontFamily: fonts.ui.semibold, color: alpha(colors.white, 0.75) },
+  mic: { width: fin.size.mic, height: fin.size.mic, borderRadius: fin.radius.control, backgroundColor: V.tile, alignItems: 'center', justifyContent: 'center' },
+  micOn: { backgroundColor: V.recording },
+  save: { flex: 1, minHeight: 56, borderRadius: fin.radius.control, backgroundColor: V.tile, alignItems: 'center', justifyContent: 'center' },
+  saveText: { fontSize: 15, fontFamily: F.uiExtra, color: C.text },
+  done: { ...StyleSheet.absoluteFill, backgroundColor: V.overlay, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  doneOk: { width: 72, height: 72, borderRadius: 36, backgroundColor: C.in.fill, alignItems: 'center', justifyContent: 'center' },
+  doneTitle: { fontSize: 22, fontFamily: F.display, color: V.text },
+  doneBody: { fontSize: 13, fontFamily: F.uiSemibold, color: V.hint },
 });

@@ -2,13 +2,14 @@ import { useRef, useState } from 'react';
 import { Alert, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { hapticTap } from '@/lib/haptics';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { alpha, colors, fonts, radius } from '@/theme';
+import { fin } from '@/finance/tokens';
+import { alpha } from '@/theme';
 
 // Registrar dinero pide intención (3.45): un toque suelto o un dedo que resbala no registran nada. Se mantiene pulsado
 // mientras la barra se llena; al llenarse vibra y confirma. Soltar antes la vacía. Con el lector de pantalla no se
 // puede mantener pulsado, así que activar pide una confirmación aparte.
 
-export const HOLD_MS = 650;
+export const HOLD_MS = fin.motion.holdMs;
 
 type Tone = 'in' | 'out' | 'ink';
 
@@ -22,7 +23,7 @@ export function HoldButton({ label, onConfirm, onEarly, tone = 'ink', disabled =
     if (disabled) return;
     done.current = false;
     setPressing(true);
-    Animated.timing(progress, { toValue: 1, duration: reduce ? 450 : HOLD_MS, easing: Easing.linear, useNativeDriver: true }).start(({ finished }) => {
+    Animated.timing(progress, { toValue: 1, duration: reduce ? fin.motion.holdReducedMs : HOLD_MS, easing: Easing.linear, useNativeDriver: true }).start(({ finished }) => {
       if (!finished) return;
       done.current = true;
       setPressing(false);
@@ -72,13 +73,13 @@ export function HoldButton({ label, onConfirm, onEarly, tone = 'ink', disabled =
 }
 
 const styles = StyleSheet.create({
-  base: { minHeight: 50, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, overflow: 'hidden' },
-  big: { minHeight: 52 },
-  in: { backgroundColor: colors.successSolid },
-  out: { backgroundColor: colors.accentInk }, // blanco sobre el naranja claro no pasa AA; sobre la tinta naranja sí
-  ink: { backgroundColor: colors.ink },
+  base: { minHeight: fin.size.button - 2, borderRadius: fin.radius.control, alignItems: 'center', justifyContent: 'center', paddingHorizontal: fin.space.lg, overflow: 'hidden' },
+  big: { minHeight: fin.size.button },
+  in: { backgroundColor: fin.color.in.solid },
+  out: { backgroundColor: fin.color.out.solid }, // blanco sobre el naranja claro no pasa AA; sobre la tinta naranja sí
+  ink: { backgroundColor: fin.color.text },
   disabled: { opacity: 0.45 },
   pressing: { transform: [{ scale: 0.98 }] },
-  fill: { backgroundColor: alpha(colors.white, 0.24), transformOrigin: 'left' },
-  text: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.white },
+  fill: { backgroundColor: alpha(fin.color.in.on, 0.24), transformOrigin: 'left' },
+  text: { ...fin.type.button, color: fin.color.in.on },
 });

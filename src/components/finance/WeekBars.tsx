@@ -3,7 +3,7 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import type { DayBar } from '@/lib/finance';
 import { formatPesos } from '@/lib/ledger';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { colors, fonts } from '@/theme';
+import { fin } from '@/finance/tokens';
 
 const H = 40;
 
@@ -19,8 +19,8 @@ export function WeekBars({ bars, heights }: { bars: DayBar[]; heights: number[] 
       return;
     }
     Animated.stagger(
-      40,
-      grow.map((g) => Animated.spring(g, { toValue: 1, useNativeDriver: true, stiffness: 180, damping: 14 })),
+      fin.motion.barsStaggerMs,
+      grow.map((g) => Animated.spring(g, { toValue: 1, useNativeDriver: true, ...fin.motion.bars })),
     ).start();
   }, [ready, reduce, grow]);
 
@@ -51,9 +51,9 @@ const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', gap: 6, height: H + 16, marginTop: 4 },
   col: { flex: 1, alignItems: 'center', gap: 3 },
   track: { height: H, width: '100%', justifyContent: 'flex-end' },
-  bar: { width: '100%', borderTopLeftRadius: 6, borderTopRightRadius: 6, borderBottomLeftRadius: 3, borderBottomRightRadius: 3, backgroundColor: colors.success, transformOrigin: 'bottom' },
-  today: { backgroundColor: colors.primary },
-  flat: { backgroundColor: colors.lineStrong },
-  day: { fontSize: 9.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  dayToday: { color: colors.primary },
+  bar: { width: '100%', borderTopLeftRadius: 6, borderTopRightRadius: 6, borderBottomLeftRadius: 3, borderBottomRightRadius: 3, backgroundColor: fin.color.in.fill, transformOrigin: 'bottom' },
+  today: { backgroundColor: fin.color.action.solid },
+  flat: { backgroundColor: fin.color.line },
+  day: { ...fin.type.small, fontSize: 9.5, color: fin.color.textSoft },
+  dayToday: { color: fin.color.action.link },
 });

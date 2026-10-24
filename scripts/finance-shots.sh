@@ -38,15 +38,6 @@ back() {
     sleep 1.2
   done
 }
-# Espera hasta que en pantalla aparezca el texto $1 (máximo 60 s): el emulador puede tardar en dibujar.
-wait_for() {
-  for _ in $(seq 1 30); do
-    adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || true
-    adb exec-out cat /sdcard/ui.xml 2>/dev/null | grep -q "$1" && return 0
-    sleep 2
-  done
-  echo "  (no apareció «$1»)" >&2
-}
 shot() {
   local name=$1
   [ -n "${2:-}" ] && wait_for "$2"
@@ -66,6 +57,15 @@ tap_text() {
   adb shell input tap $(((x1 + x2) / 2)) $(((y1 + y2) / 2))
 }
 
+# Espera hasta que en pantalla aparezca el texto $1 (máximo 60 s): el emulador puede tardar en dibujar.
+wait_for() {
+  for _ in $(seq 1 30); do
+    adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || true
+    adb exec-out cat /sdcard/ui.xml 2>/dev/null | grep -q "$1" && return 0
+    sleep 2
+  done
+  echo "  (no apareció «$1»)" >&2
+}
 restore() {
   if [ -n "${SIZE:-}" ]; then adb shell wm size reset; adb shell wm density reset; fi
   adb shell svc wifi enable >/dev/null 2>&1 || true
@@ -109,14 +109,13 @@ sleep 1
 
 if [ -n "${LOGIN:-}" ]; then
   echo "Iniciando sesión con $EMAIL…"
-  open_url "empre:///login"
-  sleep 3
-  wait_ready
-  tap_text "tu@correo.com" && adb shell input text "$EMAIL"
-  tap_text "••••••" && adb shell input text "$PASS"
-  adb shell input keyevent KEYCODE_BACK # cierra el teclado
-  tap_text "Iniciar sesión"
-  sleep 6
+  # Por la pestaña Perfil (un enlace directo a /login dejaba la pantalla en blanco en la app de desarrollo).
+  wait_for "Perfil"; tap_text "Perfil"; sleep 2
+  wait_for "Iniciar sesión"; tap_text "Iniciar sesión"; sleep 2
+  wait_for "tu@correo.com"; tap_text "tu@correo.com"; adb shell input text "$EMAIL"
+  tap_text "••••••"; adb shell input text "$PASS"
+  adb shell input keyevent KEYCODE_ENTER # la contraseña envía el formulario
+  wait_for "$EMAIL"
 fi
 
 echo "Capturas en $OUT"

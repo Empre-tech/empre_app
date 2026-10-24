@@ -21,7 +21,14 @@ import { bumpLine, draftTotal, expenseInputsFrom, qtyOf, saleInputFrom, type Dra
 import { formatPesos, newClientId } from '@/lib/ledger';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { queueExpense, queueSale, queueVoid } from '@/ledger/ledgerStore';
-import { alpha, colors, fonts, radius, shadow, spacing } from '@/theme';
+import { fin } from '@/finance/tokens';
+import { alpha } from '@/theme';
+
+const C = fin.color;
+const M = fin.motion;
+const T = fin.type;
+const R = fin.radius;
+const S = fin.space;
 
 /**
  * Empre Finance (3.45). Una sola pieza de vidrio que cambia de forma: nace como cápsula («Hoy te quedó» y los botones
@@ -81,7 +88,7 @@ export default function FinanceScreen() {
   useEffect(() => {
     markFinanceOpen(true);
     if (reduce) rise.setValue(1);
-    else Animated.spring(rise, { toValue: 1, useNativeDriver: true, stiffness: 210, damping: 18, mass: 0.9 }).start();
+    else Animated.spring(rise, { toValue: 1, useNativeDriver: true, ...M.rise }).start();
     return () => {
       markFinanceOpen(false);
       if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -93,7 +100,7 @@ export default function FinanceScreen() {
   const say = (text: string) => AccessibilityInfo.announceForAccessibility(text);
 
   const morph = (next: Mode) => {
-    if (!reduce) LayoutAnimation.configureNext(LayoutAnimation.create(300, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity));
+    if (!reduce) LayoutAnimation.configureNext(LayoutAnimation.create(M.morphMs, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity));
     setMode(next);
     setPicker(false);
   };
@@ -101,7 +108,7 @@ export default function FinanceScreen() {
   const leave = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)'));
   const close = () => {
     if (reduce) return leave();
-    Animated.timing(rise, { toValue: 0, duration: 220, useNativeDriver: true }).start(() => leave());
+    Animated.timing(rise, { toValue: 0, duration: M.sinkMs, useNativeDriver: true }).start(() => leave());
   };
   /** Ver más en «Mi negocio»: la bandeja se va y queda la pantalla de Empre (Atrás vuelve a donde estabas). */
   const toEmpre = (href: Href) => router.replace(href);
@@ -127,13 +134,13 @@ export default function FinanceScreen() {
     setFly({ n: Date.now(), amount });
     if (!reduce) {
       flyV.setValue(0);
-      Animated.timing(flyV, { toValue: 1, duration: 1100, useNativeDriver: true }).start(() => setFly(null));
+      Animated.timing(flyV, { toValue: 1, duration: M.flyMs, useNativeDriver: true }).start(() => setFly(null));
     }
     setToast({ text, done });
     toastV.setValue(reduce ? 1 : 0);
-    if (!reduce) Animated.spring(toastV, { toValue: 1, useNativeDriver: true, stiffness: 240, damping: 18 }).start();
+    if (!reduce) Animated.spring(toastV, { toValue: 1, useNativeDriver: true, ...M.toast }).start();
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 5000);
+    toastTimer.current = setTimeout(() => setToast(null), M.undoMs);
     say(`${text}. Puedes deshacer durante 5 segundos.`);
   };
 
@@ -201,7 +208,7 @@ export default function FinanceScreen() {
   if (biz.loading) {
     body = (
       <View style={styles.capsule}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={C.action.solid} />
         <Text style={styles.capLabel}>Abriendo Empre Finance…</Text>
       </View>
     );
@@ -234,13 +241,13 @@ export default function FinanceScreen() {
           <RollingNumber value={data.net} prefix={data.net < 0 ? '−' : ''} style={styles.capValue} />
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Venta" onPress={() => morph('sale')} style={[styles.q, styles.qIn]}>
-          <Ionicons name="add" size={22} color={colors.white} />
+          <Ionicons name="add" size={22} color={C.action.on} />
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Gasto" onPress={() => morph('expense')} style={[styles.q, styles.qOut]}>
-          <Ionicons name="remove" size={22} color={colors.accentDeep} />
+          <Ionicons name="remove" size={22} color={C.out.on} />
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Contarlo por voz" onPress={() => setVoice('save')} style={[styles.q, styles.qChat]}>
-          <Ionicons name="mic" size={20} color={colors.white} />
+          <Ionicons name="mic" size={20} color={C.action.on} />
         </Pressable>
       </View>
     );
@@ -289,11 +296,11 @@ export default function FinanceScreen() {
               <Text style={styles.sub} numberOfLines={1}>
                 en <Text style={styles.subB}>{name}</Text>
               </Text>
-              {biz.list.length > 1 ? <Ionicons name={picker ? 'chevron-up' : 'chevron-down'} size={14} color={colors.ink} /> : null}
+              {biz.list.length > 1 ? <Ionicons name={picker ? 'chevron-up' : 'chevron-down'} size={14} color={C.text} /> : null}
             </Pressable>
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={close} style={styles.x}>
-            <Ionicons name="close" size={20} color={colors.ink} />
+            <Ionicons name="close" size={20} color={C.text} />
           </Pressable>
         </View>
 
@@ -313,10 +320,10 @@ export default function FinanceScreen() {
                 }}
                 style={[styles.pick, e.id === entityId && styles.pickOn]}
               >
-                <Text style={[styles.pickText, e.id === entityId && { color: colors.primary }]} numberOfLines={1}>
+                <Text style={[styles.pickText, e.id === entityId && { color: C.action.solid }]} numberOfLines={1}>
                   {e.name}
                 </Text>
-                {e.id === entityId ? <Ionicons name="checkmark" size={16} color={colors.primary} /> : null}
+                {e.id === entityId ? <Ionicons name="checkmark" size={16} color={C.action.solid} /> : null}
               </Pressable>
             ))}
           </View>
@@ -327,23 +334,23 @@ export default function FinanceScreen() {
             <Text style={styles.kicker}>Te quedó</Text>
             {data.changePct !== null ? (
               <View style={[styles.chg, data.changePct < 0 && styles.chgDown]}>
-                <Ionicons name={data.changePct >= 0 ? 'arrow-up' : 'arrow-down'} size={11} color={data.changePct >= 0 ? colors.successInk : colors.accentInk} />
-                <Text style={[styles.chgText, data.changePct < 0 && { color: colors.accentInk }]}>{Math.abs(data.changePct)} % vs ayer</Text>
+                <Ionicons name={data.changePct >= 0 ? 'arrow-up' : 'arrow-down'} size={11} color={data.changePct >= 0 ? C.in.ink : C.out.ink} />
+                <Text style={[styles.chgText, data.changePct < 0 && { color: C.out.ink }]}>{Math.abs(data.changePct)} % vs ayer</Text>
               </View>
             ) : null}
           </View>
-          {data.loading ? <ActivityIndicator color={colors.primary} style={{ alignSelf: 'flex-start', marginVertical: 8 }} /> : <RollingNumber value={data.net} prefix={data.net < 0 ? '−' : ''} style={styles.big} />}
+          {data.loading ? <ActivityIndicator color={C.action.solid} style={{ alignSelf: 'flex-start', marginVertical: 8 }} /> : <RollingNumber value={data.net} prefix={data.net < 0 ? '−' : ''} style={styles.big} />}
           <WeekBars bars={data.bars} heights={data.heights} />
           <View style={styles.split}>
             <View style={{ flex: 1 }}>
               <Text style={styles.splitLabel}>
-                <Text style={{ color: colors.success }}>● </Text>Vendiste
+                <Text style={{ color: C.in.fill }}>● </Text>Vendiste
               </Text>
               <RollingNumber value={data.sold} style={styles.splitValue} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.splitLabel}>
-                <Text style={{ color: colors.accent }}>● </Text>Gastaste
+                <Text style={{ color: C.out.fill }}>● </Text>Gastaste
               </Text>
               <RollingNumber value={data.spent} style={styles.splitValue} />
             </View>
@@ -376,13 +383,13 @@ export default function FinanceScreen() {
                     accessibilityLabel={`${it.name}, ${formatPesos(it.price)}${n ? `, ${n} elegidos` : ''}`}
                     accessibilityHint="Lo agrega al borrador; para registrar, mantén pulsado el botón de abajo"
                     onPress={() => setQuick((q) => bumpLine(q, { key: it.key, name: it.name, unitPrice: it.price, itemId: it.itemId, category: it.category, source: 'known' }, 1))}
-                    style={[styles.chip, out ? styles.chipOut : styles.chipIn, n > 0 && { borderColor: out ? colors.accentInk : colors.successInk }]}
+                    style={[styles.chip, out ? styles.chipOut : styles.chipIn, n > 0 && { borderColor: out ? C.out.ink : C.in.ink }]}
                   >
-                    <Text style={[styles.chipText, { color: out ? colors.accentInk : colors.successInk }]} numberOfLines={1}>
+                    <Text style={[styles.chipText, { color: out ? C.out.ink : C.in.ink }]} numberOfLines={1}>
                       {it.name} <Text style={styles.chipNum}>{formatPesos(it.price)}</Text>
                     </Text>
                     {n > 0 ? (
-                      <View style={[styles.badge, { backgroundColor: out ? colors.accentInk : colors.successInk }]}>
+                      <View style={[styles.badge, { backgroundColor: out ? C.out.ink : C.in.ink }]}>
                         <Text style={styles.badgeText}>{n}</Text>
                       </View>
                     ) : null}
@@ -403,39 +410,39 @@ export default function FinanceScreen() {
 
         <View style={styles.acts}>
           <Pressable accessibilityRole="button" onPress={() => morph('sale')} style={[styles.act, styles.actIn]}>
-            <Ionicons name="add" size={18} color={colors.white} />
+            <Ionicons name="add" size={18} color={C.action.on} />
             <Text style={styles.actText}>Venta</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => morph('expense')} style={[styles.act, styles.actOut]}>
-            <Ionicons name="remove" size={18} color={colors.accentDeep} />
-            <Text style={[styles.actText, { color: colors.accentDeep }]}>Gasto</Text>
+            <Ionicons name="remove" size={18} color={C.out.on} />
+            <Text style={[styles.actText, { color: C.out.on }]}>Gasto</Text>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Contarlo por voz" onPress={() => setVoice('save')} style={[styles.act, styles.actChat]}>
-            <Ionicons name="mic" size={19} color={colors.white} />
+            <Ionicons name="mic" size={19} color={C.action.on} />
           </Pressable>
         </View>
 
         {data.failedCount > 0 ? (
           <Pressable accessibilityRole="button" onPress={() => toEmpre({ pathname: '/business/ledger/[id]', params: { id: entityId } })} style={styles.row}>
-            <Ionicons name="alert-circle-outline" size={17} color={colors.accentInk} />
-            <Text style={[styles.rowText, { color: colors.accentInk }]} numberOfLines={1}>
+            <Ionicons name="alert-circle-outline" size={17} color={C.out.ink} />
+            <Text style={[styles.rowText, { color: C.out.ink }]} numberOfLines={1}>
               {data.failedCount} {data.failedCount === 1 ? 'registro no se pudo enviar' : 'registros no se pudieron enviar'}
             </Text>
-            <Ionicons name="chevron-forward" size={17} color={colors.accentInk} />
+            <Ionicons name="chevron-forward" size={17} color={C.out.ink} />
           </Pressable>
         ) : null}
         {data.receivable > 0 ? (
           <Pressable accessibilityRole="button" onPress={() => toEmpre({ pathname: '/business/ledger/debts/[id]', params: { id: entityId } })} style={styles.row}>
-            <Ionicons name="people-outline" size={17} color={colors.primary} />
+            <Ionicons name="people-outline" size={17} color={C.action.solid} />
             <Text style={styles.rowText} numberOfLines={1}>
               Te deben {formatPesos(data.receivable)} en fiados
             </Text>
-            <Ionicons name="chevron-forward" size={17} color={colors.primary} />
+            <Ionicons name="chevron-forward" size={17} color={C.action.solid} />
           </Pressable>
         ) : null}
         <Pressable accessibilityRole="button" onPress={() => toEmpre({ pathname: '/business/ledger/[id]', params: { id: entityId } })} style={styles.seeAll}>
           <Text style={styles.seeAllText}>Ver todo en Empre</Text>
-          <Ionicons name="open-outline" size={16} color={colors.primary} />
+          <Ionicons name="open-outline" size={16} color={C.action.solid} />
         </Pressable>
       </ScrollView>
     );
@@ -460,7 +467,7 @@ export default function FinanceScreen() {
         </Animated.View>
       ) : null}
 
-      <Animated.View style={[floating ? [styles.wrapPeek, { marginBottom: insets.bottom + spacing.sm }] : null, { transform: [{ translateY }] }]} accessibilityViewIsModal>
+      <Animated.View style={[floating ? [styles.wrapPeek, { marginBottom: insets.bottom + S.sm }] : null, { transform: [{ translateY }] }]} accessibilityViewIsModal>
         {fly && !reduce ? (
           <Animated.Text
             pointerEvents="none"
@@ -514,73 +521,73 @@ function PendingBadge({ n }: { n: number }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, justifyContent: 'flex-end' },
-  veil: { backgroundColor: alpha(colors.ink, 0.45) },
-  wrapPeek: { marginHorizontal: spacing.sm },
-  card: { borderRadius: radius.lg, ...shadow },
-  sheetBox: { borderTopLeftRadius: radius.lg + 2, borderTopRightRadius: radius.lg + 2 },
-  capsule: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 14, paddingRight: 10 },
+  veil: { backgroundColor: C.veil },
+  wrapPeek: { marginHorizontal: S.sm },
+  card: { borderRadius: R.capsule, ...fin.elevation.card },
+  sheetBox: { borderTopLeftRadius: R.sheet, borderTopRightRadius: R.sheet, ...fin.elevation.sheet },
+  capsule: { minHeight: fin.size.capsule, flexDirection: 'row', alignItems: 'center', gap: S.sm, paddingLeft: S.lg, paddingRight: S.md },
   capMain: { flex: 1, minWidth: 0, minHeight: 60, justifyContent: 'center' },
   capLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  capLabel: { fontSize: 10.5, letterSpacing: 0.7, textTransform: 'uppercase', fontFamily: fonts.ui.extrabold, color: colors.muted },
-  capValue: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.ink },
-  q: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
-  qIn: { backgroundColor: colors.success },
-  qOut: { backgroundColor: colors.accent },
-  qChat: { backgroundColor: colors.primary },
-  pend: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 1, borderRadius: 999, backgroundColor: colors.accentSoft },
-  pendDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
-  pendText: { fontSize: 10.5, fontFamily: fonts.ui.bold, color: colors.accentInk },
-  stateBox: { padding: spacing.lg, minHeight: 200, justifyContent: 'center' },
-  sheet: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.md },
-  grabHit: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 40 },
-  grab: { width: 38, height: 5, borderRadius: 3, backgroundColor: colors.line },
-  head: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: -4 },
-  h1: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.ink },
+  capLabel: T.kicker,
+  capValue: T.capsuleAmount,
+  q: { width: fin.size.round, height: fin.size.round, borderRadius: R.control, alignItems: 'center', justifyContent: 'center' },
+  qIn: { backgroundColor: C.in.fill },
+  qOut: { backgroundColor: C.out.fill },
+  qChat: { backgroundColor: C.action.solid },
+  pend: { flexDirection: 'row', alignItems: 'center', gap: S.xs, paddingHorizontal: 7, paddingVertical: 1, borderRadius: R.badge, backgroundColor: C.out.soft },
+  pendDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.out.fill },
+  pendText: { ...T.small, fontSize: 10.5, color: C.out.ink },
+  stateBox: { padding: S.lg, minHeight: 200, justifyContent: 'center' },
+  sheet: { paddingHorizontal: S.lg, paddingBottom: S.lg, gap: S.md },
+  grabHit: { alignSelf: 'center', paddingVertical: S.sm, paddingHorizontal: 40 },
+  grab: { width: 38, height: 5, borderRadius: 3, backgroundColor: C.handle },
+  head: { flexDirection: 'row', alignItems: 'flex-start', gap: S.md, marginTop: -S.xs },
+  h1: T.title,
   subRow: { flexDirection: 'row', alignItems: 'center', gap: 3, minHeight: 24 },
-  sub: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
-  subB: { fontFamily: fonts.ui.extrabold, color: colors.ink },
-  x: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
-  picker: { borderRadius: radius.lg, backgroundColor: colors.bg, padding: 6 },
-  pick: { minHeight: 44, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10 },
-  pickOn: { backgroundColor: colors.primarySoft },
-  pickText: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.ink },
-  hero: { borderRadius: radius.lg, backgroundColor: colors.bg, padding: spacing.lg, paddingBottom: spacing.md, gap: 6 },
+  sub: { ...T.label, flexShrink: 1 },
+  subB: { fontFamily: T.button.fontFamily, color: C.text },
+  x: { width: fin.size.touch, height: fin.size.touch, borderRadius: R.control, backgroundColor: C.inner, alignItems: 'center', justifyContent: 'center' },
+  picker: { borderRadius: R.inner, backgroundColor: C.inner, padding: 6 },
+  pick: { minHeight: fin.size.touch, borderRadius: R.key, flexDirection: 'row', alignItems: 'center', gap: S.sm, paddingHorizontal: S.md },
+  pickOn: { backgroundColor: C.action.soft },
+  pickText: { ...T.body, flex: 1 },
+  hero: { borderRadius: R.inner, backgroundColor: C.inner, padding: S.lg, paddingBottom: S.md, gap: 6 },
   heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  kicker: { fontSize: 10.5, letterSpacing: 0.7, textTransform: 'uppercase', fontFamily: fonts.ui.extrabold, color: colors.muted },
-  chg: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: colors.successSoft },
-  chgDown: { backgroundColor: colors.accentSoft },
-  chgText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.successInk },
-  big: { fontSize: 34, fontFamily: fonts.display.bold, color: colors.ink },
-  split: { flexDirection: 'row', gap: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: alpha(colors.ink, 0.08) },
-  splitLabel: { fontSize: 11, fontFamily: fonts.ui.bold, color: colors.muted },
-  splitValue: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
-  stale: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.accentInk },
-  quickHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 2, gap: 8 },
-  preview: { flexShrink: 1, fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  clear: { color: colors.primary, textDecorationLine: 'underline' },
-  chip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 2, borderColor: 'transparent', maxWidth: 220 },
-  chipIn: { backgroundColor: colors.successSoft },
-  chipOut: { backgroundColor: colors.accentSoft },
-  chipText: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.ui.bold },
-  chipNum: { fontFamily: fonts.display.bold },
-  badge: { minWidth: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
-  badgeText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.white },
+  kicker: T.kicker,
+  chg: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: S.sm, paddingVertical: 2, borderRadius: R.badge, backgroundColor: C.in.soft },
+  chgDown: { backgroundColor: C.out.soft },
+  chgText: { ...T.small, fontFamily: T.button.fontFamily, color: C.in.ink },
+  big: T.heroAmount,
+  split: { flexDirection: 'row', gap: S.sm, paddingTop: 6, borderTopWidth: 1, borderTopColor: C.line },
+  splitLabel: { ...T.small, fontSize: 11, color: C.textSoft },
+  splitValue: T.amount,
+  stale: { ...T.small, color: C.warn },
+  quickHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 2, gap: S.sm },
+  preview: { ...T.small, flexShrink: 1, color: C.textSoft },
+  clear: { color: C.action.link, textDecorationLine: 'underline' },
+  chip: { minHeight: fin.size.touch, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: S.md, borderRadius: R.control, borderWidth: 2, borderColor: 'transparent', maxWidth: 220 },
+  chipIn: { backgroundColor: C.in.soft },
+  chipOut: { backgroundColor: C.out.soft },
+  chipText: { ...T.small, fontSize: 12.5, flexShrink: 1 },
+  chipNum: { fontFamily: T.amount.fontFamily },
+  badge: { minWidth: 20, height: 20, borderRadius: R.badge, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+  badgeText: { ...T.small, fontSize: 11, fontFamily: T.button.fontFamily, color: C.in.on },
   acts: { flexDirection: 'row', gap: 6 },
-  act: { flex: 1, minHeight: 50, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  actIn: { backgroundColor: colors.successSolid },
-  actOut: { backgroundColor: colors.accent },
-  actChat: { flex: 0, width: 50, backgroundColor: colors.primary },
-  actText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.white },
-  row: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4, borderTopWidth: 1, borderTopColor: alpha(colors.ink, 0.08) },
-  rowText: { flex: 1, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.primary },
-  seeAll: { minHeight: 48, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.primarySoft },
-  seeAllText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primary },
-  fly: { position: 'absolute', top: -6, alignSelf: 'center', zIndex: 3, fontSize: 20, fontFamily: fonts.display.bold, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, overflow: 'hidden' },
-  flyIn: { color: colors.successInk, backgroundColor: alpha(colors.successSoft, 0.95) },
-  flyOut: { color: colors.accentInk, backgroundColor: alpha(colors.accentSoft, 0.95) },
+  act: { flex: 1, minHeight: fin.size.button, borderRadius: R.control, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  actIn: { backgroundColor: C.in.solid },
+  actOut: { backgroundColor: C.out.fill },
+  actChat: { flex: 0, width: fin.size.button, backgroundColor: C.action.solid },
+  actText: { ...T.button, color: C.in.on },
+  row: { minHeight: fin.size.touch, flexDirection: 'row', alignItems: 'center', gap: S.sm, paddingHorizontal: S.xs, borderTopWidth: 1, borderTopColor: C.line },
+  rowText: { ...T.small, fontSize: 12.5, flex: 1, color: C.action.link },
+  seeAll: { minHeight: fin.size.key, borderRadius: R.control, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.action.soft },
+  seeAllText: { ...T.button, fontSize: 13, color: C.action.link },
+  fly: { position: 'absolute', top: -6, alignSelf: 'center', zIndex: 3, fontSize: 20, fontFamily: T.amount.fontFamily, paddingHorizontal: S.md, paddingVertical: S.xs, borderRadius: R.badge, overflow: 'hidden' },
+  flyIn: { color: C.in.ink, backgroundColor: alpha(C.in.soft, 0.95) },
+  flyOut: { color: C.out.ink, backgroundColor: alpha(C.out.soft, 0.95) },
   toastWrap: { position: 'absolute', alignSelf: 'center', zIndex: 10, maxWidth: '92%' },
-  toast: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 14, paddingRight: 6, paddingVertical: 6, borderRadius: 999, backgroundColor: alpha(colors.ink, 0.92) },
-  toastText: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.white },
-  undo: { minHeight: 36, paddingHorizontal: 12, borderRadius: 999, backgroundColor: alpha(colors.white, 0.16), justifyContent: 'center' },
-  undoText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.white },
+  toast: { flexDirection: 'row', alignItems: 'center', gap: S.md, paddingLeft: S.lg, paddingRight: 6, paddingVertical: 6, borderRadius: R.control, backgroundColor: alpha(C.voice.bg, 0.92) },
+  toastText: { ...T.small, fontSize: 12.5, flexShrink: 1, color: C.voice.text },
+  undo: { minHeight: 36, paddingHorizontal: S.md, borderRadius: R.control, backgroundColor: C.voice.chip, justifyContent: 'center' },
+  undoText: { ...T.button, fontSize: 12.5, color: C.voice.text },
 });
