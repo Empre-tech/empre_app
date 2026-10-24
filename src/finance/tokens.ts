@@ -46,6 +46,14 @@ export const fin = {
       recording: colors.danger, // micrófono mientras escucha
       overlay: alpha(colors.night, 0.75), // confirmación «guardado»
       tile: colors.white, // botones blancos (micrófono, Guardar)
+      /** Aurora del fondo: degradados radiales que se desvanecen (sin bordes), igual en iPhone y Android. */
+      aurora: [
+        { color: colors.primary, opacity: 0.85, x: 0.22, y: 0.18, r: 0.75 },
+        { color: colors.verified, opacity: 0.55, x: 0.92, y: 0.5, r: 0.65 },
+        { color: colors.accent, opacity: 0.45, x: 0.35, y: 1.02, r: 0.7 },
+      ],
+      orbIn: colors.success,
+      orbOut: colors.accent,
     },
   },
 
@@ -118,5 +126,7 @@ export const fin = {
     undoMs: 5000,
     pulseMs: 700, // la esfera respira mientras escucha
     flashMs: 900, // el tinte al entender algo
+    auroraMs: 14000, // la aurora deriva despacio (más rápido mientras escucha)
+    auroraListeningMs: 6000,
   },
 } as const;

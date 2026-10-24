@@ -5,7 +5,7 @@ import { ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ledgerApi, type VoiceAction, type VoiceResult } from '@/api/ledger';
 import { actionProblem, errorText } from '@/components/ledger/VoiceSheet';
-import { cleanSpeech, prepareVoiceActions, voiceToDraft, type DraftLine } from '@/lib/finance';
+import { amountMask, cleanSpeech, prepareVoiceActions, voiceToDraft, type DraftLine } from '@/lib/finance';
 import { hapticSuccess } from '@/lib/haptics';
 import { categoryLabel, formatPesos, METHOD_LABEL } from '@/lib/ledger';
 import { useReduceMotion } from '@/lib/useReduceMotion';
@@ -13,6 +13,7 @@ import { queueVoid } from '@/ledger/ledgerStore';
 import { speechAvailable, startDictation } from '@/ledger/speech';
 import { fin } from '@/finance/tokens';
 import { alpha } from '@/theme';
+import { Aurora } from './Aurora';
 import { Glass } from './Glass';
 import { RollingNumber } from './RollingNumber';
 import { VoiceSaved, type SavedItem } from './VoiceSaved';
@@ -318,9 +319,11 @@ export function FinanceVoice({
 
   const spoken = `${text}${partial ? ` ${partial}` : ''}`.trim();
   const words = spoken ? spoken.split(/\s+/) : [];
+  const isAmount = amountMask(words);
 
   return (
     <View style={styles.screen} accessibilityViewIsModal>
+      <Aurora listening={listening} />
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: V.tintIn, opacity: tintIn }]} />
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: V.tintOut, opacity: tintOut }]} />
@@ -341,14 +344,17 @@ export function FinanceVoice({
 
       <Animated.View style={[styles.orb, { transform: [{ scale: pulse }, { scale: vol }] }]} accessible={false}>
         <View style={styles.orbRing} />
-        <View style={[styles.orbCore, listening && styles.orbOn]} />
+        <View style={[styles.orbCore, listening && styles.orbOn]}>
+          <Animated.View style={[StyleSheet.absoluteFill, styles.orbTint, { backgroundColor: V.orbIn, opacity: tintIn }]} />
+          <Animated.View style={[StyleSheet.absoluteFill, styles.orbTint, { backgroundColor: V.orbOut, opacity: tintOut }]} />
+        </View>
       </Animated.View>
 
       <View style={styles.said} accessibilityLiveRegion="polite">
         {words.length > 0 ? (
           <Text style={styles.saidText}>
             {words.map((w, i) => (
-              <Text key={`${i}${w}`} style={/\d|mil\b|pesos/i.test(w) ? styles.saidNum : undefined}>
+              <Text key={`${i}${w}`} style={isAmount[i] ? styles.saidNum : undefined}>
                 {w}
                 {i < words.length - 1 ? ' ' : ''}
               </Text>
@@ -418,7 +424,8 @@ const styles = StyleSheet.create({
   count: { fontSize: 11.5, fontFamily: F.uiExtra, color: V.text, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: V.chip, overflow: 'hidden' },
   orb: { width: 118, height: 118, alignSelf: 'center', marginTop: 10, alignItems: 'center', justifyContent: 'center' },
   orbRing: { position: 'absolute', width: 140, height: 140, borderRadius: 70, borderWidth: 2, borderColor: V.ring },
-  orbCore: { width: 118, height: 118, borderRadius: 59, backgroundColor: C.action.solid, borderWidth: 10, borderColor: V.orbEdge },
+  orbCore: { width: 118, height: 118, borderRadius: 59, overflow: 'hidden', backgroundColor: C.action.solid, borderWidth: 10, borderColor: V.orbEdge },
+  orbTint: { borderRadius: fin.radius.control },
   orbOn: { backgroundColor: V.orbListening },
   said: { minHeight: 84, paddingHorizontal: 22, paddingTop: 12, alignItems: 'center', gap: 6 },
   saidText: { fontSize: 20, lineHeight: 27, fontFamily: F.displaySoft, color: V.text, textAlign: 'center' },

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { VoiceAction } from '../api/ledger.ts';
-import { barHeights, bumpLine, cleanSpeech, draftTotal, expenseInputsFrom, frequentExpenses, prepareVoiceActions, qtyOf, removeLine, saleInputFrom, voiceToDraft, weekBars, type DraftLine } from './finance.ts';
+import { amountMask, barHeights, bumpLine, cleanSpeech, draftTotal, expenseInputsFrom, frequentExpenses, prepareVoiceActions, qtyOf, removeLine, saleInputFrom, voiceToDraft, weekBars, type DraftLine } from './finance.ts';
 
 test('el dictado sin las repeticiones del reconocedor', () => {
   // El caso real de la prueba en el teléfono (23 oct).
@@ -14,6 +14,19 @@ test('el dictado sin las repeticiones del reconocedor', () => {
   // Dos números distintos seguidos no se tocan.
   assert.equal(cleanSpeech('pagué 20 30.000'), 'pagué 20 30.000');
   assert.equal(cleanSpeech(''), '');
+});
+
+test('los montos del dictado se resaltan completos', () => {
+  const mark = (t: string) => {
+    const w = t.split(' ');
+    return amountMask(w).map((m, i) => (m ? w[i] : null)).filter(Boolean).join(' ');
+  };
+  assert.equal(mark('vendí dos cortes a veinte mil en efectivo'), 'veinte mil');
+  assert.equal(mark('compré cera por ocho mil y gel por treinta y cinco mil pesos'), 'ocho mil treinta y cinco mil pesos');
+  assert.equal(mark('registra $20,000 por dos cortes 300,000 en arriendo'), '$20,000 300,000');
+  assert.equal(mark('pagué dos millones de pesos de arriendo'), 'dos millones de pesos');
+  // «dos cortes», «una barba» o un 3 suelto no son montos.
+  assert.equal(mark('dos cortes y una barba en la silla 3'), '');
 });
 
 test('una venta con productos sin precio se guarda por su total', () => {

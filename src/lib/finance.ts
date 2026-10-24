@@ -176,6 +176,43 @@ export function cleanSpeech(text: string): string {
   return out.join(' ');
 }
 
+const NUMBER_WORDS = new Set([
+  'un', 'uno', 'una', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez', 'once', 'doce', 'trece',
+  'catorce', 'quince', 'dieciséis', 'dieciseis', 'diecisiete', 'dieciocho', 'diecinueve', 'veinte', 'veintiuno', 'veintidós',
+  'veintidos', 'veintitrés', 'veintitres', 'veinticuatro', 'veinticinco', 'veintiséis', 'veintiseis', 'veintisiete', 'veintiocho',
+  'veintinueve', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa', 'cien', 'ciento', 'doscientos',
+  'trescientos', 'cuatrocientos', 'quinientos', 'seiscientos', 'setecientos', 'ochocientos', 'novecientos', 'mil', 'millón',
+  'millon', 'millones', 'medio', 'y',
+]);
+const MONEY_TAIL = new Set(['mil', 'millón', 'millon', 'millones', 'pesos', 'lucas', 'barras']);
+
+/**
+ * Qué palabras del dictado son un monto, para resaltarlo completo mientras se habla («veinte mil», «$20,000», «dos
+ * millones de pesos»). Devuelve un booleano por palabra. «y» solo cuenta dentro de un número («treinta y cinco mil»);
+ * un número suelto que no termina en mil, millón o pesos, y no es una cifra, no se resalta («dos cortes»).
+ */
+export function amountMask(words: string[]): boolean[] {
+  const norm = words.map((w) => w.toLocaleLowerCase('es').replace(/[.,;:!?¡¿«»"]+$/g, ''));
+  const isDigit = (w: string) => /^\$?\d[\d.,]*$/.test(w);
+  const mask = norm.map(() => false);
+  let i = 0;
+  while (i < norm.length) {
+    if (!(isDigit(norm[i]) || (NUMBER_WORDS.has(norm[i]) && norm[i] !== 'y'))) {
+      i++;
+      continue;
+    }
+    // Un tramo de número: cifras o palabras de número (con «y» y «de» por dentro), más «mil», «millones» o «pesos».
+    let j = i;
+    while (j + 1 < norm.length && (NUMBER_WORDS.has(norm[j + 1]) || MONEY_TAIL.has(norm[j + 1]) || (norm[j + 1] === 'de' && MONEY_TAIL.has(norm[j + 2] ?? '')))) j++;
+    while (j > i && (norm[j] === 'y' || norm[j] === 'de')) j--;
+    const span = norm.slice(i, j + 1);
+    const money = span.some((w) => isDigit(w) && /\d{3}|\$/.test(w)) || span.some((w) => MONEY_TAIL.has(w));
+    if (money) for (let k = i; k <= j; k++) mask[k] = true;
+    i = j + 1;
+  }
+  return mask;
+}
+
 /**
  * Prepara lo que la voz entendió para guardarlo. El servidor rechaza una venta con renglones sin precio («cada renglón
  * necesita precio»), y como guardar es todo o nada, una sola tarjeta así tumbaba todas: si a una venta le falta el precio
