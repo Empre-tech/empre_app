@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ledgerApi, type VoiceAction, type VoiceResult } from '@/api/ledger';
 import { actionProblem, errorText } from '@/components/ledger/VoiceSheet';
@@ -9,11 +9,13 @@ import { cleanSpeech, prepareVoiceActions, voiceToDraft, type DraftLine } from '
 import { hapticSuccess } from '@/lib/haptics';
 import { categoryLabel, formatPesos, METHOD_LABEL } from '@/lib/ledger';
 import { useReduceMotion } from '@/lib/useReduceMotion';
+import { queueVoid } from '@/ledger/ledgerStore';
 import { speechAvailable, startDictation } from '@/ledger/speech';
 import { fin } from '@/finance/tokens';
 import { alpha } from '@/theme';
 import { Glass } from './Glass';
 import { RollingNumber } from './RollingNumber';
+import { VoiceSaved, type SavedItem } from './VoiceSaved';
 
 const C = fin.color;
 const V = fin.color.voice;
@@ -88,6 +90,8 @@ export function FinanceVoice({
   onClose,
   onAdd,
   onSaved,
+  businessName,
+  onOpenLedger,
 }: {
   entityId: string;
   target: 'save' | 'sale' | 'expense';
@@ -98,6 +102,8 @@ export function FinanceVoice({
   onClose: () => void;
   onAdd?: (lines: DraftLine[], skipped: number) => void;
   onSaved?: (count: number) => void;
+  businessName: string;
+  onOpenLedger: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
@@ -111,7 +117,9 @@ export function FinanceVoice({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<VoiceResult | null>(null);
   const [actions, setActions] = useState<VoiceAction[]>([]);
-  const [saved, setSaved] = useState<number | null>(null);
+  const [saved, setSaved] = useState<{ items: SavedItem[]; already: boolean; base: number } | null>(null);
+  const [failed, setFailed] = useState(false); // después de un error, el botón dice «Reintentar»
+  const [saving, setSaving] = useState(false);
   const stopRef = useRef<(() => void) | null>(null);
   const draftRef = useRef<string | null>(null);
   const textRef = useRef('');
@@ -261,23 +269,52 @@ export function FinanceVoice({
       onClose();
       return;
     }
-    if (!result) return;
+    if (!result || saving) return;
     setBusy(true);
+    setSaving(true);
     setError(null);
     try {
-      // Una venta con productos sin precio va por su total: si no, el servidor rechaza todo el dictado.
-      await ledgerApi.voiceConfirm(entityId, result.draft_id, prepareVoiceActions(usable));
+      // Una venta con productos sin precio va por su total: si no, el servidor rechaza todo el dictado. El servidor
+      // guarda todo o nada, y confirmar dos veces el mismo dictado no duplica (responde «ya estaba»).
+      const res = await ledgerApi.voiceConfirm(entityId, result.draft_id, prepareVoiceActions(usable));
       draftRef.current = null;
       void qc.invalidateQueries({ queryKey: ['ledger', entityId] });
       hapticSuccess();
-      setSaved(usable.length);
-      setTimeout(() => onSaved?.(usable.length), reduce ? 300 : 1100);
+      setFailed(false);
+      setSaved({
+        base: baseNet,
+        already: res.already,
+        items: usable.map((a, i) => ({ kind: a.type, title: title(a), amount: a.amount, id: res.already ? undefined : res.created[i]?.id })),
+      });
     } catch (e) {
       setError(errorText(e));
+      setFailed(true);
     } finally {
       setBusy(false);
+      setSaving(false);
     }
   };
+
+  /** Deshacer: anula exactamente lo que se acaba de guardar, por los ids que devolvió el servidor. */
+  const undoSaved = (items: SavedItem[]) => {
+    for (const it of items) {
+      if (it.id && (it.kind === 'sale' || it.kind === 'expense')) queueVoid(it.kind, entityId, it.id, 'Deshecho al momento (voz)');
+    }
+  };
+
+  if (saved) {
+    return (
+      <VoiceSaved
+        items={saved.items}
+        already={saved.already}
+        baseNet={saved.already ? saved.base - saved.items.reduce((t, it) => t + (it.kind === 'sale' ? it.amount : it.kind === 'expense' ? -it.amount : 0), 0) : saved.base}
+        businessName={businessName}
+        onUndo={undoSaved}
+        onOpenLedger={onOpenLedger}
+        onDone={() => onSaved?.(saved.items.length)}
+      />
+    );
+  }
 
   const spoken = `${text}${partial ? ` ${partial}` : ''}`.trim();
   const words = spoken ? spoken.split(/\s+/) : [];
@@ -354,28 +391,20 @@ export function FinanceVoice({
             <Ionicons name={listening ? 'stop' : 'mic'} size={28} color={listening ? V.text : C.action.solid} />
           </Pressable>
         ) : null}
-        <Pressable accessibilityRole="button" accessibilityState={{ disabled: blocked }} disabled={blocked} onPress={() => void primary()} style={[styles.save, blocked && { opacity: 0.4 }]}>
+        <Pressable accessibilityRole="button" accessibilityState={{ disabled: blocked, busy: saving }} disabled={blocked} onPress={() => void primary()} style={[styles.save, blocked && !saving && { opacity: 0.4 }]}>
+          {saving ? <ActivityIndicator size="small" color={C.text} /> : null}
           <Text style={styles.saveText}>
-            {pendingReview > 0
+            {saving
+              ? 'Guardando…'
+              : pendingReview > 0
               ? `Revisa ${pendingReview} ${pendingReview === 1 ? 'tarjeta' : 'tarjetas'}`
               : target === 'save'
-                ? `Guardar${usable.length ? ` ${usable.length}` : ''}`
+                ? `${failed ? 'Reintentar' : 'Guardar'}${usable.length ? ` ${usable.length}` : ''}`
                 : `Agregar${usable.length ? ` ${usable.length}` : ''} ${target === 'sale' ? 'a la venta' : 'al gasto'}`}
           </Text>
         </Pressable>
       </View>
 
-      {saved !== null ? (
-        <View style={styles.done} accessibilityLiveRegion="assertive">
-          <View style={styles.doneOk}>
-            <Ionicons name="checkmark" size={36} color={V.text} />
-          </View>
-          <Text style={styles.doneTitle}>
-            {saved} {saved === 1 ? 'registro guardado' : 'registros guardados'}
-          </Text>
-          <Text style={styles.doneBody}>Ya se ven en tu resumen de hoy.</Text>
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -415,10 +444,6 @@ const styles = StyleSheet.create({
   bottom: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingTop: 10 },
   mic: { width: fin.size.mic, height: fin.size.mic, borderRadius: fin.radius.control, backgroundColor: V.tile, alignItems: 'center', justifyContent: 'center' },
   micOn: { backgroundColor: V.recording },
-  save: { flex: 1, minHeight: 56, borderRadius: fin.radius.control, backgroundColor: V.tile, alignItems: 'center', justifyContent: 'center' },
+  save: { flex: 1, flexDirection: 'row', gap: 8, minHeight: 56, borderRadius: fin.radius.control, backgroundColor: V.tile, alignItems: 'center', justifyContent: 'center' },
   saveText: { fontSize: 15, fontFamily: F.uiExtra, color: C.text },
-  done: { ...StyleSheet.absoluteFill, backgroundColor: V.overlay, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  doneOk: { width: 72, height: 72, borderRadius: 36, backgroundColor: C.in.fill, alignItems: 'center', justifyContent: 'center' },
-  doneTitle: { fontSize: 22, fontFamily: F.display, color: V.text },
-  doneBody: { fontSize: 13, fontFamily: F.uiSemibold, color: V.hint },
 });

@@ -511,6 +511,11 @@ export function FinanceOverlay({ params, onClosed }: { params: FinanceParams; on
             setVoice(null);
             if (mode === 'peek') morph('sheet');
           }}
+          businessName={name}
+          onOpenLedger={() => {
+            setVoice(null);
+            toEmpre({ pathname: '/business/ledger/[id]', params: { id: entityId } });
+          }}
         />
       ) : null}
     </KeyboardAvoidingView>

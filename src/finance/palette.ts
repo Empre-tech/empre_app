@@ -30,4 +30,10 @@ export const FINANCE_PAIRS: { fg: string; bg: string; use: PairUse; where: strin
   { fg: 'onDarkSoft', bg: 'ink', use: 'text', where: 'subtítulos de las tarjetas de voz' },
   { fg: 'accentLight', bg: 'ink', use: 'text', where: 'avisos de la voz' },
   { fg: 'onDarkLink', bg: 'ink', use: 'text', where: 'montos resaltados mientras hablas' },
+  // Pantalla final de la voz (sección 8 del mockup)
+  { fg: 'successSoft', bg: 'ink', use: 'text', where: '«Entró» en el resumen guardado' },
+  { fg: 'accentSoft', bg: 'ink', use: 'text', where: '«Salió» en el resumen guardado' },
+  { fg: 'white', bg: 'success', use: 'icon', where: 'check de guardado' },
+  { fg: 'white', bg: 'mutedDark', use: 'icon', where: 'check gris de «Deshecho»' },
+  { fg: 'ink', bg: 'white', use: 'text', where: 'botón «Listo»' },
 ];
