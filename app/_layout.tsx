@@ -17,6 +17,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initAnalytics } from '@/analytics/track';
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
 import { ChatProvider } from '@/chat/ChatProvider';
+import { FinanceHost } from '@/finance/FinanceHost';
 import { useFinanceQuickAction } from '@/finance/quickActions';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { usePushNotifications } from '@/notifications/usePushNotifications';
@@ -54,7 +55,7 @@ function AppStack() {
       <Stack.Screen name="(auth)" options={{ presentation: 'modal' }} />
       <Stack.Screen name="business/[id]" />
       <Stack.Screen name="chat/[entityId]" />
-      {/* Empre Finance (3.45): se abre encima de lo que haya, también desde empre://finance. */}
+      {/* empre://finance: solo abre la capa de Finance (FinanceHost) y vuelve; transparente para que no parpadee. */}
       <Stack.Screen name="finance" options={{ presentation: 'transparentModal', animation: 'none', contentStyle: { backgroundColor: 'transparent' } }} />
     </Stack>
   );
@@ -112,7 +113,10 @@ export default function RootLayout() {
         <AuthProvider>
           <ChatProvider>
             <StatusBar style="dark" />
-            <AppStack />
+            {/* Empre Finance es una capa sobre la navegación (3.46 F3): así su vidrio desenfoca la app también en Android. */}
+            <FinanceHost>
+              <AppStack />
+            </FinanceHost>
             <UploadCapsule />
             <OfflineBanner />
           </ChatProvider>

@@ -1,22 +1,13 @@
 import type { useRouter } from 'expo-router';
+import { requestFinance } from './FinanceHost';
 
 type Router = ReturnType<typeof useRouter>;
 
-// Una sola bandeja de Empre Finance a la vez: el doble toque, el enlace y el acceso rápido pueden coincidir, y abrir
-// dos encima la una de la otra sería un error. La pantalla marca cuándo está montada.
-let open = false;
-
-export function markFinanceOpen(value: boolean) {
-  open = value;
-}
-
-export function isFinanceOpen(): boolean {
-  return open;
-}
-
-/** Abre la bandeja (con el negocio, si se conoce). No hace nada si ya está abierta. */
+/**
+ * Abre la bandeja de Empre Finance (con el negocio, si se conoce). La capa (FinanceHost) ya evita abrir dos a la vez;
+ * si todavía no está montada, se pasa por la ruta /finance, que la abre al montarse.
+ */
 export function openFinance(router: Router, entityId?: string) {
-  if (open) return;
-  open = true; // antes de que monte, para que un segundo intento inmediato no apile otra
-  router.push({ pathname: '/finance', params: entityId ? { entity: entityId } : {} });
+  const params = entityId ? { entity: entityId } : {};
+  if (!requestFinance(params)) router.push({ pathname: '/finance', params });
 }

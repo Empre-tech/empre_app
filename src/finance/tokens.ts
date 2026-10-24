@@ -15,7 +15,10 @@ export const fin = {
     text: colors.ink,
     textSoft: colors.mutedDark,
     disabled: colors.mutedLight,
-    veil: alpha(colors.ink, 0.45),
+    veil: alpha(colors.ink, 0.45), // sin vidrio: el mismo velo de las demás hojas de la app
+    veilGlass: alpha(colors.ink, 0.16), // con vidrio: casi no apaga la pantalla (mockup)
+    glass: alpha(colors.surface, 0.72), // tinte sobre el desenfoque, para que el texto se lea
+    glassEdge: alpha(colors.white, 0.7),
     handle: colors.line,
     in: { ink: colors.successInk, soft: colors.successSoft, solid: colors.successSolid, fill: colors.success, on: colors.white },
     out: { ink: colors.accentInk, soft: colors.accentSoft, solid: colors.accentInk, fill: colors.accent, on: colors.ink, onSolid: colors.white },
@@ -63,6 +66,9 @@ export const fin = {
   },
 
   space: spacing,
+
+  /** Desenfoque del vidrio (expo-blur): intensidad y método de Android (12+). */
+  blur: { intensity: 60, tint: 'light', android: 'dimezisBlurViewSdk31Plus' },
 
   /** Altos mínimos de toque (dp). */
   size: { touch: 44, key: 48, button: 52, round: 46, mic: 72, capsule: 76 },
