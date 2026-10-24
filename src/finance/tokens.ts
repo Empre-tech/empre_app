@@ -19,6 +19,9 @@ export const fin = {
     veilGlass: alpha(colors.ink, 0.16), // con vidrio: casi no apaga la pantalla (mockup)
     glass: alpha(colors.surface, 0.72), // tinte sobre el desenfoque, para que el texto se lea
     glassEdge: alpha(colors.white, 0.7),
+    innerGlass: alpha(colors.surface, 0.86), // tarjetas interiores sobre el vidrio (mockup: --glass-strong)
+    controlGlass: alpha(colors.ink, 0.06), // pestañas y medios de pago sobre el vidrio
+    roundGlass: alpha(colors.surface, 0.75), // botones redondos (cerrar, volver) sobre el vidrio
     handle: colors.line,
     in: { ink: colors.successInk, soft: colors.successSoft, solid: colors.successSolid, fill: colors.success, on: colors.white },
     out: { ink: colors.accentInk, soft: colors.accentSoft, solid: colors.accentInk, fill: colors.accent, on: colors.ink, onSolid: colors.white },
@@ -60,7 +63,12 @@ export const fin = {
     capsule: radius.lg + 6, // 26
     sheet: radius.lg + 10, // 30
     inner: radius.lg, // 20
-    key: radius.md, // 14
+    key: radius.md, // 14: teclas, chips, «Ver todo», pestañas por fuera
+    button: radius.md + 2, // 16: botones de la cápsula, Venta y Gasto, «Mantén para registrar»
+    cta: radius.md + 4, // 18: el botón grande de los paneles
+    tab: radius.sm + 1, // 11: la pestaña elegida
+    segItem: radius.sm + 3, // 13: el medio de pago elegido
+    field: radius.sm + 2, // 12: el campo de texto y «Agregar a la venta»
     control: radius.pill,
     badge: radius.pill,
   },
@@ -71,15 +79,16 @@ export const fin = {
   blur: { intensity: 60, tint: 'light', android: 'dimezisBlurViewSdk31Plus' },
 
   /** Altos mínimos de toque (dp). */
-  size: { touch: 44, key: 48, button: 52, round: 46, mic: 72, capsule: 76 },
+  size: { touch: 44, key: 48, button: 52, act: 48, round: 46, mic: 72, capsule: 76, tab: 38, method: 40, field: 42, step: 36 },
 
   type: {
     title: { fontSize: 26, fontFamily: fonts.display.bold, color: colors.ink },
     panelTitle: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.ink },
     heroAmount: { fontSize: 38, fontFamily: fonts.display.bold, color: colors.ink },
-    panelAmount: { fontSize: 40, fontFamily: fonts.display.bold },
+    panelAmount: { fontSize: 46, fontFamily: fonts.display.bold },
     capsuleAmount: { fontSize: 24, fontFamily: fonts.display.bold, color: colors.ink },
     amount: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
+    split: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
     key: { fontSize: 21, fontFamily: fonts.display.bold, color: colors.ink },
     kicker: { fontSize: 10.5, letterSpacing: 0.7, textTransform: 'uppercase', fontFamily: fonts.ui.extrabold, color: colors.mutedDark },
     label: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.mutedDark },

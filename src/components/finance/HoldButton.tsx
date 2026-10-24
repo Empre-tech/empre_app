@@ -73,8 +73,8 @@ export function HoldButton({ label, onConfirm, onEarly, tone = 'ink', disabled =
 }
 
 const styles = StyleSheet.create({
-  base: { minHeight: fin.size.button - 2, borderRadius: fin.radius.control, alignItems: 'center', justifyContent: 'center', paddingHorizontal: fin.space.lg, overflow: 'hidden' },
-  big: { minHeight: fin.size.button },
+  base: { minHeight: fin.size.button, borderRadius: fin.radius.button, alignItems: 'center', justifyContent: 'center', paddingHorizontal: fin.space.lg, overflow: 'hidden' },
+  big: { minHeight: fin.size.button + 2, borderRadius: fin.radius.cta }, // 54 y 18, como el botón grande del mockup
   in: { backgroundColor: fin.color.in.solid },
   out: { backgroundColor: fin.color.out.solid }, // blanco sobre el naranja claro no pasa AA; sobre la tinta naranja sí
   ink: { backgroundColor: fin.color.text },

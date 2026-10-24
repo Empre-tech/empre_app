@@ -346,13 +346,13 @@ export function FinanceOverlay({ params, onClosed }: { params: FinanceParams; on
               {biz.list.length > 1 ? <Ionicons name={picker ? 'chevron-up' : 'chevron-down'} size={14} color={C.text} /> : null}
             </Pressable>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={close} style={styles.x}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={close} style={[styles.x, glass && styles.roundGlass]}>
             <Ionicons name="close" size={20} color={C.text} />
           </Pressable>
         </View>
 
         {picker ? (
-          <View style={styles.picker} accessibilityRole="radiogroup" accessibilityLabel="Negocio">
+          <View style={[styles.picker, glass && styles.innerGlass]} accessibilityRole="radiogroup" accessibilityLabel="Negocio">
             {biz.list.map((e) => (
               <Pressable
                 key={e.id}
@@ -376,7 +376,7 @@ export function FinanceOverlay({ params, onClosed }: { params: FinanceParams; on
           </View>
         ) : null}
 
-        <Pressable accessibilityRole="button" accessibilityHint="Abre Mi negocio" onPress={() => toEmpre({ pathname: '/business/ledger/[id]', params: { id: entityId } })} style={styles.hero}>
+        <Pressable accessibilityRole="button" accessibilityHint="Abre Mi negocio" onPress={() => toEmpre({ pathname: '/business/ledger/[id]', params: { id: entityId } })} style={[styles.hero, glass && styles.innerGlass]}>
           <View style={styles.heroTop}>
             <Text style={styles.kicker}>Te quedó</Text>
             {data.changePct !== null ? (
@@ -590,7 +590,7 @@ const styles = StyleSheet.create({
   capLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   capLabel: T.kicker,
   capValue: T.capsuleAmount,
-  q: { width: fin.size.round, height: fin.size.round, borderRadius: R.control, alignItems: 'center', justifyContent: 'center' },
+  q: { width: fin.size.round, height: fin.size.round, borderRadius: R.button, alignItems: 'center', justifyContent: 'center' },
   qIn: { backgroundColor: C.in.fill },
   qOut: { backgroundColor: C.out.fill },
   qChat: { backgroundColor: C.action.solid },
@@ -607,11 +607,13 @@ const styles = StyleSheet.create({
   sub: { ...T.label, flexShrink: 1 },
   subB: { fontFamily: T.button.fontFamily, color: C.text },
   x: { width: fin.size.touch, height: fin.size.touch, borderRadius: R.control, backgroundColor: C.inner, alignItems: 'center', justifyContent: 'center' },
+  roundGlass: { backgroundColor: C.roundGlass, ...fin.elevation.card, shadowOpacity: 0.1, elevation: 1 },
+  innerGlass: { backgroundColor: C.innerGlass },
   picker: { borderRadius: R.inner, backgroundColor: C.inner, padding: 6 },
   pick: { minHeight: fin.size.touch, borderRadius: R.key, flexDirection: 'row', alignItems: 'center', gap: S.sm, paddingHorizontal: S.md },
   pickOn: { backgroundColor: C.action.soft },
   pickText: { ...T.body, flex: 1 },
-  hero: { borderRadius: R.inner, backgroundColor: C.inner, padding: S.lg, paddingBottom: S.md, gap: 6 },
+  hero: { borderRadius: R.inner, backgroundColor: C.inner, paddingHorizontal: 14, paddingTop: S.md, paddingBottom: 10, gap: 6 },
   heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   kicker: T.kicker,
   chg: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: S.sm, paddingVertical: 2, borderRadius: R.badge, backgroundColor: C.in.soft },
@@ -620,12 +622,12 @@ const styles = StyleSheet.create({
   big: T.heroAmount,
   split: { flexDirection: 'row', gap: S.sm, paddingTop: 6, borderTopWidth: 1, borderTopColor: C.line },
   splitLabel: { ...T.small, fontSize: 11, color: C.textSoft },
-  splitValue: T.amount,
+  splitValue: T.split,
   stale: { ...T.small, color: C.warn },
   quickHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 2, gap: S.sm },
   preview: { ...T.small, flexShrink: 1, color: C.textSoft },
   clear: { color: C.action.link, textDecorationLine: 'underline' },
-  chip: { minHeight: fin.size.touch, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: S.md, borderRadius: R.control, borderWidth: 2, borderColor: 'transparent', maxWidth: 220 },
+  chip: { minHeight: fin.size.touch, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: S.md, borderRadius: R.key, borderWidth: 2, borderColor: 'transparent', maxWidth: 220 },
   chipIn: { backgroundColor: C.in.soft },
   chipOut: { backgroundColor: C.out.soft },
   chipText: { ...T.small, fontSize: 12.5, flexShrink: 1 },
@@ -633,14 +635,14 @@ const styles = StyleSheet.create({
   badge: { minWidth: 20, height: 20, borderRadius: R.badge, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
   badgeText: { ...T.small, fontSize: 11, fontFamily: T.button.fontFamily, color: C.in.on },
   acts: { flexDirection: 'row', gap: 6 },
-  act: { flex: 1, minHeight: fin.size.button, borderRadius: R.control, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  act: { flex: 1, minHeight: fin.size.act, borderRadius: R.button, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   actIn: { backgroundColor: C.in.solid },
   actOut: { backgroundColor: C.out.fill },
-  actChat: { flex: 0, width: fin.size.button, backgroundColor: C.action.solid },
+  actChat: { flex: 0, width: fin.size.button, backgroundColor: C.action.solid }, // 52, como en el mockup
   actText: { ...T.button, color: C.in.on },
   row: { minHeight: fin.size.touch, flexDirection: 'row', alignItems: 'center', gap: S.sm, paddingHorizontal: S.xs, borderTopWidth: 1, borderTopColor: C.line },
   rowText: { ...T.small, fontSize: 12.5, flex: 1, color: C.action.link },
-  seeAll: { minHeight: fin.size.key, borderRadius: R.control, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.action.soft },
+  seeAll: { minHeight: fin.size.touch, borderRadius: R.key, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.action.soft },
   seeAllText: { ...T.button, fontSize: 13, color: C.action.link },
   fly: { position: 'absolute', top: -6, alignSelf: 'center', zIndex: 3, fontSize: 20, fontFamily: T.amount.fontFamily, paddingHorizontal: S.md, paddingVertical: S.xs, borderRadius: R.badge, overflow: 'hidden' },
   flyIn: { color: C.in.ink, backgroundColor: alpha(C.in.soft, 0.95) },

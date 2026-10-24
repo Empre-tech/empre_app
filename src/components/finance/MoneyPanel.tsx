@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { PayMethod } from '@/api/ledger';
 import { bumpLine, draftTotal, qtyOf, removeLine, type DraftLine } from '@/lib/finance';
 import { EXPENSE_CATEGORIES, formatPesos, MAX_AMOUNT } from '@/lib/ledger';
 import type { KnownItem } from '@/finance/useFinance';
 import { fin } from '@/finance/tokens';
+import { useGlass } from './Glass';
 import { HoldButton } from './HoldButton';
 import { RollingNumber } from './RollingNumber';
 
@@ -71,6 +72,18 @@ export function MoneyPanel({
   const [desc, setDesc] = useState('');
   const [amount, setAmount] = useState(0);
   const [cat, setCat] = useState('mercancia');
+  const glass = useGlass();
+  // Mientras se escribe la descripción, el teclado numérico se aparta: así el teclado del sistema no empuja el monto
+  // fuera de la pantalla.
+  const [typing, setTyping] = useState(false);
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setTyping(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setTyping(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
   const total = draftTotal(draft);
   const tone = sale ? 'in' : 'out';
   const sign = sale ? '' : '−';
@@ -90,7 +103,7 @@ export function MoneyPanel({
   return (
     <View style={styles.wrap}>
       <View style={styles.top}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={onBack} style={styles.back} hitSlop={6}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={onBack} style={[styles.back, glass && styles.roundGlass]} hitSlop={6}>
           <Ionicons name="chevron-back" size={20} color={C.text} />
         </Pressable>
         <View style={{ flex: 1, minWidth: 0 }}>
@@ -128,7 +141,7 @@ export function MoneyPanel({
         )}
       </ScrollView>
 
-      <View style={styles.tabs} accessibilityRole="tablist">
+      <View style={[styles.tabs, glass && styles.controlGlass]} accessibilityRole="tablist">
         {(
           [
             ['known', sale ? 'Servicios' : 'De siempre', null],
@@ -151,7 +164,7 @@ export function MoneyPanel({
               <Text style={styles.centerBody}>{sale ? 'Agrégalos en el catálogo de tu perfil. Mientras tanto, usa «Manual».' : 'Cuando registres el mismo gasto dos veces, aparece aquí.'}</Text>
             </View>
           ) : (
-            <ScrollView style={styles.rows} contentContainerStyle={{ paddingHorizontal: 12 }}>
+            <ScrollView style={[styles.rows, glass && styles.innerGlass]} contentContainerStyle={{ paddingHorizontal: 12 }}>
               {known.map((it, i) => {
                 const n = qtyOf(draft, it.key);
                 const line = { key: it.key, name: it.name, unitPrice: it.price, itemId: it.itemId, category: it.category, source: 'known' as const };
@@ -167,13 +180,13 @@ export function MoneyPanel({
                       </Text>
                     </View>
                     <View style={styles.step}>
-                      <Pressable accessibilityRole="button" accessibilityLabel={`Quitar uno de ${it.name}`} disabled={n === 0} onPress={() => onDraft(bumpLine(draft, line, -1))} style={styles.stepBtn}>
+                      <Pressable accessibilityRole="button" accessibilityLabel={`Quitar uno de ${it.name}`} disabled={n === 0} hitSlop={4} onPress={() => onDraft(bumpLine(draft, line, -1))} style={styles.stepBtn}>
                         <Ionicons name="remove" size={18} color={n === 0 ? C.disabled : C.text} />
                       </Pressable>
                       <Text style={[styles.stepN, n === 0 && { color: C.textSoft }]} accessibilityLabel={`${n} de ${it.name}`}>
                         {n}
                       </Text>
-                      <Pressable accessibilityRole="button" accessibilityLabel={`Agregar uno de ${it.name}`} onPress={() => onDraft(bumpLine(draft, line, 1))} style={[styles.stepBtn, sale ? styles.plusIn : styles.plusOut]}>
+                      <Pressable accessibilityRole="button" accessibilityLabel={`Agregar uno de ${it.name}`} hitSlop={4} onPress={() => onDraft(bumpLine(draft, line, 1))} style={[styles.stepBtn, sale ? styles.plusIn : styles.plusOut]}>
                         <Ionicons name="add" size={18} color={sale ? C.in.on : C.out.on} />
                       </Pressable>
                     </View>
@@ -197,17 +210,19 @@ export function MoneyPanel({
               <TextInput value={desc} onChangeText={setDesc} placeholder={sale ? '¿Qué vendiste? Ej.: arreglo de barba' : '¿Qué fue? (opcional)'} placeholderTextColor={C.textSoft} style={styles.input} maxLength={80} accessibilityLabel={sale ? 'Qué vendiste' : 'Qué fue el gasto'} />
               <RollingNumber value={amount} style={{ ...styles.fieldAmount, color: sale ? C.in.ink : C.out.ink }} />
             </View>
-            <View style={styles.keys}>
-              {KEY_ROWS.map((row) => (
-                <View key={row.join('')} style={styles.keyRow}>
-                  {row.map((k) => (
-                    <Pressable key={k} accessibilityRole="button" accessibilityLabel={k === 'del' ? 'Borrar' : k} onPress={() => press(k)} style={({ pressed }) => [styles.key, pressed && styles.keyDown]}>
-                      {k === 'del' ? <Ionicons name="backspace-outline" size={20} color={C.textSoft} /> : <Text style={[styles.keyText, k === '000' && styles.keyFn]}>{k}</Text>}
-                    </Pressable>
-                  ))}
-                </View>
-              ))}
-            </View>
+            {typing ? null : (
+              <View style={styles.keys}>
+                {KEY_ROWS.map((row) => (
+                  <View key={row.join('')} style={styles.keyRow}>
+                    {row.map((k) => (
+                      <Pressable key={k} accessibilityRole="button" accessibilityLabel={k === 'del' ? 'Borrar' : k} onPress={() => press(k)} style={({ pressed }) => [styles.key, pressed && styles.keyDown]}>
+                        {k === 'del' ? <Ionicons name="backspace-outline" size={20} color={C.textSoft} /> : <Text style={[styles.keyText, k === '000' && styles.keyFn]}>{k}</Text>}
+                      </Pressable>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            )}
             <Pressable accessibilityRole="button" accessibilityState={{ disabled: amount === 0 }} disabled={amount === 0} onPress={addManual} style={[styles.addl, amount === 0 && { opacity: 0.45 }]}>
               <Ionicons name="add" size={17} color={C.action.solid} />
               <Text style={styles.addlText}>{sale ? 'Agregar a la venta' : 'Agregar al gasto'}</Text>
@@ -228,7 +243,7 @@ export function MoneyPanel({
       </View>
 
       {sale ? (
-        <View style={styles.methods} accessibilityRole="radiogroup" accessibilityLabel="Medio de pago">
+        <View style={[styles.methods, glass && styles.controlGlass]} accessibilityRole="radiogroup" accessibilityLabel="Medio de pago">
           {METHODS.map((m) => (
             <Pressable key={m.key} accessibilityRole="radio" accessibilityState={{ checked: method === m.key }} onPress={() => onMethod(m.key)} style={[styles.method, method === m.key && styles.methodOn]}>
               <Text style={[styles.methodText, method === m.key && styles.methodTextOn]}>{m.label}</Text>
@@ -257,6 +272,9 @@ const styles = StyleSheet.create({
   wrap: { gap: S.sm },
   top: { flexDirection: 'row', alignItems: 'center', gap: S.sm },
   back: { width: fin.size.touch, height: fin.size.touch, borderRadius: R.control, backgroundColor: C.inner, alignItems: 'center', justifyContent: 'center' },
+  roundGlass: { backgroundColor: C.roundGlass, ...fin.elevation.card, shadowOpacity: 0.1, elevation: 1 },
+  innerGlass: { backgroundColor: C.innerGlass },
+  controlGlass: { backgroundColor: C.controlGlass },
   title: T.panelTitle,
   sub: { ...T.label, fontSize: 12 },
   amountRow: { alignItems: 'center', paddingTop: 2 },
@@ -268,8 +286,8 @@ const styles = StyleSheet.create({
   lineOut: { backgroundColor: C.out.soft },
   lineText: { ...T.small, fontSize: 12, flexShrink: 1 },
   lineX: { width: 26, height: 26, borderRadius: R.control, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center' },
-  tabs: { flexDirection: 'row', gap: S.xs, padding: 3, borderRadius: R.control, backgroundColor: C.control },
-  tab: { flex: 1, minHeight: fin.size.touch - 4, borderRadius: R.control, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
+  tabs: { flexDirection: 'row', gap: S.xs, padding: 3, borderRadius: R.key, backgroundColor: C.control },
+  tab: { flex: 1, minHeight: fin.size.tab, borderRadius: R.tab, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
   tabOn: { backgroundColor: C.surface, ...fin.elevation.card, shadowOpacity: 0.08, elevation: 1 },
   tabText: { ...T.small, fontSize: 12.5, color: C.textSoft },
   tabTextOn: { color: C.text },
@@ -280,11 +298,11 @@ const styles = StyleSheet.create({
   rowName: T.body,
   rowPrice: { ...T.label, fontFamily: T.amount.fontFamily },
   step: { flexDirection: 'row', alignItems: 'center', gap: 2, padding: 2, borderRadius: R.control, backgroundColor: C.surface },
-  stepBtn: { width: fin.size.touch - 4, height: fin.size.touch - 4, borderRadius: R.control, alignItems: 'center', justifyContent: 'center' },
+  stepBtn: { width: fin.size.step, height: fin.size.step, borderRadius: R.control, alignItems: 'center', justifyContent: 'center' },
   plusIn: { backgroundColor: C.in.fill },
   plusOut: { backgroundColor: C.out.fill },
   stepN: { ...T.amount, fontSize: 16, minWidth: 22, textAlign: 'center' },
-  field: { minHeight: fin.size.key, flexDirection: 'row', alignItems: 'center', gap: S.sm, paddingHorizontal: S.md, borderRadius: R.key, backgroundColor: C.surface, borderWidth: 1.5, borderColor: C.line },
+  field: { minHeight: fin.size.field, flexDirection: 'row', alignItems: 'center', gap: S.sm, paddingHorizontal: S.md, borderRadius: R.field, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line },
   input: { ...T.body, fontSize: 13, flex: 1, minWidth: 0, paddingVertical: S.sm },
   fieldAmount: T.amount,
   keys: { gap: 6 },
@@ -293,7 +311,7 @@ const styles = StyleSheet.create({
   keyDown: { backgroundColor: C.action.soft },
   keyText: T.key,
   keyFn: { ...T.small, fontSize: 13, color: C.textSoft },
-  addl: { minHeight: fin.size.touch, borderRadius: R.control, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.action.soft },
+  addl: { minHeight: fin.size.touch, borderRadius: R.field, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.action.soft },
   addlText: { ...T.button, fontSize: 13, color: C.action.link },
   cat: { minHeight: fin.size.touch - 4, paddingHorizontal: S.md, borderRadius: R.control, justifyContent: 'center', backgroundColor: C.control },
   catOn: { backgroundColor: C.out.soft, borderColor: C.out.fill, borderWidth: 1.5 },
@@ -304,8 +322,8 @@ const styles = StyleSheet.create({
   orb: { width: 74, height: 74, borderRadius: R.control, backgroundColor: C.action.solid, alignItems: 'center', justifyContent: 'center' },
   talk: { minHeight: fin.size.touch, paddingHorizontal: S.xl - 4, borderRadius: R.control, backgroundColor: C.action.solid, justifyContent: 'center' },
   talkText: { ...T.button, fontSize: 13.5, color: C.action.on },
-  methods: { flexDirection: 'row', gap: S.xs, padding: 3, borderRadius: R.control, backgroundColor: C.control },
-  method: { flex: 1, minHeight: fin.size.touch, borderRadius: R.control, alignItems: 'center', justifyContent: 'center' },
+  methods: { flexDirection: 'row', gap: S.xs, padding: 3, borderRadius: R.button, backgroundColor: C.control },
+  method: { flex: 1, minHeight: fin.size.method, borderRadius: R.segItem, alignItems: 'center', justifyContent: 'center' },
   methodOn: { backgroundColor: C.surface, ...fin.elevation.card, shadowOpacity: 0.08, elevation: 1 },
   methodText: { ...T.small, color: C.textSoft },
   methodTextOn: { color: C.text },
