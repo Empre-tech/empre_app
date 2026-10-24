@@ -2,10 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, type Href } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AccessibilityInfo, ActivityIndicator, Animated, BackHandler, KeyboardAvoidingView, LayoutAnimation, Platform, Pressable, ScrollView,
-  StyleSheet, Text, UIManager, useWindowDimensions, View,
+  AccessibilityInfo, ActivityIndicator, Animated, BackHandler, KeyboardAvoidingView, Platform, Pressable, ScrollView,
+  StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent,
 } from 'react-native';
+import Reanimated, { Easing, FadeIn, FadeInLeft, FadeInRight, interpolate, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { scheduleOnRN } from 'react-native-worklets';
 import type { PayMethod } from '@/api/ledger';
 import { EmptyState } from '@/components/EmptyState';
 import { FinanceVoice } from '@/components/finance/FinanceVoice';
@@ -42,7 +44,6 @@ const S = fin.space;
 type Mode = 'peek' | 'sheet' | 'sale' | 'expense';
 type Done = { kind: 'sale' | 'expense'; id: string };
 
-if (Platform.OS === 'android') UIManager.setLayoutAnimationEnabledExperimental?.(true);
 
 const isExpenseKey = (key: string) => key.startsWith('exp:');
 
@@ -87,13 +88,15 @@ export function FinanceOverlay({ params, onClosed }: { params: FinanceParams; on
   const [fly, setFly] = useState<{ n: number; amount: number } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [rise] = useState(() => new Animated.Value(0));
+  const rise = useSharedValue(0);
+  const shape = useSharedValue(0);
+  const height = useSharedValue(0);
+  const [fromMode, setFromMode] = useState<Mode>(mode); // de dónde viene (para que el contenido entre del lado correcto)
   const [flyV] = useState(() => new Animated.Value(0));
   const [toastV] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
-    if (reduce) rise.setValue(1);
-    else Animated.spring(rise, { toValue: 1, useNativeDriver: true, ...M.rise }).start();
+    rise.set(reduce ? 1 : withSpring(1, M.rise));
     return () => {
       if (toastTimer.current) clearTimeout(toastTimer.current);
     };
@@ -103,8 +106,10 @@ export function FinanceOverlay({ params, onClosed }: { params: FinanceParams; on
 
   const say = (text: string) => AccessibilityInfo.announceForAccessibility(text);
 
+  // La misma pieza cambia de forma: el cambio de modo solo cambia el contenido; el alto, las esquinas y los márgenes
+  // se animan solos en el hilo de la interfaz (ver frameStyle).
   const morph = (next: Mode) => {
-    if (!reduce) LayoutAnimation.configureNext(LayoutAnimation.create(M.morphMs, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity));
+    setFromMode(mode);
     setMode(next);
     setPicker(false);
   };
@@ -112,7 +117,11 @@ export function FinanceOverlay({ params, onClosed }: { params: FinanceParams; on
   const leave = onClosed;
   const close = () => {
     if (reduce) return leave();
-    Animated.timing(rise, { toValue: 0, duration: M.sinkMs, useNativeDriver: true }).start(() => leave());
+    rise.set(
+      withTiming(0, { duration: M.sinkMs, easing: Easing.in(Easing.quad) }, (done) => {
+        if (done) scheduleOnRN(leave);
+      }),
+    );
   };
   /** Ver más en «Mi negocio»: la bandeja se va y se abre la pantalla de Empre (Atrás vuelve a donde estabas). */
   const toEmpre = (href: Href) => {
@@ -205,10 +214,41 @@ export function FinanceOverlay({ params, onClosed }: { params: FinanceParams; on
 
   const name = biz.entity?.name ?? '';
   const maxH = winH - insets.top - 24;
-  const translateY = rise.interpolate({ inputRange: [0, 1], outputRange: [winH * 0.5, 0] });
   // La cápsula flota como tarjeta; la hoja y los paneles se pegan abajo, como las demás hojas de Empre.
   const floating = mode === 'peek' && Boolean(biz.entity) && !biz.loading;
-  const dim = !floating;
+  useEffect(() => {
+    const to = floating ? 0 : 1;
+    shape.set(reduce ? to : withTiming(to, { duration: M.morphMs, easing: Easing.out(Easing.cubic) }));
+  }, [floating, reduce, shape]);
+
+  const bottomGap = insets.bottom + S.sm;
+  const frameStyle = useAnimatedStyle(() => ({
+    height: height.get() > 0 ? height.get() : undefined,
+    marginHorizontal: interpolate(shape.get(), [0, 1], [S.sm, 0]),
+    marginBottom: interpolate(shape.get(), [0, 1], [bottomGap, 0]),
+    borderTopLeftRadius: interpolate(shape.get(), [0, 1], [R.capsule, R.sheet]),
+    borderTopRightRadius: interpolate(shape.get(), [0, 1], [R.capsule, R.sheet]),
+    borderBottomLeftRadius: interpolate(shape.get(), [0, 1], [R.capsule, 0]),
+    borderBottomRightRadius: interpolate(shape.get(), [0, 1], [R.capsule, 0]),
+    transform: [{ translateY: interpolate(rise.get(), [0, 1], [winH * 0.5, 0]) }],
+  }));
+  const veilStyle = useAnimatedStyle(() => ({ opacity: rise.get() * interpolate(shape.get(), [0, 1], [0.35, 1]) }));
+
+  /** El alto del contenido manda: la pieza se estira o se encoge hasta él (la primera vez, sin animar: ya sube). */
+  const onContent = (e: LayoutChangeEvent) => {
+    const h = Math.ceil(e.nativeEvent.layout.height);
+    const current = height.get();
+    if (h <= 0 || Math.abs(h - current) < 1) return;
+    height.set(current === 0 || reduce ? h : withTiming(h, { duration: M.morphMs, easing: Easing.out(Easing.cubic) }));
+  };
+  // Al cambiar de contenido, el nuevo entra suave: los paneles desde la derecha y la vuelta a la hoja desde la izquierda.
+  const entering = reduce
+    ? undefined
+    : mode === 'sale' || mode === 'expense'
+      ? FadeInRight.duration(M.morphMs)
+      : fromMode === 'sale' || fromMode === 'expense'
+        ? FadeInLeft.duration(M.morphMs)
+        : FadeIn.duration(220).delay(60);
 
   // ---- contenido según el estado ----
   let body: React.ReactNode;
@@ -458,7 +498,7 @@ export function FinanceOverlay({ params, onClosed }: { params: FinanceParams; on
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Pressable accessibilityRole="button" accessibilityLabel="Cerrar Empre Finance" onPress={close} style={StyleSheet.absoluteFill}>
-        <Animated.View style={[StyleSheet.absoluteFill, glass ? styles.veilGlass : styles.veil, { opacity: dim ? rise : rise.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] }) }]} />
+        <Reanimated.View style={[StyleSheet.absoluteFill, glass ? styles.veilGlass : styles.veil, veilStyle]} />
       </Pressable>
 
       {toast ? (
@@ -474,7 +514,7 @@ export function FinanceOverlay({ params, onClosed }: { params: FinanceParams; on
         </Animated.View>
       ) : null}
 
-      <Animated.View style={[floating ? [styles.wrapPeek, { marginBottom: insets.bottom + S.sm }] : null, { transform: [{ translateY }] }]} accessibilityViewIsModal>
+      <Reanimated.View style={[styles.frame, floating && styles.frameFloating, !glass && styles.frameSolid, frameStyle]} accessibilityViewIsModal>
         {fly && !reduce ? (
           <Animated.Text
             pointerEvents="none"
@@ -491,8 +531,13 @@ export function FinanceOverlay({ params, onClosed }: { params: FinanceParams; on
             {formatPesos(Math.abs(fly.amount))}
           </Animated.Text>
         ) : null}
-        <Glass style={floating ? styles.card : [styles.sheetBox, { paddingBottom: insets.bottom }]}>{body}</Glass>
-      </Animated.View>
+        <Glass style={StyleSheet.absoluteFill} />
+        <View style={[styles.content, { paddingBottom: floating ? 0 : insets.bottom }]} onLayout={onContent}>
+          <Reanimated.View key={`${mode}:${biz.loading ? 'l' : biz.entity ? 'e' : 'n'}`} entering={entering}>
+            {body}
+          </Reanimated.View>
+        </View>
+      </Reanimated.View>
 
       {voice && entityId ? (
         <FinanceVoice
@@ -535,9 +580,11 @@ const styles = StyleSheet.create({
   screen: { flex: 1, justifyContent: 'flex-end' },
   veil: { backgroundColor: C.veil },
   veilGlass: { backgroundColor: C.veilGlass },
-  wrapPeek: { marginHorizontal: S.sm },
-  card: { borderRadius: R.capsule, ...fin.elevation.card },
-  sheetBox: { borderTopLeftRadius: R.sheet, borderTopRightRadius: R.sheet, ...fin.elevation.sheet },
+  // Un marco recorta el vidrio y el contenido; su forma la anima frameStyle. El contenido va arriba y se mide.
+  frame: { overflow: 'hidden', ...fin.elevation.sheet },
+  frameFloating: fin.elevation.card,
+  frameSolid: { backgroundColor: C.surface }, // Android solo dibuja la sombra (elevation) si el marco tiene fondo
+  content: { position: 'absolute', top: 0, left: 0, right: 0 },
   capsule: { minHeight: fin.size.capsule, flexDirection: 'row', alignItems: 'center', gap: S.sm, paddingLeft: S.lg, paddingRight: S.md },
   capMain: { flex: 1, minWidth: 0, minHeight: 60, justifyContent: 'center' },
   capLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
