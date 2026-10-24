@@ -117,6 +117,8 @@ export interface EntityDetail {
   description: string;
   /** Frase corta que la tarjeta de Descubre muestra bajo el nombre. */
   tagline?: string;
+  /** Quién atiende («Ana»), para la tarjeta y la historia de Ofertas (3.48). Hasta 40 caracteres. */
+  attendant_name?: string;
   category: Category;
   subcategories?: Subcategory[];
   address: string;
@@ -200,6 +202,8 @@ export interface EntityInput {
   description: string;
   /** Frase corta (hasta 80 caracteres). */
   tagline?: string;
+  /** Quién atiende («Ana»), para la tarjeta y la historia de Ofertas (3.48). Hasta 40 caracteres. */
+  attendant_name?: string;
   /** UUID de la categoría. */
   category: string;
   /** UUIDs de subcategorías (dependientes de `category`). */
@@ -355,6 +359,8 @@ export interface Offer {
   entity_id: string;
   type: OfferType;
   title: string;
+  /** La nota de quien atiende, con su voz (3.48; hasta 90 caracteres). */
+  owner_note?: string;
   price: string;
   /** Valor habitual (opcional) para mostrar el ahorro. */
   normal_price?: string;
@@ -464,6 +470,8 @@ export interface OfferInput {
   price?: string;
   normal_price?: string;
   conditions?: string;
+  /** La nota de quien atiende (3.48): opcional, hasta 90 caracteres. */
+  owner_note?: string;
   ends_at: string;
   total_slots: number;
   radius_meters?: number;

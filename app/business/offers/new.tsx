@@ -22,6 +22,7 @@ const TYPES: OfferType[] = ['HORAS', 'DIA'];
 const HOURS_OPTIONS: Record<OfferType, number[]> = { HORAS: [1, 2, 3, 4], DIA: [8, 12], SEMANA: [168] };
 const DEFAULT_HOURS: Record<OfferType, number> = { HORAS: 2, DIA: 8, SEMANA: 168 };
 const SLOT_OPTIONS = [5, 8, 10, 15, 20];
+const NOTE_MAX = 90; // OwnerNoteMax del servidor
 
 /** Cuándo termina una oferta que dura `hours` horas desde `now`. */
 function endsInHours(now: number, hours: number): string {
@@ -56,6 +57,7 @@ export default function NewOfferScreen() {
 
   const [type, setType] = useState<OfferType>('HORAS');
   const [title, setTitle] = useState('');
+  const [note, setNote] = useState(''); // la nota de quien atiende (3.48)
   const [price, setPrice] = useState('');
   const [normalPrice, setNormalPrice] = useState('');
   const [slots, setSlots] = useState(10);
@@ -79,6 +81,7 @@ export default function NewOfferScreen() {
   const loadFrom = (o: Offer, why: string) => {
     setType(o.type);
     setTitle(o.title);
+    setNote(o.owner_note ?? '');
     setSlots(o.total_slots);
     const durH = Math.max(1, Math.round((new Date(o.ends_at).getTime() - new Date(o.starts_at).getTime()) / 3_600_000));
     setHours(durH);
@@ -155,6 +158,7 @@ export default function NewOfferScreen() {
       const created = await offersApi.publish(entityId ?? '', {
         type,
         title: finalTitle,
+        owner_note: note.trim() || undefined,
         price: useCatalog ? (specialValue != null ? String(specialValue) : '') : price.trim(),
         normal_price: useCatalog ? (preview.reference != null && specialValue != null ? String(preview.reference) : undefined) : normalPrice.trim() || undefined,
         ends_at: endsFromNow(hours),
@@ -249,6 +253,19 @@ export default function NewOfferScreen() {
         )}
 
         <TextField label="Título" placeholder={chosen.map((s) => s.name).join(' + ') || 'Corte + barba'} value={title} onChangeText={setTitle} />
+        {/* 3.48: la tarjeta y la historia de Ofertas la muestran con tu nombre; sin nota, ese lugar queda vacío. */}
+        <TextField
+          label="Tu nota para el cliente (opcional)"
+          labelAccessory={<Text style={styles.count}>{note.length} de {NOTE_MAX}</Text>}
+          placeholder="¿Qué la hace especial hoy? Ej.: Hoy hay sancocho, llega antes de la 1"
+          value={note}
+          onChangeText={(t) => setNote(t.slice(0, NOTE_MAX))}
+          maxLength={NOTE_MAX}
+          autoCapitalize="sentences"
+          multiline
+          accessibilityHint="Sale en la tarjeta de la oferta y en tu historia de la pestaña Ofertas, con tu nombre"
+        />
+        <Text style={styles.note}>Sale en la tarjeta y en tu historia de Ofertas, con tu voz. Cuéntale al vecino lo que solo tú sabes.</Text>
 
         <Text style={styles.label}>Cupos</Text>
         <View style={styles.chips}>
@@ -338,6 +355,7 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.md },
   label: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
   note: { fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
+  count: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, alignItems: 'center' },
   star: { color: colors.star },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 6 },

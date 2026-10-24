@@ -118,6 +118,8 @@ export function BusinessForm({ initial, draft }: Props) {
   const [description, setDescription] = useState(initial?.description ?? draft?.description ?? '');
   // Frase corta: la línea que la tarjeta de Descubre muestra bajo el nombre.
   const [tagline, setTagline] = useState(initial?.tagline ?? '');
+  // Quién atiende (3.48): el cliente ve con quién va a hablar («Ana, quien atiende»).
+  const [attendant, setAttendant] = useState(initial?.attendant_name ?? '');
   const [categoryId, setCategoryId] = useState(initial?.category?.id ?? draft?.categoryId ?? '');
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
   const [cityPickerOpen, setCityPickerOpen] = useState(false);
@@ -274,6 +276,7 @@ export function BusinessForm({ initial, draft }: Props) {
         name: name.trim(),
         description: description.trim(),
         tagline: tagline.trim(),
+        attendant_name: attendant.trim(),
         category: categoryId,
         subcategory_ids: subcategoryIds,
         address: address.trim(),
@@ -698,6 +701,17 @@ export function BusinessForm({ initial, draft }: Props) {
             labelAccessory={<Text style={styles.counter}>{tagline.length}/80 · sale en Descubre</Text>}
           />
 
+          <TextField
+            label="¿Quién atiende? (opcional)"
+            value={attendant}
+            onChangeText={setAttendant}
+            autoCapitalize="words"
+            maxLength={40}
+            placeholder="Ej. Ana"
+            labelAccessory={<Text style={styles.counter}>{attendant.length}/40 · sale en Ofertas</Text>}
+            accessibilityHint="Tu nombre aparece en las tarjetas y en tu historia de la pestaña Ofertas"
+          />
+
           <Text style={styles.sectionTitle}>Ubicación y horario</Text>
           <TextField label="Dirección" value={address} onChangeText={setAddress} autoCapitalize="words" placeholder="Calle, barrio o referencia" />
           {cityField}
@@ -827,6 +841,17 @@ export function BusinessForm({ initial, draft }: Props) {
               maxLength={80}
               placeholder="Ej. Corte clásico y barba, sin cita"
               labelAccessory={<Text style={styles.counter}>{tagline.length}/80 · sale en Descubre</Text>}
+            />
+
+            <TextField
+              label="¿Quién atiende? (opcional)"
+              value={attendant}
+              onChangeText={setAttendant}
+              autoCapitalize="words"
+              maxLength={40}
+              placeholder="Ej. Ana"
+              labelAccessory={<Text style={styles.counter}>{attendant.length}/40 · sale en Ofertas</Text>}
+              accessibilityHint="Tu nombre aparece en las tarjetas y en tu historia de la pestaña Ofertas"
             />
 
             {serviceModeField}
