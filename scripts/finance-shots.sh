@@ -90,12 +90,13 @@ restore() {
 trap restore EXIT
 
 : > "$OUT/accesibilidad.txt"
-DPI=$(adb shell wm density | tr -d '\r' | awk -F": " '{print $NF}' | tail -1)
 if [ -n "${FONT:-}" ]; then adb shell settings put system font_scale "$FONT"; fi
 if [ -n "${SIZE:-}" ]; then
   adb shell wm size "$SIZE"
   [ -n "${DENSITY:-}" ] && adb shell wm density "$DENSITY"
 fi
+# Después de cambiar el tamaño: la última línea es la densidad que usa la pantalla ahora («Override» si hay una).
+DPI=$(adb shell wm density | tr -d '\r' | awk -F": " '{print $NF}' | tail -1)
 
 # Espera a que la app termine de cargar el código desde Metro (la primera vez puede tardar varios minutos).
 wait_ready() {
