@@ -5,7 +5,7 @@ import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, V
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ledgerApi, type VoiceAction, type VoiceResult } from '@/api/ledger';
 import { actionProblem, errorText } from '@/components/ledger/VoiceSheet';
-import { voiceToDraft, type DraftLine } from '@/lib/finance';
+import { cleanSpeech, prepareVoiceActions, voiceToDraft, type DraftLine } from '@/lib/finance';
 import { hapticSuccess } from '@/lib/haptics';
 import { categoryLabel, formatPesos, METHOD_LABEL } from '@/lib/ledger';
 import { useReduceMotion } from '@/lib/useReduceMotion';
@@ -37,16 +37,17 @@ function signed(a: VoiceAction): number {
   return a.type === 'sale' ? a.amount : a.type === 'expense' ? -a.amount : 0;
 }
 
-function Card({ action, blockedWhy, onRemove, reduce }: { action: VoiceAction; blockedWhy: string | null; onRemove: () => void; reduce: boolean }) {
+function Card({ action, blockedWhy, onRemove, onAccept, reduce }: { action: VoiceAction; blockedWhy: string | null; onRemove: () => void; onAccept: () => void; reduce: boolean }) {
   const [enter] = useState(() => new Animated.Value(reduce ? 1 : 0));
   useEffect(() => {
     if (!reduce) Animated.spring(enter, { toValue: 1, useNativeDriver: true, ...M.card }).start();
   }, [enter, reduce]);
   const isIn = action.type === 'sale';
+  const warning = !blockedWhy && action.warnings?.length ? action.warnings.join(' ') : null;
   const sub = blockedWhy ?? (action.type === 'expense' ? `${categoryLabel(action.category ?? 'otro')} · ${METHOD_LABEL[action.method]}` : METHOD_LABEL[action.method]);
   return (
     <Animated.View style={{ opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [26, 0] }) }, { scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }] }}>
-      <Glass dark style={[styles.card, blockedWhy ? styles.cardAsk : null]}>
+      <Glass dark style={[styles.card, blockedWhy || warning ? styles.cardAsk : null]}>
         <View style={[styles.cardIc, { backgroundColor: isIn ? C.in.fill : action.type === 'expense' ? C.out.fill : C.action.solid }]}>
           <Ionicons name={isIn ? 'add' : action.type === 'expense' ? 'remove' : 'swap-horizontal'} size={18} color={isIn ? V.text : C.out.on} />
         </View>
@@ -57,6 +58,14 @@ function Card({ action, blockedWhy, onRemove, reduce }: { action: VoiceAction; b
           <Text style={[styles.cardSub, blockedWhy ? { color: V.warn } : null]} numberOfLines={2}>
             {sub}
           </Text>
+          {warning ? (
+            <View style={styles.warnRow}>
+              <Text style={styles.warnText}>{warning}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Está bien: ${title(action)} por ${formatPesos(action.amount)}`} onPress={onAccept} style={styles.okBtn}>
+                <Text style={styles.okText}>Está bien</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
         <Text style={styles.cardAmt}>
           {action.type === 'sale' ? '+' : action.type === 'expense' ? '−' : ''}
@@ -107,6 +116,7 @@ export function FinanceVoice({
   const draftRef = useRef<string | null>(null);
   const textRef = useRef('');
   const seenRef = useRef(0); // cuántas tarjetas ya destellaron
+  const parseSeq = useRef(0); // la interpretación vigente (las que llegan tarde se descartan)
 
   // Movimiento: la esfera respira (y crece con el volumen), el tinte destella al entender algo.
   const [pulse] = useState(() => new Animated.Value(1));
@@ -152,8 +162,13 @@ export function FinanceVoice({
     if (!t) return;
     setBusy(true);
     setError(null);
+    const mine = ++parseSeq.current;
     try {
       const r = await ledgerApi.voiceParse(entityId, t);
+      if (mine !== parseSeq.current) {
+        void ledgerApi.voiceDiscard(entityId, r.draft_id).catch(() => undefined); // llegó tarde: ya hay una más nueva
+        return;
+      }
       discardDraft(); // el borrador anterior queda reemplazado por el del texto completo
       draftRef.current = r.draft_id;
       setResult(r);
@@ -164,12 +179,12 @@ export function FinanceVoice({
     } catch (e) {
       setError(errorText(e));
     } finally {
-      setBusy(false);
+      if (mine === parseSeq.current) setBusy(false);
     }
   };
 
   const commit = (chunk: string) => {
-    const full = `${textRef.current} ${chunk}`.trim();
+    const full = cleanSpeech(`${textRef.current} ${chunk}`);
     textRef.current = full;
     setText(full);
     setPartial('');
@@ -226,8 +241,10 @@ export function FinanceVoice({
     if (a.method === 'credit' || a.type === 'payment') return 'Fiados y abonos se terminan en Empre';
     return actionProblem(a);
   };
-  const usable = actions.filter((a) => why(a) === null);
+  const pendingReview = actions.filter((a) => why(a) === null && (a.warnings?.length ?? 0) > 0).length;
+  const usable = actions.filter((a) => why(a) === null && !(a.warnings?.length ?? 0));
   const total = baseNet + usable.reduce((s, a) => s + signed(a), 0);
+  const blocked = usable.length === 0 || pendingReview > 0 || busy;
 
   const close = () => {
     stopRef.current?.();
@@ -236,7 +253,7 @@ export function FinanceVoice({
   };
 
   const primary = async () => {
-    if (usable.length === 0 || busy) return;
+    if (usable.length === 0 || pendingReview > 0 || busy) return;
     if (target !== 'save') {
       const { lines, skipped } = voiceToDraft(usable, kind, () => `voz:${++keySeq}`);
       discardDraft();
@@ -248,7 +265,8 @@ export function FinanceVoice({
     setBusy(true);
     setError(null);
     try {
-      await ledgerApi.voiceConfirm(entityId, result.draft_id, usable);
+      // Una venta con productos sin precio va por su total: si no, el servidor rechaza todo el dictado.
+      await ledgerApi.voiceConfirm(entityId, result.draft_id, prepareVoiceActions(usable));
       draftRef.current = null;
       void qc.invalidateQueries({ queryKey: ['ledger', entityId] });
       hapticSuccess();
@@ -308,7 +326,7 @@ export function FinanceVoice({
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.cards}>
         {actions.map((a, i) => (
-          <Card key={a.client_id} action={a} blockedWhy={why(a)} reduce={reduce} onRemove={() => setActions((l) => l.filter((_, k) => k !== i))} />
+          <Card key={a.client_id} action={a} blockedWhy={why(a)} reduce={reduce} onRemove={() => setActions((l) => l.filter((_, k) => k !== i))} onAccept={() => setActions((l) => l.map((x, k) => (k === i ? { ...x, warnings: [] } : x)))} />
         ))}
       </ScrollView>
 
@@ -336,9 +354,13 @@ export function FinanceVoice({
             <Ionicons name={listening ? 'stop' : 'mic'} size={28} color={listening ? V.text : C.action.solid} />
           </Pressable>
         ) : null}
-        <Pressable accessibilityRole="button" accessibilityState={{ disabled: usable.length === 0 || busy }} disabled={usable.length === 0 || busy} onPress={() => void primary()} style={[styles.save, (usable.length === 0 || busy) && { opacity: 0.4 }]}>
+        <Pressable accessibilityRole="button" accessibilityState={{ disabled: blocked }} disabled={blocked} onPress={() => void primary()} style={[styles.save, blocked && { opacity: 0.4 }]}>
           <Text style={styles.saveText}>
-            {target === 'save' ? `Guardar${usable.length ? ` ${usable.length}` : ''}` : `Agregar${usable.length ? ` ${usable.length}` : ''} ${target === 'sale' ? 'a la venta' : 'al gasto'}`}
+            {pendingReview > 0
+              ? `Revisa ${pendingReview} ${pendingReview === 1 ? 'tarjeta' : 'tarjetas'}`
+              : target === 'save'
+                ? `Guardar${usable.length ? ` ${usable.length}` : ''}`
+                : `Agregar${usable.length ? ` ${usable.length}` : ''} ${target === 'sale' ? 'a la venta' : 'al gasto'}`}
           </Text>
         </Pressable>
       </View>
@@ -382,6 +404,10 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 13.5, fontFamily: F.uiBold, color: V.text },
   cardSub: { fontSize: 11.5, fontFamily: F.uiSemibold, color: V.hint },
   cardAmt: { fontSize: 16, fontFamily: F.display, color: V.text },
+  warnRow: { marginTop: 6, gap: 6, alignItems: 'flex-start' },
+  warnText: { fontSize: 12, lineHeight: 16, fontFamily: F.uiSemibold, color: V.warn },
+  okBtn: { minHeight: 32, paddingHorizontal: 12, borderRadius: fin.radius.control, backgroundColor: V.chip, justifyContent: 'center' },
+  okText: { fontSize: 12, fontFamily: F.uiExtra, color: V.text },
   cardX: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   typeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 14, paddingTop: 8 },
   typeInput: { flex: 1, minHeight: 48, maxHeight: 110, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: alpha(V.text, 0.12), color: V.text, fontSize: 15, fontFamily: F.uiMedium },

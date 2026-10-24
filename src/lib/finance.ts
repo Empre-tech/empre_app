@@ -148,6 +148,47 @@ export function barHeights(bars: DayBar[]): number[] {
   return bars.map((b) => (b.net <= 0 ? 0.06 : Math.max(0.12, b.net / max)));
 }
 
+/**
+ * El texto del dictado sin las repeticiones que mete el reconocedor al corregirse mientras hablas: «70 70,000» queda
+ * «70,000» (un número que es el comienzo del siguiente) y «vendí vendí» queda «vendí». Sin esto, «70 70,000» se
+ * entendía como un gasto de $70 aparte.
+ */
+export function cleanSpeech(text: string): string {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const out: string[] = [];
+  for (const w of words) {
+    const prev = out[out.length - 1];
+    if (prev === undefined) {
+      out.push(w);
+      continue;
+    }
+    const a = prev.toLocaleLowerCase('es');
+    const b = w.toLocaleLowerCase('es');
+    if (a === b) continue; // palabra repetida
+    const digitsA = a.replace(/[^\d]/g, '');
+    const digitsB = b.replace(/[^\d]/g, '');
+    if (/^\$?\d[\d.,]*$/.test(a) && /^\$?\d[\d.,]*$/.test(b) && digitsB.startsWith(digitsA) && digitsB.length > digitsA.length) {
+      out[out.length - 1] = w; // «70» seguido de «70,000»: se queda el número completo
+      continue;
+    }
+    out.push(w);
+  }
+  return out.join(' ');
+}
+
+/**
+ * Prepara lo que la voz entendió para guardarlo. El servidor rechaza una venta con renglones sin precio («cada renglón
+ * necesita precio»), y como guardar es todo o nada, una sola tarjeta así tumbaba todas: si a una venta le falta el precio
+ * de algún producto, se guarda por su total, con los productos en la nota («2 × corte de cabello»).
+ */
+export function prepareVoiceActions(actions: VoiceAction[]): VoiceAction[] {
+  return actions.map((a) => {
+    if (a.type !== 'sale' || !a.lines?.length || a.lines.every((l) => l.unit_price != null)) return a;
+    const what = a.lines.map((l) => (l.qty > 1 ? `${l.qty} × ${l.name}` : l.name)).join(', ');
+    return { ...a, lines: undefined, note: a.note?.trim() || what };
+  });
+}
+
 /** Lo que la voz entendió, convertido en líneas del borrador del tipo pedido. Lo de otro tipo o a crédito se aparta. */
 export function voiceToDraft(actions: VoiceAction[], kind: 'sale' | 'expense', newKey: () => string): { lines: DraftLine[]; skipped: number } {
   const lines: DraftLine[] = [];

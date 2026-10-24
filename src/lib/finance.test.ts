@@ -1,7 +1,34 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { VoiceAction } from '../api/ledger.ts';
-import { barHeights, bumpLine, draftTotal, expenseInputsFrom, frequentExpenses, qtyOf, removeLine, saleInputFrom, voiceToDraft, weekBars, type DraftLine } from './finance.ts';
+import { barHeights, bumpLine, cleanSpeech, draftTotal, expenseInputsFrom, frequentExpenses, prepareVoiceActions, qtyOf, removeLine, saleInputFrom, voiceToDraft, weekBars, type DraftLine } from './finance.ts';
+
+test('el dictado sin las repeticiones del reconocedor', () => {
+  // El caso real de la prueba en el teléfono (23 oct).
+  assert.equal(
+    cleanSpeech('registra $20,000 por dos cortes de cabello 30,000 en almuerzos 70 70,000 en impuestos 300,000 en arriendo'),
+    'registra $20,000 por dos cortes de cabello 30,000 en almuerzos 70,000 en impuestos 300,000 en arriendo',
+  );
+  assert.equal(cleanSpeech('vendí vendí dos cortes'), 'vendí dos cortes');
+  assert.equal(cleanSpeech('  20 2000 '), '2000');
+  // Dos números distintos seguidos no se tocan.
+  assert.equal(cleanSpeech('pagué 20 30.000'), 'pagué 20 30.000');
+  assert.equal(cleanSpeech(''), '');
+});
+
+test('una venta con productos sin precio se guarda por su total', () => {
+  const base = { client_id: 'x', words: '', days_ago: 0, method: 'cash' as const };
+  const out = prepareVoiceActions([
+    { ...base, type: 'sale', amount: 20000, lines: [{ name: 'corte de cabello', qty: 2, unit_price: null }] },
+    { ...base, type: 'sale', amount: 40000, lines: [{ name: 'Corte', qty: 2, unit_price: 20000, item_id: 'i1' }] },
+    { ...base, type: 'expense', amount: 30000, category: 'otro', note: 'almuerzos' },
+  ]);
+  assert.equal(out[0].lines, undefined);
+  assert.equal(out[0].note, '2 × corte de cabello');
+  assert.equal(out[0].amount, 20000);
+  assert.equal(out[1].lines?.length, 1); // con precio, los productos se conservan
+  assert.equal(out[2].note, 'almuerzos');
+});
 
 const corte = { key: 'i1', name: 'Corte clásico', unitPrice: 20000, itemId: 'i1', source: 'known' as const };
 

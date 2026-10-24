@@ -135,8 +135,14 @@ function buildUrl(path: string, query?: Query): string {
 function parseErrorBody(text: string, status: number): string {
   try {
     const data = JSON.parse(text) as { error?: unknown; message?: unknown; details?: unknown };
+    // Algunos endpoints mandan un código en `error` («invalid») y la explicación en `message`: se muestra la explicación.
+    const code = typeof data.error === 'string' && /^[a-z_]+$/.test(data.error);
     const base =
-      typeof data.error === 'string' ? data.error : typeof data.message === 'string' ? data.message : null;
+      typeof data.message === 'string' && (code || typeof data.error !== 'string')
+        ? data.message
+        : typeof data.error === 'string'
+          ? data.error
+          : null;
     const details = typeof data.details === 'string' ? data.details : null;
     if (base && details) return `${base}: ${details}`;
     if (base) return base;
