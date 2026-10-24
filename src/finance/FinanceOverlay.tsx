@@ -46,6 +46,8 @@ type Done = { kind: 'sale' | 'expense'; id: string };
 
 
 const isExpenseKey = (key: string) => key.startsWith('exp:');
+// La barrita de arriba mide 21 dp de alto: el área de toque llega a 44 sin mover el diseño.
+const GRAB_SLOP = { top: 12, bottom: 12, left: 8, right: 8 };
 
 // Ganchos de prueba, SOLO en desarrollo: el banco de capturas (scripts/finance-shots.sh) abre cada estado directo con
 // empre://finance?mode=sale&tab=man, ?voice=save&say=…, ?pick=2 (elige los 2 primeros), ?sim=server (resumen que
@@ -301,7 +303,7 @@ export function FinanceOverlay({ params, onClosed }: { params: FinanceParams; on
   } else if (mode === 'sale' || mode === 'expense') {
     body = (
       <ScrollView style={{ maxHeight: maxH }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled" bounces={false}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Volver al resumen" onPress={() => morph('sheet')} style={styles.grabHit}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Volver al resumen" onPress={() => morph('sheet')} hitSlop={GRAB_SLOP} style={styles.grabHit}>
           <View style={styles.grab} />
         </Pressable>
         <MoneyPanel
@@ -324,7 +326,7 @@ export function FinanceOverlay({ params, onClosed }: { params: FinanceParams; on
   } else {
     body = (
       <ScrollView style={{ maxHeight: maxH }} contentContainerStyle={styles.sheet} bounces={false}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Volver a la cápsula" onPress={() => morph('peek')} style={styles.grabHit}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Volver a la cápsula" onPress={() => morph('peek')} hitSlop={GRAB_SLOP} style={styles.grabHit}>
           <View style={styles.grab} />
         </Pressable>
         <View style={styles.head}>
@@ -338,7 +340,7 @@ export function FinanceOverlay({ params, onClosed }: { params: FinanceParams; on
               disabled={biz.list.length < 2}
               onPress={() => setPicker((p) => !p)}
               style={styles.subRow}
-              hitSlop={6}
+              hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }} // 44 dp de toque sin cambiar el diseño
             >
               <Text style={styles.sub} numberOfLines={1}>
                 en <Text style={styles.subB}>{name}</Text>
@@ -432,9 +434,11 @@ export function FinanceOverlay({ params, onClosed }: { params: FinanceParams; on
                     onPress={() => setQuick((q) => bumpLine(q, { key: it.key, name: it.name, unitPrice: it.price, itemId: it.itemId, category: it.category, source: 'known' }, 1))}
                     style={[styles.chip, out ? styles.chipOut : styles.chipIn, n > 0 && { borderColor: out ? C.out.ink : C.in.ink }]}
                   >
+                    {/* Si no cabe, se acorta el nombre; el precio siempre se ve completo. */}
                     <Text style={[styles.chipText, { color: out ? C.out.ink : C.in.ink }]} numberOfLines={1}>
-                      {it.name} <Text style={styles.chipNum}>{formatPesos(it.price)}</Text>
+                      {it.name}
                     </Text>
+                    <Text style={[styles.chipText, styles.chipNum, styles.noShrink, { color: out ? C.out.ink : C.in.ink }]}>{formatPesos(it.price)}</Text>
                     {n > 0 ? (
                       <View style={[styles.badge, { backgroundColor: out ? C.out.ink : C.in.ink }]}>
                         <Text style={styles.badgeText}>{n}</Text>
@@ -632,6 +636,7 @@ const styles = StyleSheet.create({
   chipOut: { backgroundColor: C.out.soft },
   chipText: { ...T.small, fontSize: 12.5, flexShrink: 1 },
   chipNum: { fontFamily: T.amount.fontFamily },
+  noShrink: { flexShrink: 0 },
   badge: { minWidth: 20, height: 20, borderRadius: R.badge, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
   badgeText: { ...T.small, fontSize: 11, fontFamily: T.button.fontFamily, color: C.in.on },
   acts: { flexDirection: 'row', gap: 6 },

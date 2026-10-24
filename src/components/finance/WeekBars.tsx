@@ -24,7 +24,8 @@ export function WeekBars({ bars, heights }: { bars: DayBar[]; heights: number[] 
     ).start();
   }, [ready, reduce, grow]);
 
-  if (!ready) return null; // sin datos de la semana no se deja un hueco en blanco
+  // Sin datos de la semana, o una semana entera en cero, no se deja un hueco en blanco.
+  if (!ready || bars.every((b) => b.net === 0)) return null;
   const label = bars.map((b) => `${b.today ? 'hoy' : b.label}: ${formatPesos(b.net)}`).join(', ');
   return (
     <View style={styles.wrap} accessible accessibilityRole="image" accessibilityLabel={`Lo que te quedó cada día. ${label}`}>

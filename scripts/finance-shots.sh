@@ -9,10 +9,13 @@
 # Uso:
 #   scripts/finance-shots.sh [carpeta]          # por defecto ../docs/mockups/antes/finance
 #   LOGIN=1 scripts/finance-shots.sh            # inicia sesión antes con la cuenta demo del seed (demo01@empre.app)
-#   SIZE=360x800 DENSITY=320 scripts/finance-shots.sh   # otro tamaño de pantalla (se restaura al terminar)
+#   SIZE=1080x2400 DENSITY=480 scripts/finance-shots.sh # 360 dp (se restaura al terminar)
+#   FONT=1.3 scripts/finance-shots.sh           # letra del sistema al 130 % (se restaura al terminar)
+# Además de las capturas, deja accesibilidad.txt: lo que se puede tocar y no tiene nombre para TalkBack.
 set -euo pipefail
 # En Git Bash (Windows), sin esto «/sdcard/…» se convierte en una ruta de Windows antes de llegar a adb.
 export MSYS_NO_PATHCONV=1
+export PYTHONIOENCODING=utf-8 # la revisión de accesibilidad escribe tildes y símbolos
 
 ADB=${ADB:-"${LOCALAPPDATA:-}/Android/Sdk/platform-tools/adb.exe"}
 command -v "$ADB" >/dev/null 2>&1 || ADB=adb
@@ -38,11 +41,18 @@ back() {
     sleep 1.2
   done
 }
+audit() {
+  adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || return 0
+  adb exec-out cat /sdcard/ui.xml > "$OUT/.ui.xml" 2>/dev/null || return 0
+  python "$(dirname "$0")/a11y-audit.py" "$OUT/.ui.xml" "$DPI" "$1" >> "$OUT/accesibilidad.txt" || true
+  rm -f "$OUT/.ui.xml"
+}
 shot() {
   local name=$1
   [ -n "${2:-}" ] && wait_for "$2"
   sleep "$WAIT"
   adb exec-out screencap -p > "$OUT/$name.png"
+  audit "$name"
   echo "  ✓ $name"
 }
 
@@ -61,18 +71,27 @@ tap_text() {
 wait_for() {
   for _ in $(seq 1 30); do
     adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || true
-    adb exec-out cat /sdcard/ui.xml 2>/dev/null | grep -q "$1" && return 0
+    local xml
+    xml=$(adb exec-out cat /sdcard/ui.xml 2>/dev/null || true)
+    printf '%s' "$xml" | grep -q "$1" && return 0
+    # Diálogos que aparecen solos y tapan la app: la bienvenida del menú de desarrollo y la precisión de ubicación.
+    if printf '%s' "$xml" | grep -q 'text="Continue"'; then tap_text "Continue" || true; fi
+    if printf '%s' "$xml" | grep -q 'text="No thanks"'; then tap_text "No thanks" || true; fi
     sleep 2
   done
   echo "  (no apareció «$1»)" >&2
 }
 restore() {
   if [ -n "${SIZE:-}" ]; then adb shell wm size reset; adb shell wm density reset; fi
+  if [ -n "${FONT:-}" ]; then adb shell settings put system font_scale 1.0; fi
   adb shell svc wifi enable >/dev/null 2>&1 || true
   adb shell svc data enable >/dev/null 2>&1 || true
 }
 trap restore EXIT
 
+: > "$OUT/accesibilidad.txt"
+DPI=$(adb shell wm density | tr -d '\r' | awk -F": " '{print $NF}' | tail -1)
+if [ -n "${FONT:-}" ]; then adb shell settings put system font_scale "$FONT"; fi
 if [ -n "${SIZE:-}" ]; then
   adb shell wm size "$SIZE"
   [ -n "${DENSITY:-}" ] && adb shell wm density "$DENSITY"
@@ -112,8 +131,20 @@ if [ -n "${LOGIN:-}" ]; then
   # Por la pestaña Perfil (un enlace directo a /login dejaba la pantalla en blanco en la app de desarrollo).
   wait_for "Perfil"; tap_text "Perfil"; sleep 2
   wait_for "Iniciar sesión"; tap_text "Iniciar sesión"; sleep 2
-  wait_for "tu@correo.com"; tap_text "tu@correo.com"; adb shell input text "$EMAIL"
-  tap_text "••••••"; adb shell input text "$PASS"
+  # Se borra el campo antes de escribir y se comprueba lo escrito: el teclado del emulador a veces repite la primera letra.
+  type_into() {
+    tap_text "$1"
+    adb shell input keyevent KEYCODE_MOVE_END
+    for _ in $(seq 1 40); do adb shell input keyevent KEYCODE_DEL; done
+    adb shell input text "$2"
+  }
+  wait_for "tu@correo.com"
+  for _ in 1 2 3; do
+    type_into "tu@correo.com" "$EMAIL"
+    adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+    adb exec-out cat /sdcard/ui.xml | grep -q "text=\"$EMAIL\"" && break
+  done
+  type_into "••••••" "$PASS"
   adb shell input keyevent KEYCODE_ENTER # la contraseña envía el formulario
   wait_for "$EMAIL"
 fi

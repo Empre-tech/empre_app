@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
   lineText: { ...T.small, fontSize: 12, flexShrink: 1 },
   lineX: { width: 26, height: 26, borderRadius: R.control, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center' },
   tabs: { flexDirection: 'row', gap: S.xs, padding: 3, borderRadius: R.key, backgroundColor: C.control },
-  tab: { flex: 1, minHeight: fin.size.tab, borderRadius: R.tab, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
+  tab: { flex: 1, minHeight: fin.size.touch, borderRadius: R.tab, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
   tabOn: { backgroundColor: C.surface, ...fin.elevation.card, shadowOpacity: 0.08, elevation: 1 },
   tabText: { ...T.small, fontSize: 12.5, color: C.textSoft },
   tabTextOn: { color: C.text },
