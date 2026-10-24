@@ -7,7 +7,7 @@ import { AccessibilityInfo, Animated, Easing, Pressable, RefreshControl, ScrollV
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { categoriesApi } from '@/api/endpoints';
-import { offersApi } from '@/api/offers';
+import { claimsApi, offersApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
@@ -16,10 +16,12 @@ import { BarrioBand, SavedCard } from '@/components/offers/barrio/BarrioBand';
 import { GroupCards, RoutesRail, VoicesRail } from '@/components/offers/barrio/BarrioRails';
 import { Bento } from '@/components/offers/barrio/Bento';
 import { NeighborsRow } from '@/components/offers/barrio/Neighbors';
+import { OfferSheet } from '@/components/offers/barrio/OfferSheet';
 import { Reveal } from '@/components/offers/MarketMotion';
 import { OfferRow, OfferTile, TILE_GAP, TILE_W, ZONE_W, ZoneCard } from '@/components/offers/OfferTiles';
 import { SkeletonBlock } from '@/components/Skeleton';
 import { buildGroups, categoryFilter, groupOfName, type GroupId } from '@/lib/categoryGroups';
+import { effectiveClaimStatus } from '@/lib/claims';
 import { loadLastCity, saveLastCity } from '@/lib/lastCityStore';
 import { bandHook, bestByGroup, trustDistances } from '@/lib/offerBarrio';
 import { effectiveSort, endText, flattenPages, listTitle, nearEnd, showZones, sortOptions, visibleSections, zoneFilterOrder, type MarketItem, type MarketResponse, type MarketSort } from '@/lib/offerMarket';
@@ -81,6 +83,7 @@ export default function OffersScreen() {
   const [compact, setCompact] = useState(false);
   const [listY, setListY] = useState(0);
   const [zonesY, setZonesY] = useState(0);
+  const [sheet, setSheet] = useState<MarketItem | null>(null); // la hoja de la oferta abierta
 
   useEffect(() => {
     void loadLastCity().then(setLastCity);
@@ -137,6 +140,9 @@ export default function OffersScreen() {
     enabled: ready,
   });
   const savings = useQuery({ queryKey: ['offers-savings'], queryFn: offersApi.savings, staleTime: 60_000, enabled: status === 'signedIn' });
+  // Punto en «Mis boletos» mientras tengas un QR sin usar (la misma lista de reclamos de la pantalla del reclamo).
+  const mine = useQuery({ queryKey: ['claims', 'mine'], queryFn: claimsApi.mine, enabled: status === 'signedIn', retry: false, staleTime: 15_000 });
+  const activeTicket = (mine.data ?? []).some((c) => effectiveClaimStatus(c, now) === 'RECLAMADO');
   const raw = market.data;
   const city = raw?.city ?? '';
   const trust = trustDistances(hasLoc, city);
@@ -179,7 +185,15 @@ export default function OffersScreen() {
     prevPlace.current = place1;
   }, [place1, data?.zone, city]);
 
-  const open = useCallback((o: MarketItem) => router.push({ pathname: '/business/[id]', params: { id: o.entity_id, offer: o.id, src: 'offers' } }), [router]);
+  // Toda tarjeta abre la hoja de la oferta (3.48); el perfil queda a un toque en la fila del negocio.
+  const open = (o: MarketItem) => setSheet(o);
+  // Salir de la hoja: primero se cierra y luego se navega (en Android, navegar mientras un Modal se cierra puede
+  // dejar la pantalla nueva sin aparecer).
+  const leaveSheet = (go: () => void) => {
+    setSheet(null);
+    setTimeout(go, 350);
+  };
+  const business = (o: MarketItem) => leaveSheet(() => router.push({ pathname: '/business/[id]', params: { id: o.entity_id, offer: o.id, src: 'offers' } }));
   const chat = useCallback((o: MarketItem) => router.push({ pathname: '/chat/[entityId]', params: { entityId: o.entity_id, name: o.entity_name, avatar: o.profile_photo } }), [router]);
   const tickets = useCallback(() => router.push('/claims'), [router]);
   const sections = q ? [] : visibleSections(data);
@@ -296,7 +310,7 @@ export default function OffersScreen() {
         refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.white} colors={[colors.primary]} progressViewOffset={insets.top} />}
       >
         <View style={{ paddingTop: insets.top }} />
-        <BarrioBand city={city} zone={hasLoc ? (data?.zone ?? '') : ''} hook={q ? 0 : hook} search={search} onPlace={() => (zonesOn ? scrollTo(zonesY) : askLocation())} onTickets={tickets}>
+        <BarrioBand city={city} zone={hasLoc ? (data?.zone ?? '') : ''} hook={q ? 0 : hook} search={search} onPlace={() => (zonesOn ? scrollTo(zonesY) : askLocation())} onTickets={tickets} ticketDot={activeTicket}>
           {!q && data ? <NeighborsRow neighbors={data.neighbors} now={now} onClaim={open} onChat={chat} /> : null}
         </BarrioBand>
         {status === 'signedIn' && !q ? <SavedCard savings={savings.data} onTickets={tickets} /> : <View style={styles.bandGap} />}
@@ -467,6 +481,17 @@ export default function OffersScreen() {
           </View>
         ) : null}
       </ScrollView>
+      {sheet ? (
+        <OfferSheet
+          item={sheet}
+          now={now}
+          signedIn={status === 'signedIn'}
+          onClose={() => setSheet(null)}
+          onBusiness={business}
+          onSignIn={() => leaveSheet(() => router.push('/(auth)/login'))}
+          onShowQR={(c, o) => leaveSheet(() => router.push({ pathname: '/offer/claim', params: { claimId: c.id, offerId: o.id, entityId: o.entity_id } }))}
+        />
+      ) : null}
     </View>
   );
 }

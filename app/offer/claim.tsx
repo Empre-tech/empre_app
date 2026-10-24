@@ -7,8 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi } from '@/api/endpoints';
 import { claimsApi, offersApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
-import { getClaimPosition } from '@/claims/claimPosition';
 import { loadSavedClaims, removeSavedClaim, saveClaim } from '@/claims/claimStore';
+import { useClaimOffer } from '@/claims/useClaimOffer';
 import { Button } from '@/components/Button';
 import { ClaimIntro } from '@/components/claim/ClaimIntro';
 import { ClaimQR } from '@/components/claim/ClaimQR';
@@ -16,7 +16,6 @@ import { ClaimRedeemed } from '@/components/claim/ClaimRedeemed';
 import { claimToShowForOffer, effectiveClaimStatus, mergeClaims } from '@/lib/claims';
 import { useNow } from '@/lib/useNow';
 import { colors, fonts, spacing } from '@/theme';
-import { hapticError, hapticSuccess } from '@/lib/haptics';
 
 /**
  * Reclamo de una oferta, en pasos según el estado:
@@ -100,26 +99,15 @@ export default function ClaimScreen() {
 
   const isSaved = justSaved || (savedClaims.data ?? []).some((c) => c.id === claim?.id);
 
+  const claimer = useClaimOffer();
   const onClaim = async () => {
     const target = claim?.offer_id ?? offerId;
     if (!target) return;
-    setBusy(true);
     setMessage(null);
-    try {
-      // El servidor comprueba que estés cerca del negocio; sin permiso o sin señal, reclama igual.
-      const where = await getClaimPosition();
-      const created = await claimsApi.claim(target, where?.latitude, where?.longitude);
-      queryClient.setQueryData(['claim', created.id], created);
-      void queryClient.invalidateQueries({ queryKey: ['claims', 'mine'] });
-      if (userId) setJustSaved(await saveClaim(userId, created));
-      setChosenId(created.id);
-      hapticSuccess();
-    } catch (e) {
-      hapticError();
-      setMessage(e instanceof Error ? e.message : 'No pudimos reclamar la oferta');
-    } finally {
-      setBusy(false);
-    }
+    const res = await claimer.claim(target);
+    if (!res) return;
+    setJustSaved(res.saved);
+    setChosenId(res.claim.id);
   };
 
   const doCancel = async () => {
@@ -197,8 +185,8 @@ export default function ClaimScreen() {
               status={status}
               now={now}
               saved={isSaved}
-              message={message}
-              busy={busy}
+              message={message ?? claimer.message}
+              busy={busy || claimer.busy}
               onDirections={onDirections}
               onCancel={onCancel}
               onClaimAgain={() => void onClaim()}
@@ -209,8 +197,8 @@ export default function ClaimScreen() {
           <ClaimIntro
             offer={offer}
             signedIn={signedIn}
-            claiming={busy}
-            message={message}
+            claiming={claimer.busy}
+            message={message ?? claimer.message}
             onClaim={() => void onClaim()}
             onSignIn={() => router.push('/(auth)/login')}
           />

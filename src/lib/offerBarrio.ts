@@ -152,6 +152,39 @@ export function ringUrgent(endsAt: string, now: number): boolean {
   return ms > 0 && ms < 3_600_000;
 }
 
+export interface WhyLine {
+  icon: 'cash-outline' | 'star-outline' | 'walk-outline' | 'time-outline' | 'moon-outline';
+  title: string;
+  sub: string;
+}
+
+/**
+ * «Por qué vale la pena» en la hoja de la oferta (3.48): solo hechos que la oferta trae, en este orden: el ahorro
+ * frente a su precio habitual, la valoración de quienes fueron, qué tan cerca está y si está abierto. Una línea sin
+ * dato no sale (nunca se rellena con frases de venta).
+ */
+export function whyWorthIt(o: MarketItem, now: number): WhyLine[] {
+  const out: WhyLine[] = [];
+  const save = savingPesos(o);
+  if (save > 0 && typeof o.reference_price === 'number') {
+    const pct = Math.round((save / o.reference_price) * 100);
+    out.push({ icon: 'cash-outline', title: `Ahorras ${pesos(save)} (${pct} %)`, sub: `Su precio habitual es ${pesos(o.reference_price)}` });
+  }
+  if (typeof o.rating === 'number' && o.rating > 0) {
+    out.push({ icon: 'star-outline', title: `${o.rating.toFixed(1).replace('.', ',')} de 5 en reseñas`, sub: 'De quienes ya fueron' });
+  }
+  const near = blocksLabel(o.distance_meters);
+  if (near) {
+    const m = o.distance_meters as number;
+    out.push({ icon: 'walk-outline', title: `Está ${near} de ti`, sub: m <= 1000 ? 'Puedes ir a pie' : 'En tu ciudad' });
+  }
+  const left = Date.parse(o.ends_at) - now;
+  const leftText = left > 0 ? (left < 3_600_000 ? `La oferta termina en ${Math.ceil(left / 60_000)} min` : 'La oferta sigue vigente') : 'La oferta terminó';
+  if (o.open_now === true) out.push({ icon: 'time-outline', title: 'Abierto ahora', sub: leftText });
+  else if (o.open_now === false) out.push({ icon: 'moon-outline', title: 'Cerrado ahora', sub: `${leftText}; puedes reclamarla y canjearla cuando abra` });
+  return out;
+}
+
 /** Mayor ahorro en porcentaje por grupo, entre lo que se ve («Hasta −50 %» en las tarjetas de «¿Qué se te antoja?»). */
 export function bestByGroup(items: MarketItem[], groupOf: (categoryName: string) => GroupId | undefined): Partial<Record<GroupId, number>> {
   const out: Partial<Record<GroupId, number>> = {};

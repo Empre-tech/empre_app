@@ -24,6 +24,7 @@ type IconName = keyof typeof Ionicons.glyphMap;
 // tocando los lados. Con «Reducir movimiento» o con el lector de pantalla, no avanzan solas.
 
 const STORY_MS = 6000;
+const MODAL_GAP_MS = 350;
 const RING = 66;
 const STROKE = 3;
 
@@ -116,13 +117,15 @@ export function NeighborsRow({ neighbors, now, onClaim, onChat }: { neighbors: M
           now={now}
           onSeen={markSeen}
           onClose={() => setOpen(null)}
+          // Primero se cierra la historia y luego se abre lo siguiente: en Android, abrir un Modal mientras otro se
+          // está cerrando deja la pantalla congelada en el primero.
           onClaim={(o) => {
             setOpen(null);
-            onClaim(o);
+            setTimeout(() => onClaim(o), MODAL_GAP_MS);
           }}
           onChat={(o) => {
             setOpen(null);
-            onChat(o);
+            setTimeout(() => onChat(o), MODAL_GAP_MS);
           }}
         />
       ) : null}

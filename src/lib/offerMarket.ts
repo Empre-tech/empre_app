@@ -30,6 +30,11 @@ export interface MarketItem {
   open_now?: boolean;
   /** Foto de perfil del negocio (la cara del círculo de «Tus vecinos hoy»). */
   profile_photo?: string;
+  /** Lo que la hoja de la oferta muestra en sus condiciones (vienen con la oferta). */
+  conditions?: string;
+  total_slots?: number;
+  slots_left?: number;
+  claim_window_minutes?: number;
 }
 
 /** Tarjeta de «Por zona» (3.39): sin conteos; `looks` son hasta 3 categorías para el mosaico. */

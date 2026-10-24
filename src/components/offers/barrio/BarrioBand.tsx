@@ -20,6 +20,7 @@ export function BarrioBand({
   children,
   onPlace,
   onTickets,
+  ticketDot = false,
 }: {
   city: string;
   zone: string;
@@ -29,6 +30,8 @@ export function BarrioBand({
   children?: ReactNode;
   onPlace: () => void;
   onTickets: () => void;
+  /** Tienes un QR sin usar: punto naranja en «Mis boletos». */
+  ticketDot?: boolean;
 }) {
   const where = zone || city;
   return (
@@ -54,8 +57,9 @@ export function BarrioBand({
             </View>
           </View>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Mis boletos" onPress={onTickets} style={styles.tickets}>
+        <Pressable accessibilityRole="button" accessibilityLabel={ticketDot ? 'Mis boletos, tienes uno sin usar' : 'Mis boletos'} onPress={onTickets} style={styles.tickets}>
           <Ionicons name="ticket-outline" size={21} color={colors.white} />
+          {ticketDot ? <View style={styles.dot} /> : null}
         </Pressable>
       </View>
       {hook > 0 ? (
@@ -129,6 +133,7 @@ const styles = StyleSheet.create({
   locLine: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   locName: { flexShrink: 1, fontSize: 17, fontFamily: fonts.display.bold, color: colors.white },
   tickets: { width: 44, height: 44, borderRadius: 22, backgroundColor: alpha(colors.white, 0.16), alignItems: 'center', justifyContent: 'center' },
+  dot: { position: 'absolute', top: 9, right: 9, width: 10, height: 10, borderRadius: 5, backgroundColor: colors.accent, borderWidth: 2, borderColor: colors.primaryDark },
   hook: { paddingHorizontal: spacing.lg, marginTop: spacing.sm },
   hookLine: { flexDirection: 'row', alignItems: 'flex-end', flexWrap: 'wrap' },
   hookText: { fontSize: 25, lineHeight: 30, fontFamily: fonts.display.bold, color: colors.white },

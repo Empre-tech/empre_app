@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { MarketItem } from './offerMarket.ts';
-import { attendantLine, bandHook, bestByGroup, blocksLabel, neighborName, personInitial, redeemedWhen, ringUrgent, routeName, savingPesos, savingText, spotlightLabel, trustDistances, walkLabel } from './offerBarrio.ts';
+import { attendantLine, bandHook, bestByGroup, blocksLabel, neighborName, personInitial, redeemedWhen, ringUrgent, routeName, savingPesos, savingText, spotlightLabel, trustDistances, walkLabel, whyWorthIt } from './offerBarrio.ts';
 
 const item = (o: Partial<MarketItem>): MarketItem => ({
   id: 'x', entity_id: 'e', title: 'Oferta', type: 'DIA', ends_at: new Date(Date.now() + 3_600_000).toISOString(), entity_name: 'Café Ribera',
@@ -89,4 +89,17 @@ test('el mayor ahorro de cada grupo, solo con ahorro real', () => {
     groupOf,
   );
   assert.deepEqual(got, { comer: 50, salud: 21 });
+});
+
+test('«Por qué vale la pena»: solo hechos, en orden, y nada sin dato', () => {
+  const now = Date.parse('2026-10-24T15:00:00Z');
+  const full = item({ special_price: 9000, reference_price: 14000, rating: 4.8, distance_meters: 230, open_now: true, ends_at: '2026-10-24T15:40:00Z' });
+  assert.deepEqual(
+    whyWorthIt(full, now).map((l) => `${l.title} | ${l.sub}`),
+    ['Ahorras $5.000 (36 %) | Su precio habitual es $14.000', '4,8 de 5 en reseñas | De quienes ya fueron', 'Está a 2 cuadras de ti | Puedes ir a pie', 'Abierto ahora | La oferta termina en 40 min'],
+  );
+  // Sin ahorro, sin reseñas, sin ubicación y sin horario: no se inventa nada.
+  assert.deepEqual(whyWorthIt(item({}), now), []);
+  const closed = whyWorthIt(item({ open_now: false, ends_at: '2026-10-26T15:00:00Z' }), now);
+  assert.equal(closed[0].title, 'Cerrado ahora');
 });
