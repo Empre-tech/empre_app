@@ -8,58 +8,71 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { categoriesApi } from '@/api/endpoints';
 import { offersApi } from '@/api/offers';
+import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/Button';
+import { Chip } from '@/components/Chip';
 import { UpdatingBar } from '@/components/explore/LoadingMotion';
-import { Reveal, RollText } from '@/components/offers/MarketMotion';
-import { CategoryTile, FeaturedOffer, OfferRow, OfferTile, TILE_GAP, TILE_W, ZONE_W, ZoneCard } from '@/components/offers/OfferTiles';
+import { BarrioBand, SavedCard } from '@/components/offers/barrio/BarrioBand';
+import { GroupCards, RoutesRail, VoicesRail } from '@/components/offers/barrio/BarrioRails';
+import { Bento } from '@/components/offers/barrio/Bento';
+import { NeighborsRow } from '@/components/offers/barrio/Neighbors';
+import { Reveal } from '@/components/offers/MarketMotion';
+import { OfferRow, OfferTile, TILE_GAP, TILE_W, ZONE_W, ZoneCard } from '@/components/offers/OfferTiles';
 import { SkeletonBlock } from '@/components/Skeleton';
+import { buildGroups, categoryFilter, groupOfName, type GroupId } from '@/lib/categoryGroups';
 import { loadLastCity, saveLastCity } from '@/lib/lastCityStore';
-import {
-  effectiveSort,
-  endText,
-  flattenPages,
-  heroTitle,
-  listTitle,
-  nearEnd,
-  placeLine,
-  shortCategory,
-  showZones,
-  sortOptions,
-  visibleSections,
-  zoneFilterOrder,
-  type MarketItem,
-  type MarketSort,
-} from '@/lib/offerMarket';
+import { bandHook, bestByGroup, trustDistances } from '@/lib/offerBarrio';
+import { effectiveSort, endText, flattenPages, listTitle, nearEnd, showZones, sortOptions, visibleSections, zoneFilterOrder, type MarketItem, type MarketResponse, type MarketSort } from '@/lib/offerMarket';
 import { useNow } from '@/lib/useNow';
+import { usePullRefresh } from '@/lib/usePullRefresh';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, DENSE_TEXT_SCALE, fonts, radius, spacing } from '@/theme';
-import { usePullRefresh } from '@/lib/usePullRefresh';
-import { Chip } from '@/components/Chip';
 
 type Coords = { latitude: number; longitude: number };
 
-const COMPACT_AT = 90; // px bajados para pasar a la barra compacta
+const COMPACT_AT = 140; // px bajados para pasar a la barra compacta (la franja es más alta que el título de antes)
 const MINI_H = 52; // alto de la barra compacta (la lista no queda debajo al saltar a una zona)
 
+// Lejos de toda ciudad de Empre, las distancias no dicen nada: se quitan (auditoría 3.48, P1).
+const noDistance = (o: MarketItem): MarketItem => (o.distance_meters === null ? o : { ...o, distance_meters: null });
+function withoutDistances(r: MarketResponse): MarketResponse {
+  const m = (l: MarketItem[]) => l.map(noDistance);
+  return {
+    ...r,
+    zones: r.zones.map((z) => ({ ...z, distance_meters: null })),
+    featured: r.featured ? noDistance(r.featured) : null,
+    near: [],
+    searched: { ...r.searched, items: m(r.searched.items) },
+    trending: m(r.trending),
+    for_you: { ...r.for_you, items: m(r.for_you.items) },
+    spotlight: r.spotlight.map((s) => ({ ...s, item: noDistance(s.item) })),
+    bento: m(r.bento),
+    routes: [], // una ruta a pie no tiene sentido sin saber dónde estás
+    neighbors: r.neighbors.map((n) => ({ ...n, item: noDistance(n.item) })),
+    voices: r.voices.map((v) => ({ ...v, item: noDistance(v.item) })),
+  };
+}
+
 /**
- * Pestaña Ofertas como vitrina de la ciudad (3.38 + 3.39, mockups ofertas_marketplace.html y ofertas_ciudad.html).
- * La ciudad la pone la ubicación (sin menú para cambiarla); sin ubicación, la última conocida. Arriba «Ofertas en
- * {ciudad}» con la zona donde estás: al moverte, el texto rueda; al bajar, se compacta en una barra. Secciones sin
- * repetir ofertas (cerca, lo más buscado, tendencia, recomendado), «Por zona» y todas las de la ciudad por tandas.
- * Nada patrocinado ni contadores. El reclamo no cambia: la tarjeta abre el perfil en la ficha de esa oferta.
+ * Pestaña Ofertas: el barrio (3.48, mockup ofertas_donde_buscar.html versión 4), sobre la vitrina de la ciudad de 3.38
+ * a 3.40. Arriba la franja de tu barrio con el titular, el buscador y «Tus vecinos hoy»; «Este mes ahorraste»; el
+ * mosaico «Hoy en tu barrio» (un tipo de negocio por pieza, con la pasarela en la grande); «Rutas del barrio»; «A pocas
+ * cuadras»; «Lo recomiendan tus vecinos»; «¿Qué se te antoja?»; las secciones de siempre; los barrios y todas las de
+ * la ciudad por tandas. Nada patrocinado ni contadores. El reclamo no cambia: la tarjeta abre el perfil en esa oferta.
  */
 export default function OffersScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const now = useNow(60_000);
   const reduce = useReduceMotion();
+  const { status } = useAuth();
   const scrollRef = useRef<ScrollView>(null);
   const searchRef = useRef<TextInput>(null);
 
   const [coords, setCoords] = useState<Coords | null>(null);
   const [locAsked, setLocAsked] = useState(false);
   const [lastCity, setLastCity] = useState<string | null>(null); // null = aún leyendo el teléfono
-  const [catId, setCatId] = useState<string | undefined>(); // categoría elegida en la fila con iconos
+  const [group, setGroup] = useState<GroupId | undefined>(); // «¿Qué se te antoja?»
   const [term, setTerm] = useState<string | undefined>();
   const [sort, setSort] = useState<MarketSort>('near');
   const [zone, setZone] = useState<string | undefined>();
@@ -67,6 +80,7 @@ export default function OffersScreen() {
   const [q, setQ] = useState('');
   const [compact, setCompact] = useState(false);
   const [listY, setListY] = useState(0);
+  const [zonesY, setZonesY] = useState(0);
 
   useEffect(() => {
     void loadLastCity().then(setLastCity);
@@ -75,8 +89,8 @@ export default function OffersScreen() {
   // cambia sola.
   const readPosition = useCallback(async () => {
     try {
-      const { status } = await Location.getForegroundPermissionsAsync();
-      if (status !== 'granted') return;
+      const { status: perm } = await Location.getForegroundPermissionsAsync();
+      if (perm !== 'granted') return;
       const pos = await Location.getLastKnownPositionAsync();
       if (pos) setCoords({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
     } catch {
@@ -91,8 +105,8 @@ export default function OffersScreen() {
   const askLocation = useCallback(async () => {
     setLocAsked(true);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
+      const { status: perm } = await Location.requestForegroundPermissionsAsync();
+      if (perm !== 'granted') return;
       const pos = (await Location.getLastKnownPositionAsync()) ?? (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
       if (pos) setCoords({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
     } catch {
@@ -106,7 +120,8 @@ export default function OffersScreen() {
   }, [text]);
 
   const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 5 * 60_000 });
-  const category = catId;
+  const groups = useMemo(() => buildGroups(categories.data ?? []), [categories.data]);
+  const category = categoryFilter(group, undefined, groups);
   const hasLoc = coords !== null;
   const sortNow = effectiveSort(sort, hasLoc);
   const ready = lastCity !== null;
@@ -121,8 +136,11 @@ export default function OffersScreen() {
     staleTime: 60_000,
     enabled: ready,
   });
-  const data = market.data;
-  const city = data?.city ?? '';
+  const savings = useQuery({ queryKey: ['offers-savings'], queryFn: offersApi.savings, staleTime: 60_000, enabled: status === 'signedIn' });
+  const raw = market.data;
+  const city = raw?.city ?? '';
+  const trust = trustDistances(hasLoc, city);
+  const data = useMemo(() => (raw && !trust ? withoutDistances(raw) : raw), [raw, trust]);
   // Zona elegida para la lista; si ya no es de esta ciudad (te moviste), no filtra.
   const zoneId = zone && (!data || data.zones.some((z) => z.id === zone)) ? zone : undefined;
 
@@ -135,9 +153,12 @@ export default function OffersScreen() {
     staleTime: 60_000,
     enabled: ready,
   });
-  const items = useMemo(() => flattenPages(all.data?.pages), [all.data?.pages]);
-  // Tirar para actualizar: la vitrina y la lista completa a la vez.
-  const pull = usePullRefresh(useCallback(() => Promise.all([market.refetch(), all.refetch()]), [market, all]));
+  const items = useMemo(() => {
+    const l = flattenPages(all.data?.pages);
+    return trust ? l : l.map(noDistance);
+  }, [all.data?.pages, trust]);
+  // Tirar para actualizar: la vitrina, la lista completa y tu ahorro a la vez.
+  const pull = usePullRefresh(useCallback(() => Promise.all([market.refetch(), all.refetch(), status === 'signedIn' ? savings.refetch() : null]), [market, all, savings, status]));
 
   // La ciudad que puso la ubicación queda guardada en el teléfono para cuando no haya ubicación.
   const saved = useRef('');
@@ -147,7 +168,7 @@ export default function OffersScreen() {
       void saveLastCity(city);
     }
   }, [hasLoc, city, lastCity]);
-  // El lector de pantalla se entera cuando cambias de zona o de ciudad (la primera vez no: ya lo lee el título).
+  // El lector de pantalla se entera cuando cambias de zona o de ciudad (la primera vez no: ya lo lee la franja).
   const place1 = data ? `${city}|${data.zone}` : '';
   const prevPlace = useRef('');
   useEffect(() => {
@@ -159,11 +180,21 @@ export default function OffersScreen() {
   }, [place1, data?.zone, city]);
 
   const open = useCallback((o: MarketItem) => router.push({ pathname: '/business/[id]', params: { id: o.entity_id, offer: o.id, src: 'offers' } }), [router]);
+  const chat = useCallback((o: MarketItem) => router.push({ pathname: '/chat/[entityId]', params: { entityId: o.entity_id, name: o.entity_name, avatar: o.profile_photo } }), [router]);
+  const tickets = useCallback(() => router.push('/claims'), [router]);
   const sections = q ? [] : visibleSections(data);
   const zonesOn = !q && showZones(data);
   const zoneName = data?.zones.find((z) => z.id === zoneId)?.name;
-  const hero = heroTitle(city);
-  const line = placeLine(data, hasLoc);
+  const inCity = city ? ` en ${city}` : '';
+  // Todo lo que se ve arriba (para el titular y el «Hasta −X %» de cada grupo).
+  const visible = useMemo(
+    () => (data ? [...data.spotlight.map((s) => s.item), ...data.bento, ...data.near, ...data.trending, ...data.for_you.items, ...data.searched.items, ...items] : []),
+    [data, items],
+  );
+  const hook = bandHook(visible);
+  const best = useMemo(() => bestByGroup(visible, groupOfName), [visible]);
+  // Al cambiar de zona o de orden, la lista vieja se atenúa y llegan esqueletos: nunca se mezclan sin aviso.
+  const listStale = all.isPlaceholderData && all.isFetching;
 
   // Barra compacta: aparece al bajar (por umbral, no con cada píxel).
   const [bar] = useState(() => new Animated.Value(0));
@@ -182,9 +213,10 @@ export default function OffersScreen() {
     if (c !== compact) setCompact(c);
     if (nearEnd(n) && all.hasNextPage && !all.isFetchingNextPage) void all.fetchNextPage();
   };
+  const scrollTo = (y: number) => setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, y - MINI_H - 4), animated: !reduce }), reduce ? 0 : 160);
   const goToList = (id: string | undefined) => {
     setZone(id);
-    setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, listY - MINI_H - 4), animated: !reduce }), reduce ? 0 : 160);
+    scrollTo(listY);
   };
 
   const rail = (list: MarketItem[]) => (
@@ -204,22 +236,42 @@ export default function OffersScreen() {
       <Text style={styles.shWhy}>{why}</Text>
     </View>
   );
-  const inCity = city ? ` en ${city}` : '';
+
+  const search = (
+    <View style={styles.search}>
+      <Ionicons name="search" size={18} color={colors.muted} />
+      <TextInput
+        ref={searchRef}
+        value={text}
+        onChangeText={setText}
+        placeholder={data?.zone ? 'Busca un negocio del barrio' : city ? `Busca en ${city}` : 'Busca una oferta o un negocio'}
+        placeholderTextColor={colors.muted}
+        style={styles.searchInput}
+        accessibilityLabel="Buscar en las ofertas"
+        returnKeyType="search"
+      />
+      {text ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Borrar búsqueda" onPress={() => setText('')} hitSlop={10}>
+          <Ionicons name="close-circle" size={18} color={colors.muted} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
+    <View style={styles.screen}>
       {(market.isFetching && data) || (all.isFetching && !all.isFetchingNextPage && all.data) ? <UpdatingBar /> : null}
       <Animated.View
         pointerEvents={compact ? 'auto' : 'none'}
         aria-hidden={!compact}
-        style={[styles.mini, { top: insets.top, opacity: bar, transform: [{ translateY: bar.interpolate({ inputRange: [0, 1], outputRange: [-MINI_H, 0] }) }] }]}
+        style={[styles.mini, { paddingTop: insets.top, height: MINI_H + insets.top, opacity: bar, transform: [{ translateY: bar.interpolate({ inputRange: [0, 1], outputRange: [-MINI_H - insets.top, 0] }) }] }]}
       >
         <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.miniCity} numberOfLines={1}>
-          {city || 'Ofertas'}
+          {data?.zone || city || 'Ofertas'}
         </Text>
-        {hasLoc && data?.zone ? (
+        {data?.zone && city ? (
           <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.miniZone} numberOfLines={1}>
-            · {data.zone}
+            · {city}
           </Text>
         ) : null}
         <Pressable
@@ -241,83 +293,68 @@ export default function OffersScreen() {
         keyboardShouldPersistTaps="handled"
         onScroll={onScroll}
         scrollEventThrottle={64}
-        refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
+        refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.white} colors={[colors.primary]} progressViewOffset={insets.top} />}
       >
-        <View style={styles.top}>
-          <View style={styles.heroRow} accessible accessibilityRole="header" accessibilityLabel={hero.lead + hero.city}>
-            <Text style={[styles.hero, hero.city ? styles.heroLead : null]}>{hero.lead}</Text>
-            {hero.city ? <RollText text={hero.city} style={styles.hero} /> : null}
-          </View>
-          {line ? (
-            <View style={styles.where}>
-              <Ionicons name={hasLoc ? 'location' : 'time-outline'} size={16} color={colors.primaryDark} />
-              <RollText text={line} style={styles.whereText} />
-            </View>
-          ) : null}
-          <View style={styles.search}>
-            <Ionicons name="search" size={18} color={colors.muted} />
-            <TextInput
-              ref={searchRef}
-              value={text}
-              onChangeText={setText}
-              placeholder={city ? `Busca en ${city}` : 'Busca una oferta o un negocio'}
-              placeholderTextColor={colors.muted}
-              style={styles.searchInput}
-              accessibilityLabel="Buscar en las ofertas"
-              returnKeyType="search"
-            />
-            {text ? (
-              <Pressable accessibilityRole="button" accessibilityLabel="Borrar búsqueda" onPress={() => setText('')} hitSlop={10}>
-                <Ionicons name="close-circle" size={18} color={colors.muted} />
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
-
-        {/* 3.40: las categorías con su icono y color; tocar la elegida la quita. */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats} accessibilityLabel="Categorías">
-          {(categories.data ?? []).map((c) => (
-            <CategoryTile key={c.id} name={c.name} short={shortCategory(c.name)} icon={c.icon} color={c.color} active={catId === c.id} onPress={() => setCatId(catId === c.id ? undefined : c.id)} />
-          ))}
-        </ScrollView>
+        <View style={{ paddingTop: insets.top }} />
+        <BarrioBand city={city} zone={hasLoc ? (data?.zone ?? '') : ''} hook={q ? 0 : hook} search={search} onPlace={() => (zonesOn ? scrollTo(zonesY) : askLocation())} onTickets={tickets}>
+          {!q && data ? <NeighborsRow neighbors={data.neighbors} now={now} onClaim={open} onChat={chat} /> : null}
+        </BarrioBand>
+        {status === 'signedIn' && !q ? <SavedCard savings={savings.data} onTickets={tickets} /> : <View style={styles.bandGap} />}
 
         {!hasLoc && !q && ready ? (
           <View style={styles.loc}>
             <Text style={styles.locText}>
-              {locAsked ? 'Sin permiso de ubicación no podemos decir qué está cerca.' : city ? 'Con tu ubicación te mostramos primero lo que está cerca.' : 'Con tu ubicación te mostramos las ofertas de tu ciudad.'}
+              {locAsked ? 'Sin permiso de ubicación no podemos decir qué está cerca.' : city ? 'Con tu ubicación te mostramos primero tu barrio.' : 'Con tu ubicación te mostramos las ofertas de tu barrio.'}
             </Text>
             <Pressable accessibilityRole="button" onPress={() => void askLocation()} style={styles.locBtn}>
-              <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.locBtnText}>Activar</Text>
+              <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.locBtnText}>
+                Activar
+              </Text>
             </Pressable>
+          </View>
+        ) : null}
+        {hasLoc && raw && !trust && !q ? (
+          <View style={styles.loc}>
+            <Text style={styles.locText}>Estás lejos de las ciudades de Empre, por eso no te mostramos distancias. Estas son las que terminan pronto.</Text>
           </View>
         ) : null}
 
         {!data && (market.isLoading || !ready) ? (
           <View style={styles.sec}>
             <View style={styles.sh}>
-              <SkeletonBlock width={140} height={18} />
+              <SkeletonBlock width={150} height={18} />
             </View>
-            <View style={styles.rail}>
-              {[0, 1].map((i) => (
-                <SkeletonBlock key={i} width={TILE_W} height={214} borderRadius={radius.lg} />
-              ))}
+            <View style={styles.bentoSk}>
+              <SkeletonBlock height={232} borderRadius={24} style={styles.flex} />
+              <View style={styles.bentoSkCol}>
+                <SkeletonBlock height={112} borderRadius={22} />
+                <SkeletonBlock height={112} borderRadius={22} />
+              </View>
             </View>
           </View>
         ) : null}
 
-        {data?.featured && !q ? (
-          <Reveal key={`featured|${key}|${data.featured.id}`} style={styles.sec}>
-            <FeaturedOffer item={data.featured} now={now} onPress={() => open(data.featured!)} />
+        {data && !q && (data.spotlight.length || data.bento.length) ? (
+          <Reveal key={`bento|${key}`} style={styles.sec}>
+            {header(data.zone && trust ? `Hoy en ${data.zone}` : 'Hoy en tu ciudad', 'Un vecino de cada tipo, para que veas de todo')}
+            <Bento slides={data.spotlight} tiles={data.bento} zone={trust ? data.zone : ''} onOpen={open} />
+          </Reveal>
+        ) : null}
+
+        {data && !q && data.routes.length ? (
+          <Reveal key={`routes|${key}`} delay={70} style={styles.sec}>
+            {header('Rutas del barrio', 'Planes con 3 vecinos distintos, cerca entre sí')}
+            <RoutesRail routes={data.routes} onOpen={open} />
           </Reveal>
         ) : null}
 
         {data
           ? sections.map((s, i) => (
               // La llave cambia con el lugar, el filtro o el término: lo nuevo vuelve a entrar con su cascada.
-              <Reveal key={`${s}|${key}`} delay={Math.min(i, 3) * 70} style={styles.sec}>
+              <Reveal key={`${s}|${key}`} delay={Math.min(i + 1, 3) * 70} style={styles.sec}>
                 {s === 'near' ? (
                   <>
-                    {header('Cerca de ti', 'A menos de 3 km, la más cercana primero')}
+                    {header('A pocas cuadras', 'Tus vecinos más cercanos, a menos de 3 km')}
                     {rail(data.near)}
                   </>
                 ) : s === 'searched' ? (
@@ -345,23 +382,39 @@ export default function OffersScreen() {
             ))
           : null}
 
-        {data && zonesOn ? (
-          <Reveal key={`zones|${key}`} delay={Math.min(sections.length, 3) * 70} style={styles.sec}>
-            {header('Por zona', `Explora otras partes de ${city}`)}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail} snapToInterval={ZONE_W + TILE_GAP} decelerationRate="fast" snapToAlignment="start">
-              {data.zones.map((z, i) => (
-                <Reveal key={z.id} delay={80 + Math.min(i, 5) * 50} distance={6} duration={280}>
-                  <ZoneCard zone={z} onPress={() => goToList(z.id)} />
-                </Reveal>
-              ))}
-            </ScrollView>
+        {data && !q && data.voices.length ? (
+          <Reveal key={`voices|${key}`} delay={70} style={styles.sec}>
+            {header('Lo recomiendan tus vecinos', 'Reseñas de quienes canjearon, sin contar votos')}
+            <VoicesRail voices={data.voices} now={now} onOpen={open} />
           </Reveal>
+        ) : null}
+
+        {!q ? (
+          <View style={styles.sec}>
+            {header('¿Qué se te antoja?', 'Los tipos de negocio de Explorar, con el mayor ahorro de cada uno')}
+            <GroupCards best={best} selected={group} onSelect={setGroup} />
+          </View>
+        ) : null}
+
+        {data && zonesOn ? (
+          <View onLayout={(e) => setZonesY(e.nativeEvent.layout.y)}>
+            <Reveal key={`zones|${key}`} style={styles.sec}>
+              {header(`Barrios de ${city}`, 'El tuyo primero; toca uno para ver sus ofertas')}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail} snapToInterval={ZONE_W + TILE_GAP} decelerationRate="fast" snapToAlignment="start">
+                {data.zones.map((z, i) => (
+                  <Reveal key={z.id} delay={80 + Math.min(i, 5) * 50} distance={6} duration={280}>
+                    <ZoneCard zone={z} onPress={() => goToList(z.id)} />
+                  </Reveal>
+                ))}
+              </ScrollView>
+            </Reveal>
+          </View>
         ) : null}
 
         {data || all.data ? (
           <View onLayout={(e) => setListY(e.nativeEvent.layout.y)}>
-            <Reveal key={`all|${key}|${q ? 'q' : ''}`} delay={Math.min(sections.length + (zonesOn ? 1 : 0), 3) * 70} style={styles.sec}>
-              {header(q ? 'Resultados' : listTitle(city, zoneName), q ? `Con «${q}»${zoneName ? ` en ${zoneName}` : inCity}` : hasLoc ? 'Vigentes ahora, la más cercana primero' : 'Vigentes ahora')}
+            <View style={styles.sec}>
+              {header(q ? 'Resultados' : listTitle(city, zoneName), listStale ? `Buscando${zoneName ? ` en ${zoneName}` : ''}…` : q ? `Con «${q}»${zoneName ? ` en ${zoneName}` : inCity}` : hasLoc && trust ? 'Vigentes ahora, la más cercana primero' : 'Vigentes ahora')}
               {data && data.zones.length ? (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.terms}>
                   <Chip label={city ? `Toda ${city}` : 'Todas las zonas'} selected={!zoneId} tone="soft" onPress={() => setZone(undefined)} />
@@ -372,22 +425,23 @@ export default function OffersScreen() {
               ) : null}
               {!q ? (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.terms}>
-                  {sortOptions(hasLoc).map((o) => (
+                  {sortOptions(hasLoc && trust).map((o) => (
                     <Chip key={o.key} label={o.label} selected={sortNow === o.key} onPress={() => setSort(o.key)} />
                   ))}
                 </ScrollView>
               ) : null}
               <View style={styles.list}>
-                {items.map((o, i) => (
-                  // Solo la primera tanda entra en cascada; las siguientes aparecen al llegar, sin esperar.
-                  <Reveal key={o.id} delay={i < 20 ? 60 + Math.min(i, 6) * 40 : 0} distance={6} duration={260}>
-                    <OfferRow item={o} now={now} onPress={() => open(o)} />
-                  </Reveal>
-                ))}
-                {all.isFetchingNextPage || (all.isLoading && !all.data)
-                  ? [0, 1].map((i) => <SkeletonBlock key={`sk${i}`} height={98} borderRadius={radius.lg} />)
-                  : null}
-                {all.data && !all.hasNextPage && items.length > 0 ? <Text style={styles.end}>{endText(city, zoneName)}</Text> : null}
+                {listStale ? [0, 1].map((i) => <SkeletonBlock key={`stale${i}`} height={98} borderRadius={radius.lg} />) : null}
+                <View style={[styles.listItems, listStale && styles.dim]}>
+                  {items.map((o, i) => (
+                    // Solo la primera tanda entra en cascada; las siguientes aparecen al llegar, sin esperar.
+                    <Reveal key={o.id} delay={i < 20 ? 60 + Math.min(i, 6) * 40 : 0} distance={6} duration={260}>
+                      <OfferRow item={o} now={now} onPress={() => open(o)} />
+                    </Reveal>
+                  ))}
+                </View>
+                {all.isFetchingNextPage || (all.isLoading && !all.data) ? [0, 1].map((i) => <SkeletonBlock key={`sk${i}`} height={98} borderRadius={radius.lg} />) : null}
+                {all.data && !all.hasNextPage && items.length > 0 && !listStale ? <Text style={styles.end}>{endText(city, zoneName)}</Text> : null}
                 {all.data && items.length === 0 && !all.isFetching ? <EmptyOffers searching={Boolean(q || zoneId)} /> : null}
                 {all.isError && all.data ? (
                   <View style={styles.empty}>
@@ -396,7 +450,7 @@ export default function OffersScreen() {
                   </View>
                 ) : null}
               </View>
-            </Reveal>
+            </View>
           </View>
         ) : null}
         {market.isError && !data ? (
@@ -431,31 +485,30 @@ function EmptyOffers({ searching }: { searching: boolean }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  top: { backgroundColor: colors.bg, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
-  heroRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end' },
-  hero: { fontSize: 26, lineHeight: 32, fontFamily: fonts.display.bold, color: colors.ink },
-  heroLead: { color: colors.muted },
-  where: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32, alignSelf: 'flex-start' },
-  whereText: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.bold, color: colors.primaryDark },
-  search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 44, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, marginTop: spacing.xs },
+  flex: { flex: 1 },
+  search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 46, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: colors.surface },
   searchInput: { flex: 1, fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink, paddingVertical: 0 },
-  mini: { position: 'absolute', left: 0, right: 0, zIndex: 5, height: MINI_H, flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: spacing.lg, paddingRight: spacing.xs, backgroundColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.line },
+  bandGap: { height: spacing.sm },
+  mini: { position: 'absolute', left: 0, right: 0, top: 0, zIndex: 5, flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: spacing.lg, paddingRight: spacing.xs, backgroundColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.line },
   miniCity: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink, flexShrink: 0 },
   miniZone: { flex: 1, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.primaryDark },
   miniBtn: { marginLeft: 'auto', width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  cats: { gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: 4 },
   terms: { gap: 6, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
-  loc: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.lg, marginTop: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
+  loc: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.lg, marginTop: spacing.md, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
   locText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
-  locBtn: { minHeight: 40, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.primary, justifyContent: 'center' },
+  locBtn: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.primary, justifyContent: 'center' },
   locBtnText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.white },
-  sec: { paddingTop: spacing.md },
+  sec: { paddingTop: spacing.lg },
   sh: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   shTitle: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
   shWhy: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
   rail: { flexDirection: 'row', gap: TILE_GAP, paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
+  bentoSk: { flexDirection: 'row', gap: 8, paddingHorizontal: spacing.lg },
+  bentoSkCol: { flex: 1, gap: 8 },
   none: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, paddingHorizontal: spacing.lg },
   list: { paddingHorizontal: spacing.lg, gap: spacing.sm },
+  listItems: { gap: spacing.sm },
+  dim: { opacity: 0.45 },
   end: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted, textAlign: 'center', paddingVertical: spacing.md },
   empty: { alignItems: 'center', gap: spacing.sm, padding: spacing.xl },
   emptyTitle: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },

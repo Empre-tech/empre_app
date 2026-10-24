@@ -5,8 +5,10 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { categoryColor } from '@/lib/categoryColor';
 import { resolveImageUrl } from '@/lib/image';
 import { displayIcon } from '@/lib/mapView';
+import { attendantLine, blocksLabel } from '@/lib/offerBarrio';
 import { distanceLabel, featuredA11y, featuredClock, initialOf, priceView, tileA11y, tileClock, timeBadge, zoneSubtitle, type MarketItem, type MarketZone } from '@/lib/offerMarket';
 import { alpha, colors, DENSE_TEXT_SCALE, fonts, radius, spacing } from '@/theme';
+import { Perforation } from './barrio/BarrioRails';
 import { LiveDot } from './MarketMotion';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -76,12 +78,21 @@ function Clock({ endsAt, now }: { endsAt: string; now: number }) {
   );
 }
 
-/** Tarjeta de las secciones de lado: foto, tiempo que queda, título, negocio, distancia, precio y, si aplica, por qué. */
+/**
+ * Tarjeta de las secciones de lado, como boleto (3.48): foto, tiempo que queda y ahorro; muescas y perforación; título,
+ * negocio, valoración y distancia en cuadras, precio y la nota de quien atiende (o, si no la hay, el porqué).
+ */
 export function OfferTile({ item, now, onPress, width = TILE_W }: { item: MarketItem; now: number; onPress: () => void; width?: number }) {
-  const dist = distanceLabel(item.distance_meters);
+  const dist = blocksLabel(item.distance_meters);
+  const who = attendantLine(item);
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={tileA11y(item, now)} onPress={onPress} style={({ pressed }) => [styles.tile, { width }, pressed && styles.pressed]}>
-      <Photo item={item} style={styles.tilePhoto} size="md" />
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={[tileA11y(item, now), item.owner_note ? `${item.attendant_name || 'El negocio'} dice: ${item.owner_note}` : null].filter(Boolean).join('. ')}
+      onPress={onPress}
+      style={({ pressed }) => [styles.tile, { width }, pressed && styles.pressed]}
+    >
+      <Photo item={item} style={[styles.tilePhoto, styles.tilePhotoTop]} size="md" />
       {item.trending ? (
         <View style={[styles.badge, styles.badgeLeft]}>
           <LiveDot />
@@ -90,15 +101,31 @@ export function OfferTile({ item, now, onPress, width = TILE_W }: { item: Market
       ) : null}
       <Clock endsAt={item.ends_at} now={now} />
       <SaveTag item={item} />
+      <View style={[styles.notch, styles.notchL]} />
+      <View style={[styles.notch, styles.notchR]} />
+      <View style={styles.perf}>
+        <Perforation />
+      </View>
       <View style={styles.tileBody}>
         <Text style={styles.title} numberOfLines={2}>
           {item.title}
         </Text>
         <Text style={styles.meta} numberOfLines={1}>
-          {[item.entity_name, dist].filter(Boolean).join(' · ')}
+          {[item.entity_name, item.rating ? `★ ${item.rating.toFixed(1).replace('.', ',')}` : null, dist].filter(Boolean).join(' · ')}
         </Text>
         <Price item={item} />
-        {item.reason ? (
+        {item.owner_note ? (
+          <>
+            <Text style={styles.note} numberOfLines={2}>
+              «{item.owner_note}»
+            </Text>
+            {who ? (
+              <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.who} numberOfLines={1}>
+                {who}
+              </Text>
+            ) : null}
+          </>
+        ) : item.reason ? (
           <View style={styles.reason}>
             <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.reasonText} numberOfLines={1}>
               {item.reason}
@@ -236,7 +263,15 @@ export const TILE_W = 216;
 export const TILE_GAP = 10;
 
 const styles = StyleSheet.create({
-  tile: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
+  tile: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line },
+  tilePhotoTop: { borderTopLeftRadius: radius.lg - 1, borderTopRightRadius: radius.lg - 1 },
+  // Boleto (3.48): dos muescas del color del fondo a la altura de la perforación.
+  notch: { position: 'absolute', top: 112 - 8, width: 16, height: 16, borderRadius: 8, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line, zIndex: 2 },
+  notchL: { left: -9 },
+  notchR: { right: -9 },
+  perf: { marginHorizontal: spacing.md, marginTop: -1 },
+  note: { marginTop: 6, fontSize: 12, lineHeight: 16, fontFamily: fonts.display.bold, color: colors.ink },
+  who: { marginTop: 2, fontSize: 11, fontFamily: fonts.ui.bold, color: colors.muted },
   pressed: { transform: [{ scale: 0.97 }], opacity: 0.95 },
   tilePhoto: { height: 112, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   badge: { position: 'absolute', top: 8, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 3 },

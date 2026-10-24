@@ -17,6 +17,17 @@ function tint(hex: string, amount = 0.86): string {
 }
 
 /**
+ * Oscurece un hex hacia el negro (`amount` 0 a 1): el final del degradado de las piezas del mosaico (3.48). Si el
+ * color no es un hex válido, devuelve el azul oscuro de la app.
+ */
+export function deepen(hex: string, amount = 0.3): string {
+  const s = hex.replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(s)) return colors.primaryDark;
+  const to2 = (n: number) => Math.round(n * (1 - amount)).toString(16).padStart(2, '0');
+  return `#${to2(parseInt(s.slice(0, 2), 16))}${to2(parseInt(s.slice(2, 4), 16))}${to2(parseInt(s.slice(4, 6), 16))}`;
+}
+
+/**
  * Color de marca de una categoría (el hex que manda el backend en
  * `category.color`), con su fondo suave derivado. Sin color, cae al azul
  * principal para no romper nada.
