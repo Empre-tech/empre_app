@@ -1,3 +1,5 @@
+import type { MarketNeighbor, MarketRoute, MarketSlide, MarketVoice } from './offerBarrio';
+
 // Vitrina de ofertas (3.38, mockup ofertas_marketplace.html): lo que muestra cada tarjeta y qué secciones se ven.
 // Las secciones las arma el servidor (sin repetir ofertas); aquí solo se decide cómo se dibujan. Sin React para
 // probarlo con Node.
@@ -21,6 +23,13 @@ export interface MarketItem {
   distance_meters: number | null;
   reason?: string;
   trending?: boolean;
+  /** 3.48: la nota de quien atiende, quién atiende, su valoración (promedio, sin cuántas) y si está abierto ahora. */
+  owner_note?: string;
+  attendant_name?: string;
+  rating?: number;
+  open_now?: boolean;
+  /** Foto de perfil del negocio (la cara del círculo de «Tus vecinos hoy»). */
+  profile_photo?: string;
 }
 
 /** Tarjeta de «Por zona» (3.39): sin conteos; `looks` son hasta 3 categorías para el mosaico. */
@@ -45,6 +54,12 @@ export interface MarketResponse {
   searched: { terms: { term: string; label: string }[]; term: string; items: MarketItem[] };
   trending: MarketItem[];
   for_you: { top_rated: boolean; items: MarketItem[] };
+  /** 3.48: el barrio. Pasarela y mosaico no se repiten en las secciones; vecinos, rutas y voces son de todo el barrio. */
+  spotlight: MarketSlide[];
+  bento: MarketItem[];
+  routes: MarketRoute[];
+  neighbors: MarketNeighbor[];
+  voices: MarketVoice[];
 }
 
 /** Una tanda de «Todas las ofertas de la ciudad»; `next_cursor` vacío = no hay más. */

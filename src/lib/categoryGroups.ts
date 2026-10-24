@@ -59,6 +59,12 @@ export function buildGroups<C extends Named>(categories: C[]): CategoryGroup<C>[
   }));
 }
 
+/** El grupo de una categoría por su nombre (las ofertas traen el nombre, no el id). Sin grupo conocido, «Servicios». */
+export function groupOfName(name: string): GroupId {
+  const key = norm(name);
+  return DEFS.find((d) => d.members.includes(key))?.id ?? FALLBACK;
+}
+
 /** El grupo de una categoría. */
 export function groupIdOf<C extends Named>(categoryId: string, groups: CategoryGroup<C>[]): GroupId | undefined {
   return groups.find((g) => g.categories.some((c) => c.id === categoryId))?.id;

@@ -1,5 +1,6 @@
 import type { ReviewSnippetData } from '@/lib/reviewSnippet';
 import type { Zone } from '@/lib/zoneName';
+import type { MonthSavings } from '@/lib/offerBarrio';
 import type { MarketPage, MarketResponse, MarketSort } from '@/lib/offerMarket';
 import { request } from './client';
 import type {
@@ -189,7 +190,18 @@ export const offersApi = {
       searched: { terms: r.searched?.terms ?? [], term: r.searched?.term ?? '', items: r.searched?.items ?? [] },
       trending: r.trending ?? [],
       for_you: { top_rated: Boolean(r.for_you?.top_rated), items: r.for_you?.items ?? [] },
+      spotlight: r.spotlight ?? [],
+      bento: r.bento ?? [],
+      routes: (r.routes ?? []).filter((x) => (x.stops ?? []).length > 0),
+      neighbors: r.neighbors ?? [],
+      voices: r.voices ?? [],
     };
+  },
+
+  /** «Este mes ahorraste» (3.48): lo que ahorraste en tus canjes del mes y en qué negocios. Solo con sesión. */
+  savings: async (): Promise<MonthSavings> => {
+    const r = await request<Partial<MonthSavings>>('/api/offers/savings');
+    return { total: r.total ?? 0, businesses: r.businesses ?? [] };
   },
 
   /** Todas las ofertas de la ciudad (3.39), por tandas de 20, con zona, búsqueda y orden. Público. */
