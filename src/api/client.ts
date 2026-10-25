@@ -1,7 +1,11 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { API_URL } from '@/config';
 import { OFFLINE_MESSAGE, reportReachable } from '@/lib/connection';
+import { REQUEST_TIMEOUT_MS, withTimeout } from '@/lib/requestTimeout';
 import type { TokenPair } from './types';
+
+/** Lo que se muestra si el servidor no responde a tiempo (la cola de Finance lo reintenta igual que sin señal). */
+const SLOW_MESSAGE = 'El servidor tardó demasiado en responder. Inténtalo de nuevo.';
 
 export class ApiError extends Error {
   status: number;
@@ -157,7 +161,45 @@ async function readError(res: Response): Promise<string> {
   return parseErrorBody(await res.text(), res.status);
 }
 
+/** Lo que se sabe de una petición al terminar (para medir la salud de la app, 3.53). */
+export interface RequestInfo {
+  method: string;
+  path: string;
+  /** 0 = sin respuesta (sin señal o tiempo agotado). */
+  status: number;
+  ms: number;
+}
+
+let observer: ((info: RequestInfo) => void) | null = null;
+
+/** Registra quién mira cada petición al terminar (la salud de la app). Así este archivo no importa la medición. */
+export function observeRequests(fn: (info: RequestInfo) => void): void {
+  observer = fn;
+}
+
+function notify(info: RequestInfo) {
+  try {
+    observer?.(info);
+  } catch {
+    // medir nunca debe romper una petición
+  }
+}
+
+/** Una petición a la API, medida: las que fallan se avisan aquí; las que responden bien, al llegar la respuesta. */
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const started = Date.now();
+  try {
+    return await requestInner<T>(path, options, started);
+  } catch (error) {
+    // Una cancelación de quien llamó no es un problema de la app.
+    if (!(error instanceof Error && error.name === 'AbortError')) {
+      notify({ method: options.method ?? 'GET', path, status: error instanceof ApiError ? error.status : 0, ms: Date.now() - started });
+    }
+    throw error;
+  }
+}
+
+async function requestInner<T>(path: string, options: RequestOptions, started: number): Promise<T> {
   const { method = 'GET', body, query, formData, auth = true, signal, headers: extra } = options;
 
   const send = async () => {
@@ -166,23 +208,28 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     if (body !== undefined && !formData) headers['Content-Type'] = 'application/json';
     const token = auth ? await getValidAccessToken() : null;
     if (token) headers.Authorization = `Bearer ${token}`;
+    // Con límite de tiempo (3.53): una conexión colgada ya no deja la pantalla cargando para siempre.
+    const timed = withTimeout(signal);
     try {
       const res = await fetch(buildUrl(path, query), {
         method,
         headers,
         body: formData ?? (body === undefined ? undefined : JSON.stringify(body)),
-        signal,
+        signal: timed.signal,
       });
       // Llegó una respuesta (aunque sea un error): hay conexión.
       reportReachable(true);
       return { res, hadToken: token !== null };
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') throw error;
-      const raw = error instanceof Error ? error.message : String(error);
+      // Si canceló quien llamó, se respeta; si se acabó el tiempo, es como no tener señal (la cola reintenta).
+      if (error instanceof Error && error.name === 'AbortError' && !timed.timedOut()) throw error;
+      const raw = timed.timedOut() ? `sin respuesta en ${REQUEST_TIMEOUT_MS / 1000} s` : error instanceof Error ? error.message : String(error);
       console.warn(`[api] fetch falló para ${method} ${path}:`, raw);
       reportReachable(false);
       // A la persona, un mensaje claro; el detalle técnico queda en el registro.
-      throw new ApiError(0, OFFLINE_MESSAGE);
+      throw new ApiError(0, timed.timedOut() ? SLOW_MESSAGE : OFFLINE_MESSAGE);
+    } finally {
+      timed.clear();
     }
   };
 
@@ -195,6 +242,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   if (!res.ok) {
     throw new ApiError(res.status, await readError(res));
   }
+  notify({ method, path, status: res.status, ms: Date.now() - started });
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }

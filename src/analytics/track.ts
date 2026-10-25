@@ -24,7 +24,11 @@ export type EventName =
   | 'directions_tapped'
   | 'follow_toggled'
   | 'question_asked'
-  | 'booking_started';
+  | 'booking_started'
+  // Salud de la app (3.53): ver src/analytics/health.ts.
+  | 'api_health'
+  | 'app_start'
+  | 'js_error';
 
 interface Saved {
   id: string;

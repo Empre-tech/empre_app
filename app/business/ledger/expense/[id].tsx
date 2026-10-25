@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Button } from '@/components/Button';
 import { AmountField, Chip, MethodChips, PartyPicker, type PartyChoice } from '@/components/ledger/parts';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';

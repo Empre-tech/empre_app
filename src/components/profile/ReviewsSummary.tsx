@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, Text, View } from 'react-native';
 import type { ReviewSummary } from '@/api/types';
 import { ratingBars, verifiedLabel } from '@/lib/profile';
