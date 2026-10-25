@@ -17,13 +17,14 @@ import { GroupCards, RoutesRail, VoicesRail } from '@/components/offers/barrio/B
 import { Bento } from '@/components/offers/barrio/Bento';
 import { NeighborsRow } from '@/components/offers/barrio/Neighbors';
 import { OfferSheet } from '@/components/offers/barrio/OfferSheet';
+import { RouteView } from '@/components/offers/barrio/RouteView';
 import { Reveal } from '@/components/offers/MarketMotion';
 import { OfferRow, OfferTile, TILE_GAP, TILE_W, ZONE_W, ZoneCard } from '@/components/offers/OfferTiles';
 import { SkeletonBlock } from '@/components/Skeleton';
 import { buildGroups, categoryFilter, groupOfName, type GroupId } from '@/lib/categoryGroups';
 import { effectiveClaimStatus } from '@/lib/claims';
 import { loadLastCity, saveLastCity } from '@/lib/lastCityStore';
-import { bandHook, bestByGroup, trustDistances } from '@/lib/offerBarrio';
+import { bandHook, bestByGroup, trustDistances, type MarketRoute } from '@/lib/offerBarrio';
 import { effectiveSort, endText, flattenPages, listTitle, nearEnd, showZones, sortOptions, visibleSections, zoneFilterOrder, type MarketItem, type MarketResponse, type MarketSort } from '@/lib/offerMarket';
 import { useNow } from '@/lib/useNow';
 import { usePullRefresh } from '@/lib/usePullRefresh';
@@ -84,6 +85,7 @@ export default function OffersScreen() {
   const [listY, setListY] = useState(0);
   const [zonesY, setZonesY] = useState(0);
   const [sheet, setSheet] = useState<MarketItem | null>(null); // la hoja de la oferta abierta
+  const [routeOpen, setRouteOpen] = useState<MarketRoute | null>(null); // «Ver la ruta» (3.49)
 
   useEffect(() => {
     void loadLastCity().then(setLastCity);
@@ -191,6 +193,11 @@ export default function OffersScreen() {
   // dejar la pantalla nueva sin aparecer).
   const leaveSheet = (go: () => void) => {
     setSheet(null);
+    setTimeout(go, 350);
+  };
+  // De «Ver la ruta» a una oferta o a otra pantalla: igual, primero se cierra la ruta.
+  const leaveRoute = (go: () => void) => {
+    setRouteOpen(null);
     setTimeout(go, 350);
   };
   const business = (o: MarketItem) => leaveSheet(() => router.push({ pathname: '/business/[id]', params: { id: o.entity_id, offer: o.id, src: 'offers' } }));
@@ -358,7 +365,7 @@ export default function OffersScreen() {
         {data && !q && data.routes.length ? (
           <Reveal key={`routes|${key}`} delay={70} style={styles.sec}>
             {header('Rutas del barrio', 'Planes con 3 vecinos distintos, cerca entre sí')}
-            <RoutesRail routes={data.routes} onOpen={open} />
+            <RoutesRail routes={data.routes} city={city} hereZone={trust ? data.zone : ''} onOpen={open} onRoute={setRouteOpen} />
           </Reveal>
         ) : null}
 
@@ -481,13 +488,27 @@ export default function OffersScreen() {
           </View>
         ) : null}
       </ScrollView>
+      {routeOpen ? (
+        <RouteView
+          route={routeOpen}
+          city={city}
+          hereZone={trust ? (data?.zone ?? '') : ''}
+          signedIn={status === 'signedIn'}
+          onClose={() => setRouteOpen(null)}
+          onOpenOffer={(o) => leaveRoute(() => setSheet(o))}
+          onTickets={() => leaveRoute(tickets)}
+          onSignIn={() => leaveRoute(() => router.push('/(auth)/login'))}
+        />
+      ) : null}
       {sheet ? (
         <OfferSheet
+          key={sheet.id}
           item={sheet}
           now={now}
           signedIn={status === 'signedIn'}
           onClose={() => setSheet(null)}
           onBusiness={business}
+          onOpenOffer={(o) => leaveSheet(() => setSheet(o))}
           onSignIn={() => leaveSheet(() => router.push('/(auth)/login'))}
           onShowQR={(c, o) => leaveSheet(() => router.push({ pathname: '/offer/claim', params: { claimId: c.id, offerId: o.id, entityId: o.entity_id } }))}
         />

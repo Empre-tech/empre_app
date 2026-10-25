@@ -35,6 +35,9 @@ export interface MarketItem {
   total_slots?: number;
   slots_left?: number;
   claim_window_minutes?: number;
+  /** El punto del negocio (el mapa de «Ver la ruta», 3.49). */
+  latitude?: number;
+  longitude?: number;
 }
 
 /** Tarjeta de «Por zona» (3.39): sin conteos; `looks` son hasta 3 categorías para el mosaico. */

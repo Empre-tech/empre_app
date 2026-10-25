@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { offersApi } from '@/api/offers';
 import type { OfferClaim, OfferType } from '@/api/types';
 import { useClaimOffer } from '@/claims/useClaimOffer';
 import { RollingNumber } from '@/components/finance/RollingNumber';
@@ -11,7 +13,7 @@ import { categoryColor } from '@/lib/categoryColor';
 import { resolveImageUrl } from '@/lib/image';
 import { displayIcon } from '@/lib/mapView';
 import { formatEndsWhen, formatSlotsFree, formatWindow, offerTypeLabel } from '@/lib/offer';
-import { attendantLine, savingPesos, whyWorthIt } from '@/lib/offerBarrio';
+import { attendantLine, blocksLabel, metersBetween, savingPesos, whyWorthIt } from '@/lib/offerBarrio';
 import { pesos, timeBadge, type MarketItem } from '@/lib/offerMarket';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { alpha, colors, DENSE_TEXT_SCALE, fonts, radius, spacing } from '@/theme';
@@ -36,6 +38,7 @@ export function OfferSheet({
   onBusiness,
   onShowQR,
   onSignIn,
+  onOpenOffer,
 }: {
   item: MarketItem;
   now: number;
@@ -44,6 +47,8 @@ export function OfferSheet({
   onBusiness: (o: MarketItem) => void;
   onShowQR: (c: OfferClaim, o: MarketItem) => void;
   onSignIn: () => void;
+  /** «Completa tu plan» (3.49): abrir la oferta de un vecino sugerido. */
+  onOpenOffer: (o: MarketItem) => void;
 }) {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -53,6 +58,8 @@ export function OfferSheet({
   const [rise] = useState(() => new Animated.Value(reduce ? 1 : 0));
   const [ticket] = useState(() => new Animated.Value(0));
   const sheetH = Math.round(height * 0.88);
+  // «Completa tu plan» (3.49): después de reclamar, dos vecinos de otro tipo cerca de este negocio y abiertos.
+  const next = useQuery({ queryKey: ['offer-next', item.id], queryFn: () => offersApi.next(item.id), enabled: Boolean(claimed), staleTime: 60_000 });
 
   useEffect(() => {
     if (reduce) return;
@@ -231,6 +238,49 @@ export function OfferSheet({
               </View>
             </View>
             <Perforation />
+            {next.data?.length ? (
+              <View style={styles.next}>
+                <Text style={styles.nextTitle} accessibilityRole="header">
+                  Completa tu plan
+                </Text>
+                <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.nextSub}>
+                  Cerca de {o.entity_name}, de otro tipo y abiertos
+                </Text>
+                <View style={styles.nextRow}>
+                  {next.data.map((n) => {
+                    const near = blocksLabel(metersBetween(o, n));
+                    return (
+                      <Pressable
+                        key={n.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${n.entity_name}: ${n.title}${savingPesos(n) ? `, ahorras ${pesos(savingPesos(n))}` : ''}${near ? `, ${near}` : ''}`}
+                        onPress={() => onOpenOffer(n)}
+                        style={({ pressed }) => [styles.nextCard, pressed && styles.pressed]}
+                      >
+                        <View style={[styles.nextIcon, { backgroundColor: categoryColor(n.category_color).fg }]}>
+                          <Ionicons name={displayIcon(n.category_icon) as IconName} size={16} color={colors.white} />
+                        </View>
+                        <View style={styles.nextText}>
+                          <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.nextName} numberOfLines={1}>
+                            {n.entity_name}
+                          </Text>
+                          {savingPesos(n) ? (
+                            <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.nextSave}>
+                              −{pesos(savingPesos(n))}
+                            </Text>
+                          ) : null}
+                          {near ? (
+                            <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.nextNear} numberOfLines={1}>
+                              {near}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
             <View style={styles.tActions}>
               <Pressable accessibilityRole="button" onPress={close} style={({ pressed }) => [styles.tAlt, pressed && styles.pressed]}>
                 <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.tAltText}>
@@ -320,6 +370,16 @@ const styles = StyleSheet.create({
   tTitle: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
   tSub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   tActions: { flexDirection: 'row', gap: spacing.sm },
+  next: { gap: 2 },
+  nextTitle: { fontSize: 14, fontFamily: fonts.display.bold, color: colors.ink },
+  nextSub: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.muted, marginBottom: 6 },
+  nextRow: { flexDirection: 'row', gap: spacing.sm },
+  nextCard: { flex: 1, minWidth: 0, minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
+  nextIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  nextText: { flex: 1, minWidth: 0 },
+  nextName: { fontSize: 12, fontFamily: fonts.display.bold, color: colors.ink },
+  nextSave: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.successInk },
+  nextNear: { fontSize: 10.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   tAlt: { minHeight: 50, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
   tAltText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   tGo: { flex: 1, minHeight: 50, borderRadius: radius.md, backgroundColor: colors.primary, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center' },

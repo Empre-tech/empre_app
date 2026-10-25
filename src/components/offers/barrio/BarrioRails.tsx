@@ -2,9 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { categoryColor, deepen } from '@/lib/categoryColor';
-import { groupOfName, type GroupId } from '@/lib/categoryGroups';
+import type { GroupId } from '@/lib/categoryGroups';
 import { displayIcon } from '@/lib/mapView';
-import { redeemedWhen, routeName, savingPesos, walkLabel, type MarketRoute, type MarketVoice } from '@/lib/offerBarrio';
+import { clockLabel, levelLabel, redeemedWhen, routeTitle, routeWhy, savingPesos, type MarketRoute, type MarketVoice } from '@/lib/offerBarrio';
 import { pesos, type MarketItem } from '@/lib/offerMarket';
 import { alpha, colors, DENSE_TEXT_SCALE, fonts, radius, spacing } from '@/theme';
 import { CategoryWash } from './Wash';
@@ -24,8 +24,19 @@ export function Perforation({ color = colors.line }: { color?: string }) {
   );
 }
 
-function RouteCard({ r, onOpen }: { r: MarketRoute; onOpen: (o: MarketItem) => void }) {
-  const name = routeName(r.stops.map((s) => groupOfName(s.category_name)));
+const LEVEL_ICON: Record<MarketRoute['level'], IconName> = { walk: 'walk-outline', zone: 'location-outline', day: 'sunny-outline' };
+const LEVEL_TONE: Record<MarketRoute['level'], { bg: string; fg: string }> = {
+  walk: { bg: colors.successSoft, fg: colors.successInk },
+  zone: { bg: colors.primarySoft, fg: colors.primaryDark },
+  day: { bg: colors.accentSoft, fg: colors.accentInk },
+};
+
+/** Tarjeta de una ruta (3.49): el nombre del tema, su nivel sin adornos, la hora de cada parada y el porqué. */
+function RouteCard({ r, city, hereZone, onOpen, onRoute }: { r: MarketRoute; city: string; hereZone: string; onOpen: (o: MarketItem) => void; onRoute: (r: MarketRoute) => void }) {
+  const name = routeTitle(r, city);
+  const level = levelLabel(r, hereZone);
+  const tone = LEVEL_TONE[r.level];
+  const timed = r.times.some(Boolean);
   return (
     <View style={styles.route}>
       <View style={styles.routeHead}>
@@ -38,18 +49,30 @@ function RouteCard({ r, onOpen }: { r: MarketRoute; onOpen: (o: MarketItem) => v
           </Text>
         </View>
       </View>
+      {/* El nivel va solo en su fila: «A pie en El Rodadero · 9 cuadras» no cabe junto al ahorro. */}
+      <View style={[styles.level, { backgroundColor: tone.bg }]}>
+        <Ionicons name={LEVEL_ICON[r.level]} size={12} color={tone.fg} />
+        <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={[styles.levelText, { color: tone.fg }]}>
+          {level}
+        </Text>
+      </View>
       <View style={styles.stops}>
         {r.stops.map((s, k) => {
           const cat = categoryColor(s.category_color).fg;
           return (
             <View key={s.id} style={styles.stopWrap}>
-              {k > 0 ? <View style={styles.leg} accessible={false} /> : null}
+              {k > 0 ? <View style={[styles.leg, timed && styles.legTimed]} accessible={false} /> : null}
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Parada ${k + 1}: ${s.title} en ${s.entity_name}, ahorras ${pesos(savingPesos(s))}`}
+                accessibilityLabel={`Parada ${k + 1}${r.times[k] ? `, a las ${clockLabel(r.times[k] as string)}` : ''}: ${s.title} en ${s.entity_name}, ahorras ${pesos(savingPesos(s))}`}
                 onPress={() => onOpen(s)}
                 style={({ pressed }) => [styles.stop, pressed && styles.pressed]}
               >
+                {timed ? (
+                  <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={[styles.at, !r.times[k] && styles.atEmpty]}>
+                    {r.times[k] ? clockLabel(r.times[k] as string) : ' '}
+                  </Text>
+                ) : null}
                 <View style={[styles.stopIcon, { shadowColor: cat }]}>
                   <CategoryWash color={cat} />
                   <Ionicons name={displayIcon(s.category_icon) as IconName} size={20} color={colors.white} />
@@ -65,21 +88,25 @@ function RouteCard({ r, onOpen }: { r: MarketRoute; onOpen: (o: MarketItem) => v
           );
         })}
       </View>
+      <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.routeWhy}>
+        {routeWhy(r)}
+      </Text>
       <View style={styles.routeFoot}>
-        <Ionicons name="walk-outline" size={15} color={colors.muted} />
-        <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.routeWalk}>
-          {walkLabel(r.walk_meters)}
-        </Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Ver la ruta ${name}`} onPress={() => onRoute(r)} style={({ pressed }) => [styles.routeGo, pressed && styles.pressed]}>
+          <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.routeGoText}>
+            Ver la ruta
+          </Text>
+        </Pressable>
       </View>
     </View>
   );
 }
 
-export function RoutesRail({ routes, onOpen }: { routes: MarketRoute[]; onOpen: (o: MarketItem) => void }) {
+export function RoutesRail({ routes, city, hereZone, onOpen, onRoute }: { routes: MarketRoute[]; city: string; hereZone: string; onOpen: (o: MarketItem) => void; onRoute: (r: MarketRoute) => void }) {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail} snapToInterval={ROUTE_W + 10} decelerationRate="fast">
       {routes.map((r) => (
-        <RouteCard key={r.stops.map((s) => s.id).join('|')} r={r} onOpen={onOpen} />
+        <RouteCard key={r.stops.map((s) => s.id).join('|')} r={r} city={city} hereZone={hereZone} onOpen={onOpen} onRoute={onRoute} />
       ))}
     </ScrollView>
   );
@@ -189,6 +216,14 @@ const styles = StyleSheet.create({
   route: { width: ROUTE_W, backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.line, padding: spacing.md, gap: spacing.sm + 2 },
   routeHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.sm },
   routeName: { flex: 1, fontSize: 16, lineHeight: 20, fontFamily: fonts.display.bold, color: colors.ink },
+  level: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%', borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, marginTop: -4 },
+  levelText: { flexShrink: 1, fontSize: 11, fontFamily: fonts.ui.extrabold },
+  at: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark, backgroundColor: colors.primarySoft, borderRadius: 6, paddingHorizontal: 5, overflow: 'hidden', marginBottom: 2 },
+  atEmpty: { backgroundColor: 'transparent' },
+  legTimed: { marginTop: 41 },
+  routeWhy: { fontSize: 11.5, lineHeight: 16, fontFamily: fonts.ui.semibold, color: colors.muted, backgroundColor: colors.bg, borderRadius: radius.sm, paddingHorizontal: 10, paddingVertical: 6 },
+  routeGo: { marginLeft: 'auto', minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.ink, justifyContent: 'center' },
+  routeGoText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.white },
   routeSave: { backgroundColor: colors.successSoft, borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 2 },
   routeSaveText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.successInk },
   stops: { flexDirection: 'row' },

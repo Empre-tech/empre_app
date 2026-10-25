@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { MarketItem } from './offerMarket.ts';
-import { attendantLine, bandHook, bestByGroup, blocksLabel, neighborName, personInitial, redeemedWhen, ringUrgent, routeName, savingPesos, savingText, spotlightLabel, trustDistances, walkLabel, whyWorthIt } from './offerBarrio.ts';
+import { attendantLine, bandHook, bestByGroup, blocksLabel, neighborName, personInitial, redeemedWhen, ringUrgent, routeName, savingPesos, savingText, spotlightLabel, trustDistances, walkLabel, whyWorthIt, routeTitle, clockLabel, levelLabel, routeWhy, legLabel, metersBetween } from './offerBarrio.ts';
 
 const item = (o: Partial<MarketItem>): MarketItem => ({
   id: 'x', entity_id: 'e', title: 'Oferta', type: 'DIA', ends_at: new Date(Date.now() + 3_600_000).toISOString(), entity_name: 'Café Ribera',
@@ -102,4 +102,29 @@ test('«Por qué vale la pena»: solo hechos, en orden, y nada sin dato', () => 
   assert.deepEqual(whyWorthIt(item({}), now), []);
   const closed = whyWorthIt(item({ open_now: false, ends_at: '2026-10-26T15:00:00Z' }), now);
   assert.equal(closed[0].title, 'Cerrado ahora');
+});
+
+test('3.49: nombre, nivel y porqué de cada ruta', () => {
+  // La hora h del 24 (o del día que se diga) de octubre en Colombia, en UTC.
+  const at = (h: number, day = 24) => new Date(Date.UTC(2026, 9, day, h + 5, 0)).toISOString();
+  assert.equal(routeTitle({ theme: 'pamper', times: [] }, 'Santa Marta'), 'Tarde de consentirse');
+  assert.equal(routeTitle({ theme: 'zone', zone: 'El Rodadero', times: [] }, 'Santa Marta'), 'Ruta por El Rodadero');
+  assert.equal(routeTitle({ theme: 'day', times: [at(9, 25), at(15, 25)] }, 'Santa Marta'), 'Tu domingo en Santa Marta');
+  assert.equal(clockLabel(at(15)), '3:00 pm');
+  assert.equal(clockLabel(at(9)), '9:00 am');
+  assert.equal(levelLabel({ level: 'walk', zone: 'Centro Histórico', walk_meters: 389, times: [] }, 'Centro Histórico'), 'A pie · 4 cuadras');
+  assert.equal(levelLabel({ level: 'walk', zone: 'El Rodadero', walk_meters: 888, times: [] }, 'Centro Histórico'), 'A pie en El Rodadero · 9 cuadras');
+  assert.equal(levelLabel({ level: 'zone', zone: 'Centro Histórico', walk_meters: 2400, times: [] }, 'Centro Histórico'), 'En tu barrio · 2,4 km de recorrido');
+  assert.equal(levelLabel({ level: 'day', walk_meters: 6000, times: [at(9), at(15), at(19)] }, ''), 'Mañana, tarde y noche');
+  assert.equal(routeWhy({ level: 'walk', times: [at(15), null] }), 'Para esta tarde · abiertos a esa hora');
+  assert.equal(routeWhy({ level: 'walk', times: [null, null] }), 'Abiertos ahora; revisa el horario de cada uno');
+});
+
+test('3.49: los tramos entre paradas', () => {
+  const a = { latitude: 11.24, longitude: -74.21 };
+  const b = { latitude: 11.2418, longitude: -74.21 }; // ≈ 200 m
+  assert.equal(legLabel(metersBetween(a, b)), '2 cuadras, 3 min a pie');
+  assert.equal(legLabel(1300), '1,3 km, 16 min a pie');
+  assert.equal(legLabel(4300), '4,3 km en carro o taxi');
+  assert.equal(legLabel(metersBetween(a, {})), null);
 });

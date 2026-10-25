@@ -12,9 +12,20 @@ export interface MarketSlide {
   item: MarketItem;
 }
 
-/** Ruta del barrio: tres vecinos de tipos distintos, en orden de paso, con el ahorro sumado. */
+export type RouteTheme = 'pamper' | 'errands' | 'active' | 'night' | 'sweet' | 'pet' | 'zone' | 'day';
+export type RouteLevel = 'walk' | 'zone' | 'day';
+
+/**
+ * Ruta del barrio (3.49): su tema, su nivel (a pie, en tu barrio o tu día en la ciudad), las paradas en orden con la
+ * hora sugerida de cada una (`times[i]`; null si el negocio no tiene horario) y el ahorro sumado.
+ */
 export interface MarketRoute {
+  theme: RouteTheme;
+  level: RouteLevel;
+  /** La zona de la primera parada. */
+  zone?: string;
   stops: MarketItem[];
+  times: (string | null)[];
   saving: number;
   walk_meters: number;
 }
@@ -100,6 +111,90 @@ export function spotlightLabel(rule: SpotlightRule, zone?: string): { text: stri
     default:
       return { text: zone ? `Nueva esta semana en ${zone}` : 'Nueva esta semana', icon: 'sparkles-outline' };
   }
+}
+
+const THEME_NAME: Record<Exclude<RouteTheme, 'zone' | 'day'>, string> = {
+  pamper: 'Tarde de consentirse',
+  errands: 'Día de vueltas',
+  active: 'Mañana activa',
+  night: 'Noche en el barrio',
+  sweet: 'Antojo dulce',
+  pet: 'Plan con tu mascota',
+};
+const WEEKDAY = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const TZ_OFFSET_MS = -5 * 3_600_000; // Colombia (UTC−5, sin horario de verano)
+const bogota = (iso: string) => new Date(Date.parse(iso) + TZ_OFFSET_MS); // leer con getUTC*
+
+/** El nombre de la ruta: el de su tema; «Ruta por {zona}» si es la mezcla de siempre; «Tu sábado en {ciudad}» si es tu día. */
+export function routeTitle(r: Pick<MarketRoute, 'theme' | 'zone' | 'times'>, city: string): string {
+  if (r.theme === 'day') {
+    const first = r.times.find((t): t is string => Boolean(t));
+    const day = first ? WEEKDAY[bogota(first).getUTCDay()] : 'día';
+    return city ? `Tu ${day} en ${city}` : `Tu ${day} en la ciudad`;
+  }
+  if (r.theme === 'zone') return r.zone ? `Ruta por ${r.zone}` : 'Ruta por el barrio';
+  return THEME_NAME[r.theme] ?? 'Ruta por el barrio';
+}
+
+/** «3:00 pm» (hora de Colombia). */
+export function clockLabel(iso: string): string {
+  const d = bogota(iso);
+  const h = d.getUTCHours();
+  const m = d.getUTCMinutes();
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'pm' : 'am'}`;
+}
+
+/** El momento del día de una hora: mañana (antes de 12), tarde (antes de 18) o noche. */
+export function momentOf(iso: string): 'mañana' | 'tarde' | 'noche' {
+  const h = bogota(iso).getUTCHours();
+  return h < 12 ? 'mañana' : h < 18 ? 'tarde' : 'noche';
+}
+
+/**
+ * Lo que dice la tarjeta bajo el nombre, sin adornos: «A pie · 4 cuadras», «En tu barrio · 2,4 km de recorrido» o,
+ * para tu día, los momentos («Mañana, tarde y noche»). Si la ruta queda en otra zona, la nombra («A pie en El Rodadero»).
+ */
+export function levelLabel(r: Pick<MarketRoute, 'level' | 'zone' | 'walk_meters' | 'times'>, hereZone: string): string {
+  if (r.level === 'day') {
+    const moments = [...new Set(r.times.filter((t): t is string => Boolean(t)).map(momentOf))];
+    const list = moments.length > 1 ? `${moments.slice(0, -1).join(', ')} y ${moments[moments.length - 1]}` : (moments[0] ?? 'todo el día');
+    return list.charAt(0).toLocaleUpperCase('es') + list.slice(1);
+  }
+  const elsewhere = r.zone && r.zone !== hereZone ? r.zone : '';
+  if (r.level === 'walk') {
+    const n = Math.max(1, Math.round(r.walk_meters / BLOCK_M));
+    return `A pie${elsewhere ? ` en ${elsewhere}` : ''} · ${n} ${n === 1 ? 'cuadra' : 'cuadras'}`;
+  }
+  return `${elsewhere ? `En ${elsewhere}` : 'En tu barrio'} · ${(r.walk_meters / 1000).toFixed(1).replace('.', ',')} km de recorrido`;
+}
+
+/** Por qué es esta ruta, en una línea: para qué momento y con qué regla. */
+export function routeWhy(r: Pick<MarketRoute, 'level' | 'times'>): string {
+  if (r.level === 'day') return 'Nada cerca de ti: un plan por momentos, cada uno abierto a esa hora';
+  const first = r.times.find((t): t is string => Boolean(t));
+  if (!first) return 'Abiertos ahora; revisa el horario de cada uno';
+  const m = momentOf(first);
+  return `Para ${m === 'noche' ? 'esta noche' : m === 'tarde' ? 'esta tarde' : 'esta mañana'} · abiertos a esa hora`;
+}
+
+/** Distancia en línea recta entre dos negocios (m); −1 si falta un punto. */
+export function metersBetween(a: { latitude?: number; longitude?: number }, b: { latitude?: number; longitude?: number }): number {
+  if (a.latitude === undefined || a.longitude === undefined || b.latitude === undefined || b.longitude === undefined) return -1;
+  const rad = Math.PI / 180;
+  const dLat = (b.latitude - a.latitude) * rad;
+  const dLng = (b.longitude - a.longitude) * rad;
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(a.latitude * rad) * Math.cos(b.latitude * rad) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6_371_000 * Math.asin(Math.sqrt(s));
+}
+
+/** El tramo entre dos paradas: «2 cuadras, 3 min a pie»; más de 2 km, «4,3 km en carro o taxi». */
+export function legLabel(m: number): string | null {
+  if (m < 0) return null;
+  if (m > 2000) return `${(m / 1000).toFixed(1).replace('.', ',')} km en carro o taxi`;
+  const min = Math.max(1, Math.round(m / 80)); // 80 m por minuto, a paso tranquilo
+  if (m >= 1000) return `${(m / 1000).toFixed(1).replace('.', ',')} km, ${min} min a pie`;
+  const n = Math.max(1, Math.round(m / BLOCK_M));
+  return `${n} ${n === 1 ? 'cuadra' : 'cuadras'}, ${min} min a pie`;
 }
 
 /**

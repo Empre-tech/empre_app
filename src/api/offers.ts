@@ -1,7 +1,7 @@
 import type { ReviewSnippetData } from '@/lib/reviewSnippet';
 import type { Zone } from '@/lib/zoneName';
 import type { MonthSavings } from '@/lib/offerBarrio';
-import type { MarketPage, MarketResponse, MarketSort } from '@/lib/offerMarket';
+import type { MarketItem, MarketPage, MarketResponse, MarketSort } from '@/lib/offerMarket';
 import { request } from './client';
 import type {
   BusinessStatus,
@@ -192,10 +192,16 @@ export const offersApi = {
       for_you: { top_rated: Boolean(r.for_you?.top_rated), items: r.for_you?.items ?? [] },
       spotlight: r.spotlight ?? [],
       bento: r.bento ?? [],
-      routes: (r.routes ?? []).filter((x) => (x.stops ?? []).length > 0),
+      routes: (r.routes ?? []).filter((x) => (x.stops ?? []).length > 0).map((x) => ({ ...x, times: x.stops.map((_, i) => x.times?.[i] ?? null) })),
       neighbors: r.neighbors ?? [],
       voices: r.voices ?? [],
     };
+  },
+
+  /** «Completa tu plan» (3.49): hasta 2 vecinos para después de reclamar esta oferta. Con sesión. */
+  next: async (offerId: string): Promise<MarketItem[]> => {
+    const r = await request<{ items?: MarketItem[] }>(`/api/offers/${offerId}/next`);
+    return r.items ?? [];
   },
 
   /** «Este mes ahorraste» (3.48): lo que ahorraste en tus canjes del mes y en qué negocios. Solo con sesión. */
