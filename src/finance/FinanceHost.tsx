@@ -6,7 +6,8 @@ import { FinanceOverlay, type FinanceParams } from './FinanceOverlay';
 // Capa de Empre Finance sobre toda la app (3.46 F3). Envuelve la navegación en un `BlurTargetView` para que, en
 // Android, el vidrio de la bandeja (`BlurView` con `blurTarget`) desenfoque lo que hay detrás, igual que en iPhone.
 // La bandeja se abre desde cualquier lado con `requestFinance` (doble toque, enlace empre://finance, acceso rápido);
-// si ya está abierta, no se abre otra.
+// si ya está abierta, no se abre otra. Mientras está abierta, la app de atrás se oculta al lector de pantalla: en
+// Android `accessibilityViewIsModal` no hace nada, y TalkBack recorría toda la pantalla de atrás antes de la bandeja.
 
 let opener: ((p: FinanceParams) => void) | null = null;
 
@@ -30,14 +31,20 @@ export function FinanceHost({ children }: { children: ReactNode }) {
   }, []);
 
   const Target = BlurTargetView;
+  // Lo de atrás no existe para el lector mientras la bandeja está abierta (iPhone y Android).
+  const behind = open ? ({ accessibilityElementsHidden: true, importantForAccessibility: 'no-hide-descendants' } as const) : null;
   return (
     <BlurTargetContext.Provider value={Target ? target : null}>
       {Target ? (
         <Target ref={target} style={styles.fill} collapsable={false}>
-          {children}
+          <View style={styles.fill} {...behind}>
+            {children}
+          </View>
         </Target>
       ) : (
-        <View style={styles.fill}>{children}</View>
+        <View style={styles.fill} {...behind}>
+          {children}
+        </View>
       )}
       {open ? (
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">

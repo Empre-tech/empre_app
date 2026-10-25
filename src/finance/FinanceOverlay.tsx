@@ -15,7 +15,7 @@ import { MoneyPanel } from '@/components/finance/MoneyPanel';
 import { SignInPrompt } from '@/components/SignInPrompt';
 import { useCelebration, type Done } from '@/finance/useCelebration';
 import { useFinanceBusiness, useFinanceData, type KnownItem } from '@/finance/useFinance';
-import { draftTotal, expenseInputsFrom, saleInputFrom, type DraftLine } from '@/lib/finance';
+import { capsuleView, draftTotal, expenseInputsFrom, saleInputFrom, type DraftLine } from '@/lib/finance';
 import { formatPesos, newClientId } from '@/lib/ledger';
 import { useEventCallback } from '@/lib/useEventCallback';
 import { useReduceMotion } from '@/lib/useReduceMotion';
@@ -160,8 +160,7 @@ export function FinanceOverlay({ params, onClosed }: { params: FinanceParams; on
     party.celebrate(quickNet, quickNet >= 0 ? `Registrado +${formatPesos(quickNet)}` : `Registrado −${formatPesos(-quickNet)}`, done);
   };
 
-  const confirmPanel = (kind: 'sale' | 'expense') => {
-    const lines = kind === 'sale' ? saleDraft : expDraft;
+  const confirmPanel = (kind: 'sale' | 'expense', lines: DraftLine[]) => {
     const t = draftTotal(lines);
     const done = kind === 'sale' ? registerSale(lines, method) : registerExpenses(lines);
     (kind === 'sale' ? setSaleDraft : setExpDraft)([]);
@@ -237,10 +236,12 @@ export function FinanceOverlay({ params, onClosed }: { params: FinanceParams; on
       </View>
     );
   } else if (mode === 'peek') {
+    const view = capsuleView(data.net, data.failed, data.problem === 'offline', formatPesos(data.net));
     body = (
       <FinanceCapsule
-        net={data.net}
-        label={data.problem === 'offline' && data.failed ? 'Sin conexión · registra igual' : data.failed ? 'Resumen no disponible' : 'Hoy te quedó'}
+        net={view.amount}
+        label={view.label}
+        a11y={view.a11y}
         pendingCount={data.pendingCount}
         onOpen={() => morph('sheet')}
         onSale={() => morph('sale')}
@@ -266,7 +267,7 @@ export function FinanceOverlay({ params, onClosed }: { params: FinanceParams; on
           onBack={() => morph('sheet')}
           onVoice={() => setVoice(mode)}
           onFiado={() => toEmpre({ pathname: '/business/ledger/sale/[id]', params: { id: entityId } })}
-          onRegister={() => confirmPanel(mode)}
+          onRegister={(lines) => confirmPanel(mode, lines)}
           onSay={say}
         />
       </ScrollView>

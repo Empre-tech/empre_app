@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { formatPesos } from '@/lib/ledger';
 import { fin } from '@/finance/tokens';
 import { RollingNumber } from './RollingNumber';
 
@@ -24,14 +23,17 @@ export function CapsuleLoading() {
 export function FinanceCapsule({
   net,
   label,
+  a11y,
   pendingCount,
   onOpen,
   onSale,
   onExpense,
   onVoice,
 }: {
-  net: number;
+  /** null si el resumen no llegó: se muestra «—», nunca un $0 que no es real. */
+  net: number | null;
   label: string;
+  a11y: string;
   pendingCount: number;
   onOpen: () => void;
   onSale: () => void;
@@ -40,12 +42,12 @@ export function FinanceCapsule({
 }) {
   return (
     <View style={styles.capsule}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Te quedó hoy ${formatPesos(net)}. Abrir Empre Finance`} onPress={onOpen} style={styles.main}>
+      <Pressable accessibilityRole="button" accessibilityLabel={a11y} onPress={onOpen} style={styles.main}>
         <View style={styles.labelRow}>
           <Text style={styles.label}>{label}</Text>
           {pendingCount > 0 ? <PendingBadge n={pendingCount} /> : null}
         </View>
-        <RollingNumber value={net} prefix={net < 0 ? '−' : ''} style={styles.value} />
+        {net === null ? <Text style={[styles.value, styles.unknown]}>—</Text> : <RollingNumber value={net} prefix={net < 0 ? '−' : ''} style={styles.value} />}
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Venta" onPress={onSale} style={[styles.q, styles.qIn]}>
         <Ionicons name="add" size={22} color={C.action.on} />
@@ -75,6 +77,7 @@ const styles = StyleSheet.create({
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   label: T.kicker,
   value: T.capsuleAmount,
+  unknown: { color: C.textSoft },
   q: { width: fin.size.round, height: fin.size.round, borderRadius: R.button, alignItems: 'center', justifyContent: 'center' },
   qIn: { backgroundColor: C.in.fill },
   qOut: { backgroundColor: C.out.fill },

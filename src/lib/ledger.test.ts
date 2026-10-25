@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   amountField, cancelPending, changeText, enqueue, flushOrder, formatPesos, isRetryable, markFailed, newClientId,
-  parseAmountInput, pendingTotals, restoreOutbox, retryFailed, markSent, dropSent, invalidationScopes, retryDelayMs,
+  parseAmountInput, pendingTotals, restoreOutbox, retryFailed, markSent, dropSent, invalidationScopes, retryDelayMs, sendPayload,
 } from './ledger.ts';
 
 test('formatPesos', () => {
@@ -85,6 +85,17 @@ test('cada registro recarga solo lo que cambia', () => {
 
 test('reintentos sin señal cada vez más espaciados', () => {
   assert.deepEqual([0, 1, 2, 3, 9].map(retryDelayMs), [5000, 15000, 30000, 60000, 60000]);
+});
+
+test('lo que esperó en la cola viaja con la hora en que se registró', () => {
+  const at = Date.parse('2026-10-24T04:50:00Z'); // 11:50 p. m. del 23 en Colombia
+  const sale = enqueue([], { id: 's1', entityId: 'e1', kind: 'sale', payload: { total: 1000 }, createdAt: at })[0];
+  assert.equal(sendPayload(sale, at + 30_000).occurred_at, undefined); // salió enseguida: vale la hora del servidor
+  assert.equal(sendPayload(sale, at + 9 * 3_600_000).occurred_at, '2026-10-24T04:50:00.000Z'); // a la mañana: su hora
+  const party = enqueue([], { id: 'p1', entityId: 'e1', kind: 'party', payload: { name: 'Don Jorge' }, createdAt: at })[0];
+  assert.equal(sendPayload(party, at + 9 * 3_600_000).occurred_at, undefined); // un cliente no tiene hora
+  const dated = enqueue([], { id: 's2', entityId: 'e1', kind: 'expense', payload: { amount: 1, occurred_at: '2026-10-20T15:00:00Z' }, createdAt: at })[0];
+  assert.equal(sendPayload(dated, at + 9 * 3_600_000).occurred_at, '2026-10-20T15:00:00Z'); // ya traía su fecha
 });
 
 test('isRetryable', () => {

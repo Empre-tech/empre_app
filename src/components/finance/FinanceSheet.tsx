@@ -129,20 +129,28 @@ export function FinanceSheet({
             </View>
           ) : null}
         </View>
-        {data.loading ? <ActivityIndicator color={C.action.solid} style={styles.spinner} /> : <RollingNumber value={data.net} prefix={data.net < 0 ? '−' : ''} style={styles.big} />}
+        {data.loading ? (
+          <ActivityIndicator color={C.action.solid} style={styles.spinner} />
+        ) : data.failed ? (
+          <Text style={[styles.big, styles.unknown]} accessibilityLabel="Resumen no disponible">
+            —
+          </Text>
+        ) : (
+          <RollingNumber value={data.net} prefix={data.net < 0 ? '−' : ''} style={styles.big} />
+        )}
         <WeekBars bars={data.bars} heights={data.heights} />
         <View style={styles.split}>
           <View style={styles.flex}>
             <Text style={styles.splitLabel}>
               <Text style={{ color: C.in.fill }}>● </Text>Vendiste
             </Text>
-            <RollingNumber value={data.sold} style={styles.splitValue} />
+            {data.failed ? <Text style={[styles.splitValue, styles.unknown]}>—</Text> : <RollingNumber value={data.sold} style={styles.splitValue} />}
           </View>
           <View style={styles.flex}>
             <Text style={styles.splitLabel}>
               <Text style={{ color: C.out.fill }}>● </Text>Gastaste
             </Text>
-            <RollingNumber value={data.spent} style={styles.splitValue} />
+            {data.failed ? <Text style={[styles.splitValue, styles.unknown]}>—</Text> : <RollingNumber value={data.spent} style={styles.splitValue} />}
           </View>
         </View>
         {data.problem === 'offline' ? <Text style={styles.stale}>Sin conexión: lo que registres se envía solo cuando vuelva la señal.</Text> : null}
@@ -150,7 +158,7 @@ export function FinanceSheet({
       </Pressable>
 
       {quickOptions.length > 0 ? (
-        <QuickPick options={quickOptions} quick={quick} net={data.net} quickNet={quickNet} onQuick={onQuick} onConfirm={onConfirmQuick} onSay={onSay} />
+        <QuickPick options={quickOptions} quick={quick} net={data.failed ? null : data.net} quickNet={quickNet} onQuick={onQuick} onConfirm={onConfirmQuick} onSay={onSay} />
       ) : null}
 
       <View style={styles.acts}>
@@ -205,7 +213,8 @@ function QuickPick({
 }: {
   options: KnownItem[];
   quick: DraftLine[];
-  net: number;
+  /** null si el resumen no llegó: entonces no se dice cuánto «quedaría». */
+  net: number | null;
   quickNet: number;
   onQuick: (next: (q: DraftLine[]) => DraftLine[]) => void;
   onConfirm: () => void;
@@ -217,7 +226,7 @@ function QuickPick({
         <Text style={styles.kicker}>Elige y confirma</Text>
         {quick.length > 0 ? (
           <Text style={styles.preview}>
-            Quedaría {formatPesos(net + quickNet)} ·{' '}
+            {net === null ? '' : `Quedaría ${formatPesos(net + quickNet)} · `}
             <Text accessibilityRole="button" onPress={() => onQuick(() => [])} style={styles.clear}>
               Limpiar
             </Text>
@@ -290,6 +299,7 @@ const styles = StyleSheet.create({
   chgText: { ...T.small, fontFamily: T.button.fontFamily, color: C.in.ink },
   spinner: { alignSelf: 'flex-start', marginVertical: 8 },
   big: T.heroAmount,
+  unknown: { color: C.textSoft },
   split: { flexDirection: 'row', gap: S.sm, paddingTop: 6, borderTopWidth: 1, borderTopColor: C.line },
   splitLabel: { ...T.small, fontSize: 11, color: C.textSoft },
   splitValue: T.split,

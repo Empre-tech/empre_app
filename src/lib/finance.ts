@@ -60,6 +60,39 @@ export function expenseInputsFrom(lines: DraftLine[], newId: () => string): Expe
   }));
 }
 
+/**
+ * Lo escrito a mano y aún no agregado (monto, descripción, categoría) como línea del borrador, o null si no hay monto.
+ * Así el total y «Mantén para registrar» ya lo cuentan: antes había que tocar «Agregar a la venta» y, si no, arriba
+ * seguía diciendo $0 con el botón apagado.
+ */
+export function typedLine(key: string, amount: number, desc: string, fallbackName: string, category?: string): DraftLine | null {
+  if (amount <= 0) return null;
+  return { key, name: desc.trim() || fallbackName, qty: 1, unitPrice: amount, category, source: 'manual' };
+}
+
+/** El borrador con lo escrito a mano sumado al final (si hay). */
+export function withTyped(draft: DraftLine[], typed: DraftLine | null): DraftLine[] {
+  return typed ? [...draft, typed] : draft;
+}
+
+/** Lo que dice la cápsula y lee el lector: el monto (null si no se sabe) y su texto. */
+export interface CapsuleView {
+  amount: number | null;
+  label: string;
+  a11y: string;
+}
+
+/**
+ * Si el resumen no llegó, no hay monto que mostrar: un «$0» se leía como «hoy no ganaste nada». Se dice qué pasó y que
+ * se puede registrar igual. `formatted` es el monto ya escrito en pesos (para el lector).
+ */
+export function capsuleView(net: number, failed: boolean, offline: boolean, formatted: string): CapsuleView {
+  if (!failed) return { amount: net, label: 'Hoy te quedó', a11y: `Te quedó hoy ${formatted}. Abrir Empre Finance` };
+  return offline
+    ? { amount: null, label: 'Sin conexión · registra igual', a11y: 'Sin conexión: el resumen de hoy no está disponible. Puedes registrar igual. Abrir Empre Finance' }
+    : { amount: null, label: 'Resumen no disponible', a11y: 'El resumen de hoy no está disponible. Puedes registrar igual. Abrir Empre Finance' };
+}
+
 /** Un gasto «de siempre» tal como lo manda el servidor (3.51): ya agrupado, con el monto de la última vez. */
 export interface UsualExpense {
   key: string;

@@ -5,7 +5,7 @@ import { ApiError } from '@/api/client';
 import { ledgerApi, type ExpenseInput, type PartyInput, type PaymentInput, type SaleInput } from '@/api/ledger';
 import {
   cancelPending, dropSent, enqueue, flushOrder, invalidationScopes, isRetryable, markFailed, markSent, removeItem, restoreOutbox,
-  retryDelayMs, retryFailed, type OutboxItem, type OutboxKind,
+  retryDelayMs, retryFailed, sendPayload, type OutboxItem, type OutboxKind,
 } from '@/lib/ledger';
 
 /**
@@ -92,7 +92,7 @@ export function discardLedgerItem(id: string) {
 }
 
 async function send(item: OutboxItem): Promise<void> {
-  const p = item.payload as never;
+  const p = sendPayload(item) as never; // con la hora en que se registró, si esperó en la cola
   const id = item.entityId;
   switch (item.kind) {
     case 'party':

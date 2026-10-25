@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { VoiceAction } from '../api/ledger.ts';
-import { amountMask, barHeights, bumpLine, cleanSpeech, draftTotal, expenseInputsFrom, colombiaDay, prepareVoiceActions, qtyOf, removeLine, saleInputFrom, usualExpenseItems, voiceToDraft, weekBars, type DraftLine } from './finance.ts';
+import { amountMask, barHeights, bumpLine, cleanSpeech, draftTotal, expenseInputsFrom, capsuleView, colombiaDay, prepareVoiceActions, typedLine, withTyped, qtyOf, removeLine, saleInputFrom, usualExpenseItems, voiceToDraft, weekBars, type DraftLine } from './finance.ts';
 
 test('el dictado sin las repeticiones del reconocedor', () => {
   // El caso real de la prueba en el teléfono (23 oct).
@@ -103,6 +103,25 @@ test('de siempre: el nombre es la nota o la categoría', () => {
     ['note:cera', 'Cera', 8000],
     ['cat:transporte', 'Transporte', 9000],
   ]);
+});
+
+test('lo escrito a mano cuenta sin tocar «Agregar»', () => {
+  const draft: DraftLine[] = [{ key: 'item:1', name: 'Corte', qty: 1, unitPrice: 20000, source: 'known' }];
+  assert.equal(typedLine('m1', 0, 'Barba', 'Otro'), null);
+  const t = typedLine('m1', 45000, '  ', 'Otro');
+  assert.deepEqual(t, { key: 'm1', name: 'Otro', qty: 1, unitPrice: 45000, category: undefined, source: 'manual' });
+  assert.equal(draftTotal(withTyped(draft, t)), 65000);
+  assert.equal(withTyped(draft, null), draft);
+  assert.equal(typedLine('m2', 7000, 'Taxi', 'Transporte', 'transporte')?.category, 'transporte');
+});
+
+test('sin resumen no se muestra un $0 falso', () => {
+  assert.deepEqual(capsuleView(45000, false, false, '$45.000'), { amount: 45000, label: 'Hoy te quedó', a11y: 'Te quedó hoy $45.000. Abrir Empre Finance' });
+  const server = capsuleView(0, true, false, '$0');
+  assert.equal(server.amount, null);
+  assert.equal(server.label, 'Resumen no disponible');
+  assert.ok(!server.a11y.includes('$0'));
+  assert.equal(capsuleView(0, true, true, '$0').label, 'Sin conexión · registra igual');
 });
 
 test('la semana viene sumada del servidor; hoy suma lo que está en camino', () => {

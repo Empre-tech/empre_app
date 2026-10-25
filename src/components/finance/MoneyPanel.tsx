@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { PayMethod } from '@/api/ledger';
-import { bumpLine, draftTotal, qtyOf, removeLine, type DraftLine } from '@/lib/finance';
+import { bumpLine, draftTotal, qtyOf, removeLine, typedLine, withTyped, type DraftLine } from '@/lib/finance';
 import { EXPENSE_CATEGORIES, formatPesos, MAX_AMOUNT } from '@/lib/ledger';
 import type { KnownItem } from '@/finance/useFinance';
 import { fin } from '@/finance/tokens';
@@ -64,7 +64,8 @@ export function MoneyPanel({
   onBack: () => void;
   onVoice: () => void;
   onFiado: () => void;
-  onRegister: () => void;
+  /** Registra estas líneas: el borrador más lo escrito a mano que aún no se agregó. */
+  onRegister: (lines: DraftLine[]) => void;
   onSay: (text: string) => void;
 }) {
   const sale = kind === 'sale';
@@ -84,7 +85,15 @@ export function MoneyPanel({
       hide.remove();
     };
   }, []);
-  const total = draftTotal(draft);
+  // Lo escrito a mano cuenta desde ya: el total y el botón lo incluyen aunque no se toque «Agregar».
+  const fallbackName = sale ? 'Otro' : (EXPENSE_CATEGORIES.find((c) => c.key === cat)?.label ?? 'Gasto');
+  const typed = typedLine('man:typed', amount, desc, fallbackName, sale ? undefined : cat);
+  const total = draftTotal(withTyped(draft, typed));
+  const register = () => {
+    onRegister(withTyped(draft, typed ? { ...typed, key: `man:${++manualSeq}` } : null));
+    setAmount(0);
+    setDesc('');
+  };
   const tone = sale ? 'in' : 'out';
   const sign = sale ? '' : '−';
 
@@ -93,8 +102,10 @@ export function MoneyPanel({
 
   const addManual = () => {
     if (amount <= 0) return;
-    const name = desc.trim() || (sale ? 'Otro' : (EXPENSE_CATEGORIES.find((c) => c.key === cat)?.label ?? 'Gasto'));
-    onDraft([...draft, { key: `man:${++manualSeq}`, name, qty: 1, unitPrice: amount, category: sale ? undefined : cat, source: 'manual' }]);
+    const line = typedLine(`man:${++manualSeq}`, amount, desc, fallbackName, sale ? undefined : cat);
+    if (!line) return;
+    const name = line.name;
+    onDraft([...draft, line]);
     setAmount(0);
     setDesc('');
     onSay(`${name} agregado. Sigue sumando o mantén el botón para registrar.`);
@@ -261,7 +272,7 @@ export function MoneyPanel({
         tone={tone}
         disabled={total === 0}
         label={total > 0 ? `Mantén para registrar ${sign}${formatPesos(total)}` : sale ? 'Agrega algo a la venta' : 'Agrega un gasto'}
-        onConfirm={onRegister}
+        onConfirm={register}
         onEarly={() => onSay('Soltaste antes: no se registró nada.')}
       />
     </View>

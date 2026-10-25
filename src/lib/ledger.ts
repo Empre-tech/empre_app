@@ -132,6 +132,21 @@ export function invalidationScopes(kinds: Iterable<OutboxKind>): string[] {
   return [...out].sort();
 }
 
+/** Más que esto en la cola y el registro viaja con su hora (si sale enseguida, vale la hora del servidor). */
+export const QUEUED_TIME_AFTER_MS = 2 * 60_000;
+
+const TIMED: OutboxKind[] = ['sale', 'expense', 'payment'];
+
+/**
+ * Lo que se envía de un registro de la cola. Una venta, un gasto o un abono que esperó en el teléfono (sin señal, o un
+ * reintento) lleva `occurred_at` con la hora en que se registró: sin esto, el servidor le ponía la hora de llegada y
+ * una venta de las 11:50 p. m. enviada a la mañana caía en el día siguiente. Si ya trae su hora, no se toca.
+ */
+export function sendPayload(item: OutboxItem, now: number = Date.now()): Record<string, unknown> {
+  if (!TIMED.includes(item.kind) || item.payload.occurred_at || now - item.createdAt < QUEUED_TIME_AFTER_MS) return item.payload;
+  return { ...item.payload, occurred_at: new Date(Math.min(item.createdAt, now)).toISOString() };
+}
+
 /** Espera entre reintentos sin señal: 5 s, 15 s, 30 s y luego cada minuto. */
 export function retryDelayMs(attempt: number): number {
   return [5_000, 15_000, 30_000][attempt] ?? 60_000;
