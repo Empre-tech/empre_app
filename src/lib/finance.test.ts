@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { VoiceAction } from '../api/ledger.ts';
-import { amountMask, barHeights, bumpLine, cleanSpeech, draftTotal, expenseInputsFrom, frequentExpenses, prepareVoiceActions, qtyOf, removeLine, saleInputFrom, voiceToDraft, weekBars, type DraftLine } from './finance.ts';
+import { amountMask, barHeights, bumpLine, cleanSpeech, draftTotal, expenseInputsFrom, colombiaDay, prepareVoiceActions, qtyOf, removeLine, saleInputFrom, usualExpenseItems, voiceToDraft, weekBars, type DraftLine } from './finance.ts';
 
 test('el dictado sin las repeticiones del reconocedor', () => {
   // El caso real de la prueba en el teléfono (23 oct).
@@ -90,44 +90,28 @@ test('cada línea de gasto es un gasto aparte con su categoría', () => {
   ]);
 });
 
-test('de siempre: lo repetido, con el último monto; lo de una vez y lo anulado no entran', () => {
+test('de siempre: el nombre es la nota o la categoría', () => {
   const label = (k: string) => (k === 'transporte' ? 'Transporte' : 'Otro');
-  const f = frequentExpenses(
+  const f = usualExpenseItems(
     [
-      { occurred_at: '2026-10-01T10:00:00Z', amount: 7000, category: 'mercancia', note: 'Cera', status: 'active' },
-      { occurred_at: '2026-10-10T10:00:00Z', amount: 8000, category: 'mercancia', note: 'cera', status: 'active' },
-      { occurred_at: '2026-10-05T10:00:00Z', amount: 5000, category: 'transporte', note: '', status: 'active' },
-      { occurred_at: '2026-10-06T10:00:00Z', amount: 6000, category: 'transporte', note: '', status: 'active' },
-      { occurred_at: '2026-10-07T10:00:00Z', amount: 9000, category: 'transporte', note: '', status: 'active' },
-      { occurred_at: '2026-10-08T10:00:00Z', amount: 90000, category: 'otro', note: 'Arreglo silla', status: 'active' },
-      { occurred_at: '2026-10-09T10:00:00Z', amount: 3000, category: 'otro', note: 'Gel', status: 'voided' },
-      { occurred_at: '2026-10-09T11:00:00Z', amount: 3000, category: 'otro', note: 'Gel', status: 'voided' },
+      { key: 'note:cera', note: 'Cera', category: 'mercancia', amount: 8000, count: 2 },
+      { key: 'cat:transporte', note: '  ', category: 'transporte', amount: 9000, count: 3 },
     ],
     label,
   );
-  assert.deepEqual(f.map((x) => [x.name, x.amount, x.count]), [
-    ['Transporte', 9000, 3],
-    ['Cera', 8000, 2],
+  assert.deepEqual(f.map((x) => [x.key, x.name, x.amount]), [
+    ['note:cera', 'Cera', 8000],
+    ['cat:transporte', 'Transporte', 9000],
   ]);
 });
 
-test('la semana suma por día local y marca hoy', () => {
-  const from = new Date(2026, 9, 19).toISOString(); // lunes 19 oct, medianoche local
-  const at = (day: number, h = 12) => new Date(2026, 9, day, h).toISOString();
-  const bars = weekBars(
-    [
-      { occurred_at: at(19), total: 50000, status: 'active' },
-      { occurred_at: at(21), total: 30000, status: 'active' },
-      { occurred_at: at(21), total: 99999, status: 'voided' },
-      { occurred_at: at(26), total: 1, status: 'active' }, // fuera de la semana
-    ],
-    [{ occurred_at: at(21, 18), amount: 10000, status: 'active' }],
-    from,
-    new Date(2026, 9, 23, 15),
-  );
+test('la semana viene sumada del servidor; hoy suma lo que está en camino', () => {
+  const days = ['19', '20', '21', '22', '23', '24', '25'].map((d, i) => ({ date: `2026-10-${d}`, sales: i === 0 ? 50000 : i === 2 ? 30000 : 0, expenses: i === 2 ? 10000 : 0 }));
+  const bars = weekBars(days, '2026-10-23', 4000);
   assert.deepEqual(bars.map((b) => b.label).join(''), 'LMMJVSD');
-  assert.deepEqual(bars.map((b) => b.net), [50000, 0, 20000, 0, 0, 0, 0]);
+  assert.deepEqual(bars.map((b) => b.net), [50000, 0, 20000, 0, 4000, 0, 0]);
   assert.equal(bars.findIndex((b) => b.today), 4);
+  assert.equal(colombiaDay(new Date('2026-10-24T03:00:00Z')), '2026-10-23'); // 10 pm del 23 en Colombia
   const h = barHeights(bars);
   assert.equal(h[0], 1);
   assert.equal(h[1], 0.06);

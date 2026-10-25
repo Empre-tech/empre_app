@@ -71,11 +71,11 @@ export default function LedgerHome() {
     const sent = [...(sales.data ?? []).map(saleMovement), ...(expenses.data ?? []).map(expenseMovement)];
     // Lo que aún no salió del teléfono se muestra también, marcado «sin enviar».
     const queued: Movement[] = outbox.items
-      .filter((x) => x.entityId === entityId && x.status === 'pending' && (x.kind === 'sale' || x.kind === 'expense'))
+      .filter((x) => x.entityId === entityId && x.status !== 'failed' && (x.kind === 'sale' || x.kind === 'expense'))
       .filter((x) => !sent.some((m) => m.id === x.id))
       .map((x) => {
         const p = x.payload as { total?: number; amount?: number; note?: string; method: Sale['method']; category?: string };
-        return { key: `q${x.id}`, kind: x.kind as 'sale' | 'expense', id: x.id, at: new Date(x.createdAt).toISOString(), amount: Number(p.total ?? p.amount ?? 0), title: p.note || (x.kind === 'sale' ? 'Venta' : categoryLabel(p.category ?? 'otro')), sub: METHOD_LABEL[p.method] ?? '', voided: false, pending: true };
+        return { key: `q${x.id}`, kind: x.kind as 'sale' | 'expense', id: x.id, at: new Date(x.createdAt).toISOString(), amount: Number(p.total ?? p.amount ?? 0), title: p.note || (x.kind === 'sale' ? 'Venta' : categoryLabel(p.category ?? 'otro')), sub: METHOD_LABEL[p.method] ?? '', voided: false, pending: x.status === 'pending' };
       });
     return [...queued, ...sent].sort((a, b) => b.at.localeCompare(a.at));
   }, [sales.data, expenses.data, outbox.items, entityId]);
@@ -112,7 +112,7 @@ export default function LedgerHome() {
           ))}
         </View>
 
-        {outbox.items.some((x) => x.entityId === entityId) ? <OutboxBanner entityId={entityId} /> : null}
+        {outbox.items.some((x) => x.entityId === entityId && x.status !== 'sent') ? <OutboxBanner entityId={entityId} /> : null}
 
         {summary.isLoading ? (
           <ActivityIndicator style={{ marginVertical: spacing.xl }} color={colors.primary} />

@@ -6,12 +6,14 @@ import { ApiError } from '@/api/client';
 import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi } from '@/api/ledger';
 import { useAuth } from '@/auth/AuthContext';
-import { barHeights, frequentExpenses, weekBars, type DayBar } from '@/lib/finance';
+import { barHeights, colombiaDay, usualExpenseItems, weekBars, type DayBar } from '@/lib/finance';
 import { categoryLabel, pendingTotals } from '@/lib/ledger';
 import { useLedgerOutbox } from '@/ledger/ledgerStore';
 
-// Datos de Empre Finance (3.45). Las claves de caché son las mismas de «Mi negocio» donde coinciden, así lo que se ve
-// aquí y allá es lo mismo y un registro refresca ambos.
+// Datos de Empre Finance (3.45, 3.51). Las claves de caché son las mismas de «Mi negocio» donde coinciden, así lo que
+// se ve aquí y allá es lo mismo y un registro refresca ambos. Cuatro consultas pequeñas: el resumen del día, el de la
+// semana (que ya trae lo de cada día para las barras), el catálogo y los gastos de siempre (ya agrupados). Al
+// registrar, la cola recarga solo las que cambian (`invalidationScopes`).
 
 const KEY = 'empre.finance.entity';
 
@@ -67,26 +69,8 @@ export function useFinanceData(entityId: string) {
 
   const day = useQuery({ queryKey: ['ledger', entityId, 'summary', 'day'], queryFn: () => ledgerApi.summary(entityId, 'day'), enabled: on, staleTime: 15_000 });
   const week = useQuery({ queryKey: ['ledger', entityId, 'summary', 'week'], queryFn: () => ledgerApi.summary(entityId, 'week'), enabled: on, staleTime: 60_000 });
-  const from = week.data?.from;
-  const weekLists = useQuery({
-    queryKey: ['ledger', entityId, 'finance-week', from],
-    queryFn: async () => {
-      const [sales, expenses] = await Promise.all([
-        ledgerApi.sales(entityId, { from, to: week.data?.to, limit: 300 }),
-        ledgerApi.expenses(entityId, { from, to: week.data?.to, limit: 300 }),
-      ]);
-      return { sales, expenses };
-    },
-    enabled: on && Boolean(from),
-    staleTime: 60_000,
-  });
   const items = useQuery({ queryKey: ['ledger', entityId, 'items'], queryFn: () => ledgerApi.items(entityId), enabled: on, staleTime: 60_000 });
-  const recentExpenses = useQuery({
-    queryKey: ['ledger', entityId, 'finance-frequent'],
-    queryFn: () => ledgerApi.expenses(entityId, { from: new Date(Date.now() - 30 * 86_400_000).toISOString(), limit: 300 }),
-    enabled: on,
-    staleTime: 5 * 60_000,
-  });
+  const usual = useQuery({ queryKey: ['ledger', entityId, 'usual-expenses'], queryFn: () => ledgerApi.usualExpenses(entityId), enabled: on, staleTime: 5 * 60_000 });
 
   const sum = day.data;
   const sold = (sum?.sales_total ?? 0) + pending.sales;
@@ -95,10 +79,9 @@ export function useFinanceData(entityId: string) {
   const net = sold - spent;
   const changePct = sum && prevNet > 0 ? Math.round(((net - prevNet) / prevNet) * 100) : null;
 
-  const bars: DayBar[] = useMemo(
-    () => (weekLists.data && from ? weekBars(weekLists.data.sales, weekLists.data.expenses, from) : []),
-    [weekLists.data, from],
-  );
+  const pendingNet = pending.sales - pending.expenses;
+  const days = week.data?.days;
+  const bars: DayBar[] = useMemo(() => (days ? weekBars(days, colombiaDay(), pendingNet) : []), [days, pendingNet]);
   const heights = useMemo(() => barHeights(bars), [bars]);
 
   // Servicios del catálogo con precio, primero los más vendidos.
@@ -115,14 +98,13 @@ export function useFinanceData(entityId: string) {
   }, [items.data, sum?.top_items]);
 
   const usualExpenses: KnownItem[] = useMemo(
-    () => frequentExpenses(recentExpenses.data ?? [], categoryLabel).map((f) => ({ key: `exp:${f.key}`, name: f.name, price: f.amount, category: f.category })),
-    [recentExpenses.data],
+    () => usualExpenseItems(usual.data ?? [], categoryLabel).map((f) => ({ key: `exp:${f.key}`, name: f.name, price: f.amount, category: f.category })),
+    [usual.data],
   );
 
   const refresh = () => {
     void day.refetch();
     void week.refetch();
-    void weekLists.refetch();
   };
 
   // Sin señal (status 0) no es lo mismo que un servidor que no responde la ruta: el aviso dice cuál es.

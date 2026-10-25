@@ -4,8 +4,8 @@ import { useSyncExternalStore } from 'react';
 import { ApiError } from '@/api/client';
 import { ledgerApi, type ExpenseInput, type PartyInput, type PaymentInput, type SaleInput } from '@/api/ledger';
 import {
-  cancelPending, enqueue, flushOrder, isRetryable, markFailed, removeItem, restoreOutbox, retryFailed,
-  type OutboxItem, type OutboxKind,
+  cancelPending, dropSent, enqueue, flushOrder, invalidationScopes, isRetryable, markFailed, markSent, removeItem, restoreOutbox,
+  retryDelayMs, retryFailed, type OutboxItem, type OutboxKind,
 } from '@/lib/ledger';
 
 /**
@@ -120,37 +120,74 @@ async function send(item: OutboxItem): Promise<void> {
   }
 }
 
-let again = false;
+/**
+ * Recarga solo lo que cambió con estos registros (ver `invalidationScopes`) y espera a que lleguen las consultas que
+ * están en pantalla. Las demás quedan marcadas y se piden al volver a verse.
+ */
+export async function invalidateLedger(entityId: string, kinds: Iterable<OutboxKind>): Promise<void> {
+  const scopes = invalidationScopes(kinds);
+  if (!queryClient || scopes.length === 0) return;
+  await queryClient.invalidateQueries({
+    predicate: (q) => q.queryKey[0] === 'ledger' && q.queryKey[1] === entityId && scopes.includes(String(q.queryKey[2])),
+  });
+}
 
-/** Envía lo pendiente, en orden. Si no hay señal se detiene y lo deja para después. Nunca lanza. */
+let again = false;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let retryAttempt = 0;
+
+/** Sin señal: otro intento en un rato (5 s, 15 s, 30 s y luego cada minuto), además del de volver a la app. */
+function scheduleRetry() {
+  if (retryTimer) return;
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    void flushLedger();
+  }, retryDelayMs(retryAttempt++));
+}
+
+/** Envía lo pendiente, en orden. Si no hay señal se detiene y reintenta después. Nunca lanza. */
 export async function flushLedger(): Promise<void> {
   if (state.flushing) {
     again = true; // llegó algo nuevo mientras se enviaba: otra vuelta al terminar
     return;
   }
+  if (retryTimer) {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+  }
   set({ flushing: true });
-  const touched = new Set<string>();
+  const sent = new Map<string, Set<OutboxKind>>(); // negocio → tipos que llegaron
+  let offline = false;
   try {
     do {
       again = false;
       for (const item of flushOrder(state.items)) {
         try {
           await send(item);
-          touched.add(item.entityId);
-          set({ items: removeItem(state.items, item.id) });
+          const kinds = sent.get(item.entityId) ?? new Set<OutboxKind>();
+          kinds.add(item.kind);
+          sent.set(item.entityId, kinds);
+          // Una venta o un gasto siguen sumando al resumen hasta que llega el nuevo; lo demás sale de la cola ya.
+          set({ items: item.kind === 'sale' || item.kind === 'expense' ? markSent(state.items, item.id) : removeItem(state.items, item.id) });
         } catch (error) {
           const status = error instanceof ApiError ? error.status : 0;
-          if (isRetryable(status)) return; // sin señal o servidor caído: se reintenta luego
+          if (isRetryable(status)) {
+            offline = true; // sin señal o servidor caído: se reintenta luego
+            break;
+          }
           const msg = error instanceof Error ? error.message : 'No se pudo enviar';
           set({ items: markFailed(state.items, item.id, msg) });
-          touched.add(item.entityId);
         }
       }
-    } while (again);
+    } while (again && !offline);
   } finally {
     set({ flushing: false });
-    touched.forEach((entityId) => void queryClient?.invalidateQueries({ queryKey: ['ledger', entityId] }));
+    if (offline) scheduleRetry();
+    else retryAttempt = 0;
   }
+  // Recargar y, ya con el resumen nuevo, dejar de sumar lo enviado: así el monto no baja y vuelve a subir.
+  await Promise.all([...sent].map(([entityId, kinds]) => invalidateLedger(entityId, kinds).catch(() => undefined)));
+  if (sent.size > 0) set({ items: dropSent(state.items, sent.keys()) });
 }
 
 function subscribe(l: () => void) {

@@ -1,6 +1,6 @@
 // Lógica pura de Empre Finance (3.45), sin React ni red, para probarla con Node: el borrador de una venta o un gasto
-// (lo del catálogo, lo escrito a mano y lo dicho por voz se suman en el mismo borrador), la semana por días y los
-// gastos «de siempre».
+// (lo del catálogo, lo escrito a mano y lo dicho por voz se suman en el mismo borrador), las barras de la semana y los
+// gastos «de siempre» (los dos últimos ya vienen sumados del servidor).
 
 import type { ExpenseInput, PayMethod, SaleInput, VoiceAction } from '../api/ledger';
 
@@ -60,48 +60,25 @@ export function expenseInputsFrom(lines: DraftLine[], newId: () => string): Expe
   }));
 }
 
-export interface FrequentExpense {
+/** Un gasto «de siempre» tal como lo manda el servidor (3.51): ya agrupado, con el monto de la última vez. */
+export interface UsualExpense {
   key: string;
-  name: string;
+  note: string;
   category: string;
   amount: number;
   count: number;
 }
 
-interface ExpenseLike {
-  occurred_at: string;
-  amount: number;
+export interface FrequentExpense {
+  key: string;
+  name: string;
   category: string;
-  note: string;
-  status: string;
+  amount: number;
 }
 
-/**
- * Los gastos que más se repiten (por nota, o por categoría si no hay nota), con el monto de la última vez. Sirven para
- * «De siempre»: un gasto que pasó una sola vez no entra.
- */
-export function frequentExpenses(expenses: ExpenseLike[], categoryName: (key: string) => string, limit = 4): FrequentExpense[] {
-  const groups = new Map<string, FrequentExpense & { last: string }>();
-  for (const e of expenses) {
-    if (e.status !== 'active' || e.amount <= 0) continue;
-    const name = e.note.trim() || categoryName(e.category);
-    const key = name.toLocaleLowerCase('es');
-    const g = groups.get(key);
-    if (!g) groups.set(key, { key, name, category: e.category, amount: e.amount, count: 1, last: e.occurred_at });
-    else {
-      g.count++;
-      if (e.occurred_at > g.last) {
-        g.last = e.occurred_at;
-        g.amount = e.amount;
-        g.category = e.category;
-      }
-    }
-  }
-  return [...groups.values()]
-    .filter((g) => g.count >= 2)
-    .sort((a, b) => b.count - a.count || b.last.localeCompare(a.last))
-    .slice(0, limit)
-    .map(({ last: _last, ...g }) => g);
+/** Para «De siempre»: el nombre es la nota, o la categoría si el gasto no tiene nota. */
+export function usualExpenseItems(list: UsualExpense[], categoryName: (key: string) => string): FrequentExpense[] {
+  return list.map((u) => ({ key: u.key, name: u.note.trim() || categoryName(u.category), category: u.category, amount: u.amount }));
 }
 
 const DAY_LABELS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
@@ -112,34 +89,31 @@ export interface DayBar {
   today: boolean;
 }
 
-function localDayIndex(iso: string, from: Date): number {
-  const d = new Date(iso);
-  const a = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
-  const b = Date.UTC(from.getFullYear(), from.getMonth(), from.getDate());
-  return Math.round((a - b) / 86_400_000);
+/** Lo que el servidor sumó cada día (hora de Colombia). */
+export interface DayTotals {
+  date: string;
+  sales: number;
+  expenses: number;
 }
 
-/** Lo que quedó cada día desde `fromIso` (7 días), con hoy marcado. Lo anulado no cuenta. */
-export function weekBars(
-  sales: { occurred_at: string; total: number; status: string }[],
-  expenses: { occurred_at: string; amount: number; status: string }[],
-  fromIso: string,
-  now: Date = new Date(),
-): DayBar[] {
-  const from = new Date(fromIso);
-  const bars: DayBar[] = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(from.getFullYear(), from.getMonth(), from.getDate() + i);
-    return { label: DAY_LABELS[d.getDay()], net: 0, today: localDayIndex(now.toISOString(), from) === i };
+/** «AAAA-MM-DD» de hoy en Colombia (UTC−5, sin horario de verano): el mismo día con el que suma el servidor. */
+export function colombiaDay(now: Date = new Date()): string {
+  return new Date(now.getTime() - 5 * 3_600_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Las barras de la semana con lo que sumó el servidor (antes la app bajaba cada registro y se cortaba en 300). A hoy se
+ * le suma lo que está en camino (`pendingNet`), igual que a «Te quedó», para que la barra y el número digan lo mismo.
+ */
+export function weekBars(days: DayTotals[], today: string, pendingNet = 0): DayBar[] {
+  return days.slice(0, 7).map((d) => {
+    const isToday = d.date === today;
+    return {
+      label: DAY_LABELS[new Date(`${d.date}T12:00:00Z`).getUTCDay()],
+      net: d.sales - d.expenses + (isToday ? pendingNet : 0),
+      today: isToday,
+    };
   });
-  for (const s of sales) {
-    const i = localDayIndex(s.occurred_at, from);
-    if (s.status === 'active' && i >= 0 && i < 7) bars[i].net += s.total;
-  }
-  for (const e of expenses) {
-    const i = localDayIndex(e.occurred_at, from);
-    if (e.status === 'active' && i >= 0 && i < 7) bars[i].net -= e.amount;
-  }
-  return bars;
 }
 
 /** Alto de cada barra entre 0 y 1 (los días en pérdida o en cero quedan en un mínimo visible). */

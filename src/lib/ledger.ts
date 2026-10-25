@@ -79,8 +79,12 @@ export interface OutboxItem {
   kind: OutboxKind;
   payload: Record<string, unknown>;
   createdAt: number;
-  /** pending = por enviar; failed = el servidor lo rechazó (no se reintenta solo). */
-  status: 'pending' | 'failed';
+  /**
+   * pending = por enviar; failed = el servidor lo rechazó (no se reintenta solo); sent = ya llegó, pero el resumen
+   * guardado todavía no lo incluye: se sigue sumando hasta que el resumen nuevo llega (así el monto no baja y vuelve a
+   * subir al enviarse).
+   */
+  status: 'pending' | 'failed' | 'sent';
   error?: string;
 }
 
@@ -95,6 +99,42 @@ export function removeItem(list: OutboxItem[], id: string): OutboxItem[] {
 
 export function markFailed(list: OutboxItem[], id: string, error: string): OutboxItem[] {
   return list.map((x) => (x.id === id ? { ...x, status: 'failed' as const, error } : x));
+}
+
+/** Ya llegó al servidor: deja de estar pendiente, pero cuenta en el resumen hasta `dropSent`. */
+export function markSent(list: OutboxItem[], id: string): OutboxItem[] {
+  return list.map((x) => (x.id === id ? { ...x, status: 'sent' as const } : x));
+}
+
+/** Quita lo enviado de estos negocios, cuando su resumen ya se recargó. */
+export function dropSent(list: OutboxItem[], entityIds: Iterable<string>): OutboxItem[] {
+  const ids = new Set(entityIds);
+  const out = list.filter((x) => !(x.status === 'sent' && ids.has(x.entityId)));
+  return out.length === list.length ? list : out;
+}
+
+/**
+ * Qué datos guardados cambian con cada tipo de registro (el tercer tramo de la clave ['ledger', negocio, …]). Así un
+ * gasto no recarga el catálogo ni una venta los gastos de siempre.
+ */
+const SCOPES: Record<OutboxKind, string[]> = {
+  party: ['parties'],
+  sale: ['summary', 'sales', 'items', 'parties'],
+  expense: ['summary', 'expenses', 'usual-expenses', 'parties'],
+  payment: ['summary', 'parties'],
+  void_sale: ['summary', 'sales', 'parties'],
+  void_expense: ['summary', 'expenses', 'usual-expenses', 'parties'],
+};
+
+export function invalidationScopes(kinds: Iterable<OutboxKind>): string[] {
+  const out = new Set<string>();
+  for (const k of kinds) SCOPES[k].forEach((s) => out.add(s));
+  return [...out].sort();
+}
+
+/** Espera entre reintentos sin señal: 5 s, 15 s, 30 s y luego cada minuto. */
+export function retryDelayMs(attempt: number): number {
+  return [5_000, 15_000, 30_000][attempt] ?? 60_000;
 }
 
 export function retryFailed(list: OutboxItem[], id: string): OutboxItem[] {
@@ -127,7 +167,7 @@ export function pendingTotals(list: OutboxItem[], entityId: string): PendingTota
       t.failed++;
       continue;
     }
-    t.count++;
+    if (x.status === 'pending') t.count++; // lo enviado ya no está «sin enviar», pero su monto sigue contando
     if (x.kind === 'sale') t.sales += Number(x.payload.total ?? 0);
     if (x.kind === 'expense') t.expenses += Number(x.payload.amount ?? 0);
   }
@@ -147,8 +187,9 @@ export function cancelPending(list: OutboxItem[], id: string): OutboxItem[] | nu
 /** Restaura lo guardado en el archivo, descartando basura. */
 export function restoreOutbox(raw: unknown): OutboxItem[] {
   if (!Array.isArray(raw)) return [];
+  // Lo enviado ya está en el servidor: al abrir la app, el resumen se pide de nuevo y lo trae.
   return raw.filter(
     (x): x is OutboxItem =>
-      !!x && typeof x.id === 'string' && typeof x.entityId === 'string' && typeof x.kind === 'string' && x.kind in ORDER && typeof x.payload === 'object',
+      !!x && typeof x.id === 'string' && typeof x.entityId === 'string' && typeof x.kind === 'string' && x.kind in ORDER && typeof x.payload === 'object' && x.status !== 'sent',
   );
 }

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   amountField, cancelPending, changeText, enqueue, flushOrder, formatPesos, isRetryable, markFailed, newClientId,
-  parseAmountInput, pendingTotals, restoreOutbox, retryFailed,
+  parseAmountInput, pendingTotals, restoreOutbox, retryFailed, markSent, dropSent, invalidationScopes, retryDelayMs,
 } from './ledger.ts';
 
 test('formatPesos', () => {
@@ -60,6 +60,31 @@ test('deshacer sin señal quita de la cola solo lo pendiente', () => {
   assert.deepEqual(cancelPending(q, 's1'), []);
   assert.equal(cancelPending(q, 'otro'), null);
   assert.equal(cancelPending(markFailed(q, 's1', 'x'), 's1'), null);
+});
+
+test('lo enviado sigue sumando hasta que llega el resumen nuevo', () => {
+  let q = enqueue([], { id: 's1', entityId: 'e1', kind: 'sale', payload: { total: 30000 } });
+  q = enqueue(q, { id: 's2', entityId: 'e2', kind: 'sale', payload: { total: 500 } });
+  q = markSent(q, 's1');
+  assert.deepEqual(pendingTotals(q, 'e1'), { count: 0, failed: 0, sales: 30000, expenses: 0 }); // sin aviso, con monto
+  assert.equal(flushOrder(q).some((x) => x.id === 's1'), false); // no se reenvía
+  assert.equal(cancelPending(q, 's1'), null); // deshacer lo enviado se anula en el servidor
+  assert.deepEqual(restoreOutbox(q).map((x) => x.id), ['s2']);
+  q = dropSent(q, ['e1']);
+  assert.deepEqual(q.map((x) => x.id), ['s2']);
+  assert.equal(dropSent(q, ['e1']), q); // nada que quitar: la misma lista
+});
+
+test('cada registro recarga solo lo que cambia', () => {
+  assert.deepEqual(invalidationScopes(['expense']), ['expenses', 'parties', 'summary', 'usual-expenses']);
+  assert.equal(invalidationScopes(['sale']).includes('usual-expenses'), false);
+  assert.equal(invalidationScopes(['expense']).includes('items'), false);
+  assert.deepEqual(invalidationScopes(['party']), ['parties']);
+  assert.deepEqual(invalidationScopes([]), []);
+});
+
+test('reintentos sin señal cada vez más espaciados', () => {
+  assert.deepEqual([0, 1, 2, 3, 9].map(retryDelayMs), [5000, 15000, 30000, 60000, 60000]);
 });
 
 test('isRetryable', () => {

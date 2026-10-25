@@ -8,16 +8,35 @@ import { DENSE_TEXT_SCALE } from '@/theme';
 // Monto en pesos que rueda dígito por dígito al cambiar (adaptado de «Sliding Number» de ibelick en 21st.dev, sin la
 // librería `motion`): cada dígito es una columna 0–9 que se desplaza con un resorte del controlador nativo. Al montar
 // arranca en 0 y rueda hasta el valor. Con «Reducir movimiento» cambia sin animar. El lector lee el monto completo.
+// La columna de diez solo existe mientras rueda (3.51): quieto, cada dígito es un solo texto. Una hoja con cuatro
+// montos pasaba de unos 300 textos a unos 30.
 
 const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
 function Digit({ digit, height, textStyle, reduce }: { digit: number; height: number; textStyle: StyleProp<TextStyle>; reduce: boolean }) {
   const [y] = useState(() => new Animated.Value(0));
+  // Rueda cuando el dígito cambia (se decide al dibujar, no en un efecto) y para cuando el resorte termina.
+  const [roll, setRoll] = useState(() => ({ digit, on: digit !== 0 }));
+  if (roll.digit !== digit) setRoll({ digit, on: true });
+  const rolling = roll.on && !reduce;
   useEffect(() => {
     const to = -digit * height;
-    if (reduce) y.setValue(to);
-    else Animated.spring(y, { toValue: to, useNativeDriver: true, ...fin.motion.roll }).start();
+    if (reduce) {
+      y.setValue(to);
+      return;
+    }
+    // Al terminar queda el dígito solo, en el mismo lugar que la columna: el cambio no se ve.
+    Animated.spring(y, { toValue: to, useNativeDriver: true, ...fin.motion.roll }).start(({ finished }) => {
+      if (finished) setRoll((r) => (r.digit === digit ? { digit, on: false } : r));
+    });
   }, [digit, height, reduce, y]);
+  if (!rolling) {
+    return (
+      <Text style={[textStyle, { height, lineHeight: height }]} maxFontSizeMultiplier={DENSE_TEXT_SCALE}>
+        {DIGITS[digit]}
+      </Text>
+    );
+  }
   return (
     <View style={{ height, overflow: 'hidden' }}>
       <Animated.View style={{ transform: [{ translateY: y }] }}>

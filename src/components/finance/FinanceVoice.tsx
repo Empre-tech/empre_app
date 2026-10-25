@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,7 +8,7 @@ import { amountMask, cleanSpeech, prepareVoiceActions, voiceToDraft, type DraftL
 import { hapticSuccess } from '@/lib/haptics';
 import { categoryLabel, formatPesos, METHOD_LABEL } from '@/lib/ledger';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { queueVoid } from '@/ledger/ledgerStore';
+import { invalidateLedger, queueVoid } from '@/ledger/ledgerStore';
 import { speechAvailable, startDictation } from '@/ledger/speech';
 import { fin } from '@/finance/tokens';
 import { alpha } from '@/theme';
@@ -107,7 +106,6 @@ export function FinanceVoice({
   onOpenLedger: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const qc = useQueryClient();
   const reduce = useReduceMotion();
   const canSpeak = speechAvailable();
   const [text, setText] = useState('');
@@ -279,7 +277,7 @@ export function FinanceVoice({
       // guarda todo o nada, y confirmar dos veces el mismo dictado no duplica (responde «ya estaba»).
       const res = await ledgerApi.voiceConfirm(entityId, result.draft_id, prepareVoiceActions(usable));
       draftRef.current = null;
-      void qc.invalidateQueries({ queryKey: ['ledger', entityId] });
+      void invalidateLedger(entityId, ['sale', 'expense', 'payment']);
       hapticSuccess();
       setFailed(false);
       setSaved({

@@ -1,3 +1,4 @@
+import type { DayTotals, UsualExpense } from '../lib/finance';
 import { request } from './client';
 
 // ---------------------------------------------------------------------------
@@ -136,6 +137,8 @@ export interface LedgerSummary {
   cash_out: number;
   prev_sales_total: number;
   prev_expenses_total: number;
+  /** Lo de cada día del periodo (semana y mes; el día no lo trae). */
+  days?: DayTotals[];
 }
 
 export interface ItemCost {
@@ -201,6 +204,9 @@ export const ledgerApi = {
 
   expenses: async (entityId: string, query?: { limit?: number; from?: string; to?: string; before?: string }) =>
     (await request<{ expenses: Expense[] | null }>(`${base(entityId)}/expenses`, { query })).expenses ?? [],
+  /** Los gastos que se repiten en los últimos 30 días, ya agrupados (Empre Finance, 3.51). */
+  usualExpenses: async (entityId: string) =>
+    (await request<{ items: UsualExpense[] | null }>(`${base(entityId)}/expenses/usual`)).items ?? [],
   createExpense: (entityId: string, input: ExpenseInput) =>
     request<Expense>(`${base(entityId)}/expenses`, { method: 'POST', body: input }),
   voidExpense: (entityId: string, expenseId: string, reason: string) =>

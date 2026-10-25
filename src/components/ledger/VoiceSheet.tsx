@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +7,7 @@ import { ledgerApi, type VoiceAction, type VoiceResult } from '@/api/ledger';
 import { Button } from '@/components/Button';
 import { AmountField, Chip, MethodChips, PartyPicker } from '@/components/ledger/parts';
 import { categoryLabel, formatPesos } from '@/lib/ledger';
+import { invalidateLedger } from '@/ledger/ledgerStore';
 import { speechAvailable, startDictation } from '@/ledger/speech';
 import { colors, fonts, radius, spacing } from '@/theme';
 
@@ -41,7 +41,6 @@ export function actionProblem(a: VoiceAction): string | null {
  */
 export function VoiceSheet({ entityId, visible, onClose, hints }: { entityId: string; visible: boolean; onClose: () => void; hints: string[] }) {
   const insets = useSafeAreaInsets();
-  const qc = useQueryClient();
   const [text, setText] = useState('');
   const [listening, setListening] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -113,7 +112,7 @@ export function VoiceSheet({ entityId, visible, onClose, hints }: { entityId: st
     setError(null);
     try {
       await ledgerApi.voiceConfirm(entityId, result.draft_id, actions);
-      void qc.invalidateQueries({ queryKey: ['ledger', entityId] });
+      void invalidateLedger(entityId, ['sale', 'expense', 'payment']);
       setDone(true);
       setTimeout(onClose, 1100);
     } catch (e) {
