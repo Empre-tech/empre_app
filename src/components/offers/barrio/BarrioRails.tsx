@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { categoryColor, deepen } from '@/lib/categoryColor';
 import type { GroupId } from '@/lib/categoryGroups';
 import { displayIcon } from '@/lib/mapView';
-import { clockLabel, levelLabel, redeemedWhen, routeTitle, routeWhy, savingPesos, type MarketRoute, type MarketVoice } from '@/lib/offerBarrio';
+import { claimability, clockLabel, fromYouLabel, levelLabel, redeemedWhen, routeTitle, routeWhy, savingPesos, servicePriceLabel, totalLine, type MarketRoute, type MarketVoice } from '@/lib/offerBarrio';
 import { pesos, type MarketItem } from '@/lib/offerMarket';
 import { alpha, colors, DENSE_TEXT_SCALE, fonts, radius, spacing } from '@/theme';
 import { CategoryWash } from './Wash';
@@ -31,12 +31,21 @@ const LEVEL_TONE: Record<MarketRoute['level'], { bg: string; fg: string }> = {
   day: { bg: colors.accentSoft, fg: colors.accentInk },
 };
 
-/** Tarjeta de una ruta (3.49): el nombre del tema, su nivel sin adornos, la hora de cada parada y el porqué. */
-function RouteCard({ r, city, hereZone, onOpen, onRoute }: { r: MarketRoute; city: string; hereZone: string; onOpen: (o: MarketItem) => void; onRoute: (r: MarketRoute) => void }) {
+type You = { latitude: number; longitude: number } | null;
+
+/**
+ * Tarjeta de una ruta (3.49, 3.50): el nombre del tema, dos distancias aparte (el paseo y de ti a la ruta), la hora de
+ * cada parada, lo que cuesta el plan y el porqué. Un servicio va con borde punteado y «precio de siempre».
+ */
+function RouteCard({ r, city, hereZone, you, onOpen, onRoute }: { r: MarketRoute; city: string; hereZone: string; you: You; onOpen: (o: MarketItem) => void; onRoute: (r: MarketRoute) => void }) {
   const name = routeTitle(r, city);
   const level = levelLabel(r, hereZone);
   const tone = LEVEL_TONE[r.level];
   const timed = r.times.some(Boolean);
+  const fromYou = fromYouLabel(r.distance_from_you);
+  const total = totalLine(r);
+  const offers = r.stops.filter((s) => s.kind !== 'service');
+  const allLater = offers.length > 0 && offers.every((s) => claimability(s, you) === 'arrive');
   return (
     <View style={styles.route}>
       <View style={styles.routeHead}>
@@ -49,22 +58,34 @@ function RouteCard({ r, city, hereZone, onOpen, onRoute }: { r: MarketRoute; cit
           </Text>
         </View>
       </View>
-      {/* El nivel va solo en su fila: «A pie en El Rodadero · 9 cuadras» no cabe junto al ahorro. */}
-      <View style={[styles.level, { backgroundColor: tone.bg }]}>
-        <Ionicons name={LEVEL_ICON[r.level]} size={12} color={tone.fg} />
-        <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={[styles.levelText, { color: tone.fg }]}>
-          {level}
-        </Text>
+      {/* El nivel va solo en su fila: «A pie en El Rodadero · 9 cuadras» no cabe junto al ahorro. Al lado, de ti a la
+          ruta: dos distancias distintas, cada una con su nombre (3.50). */}
+      <View style={styles.chips}>
+        <View style={[styles.level, { backgroundColor: tone.bg }]}>
+          <Ionicons name={LEVEL_ICON[r.level]} size={12} color={tone.fg} />
+          <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={[styles.levelText, { color: tone.fg }]}>
+            {level}
+          </Text>
+        </View>
+        {fromYou ? (
+          <View style={[styles.level, styles.fromYou]}>
+            <Ionicons name="location-outline" size={12} color={colors.mutedDark} />
+            <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={[styles.levelText, { color: colors.mutedDark }]}>
+              {fromYou}
+            </Text>
+          </View>
+        ) : null}
       </View>
       <View style={styles.stops}>
         {r.stops.map((s, k) => {
           const cat = categoryColor(s.category_color).fg;
+          const svc = s.kind === 'service';
           return (
             <View key={s.id} style={styles.stopWrap}>
               {k > 0 ? <View style={[styles.leg, timed && styles.legTimed]} accessible={false} /> : null}
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Parada ${k + 1}${r.times[k] ? `, a las ${clockLabel(r.times[k] as string)}` : ''}: ${s.title} en ${s.entity_name}, ahorras ${pesos(savingPesos(s))}`}
+                accessibilityLabel={`Parada ${k + 1}${r.times[k] ? `, a las ${clockLabel(r.times[k] as string)}` : ''}: ${s.title} en ${s.entity_name}, ${svc ? `${servicePriceLabel(s)}${s.rating ? `, ${s.rating.toFixed(1)} estrellas` : ''}` : `ahorras ${pesos(savingPesos(s))}`}`}
                 onPress={() => onOpen(s)}
                 style={({ pressed }) => [styles.stop, pressed && styles.pressed]}
               >
@@ -73,23 +94,50 @@ function RouteCard({ r, city, hereZone, onOpen, onRoute }: { r: MarketRoute; cit
                     {r.times[k] ? clockLabel(r.times[k] as string) : ' '}
                   </Text>
                 ) : null}
-                <View style={[styles.stopIcon, { shadowColor: cat }]}>
-                  <CategoryWash color={cat} />
-                  <Ionicons name={displayIcon(s.category_icon) as IconName} size={20} color={colors.white} />
+                <View style={svc ? styles.svcRing : null}>
+                  <View style={[styles.stopIcon, { shadowColor: cat }]}>
+                    <CategoryWash color={cat} />
+                    <Ionicons name={displayIcon(s.category_icon) as IconName} size={20} color={colors.white} />
+                  </View>
                 </View>
                 <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.stopName} numberOfLines={1}>
                   {s.entity_name}
                 </Text>
-                <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.stopSave}>
-                  −{pesos(savingPesos(s))}
-                </Text>
+                {svc ? (
+                  <>
+                    {s.rating ? (
+                      <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.stopStar}>
+                        ★ {s.rating.toFixed(1).replace('.', ',')}
+                      </Text>
+                    ) : null}
+                    <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.stopSvc} numberOfLines={2}>
+                      precio de siempre
+                    </Text>
+                  </>
+                ) : (
+                  <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.stopSave}>
+                    −{pesos(savingPesos(s))}
+                  </Text>
+                )}
               </Pressable>
             </View>
           );
         })}
       </View>
+      {total ? (
+        <View style={styles.total}>
+          <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.totalText}>
+            {total.total}
+          </Text>
+          {total.saving ? (
+            <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.totalSave}>
+              {total.saving}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
       <Text maxFontSizeMultiplier={DENSE_TEXT_SCALE} style={styles.routeWhy}>
-        {routeWhy(r)}
+        {allLater ? 'Estas ofertas se reclaman al llegar: cada negocio pide estar cerca.' : routeWhy(r)}
       </Text>
       <View style={styles.routeFoot}>
         <Pressable accessibilityRole="button" accessibilityLabel={`Ver la ruta ${name}`} onPress={() => onRoute(r)} style={({ pressed }) => [styles.routeGo, pressed && styles.pressed]}>
@@ -102,11 +150,11 @@ function RouteCard({ r, city, hereZone, onOpen, onRoute }: { r: MarketRoute; cit
   );
 }
 
-export function RoutesRail({ routes, city, hereZone, onOpen, onRoute }: { routes: MarketRoute[]; city: string; hereZone: string; onOpen: (o: MarketItem) => void; onRoute: (r: MarketRoute) => void }) {
+export function RoutesRail({ routes, city, hereZone, you, onOpen, onRoute }: { routes: MarketRoute[]; city: string; hereZone: string; you: You; onOpen: (o: MarketItem) => void; onRoute: (r: MarketRoute) => void }) {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail} snapToInterval={ROUTE_W + 10} decelerationRate="fast">
       {routes.map((r) => (
-        <RouteCard key={r.stops.map((s) => s.id).join('|')} r={r} city={city} hereZone={hereZone} onOpen={onOpen} onRoute={onRoute} />
+        <RouteCard key={r.stops.map((s) => s.id).join('|')} r={r} city={city} hereZone={hereZone} you={you} onOpen={onOpen} onRoute={onRoute} />
       ))}
     </ScrollView>
   );
@@ -216,8 +264,16 @@ const styles = StyleSheet.create({
   route: { width: ROUTE_W, backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.line, padding: spacing.md, gap: spacing.sm + 2 },
   routeHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.sm },
   routeName: { flex: 1, fontSize: 16, lineHeight: 20, fontFamily: fonts.display.bold, color: colors.ink },
-  level: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%', borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, marginTop: -4 },
+  level: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%', borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
   levelText: { flexShrink: 1, fontSize: 11, fontFamily: fonts.ui.extrabold },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: -4 },
+  fromYou: { backgroundColor: colors.bg, marginTop: 0 },
+  svcRing: { padding: 2, borderRadius: 19, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.mutedLight },
+  stopStar: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: colors.warningInk, marginTop: -2 },
+  stopSvc: { fontSize: 10, lineHeight: 12, fontFamily: fonts.ui.bold, color: colors.muted, textAlign: 'center', maxWidth: 84 },
+  total: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: spacing.sm, paddingHorizontal: 10, paddingVertical: 8, borderRadius: radius.sm, backgroundColor: colors.bg },
+  totalText: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink },
+  totalSave: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.successInk },
   at: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark, backgroundColor: colors.primarySoft, borderRadius: 6, paddingHorizontal: 5, overflow: 'hidden', marginBottom: 2 },
   atEmpty: { backgroundColor: 'transparent' },
   legTimed: { marginTop: 41 },

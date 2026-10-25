@@ -18,13 +18,15 @@ import { Bento } from '@/components/offers/barrio/Bento';
 import { NeighborsRow } from '@/components/offers/barrio/Neighbors';
 import { OfferSheet } from '@/components/offers/barrio/OfferSheet';
 import { RouteView } from '@/components/offers/barrio/RouteView';
+import { ArrivalBanner } from '@/components/offers/barrio/ArrivalBanner';
 import { Reveal } from '@/components/offers/MarketMotion';
 import { OfferRow, OfferTile, TILE_GAP, TILE_W, ZONE_W, ZoneCard } from '@/components/offers/OfferTiles';
 import { SkeletonBlock } from '@/components/Skeleton';
 import { buildGroups, categoryFilter, groupOfName, type GroupId } from '@/lib/categoryGroups';
 import { effectiveClaimStatus } from '@/lib/claims';
 import { loadLastCity, saveLastCity } from '@/lib/lastCityStore';
-import { bandHook, bestByGroup, trustDistances, type MarketRoute } from '@/lib/offerBarrio';
+import { bandHook, bestByGroup, pendingArrival, trustDistances, type MarketRoute } from '@/lib/offerBarrio';
+import { loadRoutes, updateRoute, type SavedRoute } from '@/lib/routeStore';
 import { effectiveSort, endText, flattenPages, listTitle, nearEnd, showZones, sortOptions, visibleSections, zoneFilterOrder, type MarketItem, type MarketResponse, type MarketSort } from '@/lib/offerMarket';
 import { useNow } from '@/lib/useNow';
 import { usePullRefresh } from '@/lib/usePullRefresh';
@@ -86,6 +88,7 @@ export default function OffersScreen() {
   const [zonesY, setZonesY] = useState(0);
   const [sheet, setSheet] = useState<MarketItem | null>(null); // la hoja de la oferta abierta
   const [routeOpen, setRouteOpen] = useState<MarketRoute | null>(null); // «Ver la ruta» (3.49)
+  const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]); // rutas guardadas (3.50)
 
   useEffect(() => {
     void loadLastCity().then(setLastCity);
@@ -105,7 +108,8 @@ export default function OffersScreen() {
   useFocusEffect(
     useCallback(() => {
       void readPosition();
-    }, [readPosition]),
+      void loadRoutes().then((list) => setSavedRoutes(list)); // el aviso «Llegaste a…» mira las rutas guardadas al volver
+    }, [readPosition, setSavedRoutes]),
   );
   const askLocation = useCallback(async () => {
     setLocAsked(true);
@@ -213,6 +217,8 @@ export default function OffersScreen() {
     [data, items],
   );
   const hook = bandHook(visible);
+  // «Llegaste a…» (3.50): la primera parada pendiente de una ruta guardada que ya se puede reclamar desde aquí.
+  const arrival = trust ? pendingArrival(savedRoutes, coords, now) : null;
   const best = useMemo(() => bestByGroup(visible, groupOfName), [visible]);
   // Al cambiar de zona o de orden, la lista vieja se atenúa y llegan esqueletos: nunca se mezclan sin aviso.
   const listStale = all.isPlaceholderData && all.isFetching;
@@ -321,6 +327,17 @@ export default function OffersScreen() {
           {!q && data ? <NeighborsRow neighbors={data.neighbors} now={now} onClaim={open} onChat={chat} /> : null}
         </BarrioBand>
         {status === 'signedIn' && !q ? <SavedCard savings={savings.data} onTickets={tickets} /> : <View style={styles.bandGap} />}
+        {arrival && !q ? (
+          <ArrivalBanner
+            saved={arrival.route}
+            stop={arrival.stop}
+            signedIn={status === 'signedIn'}
+            onClaimed={(id) => void updateRoute(arrival.route.key, { claimed: id }).then(setSavedRoutes)}
+            onLater={(id) => void updateRoute(arrival.route.key, { dismissed: id }).then(setSavedRoutes)}
+            onSignIn={() => router.push('/(auth)/login')}
+            onOpen={() => setRouteOpen(arrival.route.route)}
+          />
+        ) : null}
 
         {!hasLoc && !q && ready ? (
           <View style={styles.loc}>
@@ -365,7 +382,7 @@ export default function OffersScreen() {
         {data && !q && data.routes.length ? (
           <Reveal key={`routes|${key}`} delay={70} style={styles.sec}>
             {header('Rutas del barrio', 'Planes con 3 vecinos distintos, cerca entre sí')}
-            <RoutesRail routes={data.routes} city={city} hereZone={trust ? data.zone : ''} onOpen={open} onRoute={setRouteOpen} />
+            <RoutesRail routes={data.routes} city={city} hereZone={trust ? data.zone : ''} you={trust ? coords : null} onOpen={open} onRoute={setRouteOpen} />
           </Reveal>
         ) : null}
 
@@ -493,9 +510,12 @@ export default function OffersScreen() {
           route={routeOpen}
           city={city}
           hereZone={trust ? (data?.zone ?? '') : ''}
+          you={trust ? coords : null}
           signedIn={status === 'signedIn'}
           onClose={() => setRouteOpen(null)}
           onOpenOffer={(o) => leaveRoute(() => setSheet(o))}
+          onOpenBusiness={(o) => leaveRoute(() => router.push({ pathname: '/business/[id]', params: { id: o.entity_id, src: 'offers' } }))}
+          onSaved={() => void loadRoutes().then(setSavedRoutes)}
           onTickets={() => leaveRoute(tickets)}
           onSignIn={() => leaveRoute(() => router.push('/(auth)/login'))}
         />
