@@ -6,12 +6,15 @@ import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleS
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ledgerApi, type Expense, type Period, type Sale } from '@/api/ledger';
 import { EmptyState } from '@/components/EmptyState';
-import { Chip, Stat } from '@/components/ledger/parts';
+import { CashCard, InsightList, LedgerActions, overviewStyles, PendingCard, PeriodTabs, ResultCard, SectionTitle, ShareList } from '@/components/ledger/Overview';
 import { VoiceSheet } from '@/components/ledger/VoiceSheet';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
-import { categoryLabel, changeText, formatPesos, METHOD_LABEL, pendingTotals } from '@/lib/ledger';
+import { fin } from '@/finance/tokens';
+import { colombiaDay } from '@/lib/finance';
+import { categoryLabel, formatPesos, METHOD_LABEL, pendingTotals } from '@/lib/ledger';
+import { categoryRows, dayNets, insights, methodSlices, periodResult, topRows } from '@/lib/ledgerInsights';
 import { discardLedgerItem, flushLedger, queueVoid, retryLedgerItem, useLedgerOutbox } from '@/ledger/ledgerStore';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { alpha, colors, fonts, radius, spacing } from '@/theme';
 
 const PERIODS: { key: Period; label: string; versus: string }[] = [
   { key: 'day', label: 'Hoy', versus: 'ayer' },
@@ -47,7 +50,15 @@ function expenseMovement(e: Expense): Movement {
   return { key: `e${e.id}`, kind: 'expense', id: e.id, at: e.occurred_at, amount: e.amount, title: e.note || categoryLabel(e.category), sub: `${categoryLabel(e.category)} · ${e.method === 'credit' ? 'A crédito' : METHOD_LABEL[e.method]}${e.party ? ` · ${e.party.name}` : ''}`, voided: e.status === 'voided', pending: false };
 }
 
-/** «Mi negocio»: cómo va el día (y la semana y el mes), con los dos botones de siempre: vender y gastar. */
+/** Movimientos que se ven antes de «Ver todos». */
+const FIRST_MOVES = 6;
+const WORDS = { pesos: formatPesos, category: categoryLabel };
+
+/**
+ * «Mi negocio» (3.52): con la lógica de Empre Finance, en tres partes como las diría un contador en palabras sencillas.
+ * Resultado (cuánto te quedó, de cada $100 y cada día), caja (cómo te pagaron y lo que quedó) y pendiente (fiados).
+ * Encima, hasta tres frases de «Lo que dicen tus números». Todo sale del resumen del servidor (ledgerInsights.ts).
+ */
 export default function LedgerHome() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const entityId = id ?? '';
@@ -55,6 +66,7 @@ export default function LedgerHome() {
   const insets = useSafeAreaInsets();
   const [period, setPeriod] = useState<Period>('day');
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [allMoves, setAllMoves] = useState(false);
   const outbox = useLedgerOutbox();
   const pending = pendingTotals(outbox.items, entityId);
 
@@ -66,7 +78,6 @@ export default function LedgerHome() {
 
   const sum = summary.data;
   const versus = PERIODS.find((p) => p.key === period)?.versus ?? 'ayer';
-
   const movements = useMemo<Movement[]>(() => {
     const sent = [...(sales.data ?? []).map(saleMovement), ...(expenses.data ?? []).map(expenseMovement)];
     // Lo que aún no salió del teléfono se muestra también, marcado «sin enviar».
@@ -79,10 +90,6 @@ export default function LedgerHome() {
       });
     return [...queued, ...sent].sort((a, b) => b.at.localeCompare(a.at));
   }, [sales.data, expenses.data, outbox.items, entityId]);
-
-  const salesTotal = (sum?.sales_total ?? 0) + pending.sales;
-  const expensesTotal = (sum?.expenses_total ?? 0) + pending.expenses;
-  const profit = salesTotal - expensesTotal;
 
   const askVoid = (m: Movement) => {
     if (m.voided) return;
@@ -102,136 +109,84 @@ export default function LedgerHome() {
 
   const hints = (items.data ?? []).map((i) => i.name);
 
+  const result = sum ? periodResult(sum, pending) : null;
+  const today = colombiaDay();
+  const days = sum && period !== 'day' ? dayNets(sum, today, pending.sales - pending.expenses) : [];
+  const ledgerHref = (pathname: '/business/ledger/sale/[id]' | '/business/ledger/expense/[id]' | '/business/ledger/debts/[id]' | '/business/ledger/costs/[id]') =>
+    router.push({ pathname, params: { id: entityId } });
+  const shown = allMoves ? movements : movements.slice(0, FIRST_MOVES);
+
   return (
     <View style={styles.screen}>
       <SubScreenHeader title="Mi negocio" />
-      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 110 }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-        <View style={styles.tabs}>
-          {PERIODS.map((p) => (
-            <Chip key={p.key} label={p.label} selected={period === p.key} onPress={() => setPeriod(p.key)} />
-          ))}
-        </View>
-
+      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + spacing.xl }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+        <PeriodTabs value={period} onChange={setPeriod} />
         {outbox.items.some((x) => x.entityId === entityId && x.status !== 'sent') ? <OutboxBanner entityId={entityId} /> : null}
 
         {summary.isLoading ? (
           <ActivityIndicator style={{ marginVertical: spacing.xl }} color={colors.primary} />
         ) : summary.isError && !sum ? (
           <EmptyState icon="cloud-offline-outline" title="No pudimos cargar el resumen" body="Sin conexión puedes seguir registrando ventas y gastos: se envían solos cuando vuelva la señal." action={{ title: 'Reintentar', onPress: onRefresh }} />
-        ) : (
-          <View style={styles.card}>
-            <Stat title="Vendiste" value={salesTotal} big />
-            {sum ? <Text style={styles.compare}>{changeText(sum.sales_total, sum.prev_sales_total, versus) ?? `${sum.sales_count} ${sum.sales_count === 1 ? 'venta' : 'ventas'}`}</Text> : null}
-            <View style={styles.statRow}>
-              <Stat title="Gastaste" value={expensesTotal} />
-              <Stat title={profit >= 0 ? 'Te quedó' : 'Perdiste'} value={Math.abs(profit)} tone={profit >= 0 ? 'good' : 'bad'} />
-            </View>
-            {sum && sum.sales_total > 0 ? (
-              <View style={styles.methods}>
-                {(['cash', 'transfer', 'card', 'credit'] as const).map((m) => (sum.by_method[m] > 0 ? (
-                  <Text key={m} style={styles.method}>
-                    {METHOD_LABEL[m]} {formatPesos(sum.by_method[m])}
-                  </Text>
-                ) : null))}
-              </View>
-            ) : null}
-            {sum && sum.margin_coverage_pct >= 50 ? (
-              <Text style={styles.margin}>
-                Ganancia por lo vendido: {formatPesos(sum.gross_margin)}
-                {sum.margin_coverage_pct < 100 ? ` (con costo en el ${sum.margin_coverage_pct} % de las ventas)` : ''}
-              </Text>
-            ) : null}
-          </View>
-        )}
-
-        <View style={styles.actions}>
-          <ActionButton icon="add-circle" label="Vender" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId } })} tone="primary" />
-          <ActionButton icon="remove-circle" label="Gastar" onPress={() => router.push({ pathname: '/business/ledger/expense/[id]', params: { id: entityId } })} tone="accent" />
-        </View>
-
-        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/ledger/debts/[id]', params: { id: entityId } })} style={({ pressed }) => [styles.linkCard, pressed && { opacity: 0.85 }]}>
-          <View style={styles.linkIcon}>
-            <Ionicons name="people-outline" size={19} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.linkTitle}>Fiados</Text>
-            <Text style={styles.linkMeta}>
-              {sum ? `Te deben ${formatPesos(sum.receivable)}${sum.payable > 0 ? ` · Debes ${formatPesos(sum.payable)}` : ''}` : 'Quién te debe y a quién le debes'}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-        </Pressable>
-
-        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/ledger/costs/[id]', params: { id: entityId } })} style={({ pressed }) => [styles.linkCard, pressed && { opacity: 0.85 }]}>
-          <View style={styles.linkIcon}>
-            <Ionicons name="pricetags-outline" size={19} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.linkTitle}>Costo de tus productos</Text>
-            <Text style={styles.linkMeta}>Para saber cuánto ganas en cada venta</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-        </Pressable>
-
-        {sum && sum.top_items && sum.top_items.length > 0 ? (
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Lo que más vendiste</Text>
-            {sum.top_items.slice(0, 3).map((t) => (
-              <View key={t.name} style={styles.topRow}>
-                <Text style={styles.topName} numberOfLines={1}>
-                  {t.name}
-                </Text>
-                <Text style={styles.topQty}>{Number.isInteger(t.qty) ? t.qty : t.qty.toFixed(1)} u.</Text>
-                <Text style={styles.topValue}>{formatPesos(t.revenue)}</Text>
-              </View>
-            ))}
-          </View>
+        ) : sum && result ? (
+          <ResultCard r={result} sum={sum} versus={versus} days={days} />
         ) : null}
 
-        <Text style={styles.sectionTitle}>{period === 'day' ? 'Movimientos de hoy' : 'Movimientos'}</Text>
-        {movements.length === 0 && !sales.isLoading ? (
-          <EmptyState icon="receipt-outline" title="Aún no hay movimientos" body="Registra tu primera venta con el botón «Vender» o dictándola con el micrófono." />
-        ) : (
-          movements.map((m) => (
-            <Pressable key={m.key} accessibilityRole="button" accessibilityLabel={`${m.kind === 'sale' ? 'Venta' : 'Gasto'} de ${formatPesos(m.amount)}, ${m.title}${m.voided ? ', anulada' : ''}. Toca para anular`} onPress={() => (m.pending ? undefined : askVoid(m))} style={styles.move}>
-              <View style={[styles.moveIcon, { backgroundColor: m.kind === 'sale' ? colors.primarySoft : colors.accentSoft }]}>
-                <Ionicons name={m.kind === 'sale' ? 'arrow-up' : 'arrow-down'} size={16} color={m.kind === 'sale' ? colors.primary : colors.accentInk} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.moveTitle, m.voided && styles.struck]} numberOfLines={1}>
-                  {m.title}
-                </Text>
-                <Text style={styles.moveSub} numberOfLines={1}>
-                  {timeOf(m.at)} · {m.sub}
-                  {m.pending ? ' · sin enviar' : ''}
-                  {m.voided ? ' · anulada' : ''}
-                </Text>
-              </View>
-              <Text style={[styles.moveAmount, m.voided && styles.struck, m.kind === 'expense' && { color: colors.accentInk }]}>
-                {m.kind === 'expense' ? '−' : ''}
-                {formatPesos(m.amount)}
-              </Text>
+        <LedgerActions onSale={() => ledgerHref('/business/ledger/sale/[id]')} onExpense={() => ledgerHref('/business/ledger/expense/[id]')} onVoice={() => setVoiceOpen(true)} />
+
+        {sum && result ? (
+          <>
+            <InsightList list={insights(sum, result, today, WORDS)} onAction={(a) => ledgerHref(a === 'debts' ? '/business/ledger/debts/[id]' : '/business/ledger/costs/[id]')} />
+            <CashCard slices={methodSlices(sum)} cashIn={sum.cash_in} cashOut={sum.cash_out} />
+            <ShareList title="En qué se fue tu plata" hint={formatPesos(sum.expenses_total)} rows={categoryRows(sum, WORDS)} tone="out" />
+            <ShareList title="Lo que más vendiste" hint={`de ${formatPesos(sum.sales_total)}`} rows={topRows(sum)} tone="in" />
+            <PendingCard receivable={sum.receivable} payable={sum.payable} onOpen={() => ledgerHref('/business/ledger/debts/[id]')} />
+          </>
+        ) : null}
+
+        <View style={overviewStyles.stack}>
+          <SectionTitle title={period === 'day' ? 'Movimientos de hoy' : 'Movimientos'} hint={movements.length > 0 ? 'toca uno para anularlo' : undefined} />
+          {movements.length === 0 && sales.isFetched && expenses.isFetched ? (
+            <EmptyState icon="receipt-outline" title="Aún no hay movimientos" body="Registra tu primera venta con «Venta» o díctala con el micrófono. Con dos o tres registros ya te muestro en qué se va tu plata." />
+          ) : (
+            <View style={[overviewStyles.card, overviewStyles.listCard]}>
+              {shown.map((m, i) => (
+                <Pressable
+                  key={m.key}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${m.kind === 'sale' ? 'Venta' : 'Gasto'} de ${formatPesos(m.amount)}, ${m.title}${m.voided ? ', anulada' : ''}${m.pending ? ', sin enviar' : '. Toca para anular'}`}
+                  onPress={() => (m.pending ? undefined : askVoid(m))}
+                  style={({ pressed }) => [styles.move, i > 0 && overviewStyles.divider, pressed && !m.pending && { opacity: 0.7 }]}
+                >
+                  <View style={[styles.moveIcon, { backgroundColor: m.kind === 'sale' ? fin.color.in.soft : fin.color.out.soft }]}>
+                    <Ionicons name={m.kind === 'sale' ? 'add' : 'remove'} size={16} color={m.kind === 'sale' ? fin.color.in.ink : fin.color.out.ink} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.moveTitle, m.voided && styles.struck]} numberOfLines={1}>
+                      {m.title}
+                    </Text>
+                    <Text style={styles.moveSub} numberOfLines={1}>
+                      {timeOf(m.at)} · {m.sub}
+                      {m.pending ? ' · sin enviar' : ''}
+                      {m.voided ? ' · anulada' : ''}
+                    </Text>
+                  </View>
+                  <Text style={[styles.moveAmount, { color: m.kind === 'sale' ? fin.color.in.ink : fin.color.out.ink }, m.voided && styles.struck]}>
+                    {m.kind === 'expense' ? '−' : '+'}
+                    {formatPesos(m.amount)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+          {movements.length > FIRST_MOVES ? (
+            <Pressable accessibilityRole="button" onPress={() => setAllMoves((v) => !v)} style={styles.more}>
+              <Text style={styles.moreText}>{allMoves ? 'Ver menos' : `Ver todos los movimientos (${movements.length})`}</Text>
             </Pressable>
-          ))
-        )}
+          ) : null}
+        </View>
       </ScrollView>
-
-      <Pressable accessibilityRole="button" accessibilityLabel="Dictar una venta o un gasto" onPress={() => setVoiceOpen(true)} style={[styles.fab, { bottom: insets.bottom + spacing.lg }]}>
-        <Ionicons name="mic" size={26} color="#fff" />
-        <Text style={styles.fabText}>Dictar</Text>
-      </Pressable>
-
       <VoiceSheet entityId={entityId} visible={voiceOpen} onClose={() => setVoiceOpen(false)} hints={hints} />
     </View>
-  );
-}
-
-function ActionButton({ icon, label, onPress, tone }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; tone: 'primary' | 'accent' }) {
-  return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.action, tone === 'primary' ? styles.actionPrimary : styles.actionAccent, pressed && { opacity: 0.88 }]}>
-      <Ionicons name={icon} size={26} color="#fff" />
-      <Text style={styles.actionText}>{label}</Text>
-    </Pressable>
   );
 }
 
@@ -253,7 +208,7 @@ function OutboxBanner({ entityId }: { entityId: string }) {
         </Pressable>
       ) : null}
       {failed.map((f) => (
-        <View key={f.id} style={[styles.banner, { backgroundColor: '#FBE4E4' }]}>
+        <View key={f.id} style={[styles.banner, styles.bannerFailed]}>
           <Ionicons name="alert-circle-outline" size={18} color={colors.danger} />
           <Text style={[styles.bannerText, { color: colors.danger }]}>No se pudo enviar un registro: {f.error}</Text>
           <Pressable accessibilityRole="button" onPress={() => retryLedgerItem(f.id)} hitSlop={8}>
@@ -271,36 +226,16 @@ function OutboxBanner({ entityId }: { entityId: string }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   body: { padding: spacing.lg, gap: spacing.md },
-  tabs: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.sm },
-  compare: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
-  statRow: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.sm },
-  methods: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.xs },
-  method: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
-  margin: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.verified },
-  actions: { flexDirection: 'row', gap: spacing.md },
-  action: { flex: 1, minHeight: 72, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: spacing.sm },
-  actionPrimary: { backgroundColor: colors.primary },
-  actionAccent: { backgroundColor: colors.accent },
-  actionText: { fontSize: 18, fontFamily: fonts.display.bold, color: '#fff' },
-  linkCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md },
-  linkIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  linkTitle: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
-  linkMeta: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
-  sectionTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink, marginTop: spacing.sm },
-  topRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  topName: { flex: 1, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink },
-  topQty: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
-  topValue: { minWidth: 80, textAlign: 'right', fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
-  move: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md },
-  moveIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  moveTitle: { fontSize: 14.5, fontFamily: fonts.ui.semibold, color: colors.ink },
-  moveSub: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
-  moveAmount: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
-  struck: { textDecorationLine: 'line-through', color: colors.muted },
+  move: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 58 },
+  moveIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  moveTitle: { ...fin.type.body },
+  moveSub: { ...fin.type.small, fontFamily: fin.font.uiSemibold, color: fin.color.textSoft },
+  moveAmount: { fontSize: 15, fontFamily: fin.font.display },
+  struck: { textDecorationLine: 'line-through', color: fin.color.textSoft },
+  more: { minHeight: fin.size.touch, borderRadius: fin.radius.key, backgroundColor: fin.color.action.soft, alignItems: 'center', justifyContent: 'center' },
+  moreText: { ...fin.type.button, fontSize: 13, color: fin.color.action.link },
   banner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.accentSoft, borderRadius: radius.md, padding: spacing.md },
+  bannerFailed: { backgroundColor: alpha(colors.danger, 0.12) },
   bannerText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.accentInk },
   bannerLink: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.primary },
-  fab: { position: 'absolute', right: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.verified, paddingHorizontal: spacing.lg, height: 56, borderRadius: 28, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 6 },
-  fabText: { fontSize: 16, fontFamily: fonts.display.bold, color: '#fff' },
 });

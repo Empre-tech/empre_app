@@ -14,11 +14,14 @@ export const FINANCE_PAIRS: { fg: string; bg: string; use: PairUse; where: strin
   // Dinero que entra
   { fg: 'successInk', bg: 'successSoft', use: 'text', where: 'chips y líneas de venta' },
   { fg: 'successInk', bg: 'surface', use: 'large', where: 'monto de la venta en el panel' },
+  { fg: 'successInk', bg: 'surface', use: 'text', where: 'montos de venta y «te deben» en Mi negocio (3.52)' },
   { fg: 'white', bg: 'successSolid', use: 'text', where: 'botón Venta y «Mantén para registrar»' },
   { fg: 'white', bg: 'success', use: 'icon', where: '+ de la cápsula y de las filas' },
   // Dinero que sale
   { fg: 'accentInk', bg: 'accentSoft', use: 'text', where: 'chips y líneas de gasto' },
   { fg: 'accentInk', bg: 'surface', use: 'large', where: 'monto del gasto en el panel' },
+  { fg: 'accentInk', bg: 'surface', use: 'text', where: 'montos de gasto y «debes» en Mi negocio (3.52)' },
+  { fg: 'primary', bg: 'surface', use: 'text', where: 'enlaces de las frases en Mi negocio (3.52)' },
   { fg: 'white', bg: 'accentInk', use: 'text', where: '«Mantén para registrar» del gasto' },
   { fg: 'ink', bg: 'accent', use: 'text', where: 'botón Gasto y − de la cápsula' },
   // Acción y enlaces
