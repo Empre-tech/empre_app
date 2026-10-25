@@ -38,6 +38,21 @@ export interface MarketItem {
   /** El punto del negocio (el mapa de «Ver la ruta», 3.49). */
   latitude?: number;
   longitude?: number;
+  /** El radio de reclamo de la oferta (la política del negocio, en metros); 0 = sin límite. */
+  radius_meters?: number;
+  /**
+   * 3.50: «offer» o «service». Un servicio es del catálogo de un negocio sin oferta que entra a una ruta por sus
+   * reseñas: tiene precio de siempre (`service_price`, «desde» si `price_from`) y nunca ahorro.
+   */
+  kind?: 'offer' | 'service';
+  service_id?: string;
+  service_price?: number;
+  price_from?: boolean;
+  duration_min?: number;
+  /** El negocio usa la agenda y el servicio se puede pedir con hora. */
+  bookable?: boolean;
+  /** A qué hora cierra hoy: «20:00», «02:00» (pasada la medianoche) o «24h»; vacío sin horario. */
+  open_until?: string;
 }
 
 /** Tarjeta de «Por zona» (3.39): sin conteos; `looks` son hasta 3 categorías para el mosaico. */

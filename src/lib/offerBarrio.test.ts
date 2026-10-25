@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { MarketItem } from './offerMarket.ts';
-import { attendantLine, bandHook, bestByGroup, blocksLabel, neighborName, personInitial, redeemedWhen, ringUrgent, routeName, savingPesos, savingText, spotlightLabel, trustDistances, walkLabel, whyWorthIt, routeTitle, clockLabel, levelLabel, routeWhy, legLabel, metersBetween } from './offerBarrio.ts';
+import { attendantLine, bandHook, bestByGroup, blocksLabel, neighborName, personInitial, redeemedWhen, ringUrgent, routeName, savingPesos, savingText, spotlightLabel, trustDistances, walkLabel, whyWorthIt, routeTitle, clockLabel, levelLabel, routeWhy, legLabel, metersBetween, fromYouLabel, radiusLabel, claimability, claimCta, servicePriceLabel, totalLine, openAtTime, reflowTimes, bestSlot, bogotaDay, pendingArrival } from './offerBarrio.ts';
 
 const item = (o: Partial<MarketItem>): MarketItem => ({
   id: 'x', entity_id: 'e', title: 'Oferta', type: 'DIA', ends_at: new Date(Date.now() + 3_600_000).toISOString(), entity_name: 'Café Ribera',
@@ -127,4 +127,69 @@ test('3.49: los tramos entre paradas', () => {
   assert.equal(legLabel(1300), '1,3 km, 16 min a pie');
   assert.equal(legLabel(4300), '4,3 km en carro o taxi');
   assert.equal(legLabel(metersBetween(a, {})), null);
+});
+
+test('3.50: las tres distancias y el radio de reclamo', () => {
+  assert.equal(fromYouLabel(290), 'A 300 m de ti');
+  assert.equal(fromYouLabel(4264), 'A 4,3 km de ti');
+  assert.equal(fromYouLabel(null), null);
+  assert.equal(radiusLabel(500), 'a menos de 500 m del negocio');
+  assert.equal(radiusLabel(3000), 'a menos de 3 km del negocio');
+  const you = { latitude: 11.2408, longitude: -74.211 }; // Centro
+  const rodadero = { kind: 'offer' as const, radius_meters: 3000, latitude: 11.205, longitude: -74.225 }; // ≈ 4,2 km
+  const near = { kind: 'offer' as const, radius_meters: 500, latitude: 11.2412, longitude: -74.2108 };
+  assert.equal(claimability(rodadero, you), 'arrive'); // el caso de tu teléfono: «debes estar más cerca»
+  assert.equal(claimability(near, you), 'here');
+  assert.equal(claimability(near, null), 'unknown');
+  assert.equal(claimability({ kind: 'service' }, you), 'service');
+  assert.equal(claimCta(1, 2, 0), 'Reclamar 1 ahora · 2 al llegar');
+  assert.equal(claimCta(3, 0, 0), 'Reclamar las 3');
+  assert.equal(claimCta(0, 3, 0), 'Las 3 se reclaman al llegar');
+  assert.equal(claimCta(0, 0, 2), 'Listo: ver mis 2 boletos');
+});
+
+test('3.50: servicios, total del plan y por qué entra', () => {
+  assert.equal(servicePriceLabel({ service_price: 9000 }), '$9.000 · precio de siempre');
+  assert.equal(servicePriceLabel({ service_price: 20000, price_from: true }), 'desde $20.000');
+  assert.deepEqual(totalLine({ total_price: 104000, saving: 35000 }), { total: '$104.000 en total', saving: 'ahorras $35.000' });
+  assert.equal(totalLine({ total_price: 0, saving: 0 }), null);
+  const at = (h: number, m = 0) => new Date(Date.UTC(2026, 9, 24, h + 5, m)).toISOString();
+  assert.equal(
+    routeWhy({ level: 'walk', times: [at(15)], stops: [{ kind: 'offer', entity_name: 'Studio Coral' }, { kind: 'service', entity_name: 'Café Ribera', rating: 4.9 }] }),
+    'Para esta tarde · abiertos a esa hora · Café Ribera entra por sus reseñas (★ 4,9)',
+  );
+});
+
+test('3.50: la ruta se reacomoda sola al pedir otra hora', () => {
+  const at = (h: number, m = 0) => new Date(Date.UTC(2026, 9, 24, h + 5, m)).toISOString();
+  const stops = [
+    { latitude: 11.24, longitude: -74.21, open_until: '19:00' },
+    { latitude: 11.2418, longitude: -74.21, open_until: '20:00', duration_min: 30 }, // café, 30 min
+    { latitude: 11.2427, longitude: -74.21, open_until: '18:00' }, // sombrero, cierra a las 6
+  ];
+  const times = [at(15), at(16), at(16, 35)];
+  // Pide las 4:30 en el café: el sombrero pasa a 4:30 + 30 min + 5 min a pie = 5:05, y sigue abierto.
+  const a = reflowTimes(stops, times, 1, at(16, 30));
+  assert.equal(clockLabel(a.times[2] as string), '5:05 pm');
+  assert.equal(a.closed, null);
+  // Pide las 5:30: el sombrero quedaría a las 6:05, ya cerrado.
+  const b = reflowTimes(stops, times, 1, at(17, 30));
+  assert.equal(b.closed, 2);
+  assert.equal(openAtTime({ open_until: '02:00' }, at(23)), true); // bar que cierra de madrugada
+  assert.equal(openAtTime({ open_until: '' }, at(23)), true);
+  assert.equal(bestSlot([at(15, 30), at(16, 5), at(16, 30)], at(16)), at(16, 5));
+  assert.equal(bestSlot([at(15, 30)], at(16)), at(15, 30));
+  assert.equal(bogotaDay(at(23, 30)), '2026-10-24'); // 11:30 pm en Colombia ya es el 25 en UTC
+});
+
+test('3.50: el aviso al llegar, solo por lo que ya se puede reclamar', () => {
+  const now = Date.parse('2026-10-24T20:00:00Z');
+  const soon = new Date(now + 3_600_000).toISOString();
+  const hat = item({ id: 'hat', entity_name: 'Mar y Sol', radius_meters: 500, latitude: 11.2427, longitude: -74.21, ends_at: soon });
+  const svc = item({ id: 'svc', kind: 'service', entity_name: 'Café Ribera', latitude: 11.2418, longitude: -74.21 });
+  const saved = [{ key: 'k', title: 'Tarde de consentirse', route: { stops: [svc, hat] }, claimed: [], dismissed: [] }];
+  assert.equal(pendingArrival(saved, { latitude: 11.205, longitude: -74.225 }, now), null); // lejos
+  assert.equal(pendingArrival(saved, { latitude: 11.2425, longitude: -74.21 }, now)?.stop.id, 'hat'); // llegaste
+  assert.equal(pendingArrival([{ ...saved[0], dismissed: ['hat'] }], { latitude: 11.2425, longitude: -74.21 }, now), null); // «ahora no»
+  assert.equal(pendingArrival([{ ...saved[0], claimed: ['hat'] }], { latitude: 11.2425, longitude: -74.21 }, now), null); // ya reclamada
 });

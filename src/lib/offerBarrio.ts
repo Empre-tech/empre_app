@@ -28,6 +28,10 @@ export interface MarketRoute {
   times: (string | null)[];
   saving: number;
   walk_meters: number;
+  /** 3.50: lo que cuesta el plan (ofertas a su precio especial más servicios a su precio de siempre). */
+  total_price?: number;
+  /** De ti a la primera parada (m); null sin ubicación. */
+  distance_from_you?: number | null;
 }
 
 /** Círculo de «Tus vecinos hoy»; `time_left` (0 a 1) es lo que le queda a su oferta. */
@@ -168,13 +172,147 @@ export function levelLabel(r: Pick<MarketRoute, 'level' | 'zone' | 'walk_meters'
   return `${elsewhere ? `En ${elsewhere}` : 'En tu barrio'} · ${(r.walk_meters / 1000).toFixed(1).replace('.', ',')} km de recorrido`;
 }
 
-/** Por qué es esta ruta, en una línea: para qué momento y con qué regla. */
-export function routeWhy(r: Pick<MarketRoute, 'level' | 'times'>): string {
-  if (r.level === 'day') return 'Nada cerca de ti: un plan por momentos, cada uno abierto a esa hora';
+/** Por qué es esta ruta, en una línea: para qué momento, con qué regla y, si lleva un servicio, por qué entró. */
+export function routeWhy(r: Pick<MarketRoute, 'level' | 'times'> & { stops?: Pick<MarketItem, 'kind' | 'entity_name' | 'rating'>[] }): string {
+  const svc = (r.stops ?? []).find((s) => s.kind === 'service');
+  const because = svc ? ` · ${svc.entity_name} entra por sus reseñas${svc.rating ? ` (★ ${svc.rating.toFixed(1).replace('.', ',')})` : ''}` : '';
+  if (r.level === 'day') return `Nada cerca de ti: un plan por momentos, cada uno abierto a esa hora${because}`;
   const first = r.times.find((t): t is string => Boolean(t));
-  if (!first) return 'Abiertos ahora; revisa el horario de cada uno';
+  if (!first) return `Abiertos ahora; revisa el horario de cada uno${because}`;
   const m = momentOf(first);
-  return `Para ${m === 'noche' ? 'esta noche' : m === 'tarde' ? 'esta tarde' : 'esta mañana'} · abiertos a esa hora`;
+  return `Para ${m === 'noche' ? 'esta noche' : m === 'tarde' ? 'esta tarde' : 'esta mañana'} · abiertos a esa hora${because}`;
+}
+
+// ---------------------------------------------------------------------------
+// 3.50 · Qué es «cerca», servicios, lo que cuesta el plan y la agenda
+// ---------------------------------------------------------------------------
+
+const km = (m: number) => `${(m / 1000).toFixed(1).replace('.', ',')} km`;
+
+/** De ti a la ruta: «A 300 m de ti», «A 4,3 km de ti»; null sin ubicación. */
+export function fromYouLabel(m: number | null | undefined): string | null {
+  if (m === null || m === undefined || m < 0) return null;
+  return m < 1000 ? `A ${Math.max(50, Math.round(m / 50) * 50)} m de ti` : `A ${km(m)} de ti`;
+}
+
+/** El radio de reclamo de una oferta, como lo dice la parada: «a menos de 500 m del negocio». */
+export function radiusLabel(m: number | undefined): string {
+  if (!m) return 'en el negocio';
+  return `a menos de ${m < 1000 ? `${m} m` : km(m).replace(',0', '')} del negocio`;
+}
+
+export type Claimability = 'here' | 'arrive' | 'unknown' | 'service';
+
+/**
+ * Si una parada se puede reclamar desde donde estás: dentro del radio del negocio, «here»; fuera, «arrive» (se reclama
+ * al llegar); sin tu ubicación, «unknown» (lo decide el servidor al reclamar). Un servicio no se reclama.
+ */
+export function claimability(o: Pick<MarketItem, 'kind' | 'radius_meters' | 'latitude' | 'longitude'>, you: { latitude: number; longitude: number } | null): Claimability {
+  if (o.kind === 'service') return 'service';
+  if (!you) return 'unknown';
+  const r = o.radius_meters ?? 0;
+  if (!r) return 'here';
+  const d = metersBetween(you, o);
+  if (d < 0) return 'unknown';
+  return d <= r ? 'here' : 'arrive';
+}
+
+/** Lo que dice el botón de la ruta: solo promete lo que se puede cumplir desde aquí. */
+export function claimCta(now: number, later: number, done: number): string {
+  if (now === 0 && later === 0) return done ? `Listo: ver mis ${done} boletos` : 'Nada que reclamar';
+  if (later === 0) return now === 1 ? 'Reclamar la oferta' : `Reclamar las ${now}`;
+  if (now === 0) return later === 1 ? 'Se reclama al llegar' : `Las ${later} se reclaman al llegar`;
+  return `Reclamar ${now} ahora · ${later} al llegar`;
+}
+
+/** El precio de una parada en la tarjeta: «precio de siempre» o «desde $20.000» para un servicio. */
+export function servicePriceLabel(o: Pick<MarketItem, 'service_price' | 'price_from'>): string {
+  if (typeof o.service_price !== 'number') return 'precio de siempre';
+  return o.price_from ? `desde ${pesos(o.service_price)}` : `${pesos(o.service_price)} · precio de siempre`;
+}
+
+/** «$104.000 en total · ahorras $35.000»; null si no se sabe el total. */
+export function totalLine(r: Pick<MarketRoute, 'total_price' | 'saving'>): { total: string; saving: string | null } | null {
+  if (!r.total_price) return null;
+  return { total: `${pesos(r.total_price)} en total`, saving: r.saving > 0 ? `ahorras ${pesos(r.saving)}` : null };
+}
+
+const MIN = 60_000;
+
+/** Minutos del día (Colombia) de una hora ISO. */
+function minuteOfDay(iso: string): number {
+  const d = bogota(iso);
+  return d.getUTCHours() * 60 + d.getUTCMinutes();
+}
+
+/** ¿La parada sigue abierta a esa hora? Según `open_until` de hoy («02:00» = pasada la medianoche). Sin dato, sí. */
+export function openAtTime(o: Pick<MarketItem, 'open_until'>, iso: string): boolean {
+  const u = o.open_until ?? '';
+  if (!u || u === '24h') return true;
+  const [h, m] = u.split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return true;
+  let close = h * 60 + m;
+  if (close < 6 * 60) close += 24 * 60; // cierra de madrugada
+  return minuteOfDay(iso) < close;
+}
+
+/**
+ * Al pedir otra hora para la parada `k`, las siguientes se reacomodan solas: cada una a la hora anterior más la
+ * duración del servicio anterior (o 30 min si no se sabe) más el tramo a pie (80 m por minuto, redondeado a 5 min).
+ * Devuelve las horas nuevas y la primera parada que deja de estar abierta a su hora (null si todas sirven).
+ */
+export function reflowTimes(stops: Pick<MarketItem, 'duration_min' | 'latitude' | 'longitude' | 'open_until'>[], times: (string | null)[], k: number, chosen: string): { times: (string | null)[]; closed: number | null } {
+  const out = [...times];
+  out[k] = chosen;
+  let prev = Date.parse(chosen);
+  let closed: number | null = null;
+  for (let i = k + 1; i < stops.length; i++) {
+    const walk = metersBetween(stops[i - 1], stops[i]);
+    const walkMin = walk < 0 ? 0 : Math.ceil((Math.ceil(walk / 80) + 1) / 5) * 5;
+    prev += ((stops[i - 1].duration_min ?? 30) + walkMin) * MIN;
+    out[i] = new Date(prev).toISOString();
+    if (closed === null && !openAtTime(stops[i], out[i] as string)) closed = i;
+  }
+  return { times: out, closed };
+}
+
+/** Una ruta guardada, en lo que el aviso necesita (la forma de `SavedRoute`, sin depender del almacenamiento). */
+export interface SavedRouteLike {
+  key: string;
+  title: string;
+  route: Pick<MarketRoute, 'stops'>;
+  claimed: string[];
+  dismissed: string[];
+}
+
+/**
+ * El aviso «Llegaste a…» (3.50): la primera parada pendiente de una ruta guardada (una oferta aún vigente, sin
+ * reclamar ni descartada) que ya se puede reclamar desde donde estás. null si no hay ninguna.
+ */
+export function pendingArrival<R extends SavedRouteLike>(routes: R[], you: { latitude: number; longitude: number } | null, now: number): { route: R; stop: MarketItem } | null {
+  if (!you) return null;
+  for (const r of routes) {
+    for (const s of r.route.stops) {
+      if (s.kind === 'service' || r.claimed.includes(s.id) || r.dismissed.includes(s.id) || !(Date.parse(s.ends_at) > now)) continue;
+      if (claimability(s, you) === 'here') return { route: r, stop: s };
+    }
+  }
+  return null;
+}
+
+/** «YYYY-MM-DD» del día de Colombia de una hora (para pedir las horas libres de la agenda). */
+export function bogotaDay(iso: string): string {
+  return bogota(iso).toISOString().slice(0, 10);
+}
+
+/** La hora libre que mejor encaja con la ruta: la primera que no es antes de la sugerida; si no, la más cercana. */
+export function bestSlot(slots: string[], suggested: string | null): string | null {
+  if (!slots.length) return null;
+  if (!suggested) return slots[0];
+  const s = Date.parse(suggested);
+  const after = slots.find((x) => Date.parse(x) >= s);
+  if (after) return after;
+  return [...slots].sort((a, b) => Math.abs(Date.parse(a) - s) - Math.abs(Date.parse(b) - s))[0];
 }
 
 /** Distancia en línea recta entre dos negocios (m); −1 si falta un punto. */
