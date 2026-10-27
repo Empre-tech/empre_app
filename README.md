@@ -223,6 +223,20 @@ npx expo run:android      # hay que reconstruir el build nativo
 - Pruebas de la lógica pura (formato de pesos, monto en letras, cola sin conexión): 
   `node --test src/lib/ledger.test.ts src/lib/ledgerWords.test.ts`.
 
+## Productos, avisos y Empre Finance
+
+- **Lista de Productos e inventario** (`app/business/products/[id].tsx`): arriba, la tarjeta «Tienes N cosas por revisar», con una línea por tipo de aviso y «Ver los N avisos». La tarjeta no nombra productos.
+- Pestañas **Lo que vendes** e **Insumos** (la de insumos aparece si el negocio usa insumos). En Insumos: filtros, grupos (`supply_group`) y el botón flotante **+ Insumo**.
+- **+ Insumo** (`src/components/inventory/NewSupplySheet.tsx`): nombre, grupo y cómo llevas la cuenta (semáforo, o cuento con unidad). «Guardar y otro» deja el mismo grupo para cargar varios seguidos. Avisa si el insumo ya existe.
+- **Avisos** (`app/business/products/alerts.tsx`): Se acabaron, Se te acaban pronto, Platos en riesgo y Sin control. Desde ahí van el botón **Ya llegó** y **Enviar lista de compras por WhatsApp**. La lógica está en `src/lib/alerts.ts`.
+- **Ya llegó** (`src/components/inventory/ArrivedSheet.tsx`): suma lo que llegó, con atajos «1 paca de N» y «Como la última vez». Si se pagó en el momento, registra el gasto de mercancía y actualiza el costo. A crédito se registra desde Gastar, con el proveedor.
+- **Ficha del producto** (`app/business/products/item.tsx`) rediseñada: servicio o producto, precio fijo o desde, vista previa, margen («Solo para ti») y «Más opciones».
+- **Ventas y gastos** ya no muestra inventario ni avisos de existencias; solo avisos de plata y la línea «$X en mercancía».
+- **Empre Finance** (`app/business/ledger/analytics/[id].tsx`): Resumen, Productos e Inventario, con comparación contra el periodo anterior, el mes anterior o el mismo periodo del año pasado. El rango se elige con atajos o con calendario (`src/components/finance/RangeSheet.tsx`, máximo un año). Gráficos en `src/components/finance/Charts.tsx` y lógica en `src/lib/finance.ts`. Exportar a Excel o PDF no está hecho.
+- **Mapa**: si el GPS tarda más de 4 s, se usa la región por defecto (`STARTUP_FIX_WAIT_MS` en `app/(tabs)/index.tsx`). Antes se quedaba cargando.
+
+Pruebas de la lógica pura: `node --test src/lib/*.test.ts`.
+
 ## Estructura
 
 ```
