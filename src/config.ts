@@ -58,6 +58,8 @@ export const FEATURES = {
   agenda: true,
   /** «Mi negocio»: ventas, gastos, fiados y dictado por voz del dueño. */
   ledger: true,
+  /** Cuentas abiertas (mesas, clientes que pagan al final): construidas pero apagadas por ahora. */
+  tabs: false,
 } as const;
 
 /** Máximo de caracteres de un mensaje de chat (el backend rechaza los más largos). */

@@ -27,6 +27,7 @@ export function GrowthCard({ entityId, onGo }: { entityId: string; onGo: (target
       // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al enfocar
     }, []),
   );
+  const [expanded, setExpanded] = useState(false);
   const [celebrated, setCelebrated] = useState<Set<string> | null>(null);
   useEffect(() => {
     void loadCelebrated().then(setCelebrated);
@@ -75,17 +76,28 @@ export function GrowthCard({ entityId, onGo }: { entityId: string; onGo: (target
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title} accessibilityRole="header">
-        Haz que tu negocio destaque
-      </Text>
-      <Text style={styles.sub}>Cada punto cambia algo que tus clientes ven.</Text>
-      <View style={styles.meter} accessible accessibilityRole="progressbar" accessibilityLabel={view.label} accessibilityValue={{ min: 0, max: 100, now: view.percent }}>
-        <View style={styles.bar}>
-          <View style={[styles.fill, { width: `${view.percent}%` }]} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityLabel={`Haz que tu negocio destaque. ${view.label}. ${expanded ? 'Plegar' : 'Desplegar'}`}
+        onPress={() => setExpanded((v) => !v)}
+        style={styles.head}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title} accessibilityRole="header">
+            Haz que tu negocio destaque
+          </Text>
+          <View style={styles.meter}>
+            <View style={styles.bar}>
+              <View style={[styles.fill, { width: `${view.percent}%` }]} />
+            </View>
+            <Text style={styles.meterText}>{view.label}</Text>
+          </View>
         </View>
-        <Text style={styles.meterText}>{view.label}</Text>
-      </View>
-      {view.groups.map((g) => (
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={20} color={colors.muted} />
+      </Pressable>
+      {expanded ? <Text style={styles.sub}>Cada punto cambia algo que tus clientes ven.</Text> : null}
+      {expanded ? view.groups.map((g) => (
         <View key={g.id} style={styles.group}>
           <Text style={styles.groupTitle}>{g.title}</Text>
           {g.rows.map((r, i) => (
@@ -105,8 +117,8 @@ export function GrowthCard({ entityId, onGo }: { entityId: string; onGo: (target
             </View>
           ))}
         </View>
-      ))}
-      <Text style={styles.note}>Nada de esto te sube en el orden: lo que cambia es lo que el cliente ve de ti.</Text>
+      )) : null}
+      {expanded ? <Text style={styles.note}>Nada de esto te sube en el orden: lo que cambia es lo que el cliente ve de ti.</Text> : null}
     </View>
   );
 }
@@ -116,8 +128,9 @@ const GREEN_INK = '#1B6B3C';
 
 const styles = StyleSheet.create({
   card: { padding: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
-  title: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
-  sub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted, marginTop: 2, marginBottom: spacing.sm },
+  head: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48 },
+  title: { fontSize: 16, marginBottom: 6, fontFamily: fonts.display.bold, color: colors.ink },
+  sub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted, marginTop: spacing.sm },
   meter: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   bar: { flex: 1, height: 10, borderRadius: 5, backgroundColor: colors.line, overflow: 'hidden' },
   fill: { height: 10, borderRadius: 5, backgroundColor: GREEN },

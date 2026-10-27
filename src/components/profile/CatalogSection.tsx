@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { catalogApi } from '@/api/catalog';
 import { categoryColor } from '@/lib/categoryColor';
-import { CATALOG_PREVIEW, catalogCount, freshnessNote, priceText, serviceLabel, type CatalogCopy, type ServiceItem } from '@/lib/catalog';
+import { CATALOG_PREVIEW, catalogCount, freshnessNote, priceText, publicCatalog, serviceLabel, type CatalogCopy, type ServiceItem } from '@/lib/catalog';
 import { displayIcon } from '@/lib/mapView';
 import { useNow } from '@/lib/useNow';
 import { colors, fonts, radius, spacing } from '@/theme';
@@ -63,8 +63,8 @@ export function CatalogSection({ entityId, isOwner, copy, color, icon, onAsk, on
   const now = useNow(60_000);
   const catalog = useQuery({ queryKey: ['catalog', entityId], queryFn: () => catalogApi.list(entityId), enabled: Boolean(entityId), staleTime: 60_000 });
 
-  const items = catalog.data ?? [];
-  const edit = () => router.push({ pathname: '/business/catalog/[id]', params: { id: entityId } });
+  const items = publicCatalog(catalog.data ?? []);
+  const edit = () => router.push({ pathname: '/business/products/[id]', params: { id: entityId } });
 
   if (items.length === 0) {
     if (!isOwner || catalog.isLoading) return null;

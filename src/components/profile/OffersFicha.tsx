@@ -19,6 +19,8 @@ import { SectionHeader } from './SectionHeader';
 interface Props {
   entityId: string;
   isOwner: boolean;
+  /** Vista previa del dueño («Así te ven»): sin enlaces para administrar. */
+  preview?: boolean;
   /** Oferta con la que abrir la ficha (al venir de la franja del mapa): va primera y con sus condiciones abiertas. */
   initialOfferId?: string;
   /** «profile»: las reglas por cantidad del perfil; «all»: la lista completa apilada (pantalla «Todas las ofertas»). */
@@ -33,7 +35,7 @@ const STEPS = ['Ver oferta', 'Reclamar', 'Mostrar QR', 'Canjeada'];
  * número). Orden y tope los pone el servidor (termina antes; a igualdad, más
  * cupos libres). Nunca muestra cuántas ofertas hay ni precios. Reclamar lleva a la pantalla del QR.
  */
-export function OffersFicha({ entityId, isOwner, initialOfferId, variant = 'profile' }: Props) {
+export function OffersFicha({ entityId, isOwner, preview = false, initialOfferId, variant = 'profile' }: Props) {
   const router = useRouter();
   const { status } = useAuth();
   const offers = useActiveOffers(entityId);
@@ -54,7 +56,7 @@ export function OffersFicha({ entityId, isOwner, initialOfferId, variant = 'prof
   }, [isOwner, entityId, viewedOfferId]);
 
   if (list.length === 0) {
-    return isOwner ? (
+    return isOwner && !preview ? (
       <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/offers', params: { entityId } })} style={styles.ownerLink}>
         <Ionicons name="flash-outline" size={16} color={colors.primary} />
         <Text style={styles.ownerLinkText}>Gestionar ofertas</Text>
@@ -133,7 +135,7 @@ export function OffersFicha({ entityId, isOwner, initialOfferId, variant = 'prof
 
   return (
     <View style={styles.wrap}>
-      <SectionHeader title="Ofertas" link={isOwner ? 'Gestionar' : null} onLink={() => router.push({ pathname: '/business/offers', params: { entityId } })} />
+      <SectionHeader title="Ofertas" link={isOwner && !preview ? 'Gestionar' : null} onLink={() => router.push({ pathname: '/business/offers', params: { entityId } })} />
 
       {mode === 'single' ? card(shown[0], 'single') : <View style={styles.stack}>{shown.map((o) => card(o, 'inline'))}</View>}
       {variant === 'profile' && offersHasAll(list.length) ? (

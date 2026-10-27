@@ -134,8 +134,11 @@ function buildUrl(path: string, query?: Query): string {
 function parseErrorBody(text: string, status: number): string {
   try {
     const data = JSON.parse(text) as { error?: unknown; message?: unknown; details?: unknown };
-    const base =
-      typeof data.error === 'string' ? data.error : typeof data.message === 'string' ? data.message : null;
+    // Los errores de validación llegan como {error: 'invalid', message: 'texto para la persona'}: se muestra el texto.
+    const codeOnly = typeof data.error === 'string' && !/\s/.test(data.error) && typeof data.message === 'string' && data.message.length > 0;
+    const base = codeOnly
+      ? (data.message as string)
+      : typeof data.error === 'string' ? data.error : typeof data.message === 'string' ? data.message : null;
     const details = typeof data.details === 'string' ? data.details : null;
     if (base && details) return `${base}: ${details}`;
     if (base) return base;

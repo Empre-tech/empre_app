@@ -2,7 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import type { QueryClient } from '@tanstack/react-query';
 import { useSyncExternalStore } from 'react';
 import { ApiError } from '@/api/client';
-import { ledgerApi, type ExpenseInput, type PartyInput, type PaymentInput, type SaleInput } from '@/api/ledger';
+import { ledgerApi, type ExpenseInput, type OpenTabInput, type PartyInput, type PayTabInput, type PaymentInput, type SaleInput, type TabLineInput } from '@/api/ledger';
 import {
   cancelPending, enqueue, flushOrder, isRetryable, markFailed, removeItem, restoreOutbox, retryFailed,
   type OutboxItem, type OutboxKind,
@@ -69,6 +69,16 @@ export const queueExpense = (entityId: string, input: ExpenseInput) => push('exp
 export const queueParty = (entityId: string, input: PartyInput) => push('party', entityId, input.client_id, input);
 export const queuePayment = (entityId: string, input: PaymentInput) => push('payment', entityId, input.client_id, input);
 
+// Cuentas abiertas: cada paso se guarda en el teléfono y sale cuando hay señal (los ids los pone la app, así un
+// reenvío no duplica nada).
+export const queueTabOpen = (entityId: string, input: OpenTabInput) => push('tab_open', entityId, `tab:${input.id}`, input);
+export const queueTabAdd = (entityId: string, tabId: string, lines: TabLineInput[]) =>
+  push('tab_add', entityId, `tabadd:${lines[0]?.id ?? Date.now()}`, { tab_id: tabId, lines });
+export const queueTabRemove = (entityId: string, tabId: string, lineId: string) =>
+  push('tab_remove', entityId, `tabrm:${lineId}`, { tab_id: tabId, line_id: lineId });
+export const queueTabPay = (entityId: string, tabId: string, input: PayTabInput) => push('tab_pay', entityId, `tabpay:${tabId}`, { tab_id: tabId, ...input });
+export const queueTabCancel = (entityId: string, tabId: string, reason: string) => push('tab_cancel', entityId, `tabcancel:${tabId}`, { tab_id: tabId, reason });
+
 /**
  * Deshacer / anular un registro. Si todavía no salió del teléfono, simplemente se quita de la cola; si ya salió, se
  * anula en el servidor (el id de una venta o un gasto es su client_id).
@@ -115,6 +125,29 @@ async function send(item: OutboxItem): Promise<void> {
     case 'void_expense': {
       const v = item.payload as { id: string; reason: string };
       await ledgerApi.voidExpense(id, v.id, v.reason);
+      return;
+    }
+    case 'tab_open':
+      await ledgerApi.openTab(id, p);
+      return;
+    case 'tab_add': {
+      const v = item.payload as { tab_id: string; lines: TabLineInput[] };
+      await ledgerApi.addToTab(id, v.tab_id, v.lines);
+      return;
+    }
+    case 'tab_remove': {
+      const v = item.payload as { tab_id: string; line_id: string };
+      await ledgerApi.removeFromTab(id, v.tab_id, v.line_id);
+      return;
+    }
+    case 'tab_pay': {
+      const { tab_id, ...rest } = item.payload as unknown as { tab_id: string } & PayTabInput;
+      await ledgerApi.payTab(id, tab_id, rest);
+      return;
+    }
+    case 'tab_cancel': {
+      const v = item.payload as { tab_id: string; reason: string };
+      await ledgerApi.cancelTab(id, v.tab_id, v.reason);
       return;
     }
   }

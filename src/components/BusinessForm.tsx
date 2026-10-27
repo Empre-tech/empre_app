@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { categoriesApi, entitiesApi } from '@/api/endpoints';
 import type {
   BusinessHour,
+  BusinessProfile,
   Category,
   EntityDetail,
   EntityInput,
@@ -33,6 +34,7 @@ import type {
   Subcategory,
   UploadableImage,
 } from '@/api/types';
+import { PROFILE_OPTIONS } from '@/lib/catalog';
 import { hasLocation, type Coords } from '@/lib/geo';
 import { resolveImageUrl } from '@/lib/image';
 import { COLOMBIAN_CITIES } from '@/lib/cities';
@@ -167,6 +169,8 @@ export function BusinessForm({ initial, draft }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const [serviceMode, setServiceMode] = useState<ServiceMode>(initial?.service_mode ?? draft?.serviceMode ?? '');
+  // «¿Qué vendes principalmente?»: solo al editar; al crear, lo sugiere la categoría.
+  const [bizProfile, setBizProfile] = useState<BusinessProfile | undefined>(initial?.business_profile);
   const [hours, setHours] = useState<BusinessHour[]>(() => defaultHours(initial?.hours ?? draft?.hours));
   // Por defecto, si los 7 días ya son iguales (caso más común, y el de un
   // negocio nuevo) mostramos un solo horario para todos los días en vez de
@@ -282,6 +286,7 @@ export function BusinessForm({ initial, draft }: Props) {
         latitude: coords?.latitude ?? 0,
         longitude: coords?.longitude ?? 0,
         service_mode: serviceMode || undefined,
+        business_profile: initial ? bizProfile : undefined,
         hours: hours.map((h) =>
           h.closed
             ? { weekday: h.weekday, closed: true, is_24h: false, open_time: '', close_time: '' }
@@ -316,6 +321,7 @@ export function BusinessForm({ initial, draft }: Props) {
         queryClient.invalidateQueries({ queryKey: ['entities'] }),
         queryClient.invalidateQueries({ queryKey: ['my-entities'] }),
         queryClient.invalidateQueries({ queryKey: ['entity', id] }),
+        queryClient.invalidateQueries({ queryKey: ['ledger', id] }),
       ]);
 
       if (failed.length === 0) notify(initial ? 'Cambios guardados ✓' : 'Negocio creado ✓');
@@ -458,6 +464,31 @@ export function BusinessForm({ initial, draft }: Props) {
       </View>
     </View>
   );
+
+  const profileField = initial ? (
+    <View style={styles.field}>
+      <Text style={styles.label}>¿Qué vendes principalmente?</Text>
+      <Text style={styles.profileHint}>Cambia los textos y lo que te sugerimos al agregar productos o servicios. Puedes vender de todo: esto solo elige lo más común.</Text>
+      {PROFILE_OPTIONS.map((opt) => {
+        const active = bizProfile === opt.value;
+        return (
+          <Pressable
+            key={opt.value}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: active }}
+            onPress={() => setBizProfile(opt.value)}
+            style={[styles.profileOption, active && styles.serviceModeOptionActive]}
+          >
+            <Ionicons name={active ? 'radio-button-on' : 'radio-button-off'} size={20} color={active ? colors.primary : colors.muted} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.serviceModeText, active && styles.serviceModeTextActive]}>{opt.label}</Text>
+              <Text style={styles.profileHint}>{opt.hint}</Text>
+            </View>
+          </Pressable>
+        );
+      })}
+    </View>
+  ) : null;
 
   // Controles de un día (switches + horas), reutilizados tanto por el editor
   // "un horario para todos los días" (onChange escribe en los 7) como por
@@ -711,6 +742,7 @@ export function BusinessForm({ initial, draft }: Props) {
 
           {locationField}
           {serviceModeField}
+          {profileField}
           {hoursField}
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -1299,6 +1331,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   serviceModeOptionActive: { borderColor: colors.primary, backgroundColor: colors.primary + '1A' },
+  profileOption: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 56, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, marginTop: spacing.sm },
+  profileHint: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
   serviceModeText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   serviceModeTextActive: { fontFamily: fonts.ui.semibold, color: colors.primary },
   hoursModeToggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingVertical: 2 },

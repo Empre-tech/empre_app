@@ -4,20 +4,32 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ledgerApi, type Expense, type Period, type Sale } from '@/api/ledger';
+import { ledgerApi, type Expense, type Insight, type Sale } from '@/api/ledger';
 import { EmptyState } from '@/components/EmptyState';
+import { Delta, Sparkline } from '@/components/finance/Charts';
+import { RangeSheet } from '@/components/finance/RangeSheet';
 import { Chip, Stat } from '@/components/ledger/parts';
 import { VoiceSheet } from '@/components/ledger/VoiceSheet';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
-import { categoryLabel, changeText, formatPesos, METHOD_LABEL, pendingTotals } from '@/lib/ledger';
+import { addDays, compareText, deltaLabel, presetRange, rangeTitle, todayCO, type DateRange, type Preset } from '@/lib/finance';
+import { categoryLabel, formatPesos, METHOD_LABEL, pendingTotals } from '@/lib/ledger';
 import { discardLedgerItem, flushLedger, queueVoid, retryLedgerItem, useLedgerOutbox } from '@/ledger/ledgerStore';
+import { FEATURES } from '@/config';
 import { colors, fonts, radius, spacing } from '@/theme';
 
-const PERIODS: { key: Period; label: string; versus: string }[] = [
-  { key: 'day', label: 'Hoy', versus: 'ayer' },
-  { key: 'week', label: 'Esta semana', versus: 'la semana pasada' },
-  { key: 'month', label: 'Este mes', versus: 'el mes pasado' },
+// Los atajos de siempre; cualquier otro rango sale de «Fechas».
+const QUICK: { key: Exclude<Preset, 'custom' | 'yesterday' | '30d' | 'year'>; label: string }[] = [
+  { key: 'today', label: 'Hoy' },
+  { key: '7d', label: '7 días' },
+  { key: 'month', label: 'Este mes' },
+  { key: 'lastMonth', label: 'Mes pasado' },
 ];
+
+/** Inicio del día en Colombia, como fecha-hora para filtrar ventas y gastos. */
+const startCO = (ymd: string) => `${ymd}T00:00:00-05:00`;
+
+/** Avisos que tienen que ver con plata: pérdidas, plata quieta, márgenes bajos y cuentas sin cobrar. */
+const MONEY_INSIGHTS = ['loss', 'idle', 'margin', 'tabs'];
 
 interface Movement {
   key: string;
@@ -31,10 +43,11 @@ interface Movement {
   pending: boolean;
 }
 
-function timeOf(iso: string): string {
+function timeOf(iso: string, withDay = false): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  const t = d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  return withDay ? `${d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })} ${t}` : t;
 }
 
 function saleMovement(s: Sale): Movement {
@@ -47,41 +60,67 @@ function expenseMovement(e: Expense): Movement {
   return { key: `e${e.id}`, kind: 'expense', id: e.id, at: e.occurred_at, amount: e.amount, title: e.note || categoryLabel(e.category), sub: `${categoryLabel(e.category)} · ${e.method === 'credit' ? 'A crédito' : METHOD_LABEL[e.method]}${e.party ? ` · ${e.party.name}` : ''}`, voided: e.status === 'voided', pending: false };
 }
 
-/** «Mi negocio»: cómo va el día (y la semana y el mes), con los dos botones de siempre: vender y gastar. */
+/** «Ventas y gastos» (dentro de Mi negocio): cómo va el día (y la semana y el mes), con los dos botones de siempre: vender y gastar. */
 export default function LedgerHome() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const entityId = id ?? '';
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [period, setPeriod] = useState<Period>('day');
+  const today = todayCO();
+  const [range, setRange] = useState<DateRange>(() => presetRange('today', today));
+  const [rangeOpen, setRangeOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const outbox = useLedgerOutbox();
-  const pending = pendingTotals(outbox.items, entityId);
+  const includesToday = range.to >= today;
+  // Lo que aún no sale del teléfono cuenta solo si el rango llega hasta hoy.
+  const pendingAll = pendingTotals(outbox.items, entityId);
+  const pending = includesToday ? pendingAll : { sales: 0, expenses: 0 };
 
-  const summary = useQuery({ queryKey: ['ledger', entityId, 'summary', period], queryFn: () => ledgerApi.summary(entityId, period), enabled: Boolean(entityId), staleTime: 15_000 });
-  const range = summary.data ? { from: summary.data.from, to: summary.data.to } : null;
-  const sales = useQuery({ queryKey: ['ledger', entityId, 'sales', range?.from], queryFn: () => ledgerApi.sales(entityId, { from: range?.from, to: range?.to, limit: 100 }), enabled: Boolean(range) });
-  const expenses = useQuery({ queryKey: ['ledger', entityId, 'expenses', range?.from], queryFn: () => ledgerApi.expenses(entityId, { from: range?.from, to: range?.to, limit: 100 }), enabled: Boolean(range) });
+  const summary = useQuery({
+    queryKey: ['ledger', entityId, 'analytics', range.from, range.to, range.compare],
+    queryFn: () => ledgerApi.analytics(entityId, { from: range.from, to: range.to, compare: range.compare }),
+    enabled: Boolean(entityId),
+    staleTime: 15_000,
+  });
+  const span = { from: startCO(range.from), to: startCO(addDays(range.to, 1)) };
+  const sales = useQuery({ queryKey: ['ledger', entityId, 'sales', range.from, range.to], queryFn: () => ledgerApi.sales(entityId, { ...span, limit: 100 }), enabled: Boolean(entityId) });
+  const expenses = useQuery({ queryKey: ['ledger', entityId, 'expenses', range.from, range.to], queryFn: () => ledgerApi.expenses(entityId, { ...span, limit: 100 }), enabled: Boolean(entityId) });
   const items = useQuery({ queryKey: ['ledger', entityId, 'items'], queryFn: () => ledgerApi.items(entityId), enabled: Boolean(entityId), staleTime: 60_000 });
 
+  // Inventario y avisos: si el negocio no los usa, simplemente no se muestran (nada es obligatorio).
+  const insights = useQuery({ queryKey: ['ledger', entityId, 'insights'], queryFn: () => ledgerApi.insights(entityId), enabled: Boolean(entityId), staleTime: 60_000 });
+  const inventory = useQuery({ queryKey: ['ledger', entityId, 'inventory'], queryFn: () => ledgerApi.inventory(entityId), enabled: Boolean(entityId), staleTime: 60_000 });
+  const quick = inventory.data?.quick_sale === true;
+  // Aquí solo van los avisos que son plata; los de existencias (se acaba, sin inventario) viven en Productos e inventario.
+  const moneyInsights = (insights.data ?? []).filter((i) => MONEY_INSIGHTS.includes(i.kind));
+  const goTabs = () => router.push({ pathname: '/business/ledger/tabs/[id]', params: { id: entityId } });
+
   const sum = summary.data;
-  const versus = PERIODS.find((p) => p.key === period)?.versus ?? 'ayer';
+  const multiDay = range.from !== range.to;
+  const goAnalyticsTab = (tab?: 'inventory' | 'products') =>
+    router.push({ pathname: '/business/ledger/analytics/[id]', params: { id: entityId, from: range.from, to: range.to, compare: range.compare, preset: range.preset, ...(tab ? { tab } : {}) } });
+  const goAnalytics = () => goAnalyticsTab();
+  const openInsight = (i: Insight) => {
+    if (i.kind === 'tabs') return goTabs();
+    if (i.kind === 'margin' && i.ref) return router.push({ pathname: '/business/products/item', params: { entityId, itemId: i.ref } });
+    goAnalyticsTab('inventory');
+  };
 
   const movements = useMemo<Movement[]>(() => {
     const sent = [...(sales.data ?? []).map(saleMovement), ...(expenses.data ?? []).map(expenseMovement)];
     // Lo que aún no salió del teléfono se muestra también, marcado «sin enviar».
     const queued: Movement[] = outbox.items
-      .filter((x) => x.entityId === entityId && x.status === 'pending' && (x.kind === 'sale' || x.kind === 'expense'))
+      .filter((x) => includesToday && x.entityId === entityId && x.status === 'pending' && (x.kind === 'sale' || x.kind === 'expense'))
       .filter((x) => !sent.some((m) => m.id === x.id))
       .map((x) => {
         const p = x.payload as { total?: number; amount?: number; note?: string; method: Sale['method']; category?: string };
         return { key: `q${x.id}`, kind: x.kind as 'sale' | 'expense', id: x.id, at: new Date(x.createdAt).toISOString(), amount: Number(p.total ?? p.amount ?? 0), title: p.note || (x.kind === 'sale' ? 'Venta' : categoryLabel(p.category ?? 'otro')), sub: METHOD_LABEL[p.method] ?? '', voided: false, pending: true };
       });
     return [...queued, ...sent].sort((a, b) => b.at.localeCompare(a.at));
-  }, [sales.data, expenses.data, outbox.items, entityId]);
+  }, [sales.data, expenses.data, outbox.items, entityId, includesToday]);
 
-  const salesTotal = (sum?.sales_total ?? 0) + pending.sales;
-  const expensesTotal = (sum?.expenses_total ?? 0) + pending.expenses;
+  const salesTotal = (sum?.current.sales_total ?? 0) + pending.sales;
+  const expensesTotal = (sum?.current.expenses_total ?? 0) + pending.expenses;
   const profit = salesTotal - expensesTotal;
 
   const askVoid = (m: Movement) => {
@@ -104,13 +143,18 @@ export default function LedgerHome() {
 
   return (
     <View style={styles.screen}>
-      <SubScreenHeader title="Mi negocio" />
+      <SubScreenHeader title="Ventas y gastos" />
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 110 }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-        <View style={styles.tabs}>
-          {PERIODS.map((p) => (
-            <Chip key={p.key} label={p.label} selected={period === p.key} onPress={() => setPeriod(p.key)} />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
+          {QUICK.map((p) => (
+            <Chip key={p.key} label={p.label} selected={range.preset === p.key} onPress={() => setRange(presetRange(p.key, todayCO()))} />
           ))}
-        </View>
+          <Chip label={range.preset === 'custom' ? rangeTitle(range) : 'Fechas'} icon="calendar-outline" selected={!QUICK.some((p) => p.key === range.preset)} onPress={() => setRangeOpen(true)} />
+        </ScrollView>
+        <Text style={styles.compare}>
+          {rangeTitle(range)}
+          {sum ? ` · ${compareText(sum)}` : ''}
+        </Text>
 
         {outbox.items.some((x) => x.entityId === entityId) ? <OutboxBanner entityId={entityId} /> : null}
 
@@ -120,27 +164,32 @@ export default function LedgerHome() {
           <EmptyState icon="cloud-offline-outline" title="No pudimos cargar el resumen" body="Sin conexión puedes seguir registrando ventas y gastos: se envían solos cuando vuelva la señal." action={{ title: 'Reintentar', onPress: onRefresh }} />
         ) : (
           <View style={styles.card}>
-            <Stat title="Vendiste" value={salesTotal} big />
-            {sum ? <Text style={styles.compare}>{changeText(sum.sales_total, sum.prev_sales_total, versus) ?? `${sum.sales_count} ${sum.sales_count === 1 ? 'venta' : 'ventas'}`}</Text> : null}
-            <View style={styles.statRow}>
-              <Stat title="Gastaste" value={expensesTotal} />
-              <Stat title={profit >= 0 ? 'Te quedó' : 'Perdiste'} value={Math.abs(profit)} tone={profit >= 0 ? 'good' : 'bad'} />
-            </View>
-            {sum && sum.sales_total > 0 ? (
-              <View style={styles.methods}>
-                {(['cash', 'transfer', 'card', 'credit'] as const).map((m) => (sum.by_method[m] > 0 ? (
-                  <Text key={m} style={styles.method}>
-                    {METHOD_LABEL[m]} {formatPesos(sum.by_method[m])}
-                  </Text>
-                ) : null))}
+            <View style={styles.kpiTop}>
+              <View style={{ flex: 1 }}>
+                <Stat title="Vendiste" value={salesTotal} big />
               </View>
-            ) : null}
-            {sum && sum.margin_coverage_pct >= 50 ? (
-              <Text style={styles.margin}>
-                Ganancia por lo vendido: {formatPesos(sum.gross_margin)}
-                {sum.margin_coverage_pct < 100 ? ` (con costo en el ${sum.margin_coverage_pct} % de las ventas)` : ''}
+              {sum ? <Delta d={deltaLabel(salesTotal, sum.previous.sales_total)} /> : null}
+            </View>
+            {sum && sum.series.length > 1 && sum.current.sales_total > 0 ? <Sparkline values={sum.series.map((p) => p.sales)} /> : null}
+            {sum && sum.current.sales_count > 0 ? (
+              <Text style={styles.compare}>
+                {sum.current.sales_count} {sum.current.sales_count === 1 ? 'venta' : 'ventas'} · ticket promedio {formatPesos(sum.current.avg_ticket)}
               </Text>
             ) : null}
+            <View style={styles.statRow}>
+              <View style={{ flex: 1 }}>
+                <Stat title="Gastaste" value={expensesTotal} />
+                {sum ? <Delta d={deltaLabel(expensesTotal, sum.previous.expenses_total, true)} worseIsWarn /> : null}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Stat title={profit >= 0 ? 'Te quedó' : 'Perdiste'} value={Math.abs(profit)} tone={profit >= 0 ? 'good' : 'bad'} />
+                {sum ? <Delta d={deltaLabel(profit, sum.previous.profit)} /> : null}
+              </View>
+            </View>
+            <Pressable accessibilityRole="button" onPress={goAnalytics} style={({ pressed }) => [styles.analyticsBtn, pressed && { opacity: 0.85 }]}>
+              <Ionicons name="bar-chart-outline" size={18} color={colors.primary} />
+              <Text style={styles.analyticsText}>Ver análisis del negocio</Text>
+            </Pressable>
           </View>
         )}
 
@@ -148,6 +197,60 @@ export default function LedgerHome() {
           <ActionButton icon="add-circle" label="Vender" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId } })} tone="primary" />
           <ActionButton icon="remove-circle" label="Gastar" onPress={() => router.push({ pathname: '/business/ledger/expense/[id]', params: { id: entityId } })} tone="accent" />
         </View>
+
+        {quick ? (
+          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/ledger/quick/[id]', params: { id: entityId } })} style={({ pressed }) => [styles.linkCard, pressed && { opacity: 0.85 }]}>
+            <View style={styles.linkIcon}>
+              <Ionicons name="flash-outline" size={19} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.linkTitle}>Atención rápida</Text>
+              <Text style={styles.linkMeta}>Toca los platos del pedido y cobra en un paso</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+          </Pressable>
+        ) : null}
+        {quick && FEATURES.tabs ? (
+          <Pressable accessibilityRole="button" onPress={goTabs} style={({ pressed }) => [styles.linkCard, pressed && { opacity: 0.85 }]}>
+            <View style={styles.linkIcon}>
+              <Ionicons name="restaurant-outline" size={19} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.linkTitle}>Mesas</Text>
+              <Text style={styles.linkMeta}>Lo que va pidiendo cada mesa; se cobra al final</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+          </Pressable>
+        ) : null}
+
+        {moneyInsights.length > 0 ? (
+          <View style={{ gap: spacing.sm }}>
+            <Text style={styles.sectionTitle}>Para que no se te pase</Text>
+            {moneyInsights.slice(0, 3).map((i) => (
+              <InsightCard key={`${i.kind}-${i.ref ?? i.title}`} insight={i} onPress={() => openInsight(i)} />
+            ))}
+          </View>
+        ) : null}
+
+        {sum && sum.inventory.value_cost > 0 ? (
+          <Pressable accessibilityRole="button" onPress={() => goAnalyticsTab('inventory')} style={({ pressed }) => [styles.linkCard, pressed && { opacity: 0.85 }]}>
+            <View style={styles.linkIcon}>
+              <Ionicons name="cube-outline" size={19} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.linkTitle}>{formatPesos(sum.inventory.value_cost)} en mercancía</Text>
+              <Text style={styles.linkMeta}>
+                {[
+                  sum.inventory.lost_total > 0 ? `Perdiste ${formatPesos(sum.inventory.lost_total)}` : null,
+                  sum.inventory.idle_total > 0 ? `Quieta ${formatPesos(sum.inventory.idle_total)}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ') || 'Tu inventario en plata'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+          </Pressable>
+        ) : null}
 
         <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/ledger/debts/[id]', params: { id: entityId } })} style={({ pressed }) => [styles.linkCard, pressed && { opacity: 0.85 }]}>
           <View style={styles.linkIcon}>
@@ -173,22 +276,7 @@ export default function LedgerHome() {
           <Ionicons name="chevron-forward" size={18} color={colors.muted} />
         </Pressable>
 
-        {sum && sum.top_items && sum.top_items.length > 0 ? (
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Lo que más vendiste</Text>
-            {sum.top_items.slice(0, 3).map((t) => (
-              <View key={t.name} style={styles.topRow}>
-                <Text style={styles.topName} numberOfLines={1}>
-                  {t.name}
-                </Text>
-                <Text style={styles.topQty}>{Number.isInteger(t.qty) ? t.qty : t.qty.toFixed(1)} u.</Text>
-                <Text style={styles.topValue}>{formatPesos(t.revenue)}</Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
-
-        <Text style={styles.sectionTitle}>{period === 'day' ? 'Movimientos de hoy' : 'Movimientos'}</Text>
+        <Text style={styles.sectionTitle}>{range.preset === 'today' ? 'Movimientos de hoy' : 'Movimientos'}</Text>
         {movements.length === 0 && !sales.isLoading ? (
           <EmptyState icon="receipt-outline" title="Aún no hay movimientos" body="Registra tu primera venta con el botón «Vender» o dictándola con el micrófono." />
         ) : (
@@ -202,7 +290,7 @@ export default function LedgerHome() {
                   {m.title}
                 </Text>
                 <Text style={styles.moveSub} numberOfLines={1}>
-                  {timeOf(m.at)} · {m.sub}
+                  {timeOf(m.at, multiDay)} · {m.sub}
                   {m.pending ? ' · sin enviar' : ''}
                   {m.voided ? ' · anulada' : ''}
                 </Text>
@@ -222,7 +310,24 @@ export default function LedgerHome() {
       </Pressable>
 
       <VoiceSheet entityId={entityId} visible={voiceOpen} onClose={() => setVoiceOpen(false)} hints={hints} />
+      <RangeSheet visible={rangeOpen} value={range} onApply={setRange} onClose={() => setRangeOpen(false)} />
     </View>
+  );
+}
+
+const SEVERITY_COLOR: Record<Insight['severity'], string> = { high: colors.danger, medium: '#D98E04', low: colors.primary };
+
+/** Un aviso en palabras sencillas; tocarlo lleva al inventario, donde se resuelve. */
+function InsightCard({ insight, onPress }: { insight: Insight; onPress: () => void }) {
+  const tone = SEVERITY_COLOR[insight.severity] ?? colors.primary;
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.insight, { borderLeftColor: tone }, pressed && { opacity: 0.85 }]}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.linkTitle}>{insight.title}</Text>
+        <Text style={styles.linkMeta}>{insight.body}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+    </Pressable>
   );
 }
 
@@ -271,7 +376,10 @@ function OutboxBanner({ entityId }: { entityId: string }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   body: { padding: spacing.lg, gap: spacing.md },
-  tabs: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
+  tabs: { flexDirection: 'row', gap: spacing.sm },
+  kpiTop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  analyticsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, minHeight: 46, borderRadius: radius.md, backgroundColor: colors.primarySoft, marginTop: spacing.xs },
+  analyticsText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.primary },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.sm },
   compare: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
   statRow: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.sm },
@@ -285,6 +393,7 @@ const styles = StyleSheet.create({
   actionText: { fontSize: 18, fontFamily: fonts.display.bold, color: '#fff' },
   linkCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md },
   linkIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  insight: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, borderLeftWidth: 4 },
   linkTitle: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
   linkMeta: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
   sectionTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink, marginTop: spacing.sm },

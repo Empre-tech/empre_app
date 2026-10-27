@@ -10,7 +10,7 @@ import { offersApi } from '@/api/offers';
 import { Button } from '@/components/Button';
 import { OfferTicket } from '@/components/offer/OfferTicket';
 import { TextField } from '@/components/TextField';
-import { formatPesos, offerPreview, parsePriceInput } from '@/lib/catalog';
+import { formatPesos, offerPreview, parsePriceInput, publicCatalog } from '@/lib/catalog';
 import { offerTypeLabel } from '@/lib/offer';
 import { bandHint, bestOffer, durationHint, slotsHint, suggestedSlots, type Hint } from '@/lib/offerInsights';
 import { useNow } from '@/lib/useNow';
@@ -48,7 +48,7 @@ export default function NewOfferScreen() {
   const catalog = useQuery({ queryKey: ['catalog', entityId], queryFn: () => catalogApi.list(entityId ?? ''), enabled: Boolean(entityId) });
   const offers = useQuery({ queryKey: ['offers', entityId], queryFn: () => offersApi.list(entityId ?? ''), enabled: Boolean(entityId) });
   const stats = useQuery({ queryKey: ['offer-stats', entityId], queryFn: () => offersApi.stats(entityId ?? ''), enabled: Boolean(entityId), staleTime: 60_000 });
-  const services = catalog.data ?? [];
+  const services = publicCatalog(catalog.data ?? []);
   const useCatalog = services.length > 0;
   const summary = stats.data?.summary;
   const best = bestOffer(stats.data?.offers ?? [], summary);

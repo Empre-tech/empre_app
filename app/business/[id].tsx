@@ -24,7 +24,6 @@ import { entitiesApi, paymentsApi, reviewsApi } from '@/api/endpoints';
 import { novedadesApi } from '@/api/novedades';
 import type { Photo } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
-import { AIWritingAssist } from '@/components/AIWritingAssist';
 import { agendaApi } from '@/api/agenda';
 import { statusApi } from '@/api/offers';
 import { AgendaStrip } from '@/components/agenda/AgendaStrip';
@@ -37,12 +36,10 @@ import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { SkeletonProfile } from '@/components/Skeleton';
 import { useActiveOffers } from '@/components/OfferBanner';
-import { PostComposerSheet } from '@/components/PostComposerSheet';
 import { ACTION_BAR_HEIGHT, ActionBar } from '@/components/profile/ActionBar';
 import { AskSheet } from '@/components/profile/AskSheet';
 import { CatalogSection } from '@/components/profile/CatalogSection';
 import { OffersFicha } from '@/components/profile/OffersFicha';
-import { OwnerPanel } from '@/components/profile/OwnerPanel';
 import { PhotosSection } from '@/components/profile/PhotosSection';
 import { ProfileHero } from '@/components/profile/ProfileHero';
 import { QuickIndex } from '@/components/profile/QuickIndex';
@@ -132,7 +129,6 @@ export default function BusinessScreen() {
   const nowMs = useNow(60_000);
   const catalog = useQuery({ queryKey: ['catalog', id], queryFn: () => catalogApi.list(id ?? ''), enabled: Boolean(id), staleTime: 60_000 });
   const hasServices = (catalog.data?.length ?? 0) > 0;
-  const [ownerTab, setOwnerTab] = useState<'public' | 'mine'>('public');
   const [activeSection, setActiveSection] = useState<SectionId>('offers');
   // El índice queda flotando arriba (con su botón atrás) al pasar su lugar en el perfil (3.28).
   const [indexStuck, setIndexStuck] = useState(false);
@@ -294,11 +290,6 @@ export default function BusinessScreen() {
   // de la foto activa, nunca la visibilidad.
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [captionDraft, setCaptionDraft] = useState('');
-  const [captionDirty, setCaptionDirty] = useState(false);
-  const [savingCaption, setSavingCaption] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [composerOpen, setComposerOpen] = useState(false);
   const viewerListRef = useRef<FlatList<Photo>>(null);
 
   // Al abrir el visor, arrancamos el "cursor" en la foto tocada.
@@ -308,60 +299,8 @@ export default function BusinessScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openIndex]);
 
-  // Al abrir o cambiar de foto (swipe), sincronizamos el borrador de
-  // descripción con la foto activa, salvo mientras el propio usuario la edita.
-  useEffect(() => {
-    if (openIndex === null) return;
-    setCaptionDraft(photos[currentIndex]?.caption ?? '');
-    setCaptionDirty(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex]);
-
   const openViewer = (index: number) => setOpenIndex(index);
   const closeViewer = () => setOpenIndex(null);
-
-  const onPostPublished = () => {
-    void queryClient.invalidateQueries({ queryKey: ['entity', id] });
-  };
-
-  const saveCaption = async () => {
-    if (!business || openIndex === null) return;
-    const photo = photos[currentIndex];
-    if (!photo) return;
-    setSavingCaption(true);
-    try {
-      await entitiesApi.updateImageCaption(business.id, photo.id, captionDraft.trim());
-      await queryClient.invalidateQueries({ queryKey: ['entity', id] });
-      setCaptionDirty(false);
-    } catch (e) {
-      Alert.alert('No pudimos guardar', e instanceof Error ? e.message : 'Intenta de nuevo.');
-    } finally {
-      setSavingCaption(false);
-    }
-  };
-
-  const deletePost = (photo: Photo) => {
-    if (!business) return;
-    Alert.alert('Eliminar publicación', '¿Seguro que quieres eliminarla? Esta acción no se puede deshacer.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar',
-        style: 'destructive',
-        onPress: async () => {
-          setDeleting(true);
-          try {
-            await entitiesApi.deleteImage(business.id, photo.id);
-            await queryClient.invalidateQueries({ queryKey: ['entity', id] });
-            closeViewer();
-          } catch (e) {
-            Alert.alert('No pudimos eliminar', e instanceof Error ? e.message : 'Intenta de nuevo.');
-          } finally {
-            setDeleting(false);
-          }
-        },
-      },
-    ]);
-  };
 
   const back = (
     <Pressable
@@ -441,7 +380,7 @@ export default function BusinessScreen() {
   const cover = coverSource(business.banner_url, photos[0]);
   const openState: boolean | null = hasHours ? Boolean(business.is_open_now) : null;
   // El catálogo se llama según el negocio (Carta, Servicios, Productos…) y su precio más bajo va en el vistazo.
-  const copy = catalogCopy(business.category?.name);
+  const copy = catalogCopy(business.category?.name, business.business_profile);
   const askData: AnswerData = {
     name: business.name,
     noun: copy.noun,
@@ -475,8 +414,7 @@ export default function BusinessScreen() {
   };
   const fromPrice = lowestPrice(catalog.data ?? []);
   const secs = sections({ offers: offerCount, hasServices, photos: photos.length, isOwner, reviews: ratingSummary.count });
-  const ownerPanelOpen = isOwner && ownerTab === 'mine';
-  const showIndex = !ownerPanelOpen && showQuickIndex(secs);
+  const showIndex = showQuickIndex(secs);
 
   const goTo = (id: SectionId) => {
     const y = bodyY.current + (sectionY.current[id] ?? 0) - (isOwner ? 130 : 70);
@@ -573,7 +511,7 @@ export default function BusinessScreen() {
       case 'offers':
         return (
           <View key={id} onLayout={mark('offers')}>
-            <OffersFicha entityId={business.id} isOwner={isOwner} initialOfferId={offerParam} />
+            <OffersFicha entityId={business.id} isOwner={isOwner} preview initialOfferId={offerParam} />
             {!isOwner ? <AskEmpreCard data={askData} onAsk={setAskStart} /> : null}
           </View>
         );
@@ -603,11 +541,11 @@ export default function BusinessScreen() {
             <PhotosSection
               photos={photos}
               color={business.category?.color}
-              isOwner={isOwner}
+              isOwner={false}
               onOpenPhoto={openViewer}
               onAll={openPhotos}
-              onNew={() => setComposerOpen(true)}
-              pending={isOwner ? itemsFor(uploads.items, business.id) : []}
+              onNew={() => undefined}
+              pending={[]}
               onRetry={retryUpload}
               onRemove={removeUpload}
             />
@@ -638,19 +576,19 @@ export default function BusinessScreen() {
     }
   };
 
+  // «Así te ven» es solo una vista previa: todo lo que se administra vive en «Mi negocio».
   const ownerTabs = isOwner ? (
-    <View style={styles.ownerTabs} accessibilityRole="tablist">
-      {(
-        [
-          ['public', 'Así te ven'],
-          ['mine', 'Mi negocio'],
-        ] as const
-      ).map(([key, label]) => (
-        <Pressable key={key} accessibilityRole="tab" accessibilityState={{ selected: ownerTab === key }} onPress={() => setOwnerTab(key)} style={[styles.ownerTab, ownerTab === key && styles.ownerTabOn]}>
-          <Text style={[styles.ownerTabText, ownerTab === key && styles.ownerTabTextOn]}>{label}</Text>
-        </Pressable>
-      ))}
-    </View>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Así te ven los demás. Administrar mi negocio"
+      onPress={() => router.push({ pathname: '/business/hub/[id]', params: { id: business.id } })}
+      style={styles.previewBar}
+    >
+      <Ionicons name="eye-outline" size={18} color={colors.ink} />
+      <Text style={styles.previewText}>Así te ven los demás</Text>
+      <Text style={styles.previewLink}>Administrar mi negocio</Text>
+      <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+    </Pressable>
   ) : null;
 
   const stickyChild =
@@ -670,13 +608,10 @@ export default function BusinessScreen() {
         ref={scrollRef}
         contentContainerStyle={{ paddingBottom: insets.bottom + barSpace + spacing.xxl }}
         // Solo las pestañas del dueño se pegan; para quien visita, el índice flota aparte con su botón atrás (3.28).
-        stickyHeaderIndices={isOwner && stickyChild && !ownerPanelOpen ? [1] : undefined}
+        stickyHeaderIndices={isOwner && stickyChild ? [1] : undefined}
         onScroll={onScroll}
         scrollEventThrottle={100}
       >
-        {ownerPanelOpen ? (
-          <View style={{ height: insets.top + 56 }} />
-        ) : (
           <ProfileHero
             name={business.name}
             categoryLabel={[business.category?.name, business.subcategories?.[0]?.name].filter(Boolean).join(' · ')}
@@ -702,33 +637,13 @@ export default function BusinessScreen() {
             ) : null}
 
           </ProfileHero>
-        )}
-        {ownerPanelOpen ? ownerTabs : (stickyChild ?? <View />)}
+        {stickyChild ?? <View />}
 
         <View style={styles.bodyList} onLayout={(e) => (bodyY.current = e.nativeEvent.layout.y)}>
-          {ownerPanelOpen ? (
-            <OwnerPanel
-              business={business}
-              offer={activeOffers.data?.[0]}
-              followers={followers.data ?? 0}
-              requiresPayment={requiresPayment}
-              agenda={FEATURES.agenda}
-              onEdit={() => router.push({ pathname: '/business/edit/[id]', params: { id: business.id } })}
-              onPublishOffer={() => router.push({ pathname: '/business/offers', params: { entityId: business.id } })}
-              onCatalog={() => router.push({ pathname: '/business/catalog/[id]', params: { id: business.id } })}
-              onPhotos={() => setComposerOpen(true)}
-              onScan={() => router.push('/business/scan')}
-              onSubscription={() => router.push({ pathname: '/business/subscription/[id]', params: { id: business.id } })}
-              onAgenda={() => router.push({ pathname: '/business/agenda/[id]', params: { id: business.id } })}
-              onDirections={hasLocation(business) ? onDirections : undefined}
-              onCall={canCall ? onCall : undefined}
-            />
-          ) : (
             <>
               {FEATURES.agenda && !isOwner ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
               {blockOrder({ isOwner }).map(block)}
             </>
-          )}
         </View>
       </ScrollView>
       {!isOwner ? (
@@ -780,19 +695,7 @@ export default function BusinessScreen() {
             ) : (
               <View />
             )}
-            {isOwner && activePhoto ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Eliminar publicación"
-                onPress={() => deletePost(activePhoto)}
-                disabled={deleting}
-                style={styles.viewerIconButton}
-              >
-                {deleting ? <ActivityIndicator size="small" color={colors.danger} /> : <Ionicons name="trash-outline" size={19} color={colors.danger} />}
-              </Pressable>
-            ) : (
-              <View style={styles.viewerIconButton} />
-            )}
+            <View style={styles.viewerIconButton} />
           </View>
 
           <View style={[styles.viewerPhotoArea, { width, height: width }]}>
@@ -846,47 +749,7 @@ export default function BusinessScreen() {
               </View>
             </View>
 
-            {activePhoto ? (
-              isOwner ? (
-                <View style={styles.captionEditor}>
-                  <View style={styles.captionLabelRow}>
-                    <Text style={styles.captionLabel}>Descripción</Text>
-                    <AIWritingAssist
-                      kind="post_caption"
-                      currentText={captionDraft}
-                      businessName={business.name}
-                      categoryName={business.category?.name}
-                      onApply={(text) => {
-                        setCaptionDraft(text);
-                        setCaptionDirty(true);
-                      }}
-                    />
-                  </View>
-                  <TextInput
-                    value={captionDraft}
-                    onChangeText={(value) => {
-                      setCaptionDraft(value);
-                      setCaptionDirty(true);
-                    }}
-                    placeholder="Agrega una descripción…"
-                    placeholderTextColor={colors.muted}
-                    style={styles.captionInput}
-                    maxLength={200}
-                    multiline
-                  />
-                  {captionDirty ? (
-                    <Button
-                      title={savingCaption ? 'Guardando…' : 'Guardar descripción'}
-                      onPress={() => void saveCaption()}
-                      disabled={savingCaption}
-                      style={styles.captionSaveButton}
-                    />
-                  ) : null}
-                </View>
-              ) : activePhoto.caption ? (
-                <Text style={styles.viewerCaption}>{activePhoto.caption}</Text>
-              ) : null
-            ) : null}
+            {activePhoto?.caption ? <Text style={styles.viewerCaption}>{activePhoto.caption}</Text> : null}
           </ScrollView>
         </View>
       </Modal>
@@ -920,14 +783,6 @@ export default function BusinessScreen() {
         </Pressable>
       </Modal>
 
-      <PostComposerSheet
-        visible={composerOpen}
-        onClose={() => setComposerOpen(false)}
-        entityId={business.id}
-        businessName={business.name}
-        categoryName={business.category?.name}
-        onPublished={onPostPublished}
-      />
     </View>
   );
 }
@@ -1023,6 +878,9 @@ const styles = StyleSheet.create({
   inlineAction: { minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'flex-end' },
   linkText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primary },
   bodyList: { paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.md },
+  previewBar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, marginHorizontal: spacing.md, marginTop: spacing.md, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line },
+  previewText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink },
+  previewLink: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primary },
   ownerTabs: { flexDirection: 'row', gap: 6, paddingHorizontal: spacing.md, paddingTop: spacing.md },
   ownerTab: { flex: 1, minHeight: 44, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   ownerTabOn: { backgroundColor: colors.ink, borderColor: colors.ink },

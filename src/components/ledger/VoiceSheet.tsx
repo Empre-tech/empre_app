@@ -11,8 +11,15 @@ import { categoryLabel, formatPesos } from '@/lib/ledger';
 import { speechAvailable, startDictation } from '@/ledger/speech';
 import { colors, fonts, radius, spacing } from '@/theme';
 
-const TYPE_LABEL: Record<VoiceAction['type'], string> = { sale: 'Venta', expense: 'Gasto', payment: 'Abono' };
-const TYPE_ICON: Record<VoiceAction['type'], keyof typeof Ionicons.glyphMap> = { sale: 'cash-outline', expense: 'arrow-down-circle-outline', payment: 'swap-horizontal-outline' };
+const TYPE_LABEL: Record<VoiceAction['type'], string> = { sale: 'Venta', expense: 'Gasto', payment: 'Abono', stock: 'Inventario', tab_add: 'A la cuenta', tab_pay: 'Cobrar cuenta' };
+const TYPE_ICON: Record<VoiceAction['type'], keyof typeof Ionicons.glyphMap> = {
+  sale: 'cash-outline',
+  expense: 'arrow-down-circle-outline',
+  payment: 'swap-horizontal-outline',
+  stock: 'cube-outline',
+  tab_add: 'receipt-outline',
+  tab_pay: 'checkmark-done-outline',
+};
 
 function errorText(e: unknown): string {
   if (e instanceof ApiError) {
@@ -26,6 +33,22 @@ function errorText(e: unknown): string {
 
 /** ¿Falta algo para poder confirmar esta tarjeta? Devuelve el motivo o null. */
 export function actionProblem(a: VoiceAction): string | null {
+  if (a.type === 'stock') {
+    if (!a.item_ref) return a.candidates?.length ? 'Elige de cuál hablas.' : 'No sé de qué producto hablas.';
+    if (a.counted == null && !a.level) return 'Dime si se acabó, queda poco o cuántos hay.';
+    return null;
+  }
+  if (a.type === 'tab_add') {
+    if (!a.tab_id && !(a.new_tab && a.tab_name?.trim())) return '¿A qué cuenta va?';
+    if (!a.lines?.length) return '¿Qué le agrego?';
+    if (a.lines.some((l) => l.unit_price == null)) return 'Hay algo sin precio.';
+    return null;
+  }
+  if (a.type === 'tab_pay') {
+    if (!a.tab_id) return 'No encontré esa cuenta abierta.';
+    if (a.method === 'credit' && !a.party_id && !(a.new_party && a.party_name?.trim())) return '¿A quién le fías la cuenta?';
+    return null;
+  }
   if (a.amount <= 0) return 'Falta el monto.';
   const needsParty = a.method === 'credit' || a.type === 'payment';
   if (needsParty && !a.party_id && !(a.new_party && a.party_name?.trim())) {
@@ -39,7 +62,20 @@ export function actionProblem(a: VoiceAction): string | null {
  * confirma: cada tarjeta muestra el monto en letras, el medio de pago y a quién, con las dudas marcadas. Solo viaja el
  * texto, nunca el audio.
  */
-export function VoiceSheet({ entityId, visible, onClose, hints }: { entityId: string; visible: boolean; onClose: () => void; hints: string[] }) {
+export function VoiceSheet({
+  entityId,
+  visible,
+  onClose,
+  hints,
+  tabId,
+}: {
+  entityId: string;
+  visible: boolean;
+  onClose: () => void;
+  hints: string[];
+  /** Se dicta desde dentro de una cuenta abierta: lo pedido va a esa cuenta. */
+  tabId?: string;
+}) {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const [text, setText] = useState('');
@@ -94,7 +130,7 @@ export function VoiceSheet({ entityId, visible, onClose, hints }: { entityId: st
     setBusy(true);
     setError(null);
     try {
-      const r = await ledgerApi.voiceParse(entityId, t);
+      const r = await ledgerApi.voiceParse(entityId, t, tabId);
       setResult(r);
       setActions(r.actions);
       if (r.actions.length === 0) setError(r.message ?? 'No entendí qué registrar.');
@@ -145,7 +181,7 @@ export function VoiceSheet({ entityId, visible, onClose, hints }: { entityId: st
           ) : !result || actions.length === 0 ? (
             <>
               <Text style={styles.title}>Dicta lo que pasó</Text>
-              <Text style={styles.hint}>Por ejemplo: «vendí dos empanadas por seis mil, y le fié veinte mil a Don Jorge».</Text>
+              <Text style={styles.hint}>Por ejemplo: «vendí dos empanadas por seis mil, le fié veinte mil a Don Jorge, y se acabó el jugo».</Text>
               <TextInput
                 value={text}
                 onChangeText={setText}
@@ -196,7 +232,109 @@ export function VoiceSheet({ entityId, visible, onClose, hints }: { entityId: st
 const PARTY_WARN = /¿A quién|¿Quién|¿A qué proveedor|Hay varios|No encontré/;
 const AMOUNT_WARN = /monto|Entendí|Los productos suman/;
 
+const STOCK_LEVELS: { level: 'ok' | 'low' | 'out'; label: string }[] = [
+  { level: 'ok', label: 'Hay' },
+  { level: 'low', label: 'Queda poco' },
+  { level: 'out', label: 'Se acabó' },
+];
+
+/** Inventario dictado: «se acabó el jugo», «tengo 12 camisas». No mueve plata; se puede corregir aquí mismo. */
+function StockCard({ action: a, problem, onChange, onRemove }: { action: VoiceAction; problem: string | null; onChange: (p: Partial<VoiceAction>) => void; onRemove: () => void }) {
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardHead}>
+        <Ionicons name={TYPE_ICON.stock} size={18} color={colors.primary} />
+        <Text style={styles.cardType}>Inventario</Text>
+        <View style={{ flex: 1 }} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Quitar esta tarjeta" onPress={onRemove} hitSlop={10}>
+          <Ionicons name="close" size={20} color={colors.muted} />
+        </Pressable>
+      </View>
+      {a.candidates && a.candidates.length > 0 && !a.item_ref ? (
+        <>
+          <Text style={styles.cardMeta}>¿De cuál hablas?</Text>
+          <View style={styles.wrap}>
+            {a.candidates.map((c) => (
+              <Chip key={c.id} label={c.name} selected={false} onPress={() => onChange({ item_ref: c.id, item_name: c.name, candidates: [], warnings: [] })} />
+            ))}
+          </View>
+        </>
+      ) : (
+        <Text style={styles.party}>{a.item_name || 'Producto sin identificar'}</Text>
+      )}
+      {a.counted != null ? (
+        <Text style={styles.cardMeta}>Hay {String(a.counted).replace('.', ',')} en total (queda contado).</Text>
+      ) : (
+        <View style={styles.wrap}>
+          {STOCK_LEVELS.map((l) => (
+            <Chip key={l.level} label={l.label} selected={a.level === l.level} onPress={() => onChange({ level: l.level, warnings: [] })} />
+          ))}
+        </View>
+      )}
+      {[...(a.warnings ?? []), ...(problem && !(a.warnings ?? []).includes(problem) ? [problem] : [])].map((w) => (
+        <View key={w} style={styles.warn}>
+          <Ionicons name="alert-circle-outline" size={16} color={colors.accentInk} />
+          <Text style={styles.warnText}>{w}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Cuentas abiertas dictadas: «mesa 3: dos bandejas» o «cobra la mesa 3». */
+function TabCard({ entityId, action: a, problem, onChange, onRemove }: { entityId: string; action: VoiceAction; problem: string | null; onChange: (p: Partial<VoiceAction>) => void; onRemove: () => void }) {
+  const add = a.type === 'tab_add';
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardHead}>
+        <Ionicons name={TYPE_ICON[a.type]} size={18} color={colors.primary} />
+        <Text style={styles.cardType}>{TYPE_LABEL[a.type]}</Text>
+        <Text style={styles.cardMeta} numberOfLines={1}>
+          · {a.tab_name ? (a.new_tab && !a.tab_id ? `${a.tab_name} (se abre)` : a.tab_name) : 'sin cuenta'}
+        </Text>
+        <View style={{ flex: 1 }} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Quitar esta tarjeta" onPress={onRemove} hitSlop={10}>
+          <Ionicons name="close" size={20} color={colors.muted} />
+        </Pressable>
+      </View>
+      {add ? (
+        <View style={{ gap: 2 }}>
+          {(a.lines ?? []).map((l, k) => (
+            <Text key={`${l.name}${k}`} style={styles.cardMeta}>
+              {l.qty} × {l.name}
+              {l.unit_price != null ? ` · ${formatPesos(l.unit_price)} c/u` : ' · sin precio'}
+            </Text>
+          ))}
+          {a.amount > 0 ? <Text style={styles.party}>Suma {formatPesos(a.amount)} a la cuenta</Text> : null}
+        </View>
+      ) : (
+        <>
+          <Text style={styles.party}>{a.amount > 0 ? `Total: ${formatPesos(a.amount)}` : 'La cuenta'}</Text>
+          <MethodChips value={a.method} onChange={(m) => onChange({ method: m })} />
+          {a.method === 'credit' ? (
+            <PartyPicker
+              entityId={entityId}
+              kind="customer"
+              value={a.party_id ? { id: a.party_id, name: a.party_name ?? '' } : null}
+              onChange={(p) => onChange({ party_id: p?.id, party_name: p?.name, new_party: false })}
+              onNew={(name) => onChange({ party_id: undefined, party_name: name, new_party: true })}
+            />
+          ) : null}
+        </>
+      )}
+      {(a.warnings ?? []).map((w) => (
+        <Text key={w} style={styles.warn}>
+          {w}
+        </Text>
+      ))}
+      {problem ? <Text style={styles.error}>{problem}</Text> : null}
+    </View>
+  );
+}
+
 function ActionCard({ entityId, action: a, problem, onChange, onRemove }: { entityId: string; action: VoiceAction; problem: string | null; onChange: (p: Partial<VoiceAction>) => void; onRemove: () => void }) {
+  if (a.type === 'stock') return <StockCard action={a} problem={problem} onChange={onChange} onRemove={onRemove} />;
+  if (a.type === 'tab_add' || a.type === 'tab_pay') return <TabCard entityId={entityId} action={a} problem={problem} onChange={onChange} onRemove={onRemove} />;
   const setParty = (p: Partial<VoiceAction>) => onChange({ ...p, warnings: (a.warnings ?? []).filter((w) => !PARTY_WARN.test(w)) });
   return (
     <View style={styles.card}>

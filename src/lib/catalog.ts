@@ -18,7 +18,18 @@ export interface ServiceItem {
   duration_min?: number | null;
   /** Se puede reservar por Empre (exige duración). */
   bookable?: boolean;
+  /** Qué es: un servicio (no se agota) o un producto (se cuenta). */
+  kind?: ItemKind;
+  /** El dueño ya confirmó el tipo (falso en ítems viejos que se clasificaron solos). */
+  kind_checked?: boolean;
+  /** Variante (sabor, talla): el producto al que pertenece y su parte corta. */
+  parent_id?: string;
+  variant_label?: string;
+  /** Su precio es el del producto (no tiene uno propio). */
+  price_inherited?: boolean;
 }
+
+export type ItemKind = 'service' | 'product';
 
 /** Cuántos servicios se ven antes de «Ver todos». */
 export const CATALOG_PREVIEW = 5;
@@ -108,6 +119,13 @@ export interface CatalogCopy {
   search: string;
   /** Secciones que se le sugieren al dueño al crear un ítem. */
   suggest: string[];
+  /**
+   * Qué se vende, para saber qué pedir al crear un ítem: «service» lleva duración y reserva; «shop» (tienda) lleva
+   * costo y cuántos hay; «food» (platos) lleva costo, sin existencias por plato.
+   */
+  kind: 'service' | 'shop' | 'food';
+  /** Ejemplo de nombre para el formulario. */
+  example: string;
   /** Mensaje ya escrito para preguntar por un ítem (el nombre va en minúscula inicial). */
   ask: (item: string) => string;
   /** Preguntas rápidas que se pueden sumar al mensaje. */
@@ -120,6 +138,8 @@ const GENERIC: CatalogCopy = {
   plural: 'servicios',
   search: 'Buscar un servicio',
   suggest: [],
+  kind: 'service',
+  example: 'Corte clásico',
   ask: (i) => `Hola, quisiera información sobre ${i}.`,
   quick: ['¿Cuánto cuesta?', '¿Atienden hoy?', '¿Cómo puedo pedirlo?'],
 };
@@ -130,6 +150,8 @@ const FOOD: CatalogCopy = {
   plural: 'platos',
   search: 'Buscar en la carta',
   suggest: ['Almuerzos', 'Platos fuertes', 'Bebidas', 'Postres'],
+  kind: 'food',
+  example: 'Bandeja paisa',
   ask: (i) => `Hola, ¿hoy tienen ${i}? ¿Hacen domicilio?`,
   quick: ['¿Hacen domicilio?', '¿Tienen mesa disponible?', '¿Hasta qué hora atienden?'],
 };
@@ -172,7 +194,9 @@ const BY_CATEGORY: Record<string, CatalogCopy> = {
     one: 'producto',
     plural: 'productos',
     search: 'Buscar un producto',
-    suggest: ['Hombre', 'Mujer', 'Calzado', 'Accesorios'],
+    suggest: ['Alimentos', 'Bebidas', 'Aseo', 'Ropa', 'Calzado', 'Accesorios'],
+    kind: 'shop',
+    example: 'Camiseta básica',
     ask: (i) => `Hola, ¿tienen ${i} disponible?`,
     quick: ['¿Qué tallas tienen?', '¿Hacen envíos?', '¿Puedo apartarlo?'],
   },
@@ -246,9 +270,43 @@ function plain(s: string): string {
 }
 
 /** Los textos del catálogo según la categoría del negocio; una categoría que no se conoce usa los genéricos. */
-export function catalogCopy(categoryName: string | null | undefined): CatalogCopy {
-  return (categoryName && BY_CATEGORY[plain(categoryName)]) || GENERIC;
+/** Tipo de negocio guardado (igual que en `api/types`). */
+export type BusinessProfile = 'shop' | 'food' | 'service' | 'valuable' | 'other';
+
+const SHOP: CatalogCopy = BY_CATEGORY['tiendas y comercio'];
+
+/** Qué se vende según el tipo de negocio guardado. «other» no impone nada. */
+const KIND_OF_PROFILE: Record<BusinessProfile, CatalogCopy['kind'] | null> = {
+  shop: 'shop',
+  valuable: 'shop',
+  food: 'food',
+  service: 'service',
+  other: null,
+};
+const BASE_OF_KIND: Record<CatalogCopy['kind'], CatalogCopy> = { shop: SHOP, food: FOOD, service: GENERIC };
+
+/**
+ * Los textos del catálogo. Lo que el negocio VENDE (y por eso qué pide el formulario) sale de su tipo guardado
+ * (`profile`), nunca del nombre de la categoría. El nombre solo afina los textos (las preguntas de «Pregúntale», las
+ * secciones sugeridas) cuando coincide con ese tipo; si no coincide o no se conoce, se usan los textos base del tipo.
+ * Sin tipo (datos viejos), se comporta como antes.
+ */
+export function catalogCopy(categoryName: string | null | undefined, profile?: BusinessProfile | null): CatalogCopy {
+  const byName = categoryName ? BY_CATEGORY[plain(categoryName)] : undefined;
+  const kind = profile ? KIND_OF_PROFILE[profile] : null;
+  if (!kind) return byName ?? GENERIC;
+  if (byName && byName.kind === kind) return byName;
+  return BASE_OF_KIND[kind];
 }
+
+/** Las opciones de «¿Qué vendes principalmente?», en palabras del dueño. */
+export const PROFILE_OPTIONS: { value: BusinessProfile; label: string; hint: string }[] = [
+  { value: 'shop', label: 'Productos de tienda', hint: 'Abarrotes, aseo, papelería, ferretería…' },
+  { value: 'food', label: 'Comida', hint: 'Platos, bebidas preparadas, panadería…' },
+  { value: 'service', label: 'Servicios', hint: 'Cortes, citas, clases, reparaciones…' },
+  { value: 'valuable', label: 'Artículos de valor', hint: 'Ropa, celulares, joyas, perfumes…' },
+  { value: 'other', label: 'Otro', hint: 'Un poco de todo' },
+];
 
 /** «12 platos», «1 servicio». */
 export function catalogCount(copy: CatalogCopy, n: number): string {
@@ -322,4 +380,28 @@ export function filterCatalog<T extends Pick<ServiceItem, 'name' | 'description'
     if (!q) return true;
     return bare(`${it.name} ${it.description ?? ''} ${own}`).includes(q);
   });
+}
+
+/** Lo que más probablemente agrega un negocio: una peluquería, servicios; una tienda o un restaurante, productos. */
+export function defaultItemKind(copy: Pick<CatalogCopy, 'kind'>): ItemKind {
+  return copy.kind === 'service' ? 'service' : 'product';
+}
+
+/** El título de la lista según lo que hay: «Servicios», «Productos» (o «Carta»), o «Servicios y productos». */
+export function listTitle(items: { kind?: ItemKind }[], copy: Pick<CatalogCopy, 'noun' | 'kind'>): string {
+  const hasService = items.some((i) => i.kind === 'service');
+  const hasProduct = items.some((i) => i.kind === 'product');
+  if (hasService && hasProduct) return 'Servicios y productos';
+  if (hasService) return 'Servicios';
+  if (hasProduct) return copy.kind === 'service' ? 'Productos' : copy.noun;
+  return copy.noun;
+}
+
+/**
+ * El catálogo que ve el público: un producto con variantes no se muestra solo (no se vende así); se ven sus variantes
+ * con su nombre completo («Proteína 2 lb · Chocolate»), cada una con su precio y si está agotada.
+ */
+export function publicCatalog<T extends { id: string; parent_id?: string }>(items: T[]): T[] {
+  const parents = new Set(items.map((i) => i.parent_id).filter(Boolean));
+  return items.filter((i) => !parents.has(i.id));
 }

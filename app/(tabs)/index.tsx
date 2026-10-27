@@ -89,6 +89,9 @@ const RADIUS_OPTIONS: { label: string; km: number | null }[] = [
 /** Alto estimado de la ficha del negocio mientras no se mide (para encuadrar el mapa sin esperar). */
 const SHEET_ESTIMATE = 300;
 
+/** Cuánto espera el mapa un fix de GPS al arrancar (con permiso y sin posición en caché) antes de mostrarse. */
+const STARTUP_FIX_WAIT_MS = 4000;
+
 export default function ExploreScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -260,6 +263,14 @@ export default function ExploreScreen() {
             didCenterRef.current = true;
             return;
           }
+          // Con permiso pero sin posición en caché: esperamos el fix fresco un
+          // momento; si no llega (GPS débil, emulador sin ubicación), el mapa
+          // arranca en la región por defecto y se centra solo cuando llegue.
+          // Antes se quedaba cargando para siempre si el GPS nunca respondía.
+          setTimeout(() => {
+            if (active) setStartupRegion((r) => r ?? DEFAULT_REGION);
+          }, STARTUP_FIX_WAIT_MS);
+          return;
         }
       } catch {
         // Sigue al fallback de abajo.
@@ -290,7 +301,9 @@ export default function ExploreScreen() {
     let active = true;
     (async () => {
       const coords = await requestLocation();
-      if (!active || !coords) return;
+      if (!active) return;
+      // Sin ubicación (permiso negado, error o tiempo agotado): nunca dejar el mapa cargando.
+      if (!coords) setStartupRegion((r) => r ?? DEFAULT_REGION);
     })();
     return () => {
       active = false;

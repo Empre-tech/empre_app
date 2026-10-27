@@ -194,7 +194,7 @@ export default function ProfileScreen() {
         (mine.data ?? []).map((entity) => (
           <Pressable
             key={entity.id}
-            onPress={() => router.push({ pathname: '/business/[id]', params: { id: entity.id } })}
+            onPress={() => router.push({ pathname: '/business/hub/[id]', params: { id: entity.id } })}
             style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}
           >
             <Avatar uri={entity.profile_url} name={entity.name} size={48} />
@@ -216,22 +216,6 @@ export default function ProfileScreen() {
                 {verificationLabel(entity.verification_status)}
               </Text>
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Gestionar ofertas de ${entity.name}`}
-              hitSlop={8}
-              onPress={() => router.push({ pathname: '/business/offers', params: { entityId: entity.id } })}
-            >
-              <Ionicons name="flash-outline" size={22} color={colors.primary} />
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Editar ${entity.name}`}
-              hitSlop={8}
-              onPress={() => router.push({ pathname: '/business/edit/[id]', params: { id: entity.id } })}
-            >
-              <Ionicons name="create-outline" size={22} color={colors.primary} />
-            </Pressable>
             {/* Solo lo de la agenda (3.37): solicitudes de cita por revisar, en su propia línea al pie de la tarjeta. */}
             {(inbox.byEntity.get(entity.id)?.requests ?? 0) > 0 ? (
               <Pressable
@@ -247,21 +231,19 @@ export default function ProfileScreen() {
                 <Text style={styles.reqStripLink}>Ver agenda</Text>
               </Pressable>
             ) : null}
-            {/* Administración del negocio (ventas, gastos, fiados): se está validando, por eso vive aquí y no en una pestaña. */}
-            {FEATURES.ledger ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Mi negocio: ventas, gastos y fiados de ${entity.name}`}
-                onPress={() => router.push({ pathname: '/business/ledger/[id]', params: { id: entity.id } })}
-                style={({ pressed }) => [styles.ledgerStrip, pressed && { opacity: 0.85 }]}
-              >
-                <Ionicons name="wallet-outline" size={18} color={colors.primaryDark} />
-                <Text style={styles.ledgerStripText} numberOfLines={1}>
-                  Mi negocio · ventas, gastos y fiados
-                </Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.primaryDark} />
-              </Pressable>
-            ) : null}
+            {/* «Mi negocio» es el centro: datos, productos e inventario, fotos, ofertas, ventas, agenda y suscripción. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Administrar ${entity.name}`}
+              onPress={() => router.push({ pathname: '/business/hub/[id]', params: { id: entity.id } })}
+              style={({ pressed }) => [styles.ledgerStrip, pressed && { opacity: 0.85 }]}
+            >
+              <Ionicons name="storefront-outline" size={18} color={colors.primaryDark} />
+              <Text style={styles.ledgerStripText} numberOfLines={1}>
+                Administrar mi negocio
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.primaryDark} />
+            </Pressable>
           </Pressable>
         ))
       )}

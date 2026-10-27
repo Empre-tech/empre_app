@@ -137,7 +137,7 @@ const LEN = 2 * Math.PI * R;
  * llena y el porcentaje; al terminar, un ✓ verde hasta que llega la foto real; si falla, borde rojo con «Reintentar» y
  * «Quitar».
  */
-function UploadTile({ item, size, onRetry, onRemove }: { item: UploadItem; size: number; onRetry: () => void; onRemove: () => void }) {
+export function UploadTile({ item, size, onRetry, onRemove }: { item: UploadItem; size: number; onRetry: () => void; onRemove: () => void }) {
   const pct = Math.round(item.progress * 100);
   const failed = item.status === 'failed';
   const done = item.status === 'done';

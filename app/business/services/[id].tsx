@@ -11,7 +11,7 @@ import { track } from '@/analytics/track';
 import { AskSheet } from '@/components/profile/AskSheet';
 import { CatalogRow } from '@/components/profile/CatalogSection';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
-import { catalogCopy, catalogCount, catalogGroups, filterCatalog, type ServiceItem } from '@/lib/catalog';
+import { catalogCopy, catalogCount, catalogGroups, filterCatalog, publicCatalog, type ServiceItem } from '@/lib/catalog';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 /**
@@ -30,8 +30,8 @@ export default function CatalogScreen() {
   const business = useQuery({ queryKey: ['entity', id], queryFn: () => entitiesApi.get(id ?? ''), enabled: Boolean(id) });
   const catalog = useQuery({ queryKey: ['catalog', id], queryFn: () => catalogApi.list(id ?? ''), enabled: Boolean(id), staleTime: 60_000 });
 
-  const copy = catalogCopy(business.data?.category?.name);
-  const items = useMemo(() => catalog.data ?? [], [catalog.data]);
+  const copy = catalogCopy(business.data?.category?.name, business.data?.business_profile);
+  const items = useMemo(() => publicCatalog(catalog.data ?? []), [catalog.data]);
   const sections = useMemo(() => catalogGroups(items).map((g) => g.section).filter(Boolean), [items]);
   const groups = useMemo(() => catalogGroups(filterCatalog(items, query, section)), [items, query, section]);
 

@@ -20,6 +20,9 @@ import {
   STATUS_LABEL,
   weekdayShort,
 } from '@/lib/agendaFormat';
+import { FEATURES } from '@/config';
+import { newClientId } from '@/lib/ledger';
+import { queueTabOpen } from '@/ledger/ledgerStore';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const DAYS_AHEAD = 14;
@@ -206,7 +209,23 @@ export default function BusinessAgendaScreen() {
                       </Text>
                       {a.out_of_hours ? <Text style={styles.outOfHours}>Fuera de tu horario actual</Text> : null}
                     </View>
-                    <Text style={[styles.apptStatus, { color: STATUS_COLOR[a.status] }]}>{STATUS_LABEL[a.status]}</Text>
+                    {FEATURES.ledger && FEATURES.tabs && a.status === 'confirmed' ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Atender a ${a.customer?.name ?? 'el cliente'}: abrir su cuenta`}
+                        onPress={() => {
+                          // La cuenta arranca con el servicio reservado; lo que compre mientras espera se suma.
+                          const tabId = newClientId();
+                          queueTabOpen(id ?? '', { id: tabId, name: a.customer?.name ?? 'Cliente', appointment_id: a.id });
+                          router.push({ pathname: '/business/ledger/tab', params: { entityId: id ?? '', tabId } });
+                        }}
+                        style={styles.attend}
+                      >
+                        <Text style={styles.attendText}>Atender</Text>
+                      </Pressable>
+                    ) : (
+                      <Text style={[styles.apptStatus, { color: STATUS_COLOR[a.status] }]}>{STATUS_LABEL[a.status]}</Text>
+                    )}
                   </Pressable>
                 ),
               )
@@ -316,6 +335,8 @@ function BlockSheet({
 }
 
 const styles = StyleSheet.create({
+  attend: { minHeight: 40, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  attendText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#fff' },
   screen: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row',

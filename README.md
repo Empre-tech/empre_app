@@ -283,3 +283,15 @@ firma de integridad que exige Wompi → la app abre el widget con esos datos →
 llama al webhook del backend con el resultado (firmado, se verifica antes de aplicarlo) → el backend
 activa la suscripción por 30 días. Renovar antes de que venza extiende desde la fecha de vencimiento
 actual, nunca desde hoy.
+
+## Inventario (Mi negocio, fase 2)
+
+Pantallas en `app/business/ledger/`: `inventory/[id].tsx` (semáforo de 3 toques o cantidad exacta, asistente de arranque en un toque, insumos), `quick/[id].tsx` (atención rápida con fichas de platos y cobro en un paso) y la compra con productos dentro de `expense/[id].tsx`. La lógica pura está en `src/lib/inventory.ts` (prueba con `node --test src/lib/inventory.test.ts`). El dictado entiende frases de inventario («se acabó el jugo», «tengo 12 camisas»).
+
+## Catálogo, inventario e insumos (plan de 8 fases)
+
+- `app/business/products/[id].tsx`: «Lo que vendes · Insumos», pastilla de estado por fila (toque = ajuste rápido en `QuickStockSheet`), variantes plegadas bajo su producto, revisión de «servicio o producto».
+- `app/business/products/item.tsx`: la ficha (servicio o producto, lo que ven los clientes, agenda, cuántos tienes, «también lo uso», insumos con cantidades, variantes, costo).
+- `app/business/ledger/tabs/[id].tsx` y `ledger/tab.tsx`: Mesas / Cuentas abiertas, sin señal (cola en `ledgerStore`, proyección en `src/lib/tabs.ts`). «Atender» en la agenda abre la cuenta con el servicio de la cita.
+- «¿Qué vendes principalmente?» en Datos del negocio (`business_profile`); los textos salen de `catalogCopy(categoría, tipo)`.
+- Pruebas: `node --test src/lib/*.test.ts`.

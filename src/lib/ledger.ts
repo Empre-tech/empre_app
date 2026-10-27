@@ -70,7 +70,18 @@ export function changeText(current: number, previous: number, versus: string): s
 // Cola de registros sin enviar (modo sin conexión)
 // ---------------------------------------------------------------------------
 
-export type OutboxKind = 'party' | 'sale' | 'expense' | 'payment' | 'void_sale' | 'void_expense';
+export type OutboxKind =
+  | 'party'
+  | 'sale'
+  | 'expense'
+  | 'payment'
+  | 'void_sale'
+  | 'void_expense'
+  | 'tab_open'
+  | 'tab_add'
+  | 'tab_remove'
+  | 'tab_pay'
+  | 'tab_cancel';
 
 export interface OutboxItem {
   /** Para ventas, gastos, terceros y abonos es el client_id; para anulaciones, un id propio. */
@@ -101,7 +112,21 @@ export function retryFailed(list: OutboxItem[], id: string): OutboxItem[] {
   return list.map((x) => (x.id === id ? { ...x, status: 'pending' as const, error: undefined } : x));
 }
 
-const ORDER: Record<OutboxKind, number> = { party: 0, sale: 1, expense: 1, payment: 2, void_sale: 3, void_expense: 3 };
+// Las cuentas abiertas: abrir antes que agregar, agregar y quitar antes que cobrar o cancelar (y, dentro de cada
+// grupo, en el orden en que se hizo).
+const ORDER: Record<OutboxKind, number> = {
+  party: 0,
+  sale: 1,
+  expense: 1,
+  tab_open: 1,
+  payment: 2,
+  tab_add: 2,
+  tab_remove: 2,
+  void_sale: 3,
+  void_expense: 3,
+  tab_pay: 3,
+  tab_cancel: 3,
+};
 
 /** En qué orden enviar: primero los terceros (una venta fiada los necesita), luego ventas y gastos, luego abonos y
  * anulaciones; dentro de cada grupo, por antigüedad. */

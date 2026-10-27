@@ -48,8 +48,13 @@ export interface Category {
   icon: string;
   /** Color de marca (hex) para teñir el portal/glifo en el mapa. */
   color?: string;
+  /** Tipo de negocio que esta categoría sugiere. */
+  profile?: BusinessProfile;
   subcategories?: Subcategory[];
 }
+
+/** Tipo de negocio: decide textos y sugerencias (no por el nombre de la categoría). */
+export type BusinessProfile = 'shop' | 'food' | 'service' | 'valuable' | 'other';
 
 /** Versión liviana para el mapa (GET /api/entities). */
 export interface EntityMap {
@@ -139,6 +144,8 @@ export interface EntityDetail {
   service_mode: ServiceMode;
   hours?: BusinessHour[];
   is_open_now: boolean;
+  /** Tipo de negocio (lo sugiere la categoría y el dueño lo puede cambiar). */
+  business_profile?: BusinessProfile;
 }
 
 /** Lista del dueño (GET /api/entities/mine). */
@@ -212,6 +219,8 @@ export interface EntityInput {
   longitude: number;
   service_mode?: ServiceMode;
   hours?: BusinessHour[];
+  /** «¿Qué vendes principalmente?». Vacío = el que sugiere la categoría. */
+  business_profile?: BusinessProfile;
 }
 
 export type EntityImageType = 'profile' | 'banner' | 'gallery';
