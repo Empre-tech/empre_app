@@ -6,46 +6,44 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 
 import { catalogApi } from '@/api/catalog';
 import { entitiesApi } from '@/api/endpoints';
-import { useAuth } from '@/auth/AuthContext';
-import { track } from '@/analytics/track';
-import { AskSheet } from '@/components/profile/AskSheet';
-import { CatalogRow } from '@/components/profile/CatalogSection';
+import { CatalogFilters } from '@/components/catalog/CatalogFilters';
+import { CatalogItems } from '@/components/catalog/CatalogItems';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
-import { catalogCopy, catalogCount, catalogGroups, filterCatalog, publicCatalog, type ServiceItem } from '@/lib/catalog';
+import { audienceChips, catalogCopy, catalogCount, catalogGroups, filterCatalog, matchesAudience, publicCatalog, sectionChips, type Audience, type ServiceItem } from '@/lib/catalog';
+import { safeIcon } from '@/lib/icons';
+import { displayIcon } from '@/lib/mapView';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 /**
  * El catálogo completo de un negocio (3.27/3.28): se llama según el tipo de negocio (Carta, Servicios, Productos…), con
- * buscador (sin tildes ni mayúsculas) y chips por sección cuando el dueño las usa. Tocar un ítem abre el mensaje para
- * preguntar por él. Solo el catálogo habitual: las ofertas tienen su propia pantalla.
+ * buscador (sin tildes ni mayúsculas) y chips por sección cuando el dueño las usa. Tocar un ítem abre su detalle
+ * (fotos, descripción y preguntar). Solo el catálogo habitual: las ofertas tienen su propia pantalla.
  */
 export default function CatalogScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, section: initialSection, audience: initialAudience } = useLocalSearchParams<{ id: string; section?: string; audience?: Audience }>();
   const router = useRouter();
-  const { status } = useAuth();
   const [query, setQuery] = useState('');
-  const [section, setSection] = useState('');
-  const [asking, setAsking] = useState<ServiceItem | null>(null);
+  const [section, setSection] = useState(initialSection ?? '');
+  const [audience, setAudience] = useState<Audience | null>(initialAudience ?? null);
 
   const business = useQuery({ queryKey: ['entity', id], queryFn: () => entitiesApi.get(id ?? ''), enabled: Boolean(id) });
-  const catalog = useQuery({ queryKey: ['catalog', id], queryFn: () => catalogApi.list(id ?? ''), enabled: Boolean(id), staleTime: 60_000 });
+  const catalog = useQuery({ queryKey: ['catalog', id, 'sections'], queryFn: () => catalogApi.listWithSections(id ?? ''), enabled: Boolean(id), staleTime: 60_000 });
 
   const copy = catalogCopy(business.data?.category?.name, business.data?.business_profile);
-  const items = useMemo(() => publicCatalog(catalog.data ?? []), [catalog.data]);
-  const sections = useMemo(() => catalogGroups(items).map((g) => g.section).filter(Boolean), [items]);
-  const groups = useMemo(() => catalogGroups(filterCatalog(items, query, section)), [items, query, section]);
+  const items = useMemo(() => publicCatalog(catalog.data?.items ?? []), [catalog.data]);
+  // El orden de las secciones es el del negocio (las que tienen productos), con «Otros» al final.
+  const order = useMemo(() => (catalog.data?.sections ?? []).map((s) => s.name), [catalog.data]);
+  const audiences = useMemo(() => (catalog.data?.audience ? audienceChips(items) : []), [catalog.data, items]);
+  const forAudience = useMemo(() => items.filter((i) => matchesAudience(i.audience, audience)), [items, audience]);
+  // Las secciones siempre se ven (salen de todos los productos); el conteo es el del filtro «Para».
+  const chips = useMemo(() => sectionChips(items, order, forAudience), [items, order, forAudience]);
+  const groups = useMemo(() => catalogGroups(filterCatalog(forAudience, query, section), order), [forAudience, query, section, order]);
 
-  const send = (message: string) => {
-    setAsking(null);
-    if (status !== 'signedIn') {
-      router.push('/(auth)/login');
-      return;
-    }
-    const b = business.data;
-    if (!b) return;
-    track('contact_started', b.id);
-    router.push({ pathname: '/chat/[entityId]', params: { entityId: b.id, name: b.name, avatar: b.profile_url, draft: message } });
-  };
+  // Sin foto, cada producto muestra el ícono de su sección (o el de la categoría del negocio).
+  const icons = useMemo(() => new Map((catalog.data?.sections ?? []).map((x) => [x.name, x.icon])), [catalog.data]);
+  const fallback = safeIcon(displayIcon(business.data?.category?.icon), 'pricetag-outline');
+  const iconOf = (item: ServiceItem) => safeIcon(icons.get(item.section ?? ''), fallback);
+  const open = (item: ServiceItem) => router.push({ pathname: '/business/product', params: { entityId: id ?? '', itemId: item.id } });
 
   return (
     <View style={styles.screen}>
@@ -71,29 +69,27 @@ export default function CatalogScreen() {
               </Pressable>
             ) : null}
           </View>
-          {sections.length > 1 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-              {['', ...sections].map((s) => {
-                const on = s === section;
-                return (
-                  <Pressable key={s || 'all'} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setSection(s)} style={[styles.chip, on && styles.chipOn]}>
-                    <Text style={[styles.chipText, on && styles.chipTextOn]}>{s || 'Todos'}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          ) : null}
+          <CatalogFilters
+            sections={chips}
+            total={forAudience.length}
+            section={section}
+            onSection={setSection}
+            audiences={audiences}
+            audience={audience}
+            onAudience={setAudience}
+          />
           <Text style={styles.count} accessibilityLiveRegion="polite">
-            {query || section ? `${catalogCount(copy, groups.reduce((n, g) => n + g.items.length, 0))} de ${items.length}` : catalogCount(copy, items.length)}
+            {query || section || audience ? `${catalogCount(copy, groups.reduce((n, g) => n + g.items.length, 0))} de ${items.length}` : catalogCount(copy, items.length)}
           </Text>
           {groups.length === 0 ? (
             <View style={styles.empty}>
-              <Text style={styles.emptyText}>Nada coincide con «{query}».</Text>
+              <Text style={styles.emptyText}>{query ? `Nada coincide con «${query}».` : 'Nada por aquí con este filtro.'}</Text>
               <Pressable
                 accessibilityRole="button"
                 onPress={() => {
                   setQuery('');
                   setSection('');
+                  setAudience(null);
                 }}
                 style={styles.emptyBtn}
               >
@@ -108,17 +104,12 @@ export default function CatalogScreen() {
                     {g.section} · {g.items.length}
                   </Text>
                 ) : null}
-                <View style={styles.card}>
-                  {g.items.map((item, i) => (
-                    <CatalogRow key={item.id} item={item} color={business.data?.category?.color} icon={business.data?.category?.icon} first={i === 0} onPress={() => setAsking(item)} />
-                  ))}
-                </View>
+                <CatalogItems items={g.items} iconOf={iconOf} color={business.data?.category?.color} onOpen={open} />
               </View>
             ))
           )}
         </ScrollView>
       )}
-      <AskSheet item={asking?.name ?? null} businessName={business.data?.name ?? ''} copy={copy} onClose={() => setAsking(null)} onSend={send} />
     </View>
   );
 }
@@ -130,15 +121,9 @@ const styles = StyleSheet.create({
   search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, paddingLeft: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   searchInput: { flex: 1, minHeight: 44, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink },
   clear: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  chips: { gap: 6 },
-  chip: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  chipTextOn: { color: '#fff' },
   count: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   group: { gap: spacing.sm },
   groupTitle: { fontSize: 12, fontFamily: fonts.ui.extrabold, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.muted },
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, paddingHorizontal: spacing.md },
   empty: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl },
   emptyText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.muted },
   emptyBtn: { minHeight: 44, paddingHorizontal: spacing.lg, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, justifyContent: 'center' },

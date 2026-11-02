@@ -177,6 +177,20 @@ export interface ChatMessage {
   /** "appointment" = tarjeta de una cita dentro del hilo (ver appointment_id). */
   kind?: 'text' | 'appointment';
   appointment_id?: string;
+  /** El producto o servicio por el que se pregunta (tarjeta arriba del texto). */
+  item_id?: string;
+  item?: ChatMessageItem;
+}
+
+/** Cómo se veía el producto al preguntar por él (el servidor guarda la copia). */
+export interface ChatMessageItem {
+  id: string;
+  name: string;
+  price: number | null;
+  price_from: boolean;
+  /** Id de la primera foto (ver `mediaUrl`). */
+  photo?: string;
+  section?: string;
 }
 
 export interface ConversationParty {

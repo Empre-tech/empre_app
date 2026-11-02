@@ -135,15 +135,19 @@ export interface Block<T> {
 
 export const NO_SECTION = 'Otros';
 
-/** Agrupa por la sección del catálogo (Almuerzos, Bebidas…), en orden alfabético y con «Otros» al final. */
-export function sectionize<T extends { section?: string; name: string }>(items: T[]): Block<T>[] {
+/**
+ * Agrupa por la sección del catálogo (Almuerzos, Bebidas…). Con `order` (las secciones del negocio en su orden), sigue
+ * ese orden; lo demás, en orden alfabético. «Otros» siempre al final.
+ */
+export function sectionize<T extends { section?: string; name: string }>(items: T[], order: string[] = []): Block<T>[] {
   const map = new Map<string, T[]>();
   for (const i of items) {
     const key = (i.section ?? '').trim() || NO_SECTION;
     map.set(key, [...(map.get(key) ?? []), i]);
   }
+  const rank = (s: string) => (s === NO_SECTION ? Number.MAX_SAFE_INTEGER : order.indexOf(s) === -1 ? order.length : order.indexOf(s));
   return [...map.entries()]
-    .sort(([a], [b]) => (a === NO_SECTION ? 1 : b === NO_SECTION ? -1 : a.localeCompare(b, 'es')))
+    .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b, 'es'))
     .map(([title, list]) => ({ title, items: list }));
 }
 
@@ -167,6 +171,25 @@ export function stockPill(i: InvLike & { is_service?: boolean }): { label: strin
   const unit = !i.unit || i.unit === 'unidad' ? 'und' : i.unit;
   if (i.status === 'low') return { label: `Quedan ${fmtQty(i.qty)}`, tone: 'low' };
   return { label: `${fmtQty(i.qty)} ${unit}`, tone: 'neutral' };
+}
+
+/**
+ * Una línea que resume una sección en la lista del dueño: lo que se acabó, lo que se acaba pronto o que todo está bien.
+ * Un producto con variantes cuenta por sus variantes (`children`).
+ */
+export function sectionSummary(items: (InvLike & { is_service?: boolean; children?: (InvLike & { is_service?: boolean })[] })[]): { text: string; tone: 'out' | 'low' | 'ok' | 'muted' } {
+  const flat = items.flatMap((i) => (i.children && i.children.length ? i.children : [i]));
+  const tones = flat.map((i) => stockPill(i).tone);
+  const out = tones.filter((t) => t === 'out').length;
+  const low = tones.filter((t) => t === 'low').length;
+  if (out > 0) {
+    const first = out === 1 ? '1 se acabó' : `${out} se acabaron`;
+    return { text: low > 0 ? `${first} · ${low} se acaban pronto` : first, tone: 'out' };
+  }
+  if (low > 0) return { text: low === 1 ? '1 se acaba pronto' : `${low} se acaban pronto`, tone: 'low' };
+  if (tones.every((t) => t === 'service')) return { text: tones.length === 1 ? '1 servicio' : `${tones.length} servicios`, tone: 'muted' };
+  if (tones.every((t) => t === 'muted' || t === 'service')) return { text: 'Sin control de existencias', tone: 'muted' };
+  return { text: 'Todo con existencias', tone: 'ok' };
 }
 
 /** Las dos pestañas: lo que se vende (productos y servicios) y los insumos (incluye productos que también se usan). */

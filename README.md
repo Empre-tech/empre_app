@@ -226,8 +226,8 @@ npx expo run:android      # hay que reconstruir el build nativo
 ## Productos, avisos y Empre Finance
 
 - **Lista de Productos e inventario** (`app/business/products/[id].tsx`): arriba, la tarjeta «Tienes N cosas por revisar», con una línea por tipo de aviso y «Ver los N avisos». La tarjeta no nombra productos.
-- Pestañas **Lo que vendes** e **Insumos** (la de insumos aparece si el negocio usa insumos). En Insumos: filtros, grupos (`supply_group`) y el botón flotante **+ Insumo**.
-- **+ Insumo** (`src/components/inventory/NewSupplySheet.tsx`): nombre, grupo y cómo llevas la cuenta (semáforo, o cuento con unidad). «Guardar y otro» deja el mismo grupo para cargar varios seguidos. Avisa si el insumo ya existe.
+- Pestañas **Lo que vendes** e **Insumos** (la de insumos aparece si el negocio usa insumos). En Insumos: filtros, secciones de insumo y el botón flotante **+ Insumo**.
+- **+ Insumo** (`src/components/inventory/NewSupplySheet.tsx`): nombre, sección (obligatoria) y cómo llevas la cuenta (semáforo, o cuento con unidad). «Guardar y otro» deja la misma sección para cargar varios seguidos. Avisa si el insumo ya existe.
 - **Avisos** (`app/business/products/alerts.tsx`): Se acabaron, Se te acaban pronto, Platos en riesgo y Sin control. Desde ahí van el botón **Ya llegó** y **Enviar lista de compras por WhatsApp**. La lógica está en `src/lib/alerts.ts`.
 - **Ya llegó** (`src/components/inventory/ArrivedSheet.tsx`): suma lo que llegó, con atajos «1 paca de N» y «Como la última vez». Si se pagó en el momento, registra el gasto de mercancía y actualiza el costo. A crédito se registra desde Gastar, con el proveedor.
 - **Ficha del producto** (`app/business/products/item.tsx`) rediseñada: servicio o producto, precio fijo o desde, vista previa, margen («Solo para ti») y «Más opciones».
@@ -236,6 +236,44 @@ npx expo run:android      # hay que reconstruir el build nativo
 - **Mapa**: si el GPS tarda más de 4 s, se usa la región por defecto (`STARTUP_FIX_WAIT_MS` en `app/(tabs)/index.tsx`). Antes se quedaba cargando.
 
 Pruebas de la lógica pura: `node --test src/lib/*.test.ts`.
+
+## Secciones del catálogo
+
+Todo producto, servicio e insumo va en una sección del catálogo de Empre. El dueño elige; no crea secciones.
+
+- **Elegir sección** (`src/components/catalog/SectionSheet.tsx`): arriba «Tus secciones» (las de su tipo de negocio y
+  las que agregó, con cuántos ítems tiene cada una); debajo «Más secciones» con buscador sobre todo el catálogo. Si no
+  está, «Pedir «…»» manda la petición al equipo y, mientras tanto, el ítem va en «Otros».
+- **Fichas de sección** (`src/components/catalog/SectionChooser.tsx`): la versión corta para insumos (+ Insumo, la
+  hoja de ajuste rápido y el selector de insumos de una receta), con «Más…» que abre la hoja.
+- **Ficha del producto**: la sección es obligatoria. Sin elegir, se propone una por el nombre («gaseosa» → Bebidas)
+  con un diccionario de palabras (`src/lib/sections.ts`, sin IA); el dueño la confirma con un toque.
+- **Lista del dueño** (`app/business/products/[id].tsx`, «Lo que vendes»): arranca con una fila por sección (cuántos
+  tiene y si algo se acabó o se acaba pronto). Al tocar una se ven solo sus productos, con las demás secciones como
+  fichas para saltar, el filtro «Para» en ropa y el botón «Agregar en …», que crea el producto ya en esa sección. El
+  buscador y «Se acaban» buscan en todo. El botón atrás del teléfono vuelve a las secciones.
+- **Perfil público** (`src/components/profile/CatalogSection.tsx`) y «Ver todos» (`app/business/services/[id].tsx`):
+  las secciones son fichas para filtrar (`src/components/catalog/CatalogFilters.tsx`), solo las que tienen productos,
+  en el orden del negocio y «Otros» al final; el perfil muestra los primeros 5 de lo elegido y «Ver los N…» abre «Ver
+  todos» con el mismo filtro. Así, con muchas secciones el perfil no crece.
+- **Fotos de productos** (`src/components/catalog/ProductPhotos.tsx`): hasta 3 en la ficha, tomadas con la cámara o
+  de la galería. Cada una se sube al elegirla y se guarda con la ficha; la primera es la portada y mantener
+  presionada otra la vuelve portada. En «Lo que vendes», un aviso «N productos sin foto» lleva a la lista de los que
+  faltan.
+- **Tarjetas o lista** (`src/components/catalog/CatalogItems.tsx`): en el perfil y en «Ver todos», si al menos la
+  mitad de lo que se muestra tiene foto, van tarjetas de dos columnas; si no, lista con miniatura. Sin foto se ve el
+  ícono de la sección (`sections.icon`, con `safeIcon` si la app no conoce el nombre).
+- **Detalle del producto** (`app/business/product.tsx`): lo abre el cliente al tocar un producto. Fotos para
+  deslizar (un toque las abre a pantalla completa), sección y para quién, precio, opciones (las variantes; las
+  agotadas, tachadas), descripción y «Preguntar por este producto», que abre el chat con el mensaje listo.
+- **Cámara**: `app.config.ts` agrega el permiso de cámara al selector de fotos. En iOS hace falta recompilar el
+  build (`npx expo run:ios`); en Android el permiso ya estaba (lo pedía el lector de QR).
+- **Para quién** (ropa, calzado y deporte): en la ficha, «¿Para quién es?» (Hombre, Mujer, Niños, Unisex; varios a la
+  vez, opcional). En el perfil y en «Ver todos», «Para: Todos · Hombre · Mujer · Niños»; Hombre y Mujer incluyen lo
+  unisex. Lógica en `src/lib/catalog.ts` (`matchesAudience`, `audienceChips`, `sectionChips`).
+- **Panel de admin** (`app/admin/sections.tsx`, ícono de álbumes en Administración): las secciones pedidas, para
+  agregarlas al catálogo (con el nombre corregido si hace falta) o descartarlas.
+- Datos: `src/api/sections.ts` (`useEntitySections`). Pruebas: `node --test src/lib/sections.test.ts src/lib/catalogGroups.test.ts`.
 
 ## Estructura
 

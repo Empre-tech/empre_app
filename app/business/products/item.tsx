@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
@@ -7,7 +8,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { catalogApi } from '@/api/catalog';
 import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi, type InventoryItem, type StockMode } from '@/api/ledger';
+import { useAudienceEnabled, useEntitySections, type SectionPick } from '@/api/sections';
 import { Button } from '@/components/Button';
+import { ProductPhotos, readyIds, slotsFrom, type PhotoSlot } from '@/components/catalog/ProductPhotos';
 import { SectionSheet } from '@/components/catalog/SectionSheet';
 import { QuickStockSheet } from '@/components/inventory/QuickStockSheet';
 import { SupplyPicker, type NewSupply, type PickerChoice } from '@/components/inventory/SupplyPicker';
@@ -15,10 +18,12 @@ import { Chip } from '@/components/ledger/parts';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { TextField } from '@/components/TextField';
 import { FEATURES } from '@/config';
-import { catalogCopy, defaultItemKind, parsePriceInput, type ItemKind } from '@/lib/catalog';
+import { AUDIENCE_OPTIONS, audienceText, catalogCopy, defaultItemKind, parsePriceInput, type ItemKind } from '@/lib/catalog';
+import { mediaUrl } from '@/lib/image';
 import { fmtQty, itemLine, MODE_LABEL, splitTabs } from '@/lib/inventory';
 import { formatPesos, newClientId } from '@/lib/ledger';
-import { groupOf, marginOf, NO_GROUP, sectionCounts } from '@/lib/supplies';
+import { suggestSection } from '@/lib/sections';
+import { groupOf, marginOf, NO_GROUP } from '@/lib/supplies';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const DURATIONS = [15, 30, 45, 60, 90];
@@ -36,7 +41,7 @@ const TRACK: { mode: StockMode; label: string; hint: string }[] = [
  * Todo se guarda con un botón; los ajustes de existencias de un producto que ya existe se guardan al instante.
  */
 export default function ItemScreen() {
-  const { entityId: rawEntity, itemId } = useLocalSearchParams<{ entityId: string; itemId?: string }>();
+  const { entityId: rawEntity, itemId, sectionId, sectionName } = useLocalSearchParams<{ entityId: string; itemId?: string; sectionId?: string; sectionName?: string }>();
   const entityId = rawEntity ?? '';
   const isNew = !itemId;
   const router = useRouter();
@@ -53,13 +58,20 @@ export default function ItemScreen() {
   const supplyChoices = useMemo(() => splitTabs(inv.data?.items ?? []).supplies.filter((s) => s.ref !== itemId), [inv.data, itemId]);
   const parent = useMemo(() => (existing?.parent_id ? (catalog.data ?? []).find((i) => i.id === existing.parent_id) ?? null : null), [catalog.data, existing]);
   const variants = useMemo(() => (itemId ? (inv.data?.items ?? []).filter((i) => i.parent_id === itemId) : []), [inv.data, itemId]);
-  const sections = useMemo(() => sectionCounts((catalog.data ?? []).filter((i) => i.id !== itemId)), [catalog.data, itemId]);
+  // Las secciones del negocio (las de su tipo de negocio y las que agregó), con cuántos productos tiene cada una.
+  const sectionsQ = useEntitySections(entityId, 'sell');
+  const sections = useMemo(() => sectionsQ.data ?? [], [sectionsQ.data]);
 
   const [kind, setKind] = useState<ItemKind>('product');
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [from, setFrom] = useState(false);
-  const [section, setSection] = useState('');
+  const [section, setSection] = useState<SectionPick | null>(null);
+  // Para quién es (ropa, calzado, deporte).
+  const audOn = useAudienceEnabled(entityId);
+  const [audience, setAudience] = useState<string[]>([]);
+  // Fotos (hasta 3): se suben al elegirlas y se guardan con la ficha.
+  const [photos, setPhotos] = useState<PhotoSlot[]>([]);
   const [description, setDescription] = useState('');
   const [duration, setDuration] = useState<number | null>(null);
   const [customDuration, setCustomDuration] = useState('');
@@ -88,6 +100,8 @@ export default function ItemScreen() {
       // Llenado único al llegar los datos (lo protege «loaded»): no hay cascada de renders.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setKind(defaultItemKind(copy));
+      // Agregado desde una sección de la lista: ya nace en ella.
+      if (sectionId && sectionName) setSection({ id: sectionId, name: sectionName });
       // Cómo llevar la cuenta: lo que recomendamos para este tipo de negocio.
       setTrack(inv.data?.mode === 'exact' ? 'exact' : inv.data?.mode === 'none' ? 'none' : 'light');
     } else if (existing) {
@@ -95,7 +109,9 @@ export default function ItemScreen() {
       setName(existing.parent_id ? existing.variant_label ?? '' : existing.name);
       setPrice(existing.price == null || existing.price_inherited ? '' : String(existing.price));
       setFrom(existing.price_from);
-      setSection(existing.section ?? '');
+      setSection(existing.section_id ? { id: existing.section_id, name: existing.section ?? '' } : null);
+      setAudience(existing.audience ?? []);
+      if (!existing.parent_id) setPhotos(slotsFrom(existing.photos));
       setDescription(existing.description ?? '');
       const d = existing.duration_min ?? null;
       setDuration(d);
@@ -109,10 +125,14 @@ export default function ItemScreen() {
       if (stock.also_supply) setMoreOpen(true);
     }
     setLoaded(true);
-  }, [loaded, business.isLoading, catalog.isLoading, inv.isLoading, inv.data, isNew, existing, stock, copy]);
+  }, [loaded, business.isLoading, catalog.isLoading, inv.isLoading, inv.data, isNew, existing, stock, copy, sectionId, sectionName]);
 
   const refresh = async () => {
-    await Promise.all([qc.invalidateQueries({ queryKey: ['catalog', entityId] }), qc.invalidateQueries({ queryKey: ['ledger', entityId] })]);
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ['catalog', entityId] }),
+      qc.invalidateQueries({ queryKey: ['ledger', entityId] }),
+      qc.invalidateQueries({ queryKey: ['sections', entityId] }),
+    ]);
   };
 
   if (!loaded) {
@@ -149,7 +169,11 @@ export default function ItemScreen() {
   const suppliesUpFront = copy.kind === 'food' || isService || original.length > 0;
   const showSupplies = withLedger && !isGroup;
   const showAlsoSupply = withLedger && !isService && !isGroup;
-  const sectionInfo = sections.find((s) => s.name.trim().toLowerCase() === section.trim().toLowerCase());
+  const sectionInfo = section ? sections.find((s) => s.id === section.id) : undefined;
+  // Sin sección elegida, se propone una por el nombre (el dueño confirma con un toque).
+  const suggested = !section && !isVariant ? suggestSection(name, sections) : null;
+  // Cuántos otros productos hay en la sección elegida (sin contar este).
+  const othersInSection = sectionInfo ? Math.max(0, (sectionInfo.count ?? 0) - (existing?.section_id === sectionInfo.id ? 1 : 0)) : 0;
   const previewPrice = parsedPrice == null || parsedPrice === undefined ? 'Pregunta el precio' : `${from ? 'Desde ' : ''}${parsedPrice === 0 ? 'Gratis' : formatPesos(parsedPrice)}`;
 
   const choiceOf = (ref: string): PickerChoice | undefined => {
@@ -179,6 +203,8 @@ export default function ItemScreen() {
   const save = async () => {
     const dur = isService ? (customDuration.trim() ? Number(customDuration.trim()) : duration ?? 0) : 0;
     if (name.trim().length < (isVariant ? 1 : 2)) return setError(isVariant ? 'Escribe la variante, por ejemplo Chocolate o Talla M.' : 'Escribe el nombre (mínimo 2 letras).');
+    if (!isVariant && !section) return setError('Elige la sección en la que va.');
+    if (photos.some((p) => p.uploading)) return setError('Espera a que terminen de subir las fotos.');
     if (parsedPrice === undefined) return setError('El precio debe ser un número, por ejemplo 25.000.');
     if (parsedCost === undefined) return setError('El costo debe ser un número, por ejemplo 18.000.');
     if (isService && (!Number.isInteger(dur) || (dur !== 0 && (dur < 5 || dur > 480)))) return setError('La duración va en minutos, de 5 a 480.');
@@ -199,12 +225,23 @@ export default function ItemScreen() {
         description: description.trim(),
         price: parsedPrice,
         price_from: parsedPrice === null ? false : from,
-        section: section.trim(),
+        ...(isVariant || !section ? {} : { section_id: section.id }),
+        ...(audOn && !isVariant ? { audience } : {}),
         ...(isService ? { duration_min: dur, bookable: FEATURES.agenda ? bookable && dur > 0 : undefined } : {}),
         ...(isVariant ? { variant_label: name.trim() } : {}),
       };
       const saved = isNew ? await catalogApi.create(entityId, { ...input, kind }) : await catalogApi.update(entityId, existing!.id, input);
       const problems: string[] = [];
+      // Fotos: solo si cambiaron (y nunca en una variante, que usa las de su producto).
+      const ids = readyIds(photos);
+      const before = existing?.parent_id ? ids : existing?.photos ?? [];
+      if (!isVariant && (ids.length !== before.length || ids.some((id, i) => id !== before[i]))) {
+        try {
+          await catalogApi.setPhotos(entityId, saved.id, ids);
+        } catch (e) {
+          problems.push(e instanceof Error ? e.message : 'no se guardaron las fotos');
+        }
+      }
       if (withLedger) {
         const tries: Promise<unknown>[] = [];
         if (!isService && parsedCost !== null && parsedCost !== (stock?.cost ?? null)) tries.push(ledgerApi.setItemCost(entityId, saved.id, parsedCost));
@@ -224,7 +261,7 @@ export default function ItemScreen() {
             if (ref.startsWith('new:')) {
               const p = pendingSupplies.find((x) => x.key === ref);
               try {
-                const sp = await ledgerApi.createSupply(entityId, { client_id: newClientId(), name: p?.name ?? '', mode: 'light', group: p?.group || undefined });
+                const sp = await ledgerApi.createSupply(entityId, { client_id: newClientId(), name: p?.name ?? '', mode: 'light', section_id: p?.sectionId });
                 real = sp.id;
               } catch (e) {
                 problems.push(e instanceof Error ? e.message : `No pudimos crear «${p?.name ?? 'el insumo'}»`);
@@ -415,6 +452,7 @@ export default function ItemScreen() {
             <Text style={styles.cardTitle}>Lo que ven tus clientes</Text>
           </View>
           {isVariant && parent ? <Text style={styles.meta}>Variante de «{parent.name}»</Text> : null}
+          {!isVariant ? <ProductPhotos value={photos} onChange={setPhotos} onError={setError} /> : null}
           <TextField
             label={isVariant ? 'Variante' : 'Nombre'}
             placeholder={isVariant ? 'Chocolate' : isService ? 'Corte clásico' : copy.kind === 'food' ? 'Bandeja paisa' : 'Arroz 500 g'}
@@ -467,21 +505,57 @@ export default function ItemScreen() {
           {!isVariant ? (
             <View style={{ gap: spacing.xs }}>
               <Text style={styles.fieldLabel}>Sección</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Sección: ${section.trim() || 'sin sección'}. Cambiar`} onPress={() => setSectionSheet(true)} style={styles.select}>
-                {section.trim() ? (
+              <Pressable accessibilityRole="button" accessibilityLabel={`Sección: ${section?.name || 'sin elegir'}. Cambiar`} onPress={() => setSectionSheet(true)} style={styles.select}>
+                {section ? (
                   <>
                     <View style={styles.sectionPill}>
-                      <Text style={styles.sectionPillText}>{section.trim()}</Text>
+                      <Text style={styles.sectionPillText}>{section.name}</Text>
                     </View>
                     <Text style={[styles.metaSmall, { flex: 1 }]} numberOfLines={1}>
-                      {sectionInfo ? `con ${sectionInfo.count} ${sectionInfo.count === 1 ? 'producto más' : 'productos más'}` : 'sección nueva'}
+                      {othersInSection > 0 ? `con ${othersInSection} ${othersInSection === 1 ? 'producto más' : 'productos más'}` : 'aún sin otros productos'}
                     </Text>
                   </>
                 ) : (
-                  <Text style={[styles.placeholder, { flex: 1 }]}>{sections.length ? 'Elige una de tus secciones' : 'Elige o crea una sección'}</Text>
+                  <Text style={[styles.placeholder, { flex: 1 }]}>Elige la sección</Text>
                 )}
                 <Ionicons name="chevron-forward" size={18} color={colors.muted} />
               </Pressable>
+              {suggested ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Usar la sección ${suggested.name}`}
+                  onPress={() => setSection({ id: suggested.id, name: suggested.name })}
+                  style={styles.suggest}
+                >
+                  <Ionicons name="sparkles-outline" size={16} color={colors.primary} />
+                  <Text style={styles.suggestText}>
+                    ¿Va en <Text style={{ fontFamily: fonts.ui.extrabold }}>{suggested.name}</Text>? Toca para usarla.
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+
+          {audOn && !isVariant ? (
+            <View style={{ gap: spacing.xs }}>
+              <Text style={styles.fieldLabel}>
+                ¿Para quién es? <Text style={styles.metaSmall}>(opcional)</Text>
+              </Text>
+              <View style={styles.audWrap}>
+                {AUDIENCE_OPTIONS.map((o) => {
+                  const on = audience.includes(o.key);
+                  return (
+                    <Chip
+                      key={o.key}
+                      label={o.label}
+                      icon={on ? 'checkmark' : undefined}
+                      selected={on}
+                      onPress={() => setAudience((a) => (on ? a.filter((x) => x !== o.key) : [...a, o.key]))}
+                    />
+                  );
+                })}
+              </View>
+              <Text style={styles.metaSmall}>Puedes marcar más de uno. Tus clientes filtran por esto en tu perfil.</Text>
             </View>
           ) : null}
 
@@ -491,7 +565,7 @@ export default function ItemScreen() {
             value={description}
             onChangeText={setDescription}
             autoCapitalize="sentences"
-            maxLength={240}
+            maxLength={600}
             multiline
             style={{ minHeight: 72, textAlignVertical: 'top', paddingTop: spacing.sm }}
           />
@@ -500,16 +574,20 @@ export default function ItemScreen() {
             <View style={{ gap: spacing.xs }}>
               <Text style={styles.metaSmall}>Así se ve en tu perfil</Text>
               <View style={styles.preview}>
-                <View style={styles.previewIcon}>
-                  <Ionicons name={isService ? 'cut-outline' : 'cube-outline'} size={20} color={colors.muted} />
-                </View>
+                {readyIds(photos)[0] ? (
+                  <Image source={{ uri: mediaUrl(readyIds(photos)[0]) }} style={styles.previewIcon} contentFit="cover" />
+                ) : (
+                  <View style={styles.previewIcon}>
+                    <Ionicons name={isService ? 'cut-outline' : 'cube-outline'} size={20} color={colors.muted} />
+                  </View>
+                )}
                 <View style={{ flex: 1 }}>
                   <Text style={styles.previewName} numberOfLines={1}>
                     {isVariant && parent ? `${parent.name} · ${name.trim()}` : name.trim()}
                   </Text>
-                  {description.trim() ? (
+                  {description.trim() || (audOn && audience.length > 0) ? (
                     <Text style={styles.metaSmall} numberOfLines={1}>
-                      {description.trim()}
+                      {[description.trim(), audOn ? audienceText(audience) : ''].filter(Boolean).join(' · ')}
                     </Text>
                   ) : null}
                 </View>
@@ -732,8 +810,8 @@ export default function ItemScreen() {
       </View>
 
       <QuickStockSheet entityId={entityId} item={sheet ? stock : null} onClose={() => setSheet(false)} onChanged={() => void refresh()} />
-      <SupplyPicker visible={picker} forName={name.trim()} choices={pickerChoices} selected={picked} onClose={() => setPicker(false)} onDone={onPicked} />
-      <SectionSheet visible={sectionSheet} value={section} sections={sections} ideas={copy.suggest} onPick={setSection} onClose={() => setSectionSheet(false)} />
+      <SupplyPicker visible={picker} entityId={entityId} forName={name.trim()} choices={pickerChoices} selected={picked} onClose={() => setPicker(false)} onDone={onPicked} />
+      <SectionSheet visible={sectionSheet} entityId={entityId} kind="sell" value={section?.id} onPick={setSection} onClose={() => setSectionSheet(false)} />
     </KeyboardAvoidingView>
   );
 }
@@ -763,6 +841,9 @@ const styles = StyleSheet.create({
   miniTextOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
   select: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 52, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.lg, paddingHorizontal: spacing.md },
   sectionPill: { minHeight: 30, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.primarySoft, justifyContent: 'center' },
+  audWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  suggest: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 40, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
+  suggestText: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
   sectionPillText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   preview: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.bg },
   previewIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.line, alignItems: 'center', justifyContent: 'center' },

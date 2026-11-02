@@ -203,7 +203,7 @@ export function initialOf(name: string): string {
 
 const SHORT: Record<string, string> = {
   restaurantes: 'Comida',
-  'cafeterias y postres': 'Café',
+  'cafeterias, panaderias y postres': 'Café',
   'bares y vida nocturna': 'Bares',
   'tiendas y comercio': 'Tiendas',
   'belleza y peluqueria': 'Belleza',

@@ -5,7 +5,8 @@ import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, Tex
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ledgerApi, type AdjustReason, type InventoryItem, type StockLevel, type StockMode } from '@/api/ledger';
 import { Button } from '@/components/Button';
-import { GroupChooser } from '@/components/inventory/SupplyPicker';
+import type { SectionPick } from '@/api/sections';
+import { SectionChooser } from '@/components/catalog/SectionChooser';
 import { Chip } from '@/components/ledger/parts';
 import { fmtQty, MODE_LABEL } from '@/lib/inventory';
 import { newClientId } from '@/lib/ledger';
@@ -32,8 +33,6 @@ interface Props {
   onChanged: () => void;
   /** Abre la ficha completa (solo productos y servicios). */
   onOpenDetail?: (item: InventoryItem) => void;
-  /** Grupos de insumos que ya usa el negocio (para cambiar el de un insumo). */
-  groups?: string[];
 }
 
 /**
@@ -46,7 +45,7 @@ export function QuickStockSheet(props: Props) {
   return <SheetBody key={props.item.ref} {...props} item={props.item} />;
 }
 
-function SheetBody({ entityId, item, onClose, onChanged, onOpenDetail, groups = [] }: Props & { item: InventoryItem }) {
+function SheetBody({ entityId, item, onClose, onChanged, onOpenDetail }: Props & { item: InventoryItem }) {
   const insets = useSafeAreaInsets();
   const [error, setError] = useState<string | null>(null);
   const [count, setCount] = useState(() => (item.counted ? fmtQty(item.qty) : ''));
@@ -54,7 +53,7 @@ function SheetBody({ entityId, item, onClose, onChanged, onOpenDetail, groups = 
   const [lose, setLose] = useState('1');
   const [editGroup, setEditGroup] = useState(false);
   // El grupo se ve cambiado al instante (la hoja recibe una copia del ítem).
-  const [groupNow, setGroupNow] = useState(item.group ?? '');
+  const [groupNow, setGroupNow] = useState<SectionPick | null>(item.section_id ? { id: item.section_id, name: item.group ?? '' } : null);
 
   const done = () => {
     onChanged();
@@ -71,7 +70,7 @@ function SheetBody({ entityId, item, onClose, onChanged, onOpenDetail, groups = 
     onError: fail,
   });
   const group = useMutation({
-    mutationFn: (g: string) => ledgerApi.stockSettings(entityId, item.ref, { group: g }),
+    mutationFn: (g: SectionPick) => ledgerApi.stockSettings(entityId, item.ref, { section_id: g.id }),
     onSuccess: (_d, g) => {
       setGroupNow(g);
       setEditGroup(false);
@@ -97,11 +96,11 @@ function SheetBody({ entityId, item, onClose, onChanged, onOpenDetail, groups = 
           {isSupply ? (
             <View style={{ gap: spacing.sm }}>
               <Pressable accessibilityRole="button" accessibilityState={{ expanded: editGroup }} onPress={() => setEditGroup((v) => !v)} style={styles.groupRow}>
-                <Text style={styles.metaSmall}>Grupo</Text>
-                <Text style={[styles.groupName, !groupNow && { color: colors.muted }]}>{groupNow || 'Sin grupo'}</Text>
+                <Text style={styles.metaSmall}>Sección</Text>
+                <Text style={[styles.groupName, !groupNow && { color: colors.muted }]}>{groupNow?.name || 'Elige una'}</Text>
                 <Text style={styles.link}>{editGroup ? 'Listo' : 'Cambiar'}</Text>
               </Pressable>
-              {editGroup ? <GroupChooser groups={groups} value={groupNow} onChange={(g) => group.mutate(g)} /> : null}
+              {editGroup ? <SectionChooser entityId={entityId} kind="supply" value={groupNow} onChange={(g) => group.mutate(g)} /> : null}
             </View>
           ) : null}
 

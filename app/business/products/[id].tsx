@@ -1,12 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image } from 'expo-image';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { catalogApi } from '@/api/catalog';
 import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi, type InventoryItem, type SetupChoice } from '@/api/ledger';
+import { useAudienceEnabled, useEntitySections } from '@/api/sections';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { QuickStockSheet } from '@/components/inventory/QuickStockSheet';
@@ -14,7 +16,7 @@ import { NewSupplySheet } from '@/components/inventory/NewSupplySheet';
 import { Chip } from '@/components/ledger/parts';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { FEATURES } from '@/config';
-import { catalogCopy, freshnessNote, listTitle, priceText, type ItemKind, type ServiceItem } from '@/lib/catalog';
+import { audienceChips, catalogCopy, freshnessNote, listTitle, matchesAudience, priceText, withoutPhoto, type Audience, type ItemKind, type ServiceItem } from '@/lib/catalog';
 import {
   COLLAPSE_OVER,
   groupInventory,
@@ -24,6 +26,7 @@ import {
   PAGE_SIZE,
   recommendationText,
   sectionize,
+  sectionSummary,
   splitTabs,
   stockPill,
   variantPill,
@@ -31,15 +34,19 @@ import {
 } from '@/lib/inventory';
 import { formatPesos } from '@/lib/ledger';
 import { alertsLine, inventoryAlerts } from '@/lib/alerts';
-import { blocksByGroup, filterByStatus, groupSummary, knownGroups, searchSupplies, type SupplyFilter } from '@/lib/supplies';
+import { blocksByGroup, filterByStatus, groupSummary, searchSupplies, type SupplyFilter } from '@/lib/supplies';
+import { safeIcon, type IconName } from '@/lib/icons';
+import { mediaUrl } from '@/lib/image';
 import { useNow } from '@/lib/useNow';
 import { colors, fonts, radius, spacing } from '@/theme';
 
-type Filter = 'all' | 'urgent' | 'service' | 'product';
+type Filter = 'all' | 'urgent' | 'service' | 'product' | 'nophoto';
 
 /**
- * Lo que vendes y tus insumos, en una sola lista. Cada fila dice en una pastilla cómo está (hay, queda poco, 12 und…);
- * tocar la pastilla la ajusta en un toque y tocar la fila abre la ficha, donde vive todo lo demás.
+ * Lo que vendes y tus insumos. Lo que vendes arranca por tus secciones (una fila por sección con cuántos tiene y si algo
+ * se acaba); al tocar una entras solo a sus productos, con las otras secciones como fichas para saltar y, en ropa,
+ * «Para: Hombre · Mujer · Niños». El buscador busca en todo. Cada fila dice en una pastilla cómo está (hay, queda poco,
+ * 12 und…); tocar la pastilla la ajusta en un toque y tocar la fila abre la ficha, donde vive todo lo demás.
  */
 export default function ProductsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -73,6 +80,9 @@ export default function ProductsScreen() {
   // Insumos: null = automático («Atención» si algo se acaba; si no, todos).
   const [supFilter, setSupFilter] = useState<SupplyFilter | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // La sección abierta en «Lo que vendes» (null = la lista de secciones) y el filtro «Para».
+  const [openSection, setOpenSection] = useState<string | null>(null);
+  const [aud, setAud] = useState<Audience | null>(null);
 
   const items = useMemo(() => catalog.data ?? [], [catalog.data]);
   const tabs = useMemo(() => splitTabs(inv.data?.items ?? []), [inv.data]);
@@ -82,6 +92,7 @@ export default function ProductsScreen() {
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['catalog', entityId] });
     void qc.invalidateQueries({ queryKey: ['ledger', entityId] });
+    void qc.invalidateQueries({ queryKey: ['sections', entityId] });
   };
   const setup = useMutation({
     mutationFn: (choice: SetupChoice) => ledgerApi.setupInventory(entityId, choice),
@@ -105,23 +116,64 @@ export default function ProductsScreen() {
   const groups = useMemo(() => groupInventory(sellBase), [sellBase]);
   const urgentRefs = useMemo(() => new Set(groups.urgent.map((i) => i.ref)), [groups]);
   // Con búsqueda, lo urgente va aparte arriba; sin búsqueda, cada cosa en su sección (el aviso lleva a lo urgente).
-  const blocks = useMemo(() => (filter === 'urgent' ? [] : sectionize(q ? sellBase.filter((i) => !urgentRefs.has(i.ref)) : sellBase)), [filter, sellBase, urgentRefs, q]);
+  const sellSections = useEntitySections(entityId, 'sell');
+  const sectionOrder = useMemo(() => (sellSections.data ?? []).map((s) => s.name), [sellSections.data]);
+  const blocks = useMemo(
+    () => (filter === 'urgent' ? [] : sectionize(q ? sellBase.filter((i) => !urgentRefs.has(i.ref)) : sellBase, sectionOrder)),
+    [filter, sellBase, urgentRefs, q, sectionOrder],
+  );
   const attention = useMemo(() => filterByStatus(tabs.supplies, 'attention').length, [tabs.supplies]);
   const supFilterNow: SupplyFilter = supFilter ?? (attention > 0 && tabs.supplies.length > COLLAPSE_OVER ? 'attention' : 'all');
   const supplyList = useMemo(() => filterByStatus(q ? searchSupplies(tabs.supplies, search) : tabs.supplies, q ? 'all' : supFilterNow), [tabs.supplies, q, search, supFilterNow]);
   const supplyBlocks = useMemo(() => blocksByGroup(supplyList), [supplyList]);
-  const supplyGroups = useMemo(() => knownGroups(tabs.supplies.filter((i) => i.kind === 'supply')), [tabs.supplies]);
   const outCount = useMemo(() => filterByStatus(tabs.supplies, 'out').length, [tabs.supplies]);
   const urgentCount = useMemo(() => groupInventory(nested).urgent.length, [nested]);
   const alerts = useMemo(() => inventoryAlerts(inv.data?.items ?? []), [inv.data]);
+
+  // Navegar por secciones (sin búsqueda ni el filtro «Se acaban»).
+  const audOn = useAudienceEnabled(entityId);
+  const audienceOf = useMemo(() => new Map(items.map((i) => [i.id, i.audience ?? []])), [items]);
+  const sectionBlocks = useMemo(() => sectionize(sellBase, sectionOrder), [sellBase, sectionOrder]);
+  const browsing = q === '' && filter !== 'urgent' && filter !== 'nophoto';
+  // Fotos e íconos: la portada de cada producto y el ícono de cada sección (lo que se ve sin foto).
+  const coverOf = useMemo(() => new Map(items.map((i) => [i.id, i.photos?.[0]])), [items]);
+  const sellIcons = useMemo(() => new Map((sellSections.data ?? []).map((s) => [s.name, s.icon])), [sellSections.data]);
+  const supplySections = useEntitySections(entityId, 'supply');
+  const supplyIcons = useMemo(() => new Map((supplySections.data ?? []).map((s) => [s.name, s.icon])), [supplySections.data]);
+  const noPhoto = useMemo(() => new Set(withoutPhoto(items).map((i) => i.id)), [items]);
+  const noPhotoRows = useMemo(() => nested.filter((i) => noPhoto.has(i.item_id ?? i.ref)), [nested, noPhoto]);
+  const current = openSection && sectionBlocks.some((b) => b.title === openSection) ? openSection : null;
+  const currentItems = useMemo(() => (current ? sectionBlocks.find((b) => b.title === current)?.items ?? [] : []), [current, sectionBlocks]);
+  const audChips = useMemo(
+    () => (audOn && current ? audienceChips(currentItems.map((i) => ({ audience: audienceOf.get(i.item_id ?? i.ref) }))) : []),
+    [audOn, current, currentItems, audienceOf],
+  );
+  const shownItems = useMemo(() => currentItems.filter((i) => matchesAudience(audienceOf.get(i.item_id ?? i.ref), aud)), [currentItems, audienceOf, aud]);
+  const openOne = (title: string | null) => {
+    setOpenSection(title);
+    setAud(null);
+  };
+  // El botón atrás del teléfono vuelve de una sección a la lista de secciones.
+  useEffect(() => {
+    if (!browsing || !current || tab !== 'sell') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setOpenSection(null);
+      return true;
+    });
+    return () => sub.remove();
+  }, [browsing, current, tab]);
 
   const defaultOpen = sellBase.length <= COLLAPSE_OVER || q !== '';
   const isOpen = (key: string) => openMap[key] ?? defaultOpen;
   const toggle = (key: string) => setOpenMap((m) => ({ ...m, [key]: !(m[key] ?? defaultOpen) }));
   const more = (key: string) => setShown((m) => ({ ...m, [key]: (m[key] ?? PAGE_SIZE) + PAGE_SIZE }));
 
-  const openDetail = (itemId?: string) =>
-    router.push({ pathname: '/business/products/item', params: itemId ? { entityId, itemId } : { entityId } });
+  const openDetail = (itemId?: string) => {
+    if (itemId) return router.push({ pathname: '/business/products/item', params: { entityId, itemId } });
+    // Agregar desde una sección: el producto nuevo ya nace en ella.
+    const sec = current ? (sellSections.data ?? []).find((s) => s.name === current) : undefined;
+    router.push({ pathname: '/business/products/item', params: sec ? { entityId, sectionId: sec.id, sectionName: sec.name } : { entityId } });
+  };
 
   const title = listTitle(items, copy);
   const loading = catalog.isLoading || (FEATURES.ledger && inv.isLoading);
@@ -159,6 +211,8 @@ export default function ProductsScreen() {
               <ItemRow
                 item={i}
                 first={n === 0}
+                cover={coverOf.get(i.item_id ?? i.ref)}
+                icon={safeIcon(sellIcons.get(i.section ?? ''), 'pricetag-outline')}
                 group={i.children.length > 0 ? { pill: variantPill(i), open } : undefined}
                 onOpen={() => openDetail(i.item_id ?? i.ref)}
                 onPill={() => (i.children.length > 0 ? setExpanded((m) => ({ ...m, [i.ref]: !open })) : setSheet(i))}
@@ -271,7 +325,95 @@ export default function ProductsScreen() {
               </View>
             ) : null}
 
-            {filter !== 'urgent'
+            {browsing && !current && noPhotoRows.length > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${noPhotoRows.length} sin foto. Ver cuáles`}
+                onPress={() => setFilter('nophoto')}
+                style={({ pressed }) => [styles.photoNudge, pressed && { opacity: 0.85 }]}
+              >
+                <Ionicons name="camera-outline" size={18} color={colors.primary} />
+                <Text style={styles.photoNudgeText}>
+                  {noPhotoRows.length === 1 ? '1 producto sin foto' : `${noPhotoRows.length} productos sin foto`}
+                </Text>
+                <Text style={styles.link}>Agregar fotos</Text>
+              </Pressable>
+            ) : null}
+
+            {filter === 'nophoto' ? (
+              <View style={{ gap: spacing.sm }}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Volver a tus secciones" onPress={() => setFilter('all')} style={styles.backRow}>
+                  <Ionicons name="chevron-back" size={18} color={colors.primary} />
+                  <Text style={styles.link}>Tus secciones</Text>
+                </Pressable>
+                <Text style={styles.blockTitle}>Sin foto · {noPhotoRows.length}</Text>
+                <Text style={styles.meta}>Toca uno para agregarle fotos. Con foto, tu producto se ve mejor en tu perfil.</Text>
+                {noPhotoRows.length > 0 ? rowsOf(noPhotoRows, 'nophoto') : <Text style={styles.meta}>¡Todos tus productos tienen foto!</Text>}
+              </View>
+            ) : null}
+
+            {browsing && !current && sectionBlocks.length > 0 ? (
+              <View style={{ gap: spacing.sm }}>
+                <Text style={styles.blockTitle}>Tus secciones · {sectionBlocks.length}</Text>
+                <View style={styles.card}>
+                  {sectionBlocks.map((b, n) => {
+                    const sum = sectionSummary(b.items);
+                    return (
+                      <Pressable
+                        key={b.title}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${b.title}: ${b.items.length}. ${sum.text}. Abrir`}
+                        onPress={() => openOne(b.title)}
+                        style={({ pressed }) => [styles.secRow, n > 0 && styles.itemLine, pressed && { opacity: 0.85 }]}
+                      >
+                        <View style={styles.secCount}>
+                          <Ionicons name={safeIcon(sellIcons.get(b.title), 'pricetag-outline')} size={20} color={colors.primary} />
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={styles.itemName} numberOfLines={1}>
+                            {b.title}
+                          </Text>
+                          <Text style={[styles.secSum, { color: sum.tone === 'out' ? '#B3261E' : sum.tone === 'low' ? colors.accentInk : colors.muted }]} numberOfLines={1}>
+                            {b.items.length} · {sum.text}
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <Text style={[styles.meta, { textAlign: 'center' }]}>Toca una sección para ver sus productos</Text>
+              </View>
+            ) : null}
+
+            {browsing && current ? (
+              <View style={{ gap: spacing.sm }}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Volver a tus secciones" onPress={() => openOne(null)} style={styles.backRow}>
+                  <Ionicons name="chevron-back" size={18} color={colors.primary} />
+                  <Text style={styles.link}>Tus secciones</Text>
+                </Pressable>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+                  {sectionBlocks.map((b) => (
+                    <Chip key={b.title} label={`${b.title} ${b.items.length}`} selected={b.title === current} onPress={() => openOne(b.title)} />
+                  ))}
+                </ScrollView>
+                {audChips.length > 0 ? (
+                  <View style={styles.audRow}>
+                    <Text style={styles.audLabel}>Para</Text>
+                    <Chip label="Todos" selected={aud === null} onPress={() => setAud(null)} />
+                    {audChips.map((a) => (
+                      <Chip key={a.key} label={`${a.label} ${a.count}`} selected={aud === a.key} onPress={() => setAud(aud === a.key ? null : a.key)} />
+                    ))}
+                  </View>
+                ) : null}
+                <Text style={styles.blockTitle}>
+                  {current} · {shownItems.length}
+                </Text>
+                {shownItems.length > 0 ? rowsOf(shownItems, `s:${current}:${aud ?? ''}`) : <Text style={styles.meta}>Nada por aquí con este filtro.</Text>}
+              </View>
+            ) : null}
+
+            {!browsing && filter !== 'urgent' && filter !== 'nophoto'
               ? blocks.map((b) => {
                   const list = b.items;
                   return (
@@ -343,6 +485,8 @@ export default function ProductsScreen() {
                                 key={i.ref}
                                 item={i}
                                 first={n === 0}
+                                icon={safeIcon(i.kind === 'supply' ? supplyIcons.get(i.group ?? '') : sellIcons.get(i.section ?? ''), 'cube-outline')}
+                                cover={i.kind === 'product' ? coverOf.get(i.item_id ?? i.ref) : undefined}
                                 supplyView
                                 onOpen={() => (i.kind === 'supply' ? setSheet(i) : openDetail(i.item_id ?? i.ref))}
                                 onPill={() => setSheet(i)}
@@ -378,16 +522,22 @@ export default function ProductsScreen() {
         </Pressable>
       ) : null}
       {tab === 'sell' ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Agregar un producto o servicio" onPress={() => openDetail()} style={[styles.fab, { bottom: insets.bottom + spacing.lg }]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={browsing && current ? `Agregar en ${current}` : 'Agregar un producto o servicio'}
+          onPress={() => openDetail()}
+          style={[styles.fab, { bottom: insets.bottom + spacing.lg }]}
+        >
           <Ionicons name="add" size={22} color="#fff" />
-          <Text style={styles.fabText}>Agregar</Text>
+          <Text style={styles.fabText} numberOfLines={1}>
+            {browsing && current ? `Agregar en ${current}` : 'Agregar'}
+          </Text>
         </Pressable>
       ) : null}
 
       <NewSupplySheet
         visible={newSupply}
         entityId={entityId}
-        groups={supplyGroups}
         existing={tabs.supplies.map((i) => i.name)}
         onClose={() => setNewSupply(false)}
         onAdded={refresh}
@@ -395,7 +545,6 @@ export default function ProductsScreen() {
       <QuickStockSheet
         entityId={entityId}
         item={sheet}
-        groups={supplyGroups}
         onClose={() => setSheet(null)}
         onChanged={refresh}
         onOpenDetail={(i) => {
@@ -424,8 +573,13 @@ function ItemRow({
   supplyView,
   group,
   child,
+  cover,
+  icon,
 }: {
   item: InventoryItem;
+  /** Id de la foto de portada (productos) y el ícono de su sección (lo que se ve sin foto). */
+  cover?: string;
+  icon?: IconName;
   first: boolean;
   onOpen: () => void;
   onPill: () => void;
@@ -444,6 +598,15 @@ function ItemRow({
     : [item.price ? formatPesos(item.price) : 'Sin precio', item.servings != null ? `alcanza para ${item.servings}` : null].filter(Boolean).join(' · ');
   return (
     <View style={[styles.itemRow, !first && styles.itemLine, child && styles.childRow]}>
+      {!child ? (
+        cover ? (
+          <Image source={{ uri: mediaUrl(cover) }} style={styles.thumb} contentFit="cover" transition={150} />
+        ) : (
+          <View style={[styles.thumb, styles.thumbIcon]}>
+            <Ionicons name={icon ?? 'pricetag-outline'} size={18} color={colors.muted} />
+          </View>
+        )
+      ) : null}
       <Pressable accessibilityRole="button" accessibilityLabel={`${item.name}. ${pill.label}. Abrir`} onPress={onOpen} style={styles.itemMain}>
         <Text style={styles.itemName} numberOfLines={1}>
           {child && item.variant_label ? item.variant_label : item.name}
@@ -571,5 +734,16 @@ const styles = StyleSheet.create({
   review: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.primary },
   reviewRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   fab: { position: 'absolute', right: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 56, paddingHorizontal: 22, borderRadius: 28, backgroundColor: colors.primary, elevation: 4, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-  fabText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  fabText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#fff', maxWidth: 220 },
+  thumb: { width: 40, height: 40, borderRadius: 10, marginLeft: spacing.md },
+  thumbIcon: { backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
+  photoNudge: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
+  photoNudgeText: { flex: 1, fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  secRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 64, paddingHorizontal: spacing.md },
+  secCount: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  secCountText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.primary },
+  secSum: { fontSize: 12.5, fontFamily: fonts.ui.bold },
+  backRow: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 40, alignSelf: 'flex-start' },
+  audRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm },
+  audLabel: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
 });

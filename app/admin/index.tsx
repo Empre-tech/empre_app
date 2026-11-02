@@ -123,6 +123,15 @@ export default function AdminScreen() {
         >
           <Ionicons name="pricetags-outline" size={22} color={colors.primary} />
         </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Secciones pedidas por los negocios"
+          onPress={() => router.push('/admin/sections')}
+          style={styles.categoriesButton}
+          hitSlop={8}
+        >
+          <Ionicons name="albums-outline" size={22} color={colors.primary} />
+        </Pressable>
       </View>
 
       <View style={styles.tabs}>

@@ -12,8 +12,16 @@ export interface ServiceItem {
   confirmed_at: string | null;
   /** Lo calcula el servidor: el precio se fijó o confirmó hace menos de 90 días. */
   fresh: boolean;
-  /** Sección que eligió el dueño («Almuerzos», «Cortes»); vacía = sin sección. */
+  /** Nombre de la sección en la que va («Almuerzos», «Cortes»). */
   section?: string;
+  /** Id de esa sección en el catálogo de secciones de Empre. */
+  section_id?: string | null;
+  /** Para quién es (ropa, calzado, deporte): men, women, kids, unisex. Vacío = no se dijo. */
+  audience?: string[];
+  /** Ids de sus fotos (hasta 3), la primera es la portada. Una variante trae las de su producto. */
+  photos?: string[];
+  /** Se agotó (lo marca el inventario): el perfil lo muestra como «Agotado». */
+  sold_out?: boolean;
   /** Duración en minutos (5–480); null = no publicada. */
   duration_min?: number | null;
   /** Se puede reservar por Empre (exige duración). */
@@ -107,7 +115,7 @@ export function parsePriceInput(raw: string): number | null | undefined {
 
 // ---------- El catálogo en el perfil (3.27/3.28, `perfil_integrado.html`) ----------
 // El modelo es el mismo para cualquier negocio. Lo único que cambia por categoría son los TEXTOS: cómo se llama la
-// lista, su buscador, las secciones que se le sugieren al dueño y el mensaje para preguntar por un ítem. El catálogo y
+// lista, su buscador y el mensaje para preguntar por un ítem. El catálogo y
 // las ofertas son cosas distintas: aquí nunca se mezcla una oferta.
 
 export interface CatalogCopy {
@@ -117,8 +125,6 @@ export interface CatalogCopy {
   plural: string;
   /** Texto del buscador de la pantalla completa. */
   search: string;
-  /** Secciones que se le sugieren al dueño al crear un ítem. */
-  suggest: string[];
   /**
    * Qué se vende, para saber qué pedir al crear un ítem: «service» lleva duración y reserva; «shop» (tienda) lleva
    * costo y cuántos hay; «food» (platos) lleva costo, sin existencias por plato.
@@ -137,7 +143,6 @@ const GENERIC: CatalogCopy = {
   one: 'servicio',
   plural: 'servicios',
   search: 'Buscar un servicio',
-  suggest: [],
   kind: 'service',
   example: 'Corte clásico',
   ask: (i) => `Hola, quisiera información sobre ${i}.`,
@@ -149,7 +154,6 @@ const FOOD: CatalogCopy = {
   one: 'plato',
   plural: 'platos',
   search: 'Buscar en la carta',
-  suggest: ['Almuerzos', 'Platos fuertes', 'Bebidas', 'Postres'],
   kind: 'food',
   example: 'Bandeja paisa',
   ask: (i) => `Hola, ¿hoy tienen ${i}? ¿Hacen domicilio?`,
@@ -158,24 +162,21 @@ const FOOD: CatalogCopy = {
 
 const BY_CATEGORY: Record<string, CatalogCopy> = {
   restaurantes: FOOD,
-  'cafeterias y postres': { ...FOOD, one: 'producto', plural: 'productos', suggest: ['Café', 'Panadería', 'Postres', 'Bebidas'] },
+  'cafeterias, panaderias y postres': { ...FOOD, one: 'producto', plural: 'productos' },
   'bares y vida nocturna': {
     ...FOOD,
     one: 'producto',
     plural: 'productos',
-    suggest: ['Cócteles', 'Cervezas', 'Para picar'],
     ask: (i) => `Hola, ¿hoy tienen ${i}? ¿Hay que reservar?`,
     quick: ['¿Hay que reservar?', '¿Hasta qué hora abren?', '¿Hay música en vivo?'],
   },
   'belleza y peluqueria': {
     ...GENERIC,
-    suggest: ['Cortes', 'Barba', 'Color', 'Uñas'],
     ask: (i) => `Hola, ¿tienen turno hoy para ${i}?`,
     quick: ['¿Tienen turno hoy?', '¿Atienden sin cita?', '¿Cuánto se demora?'],
   },
   'salud y bienestar': {
     ...GENERIC,
-    suggest: ['Consultas', 'Terapias', 'Exámenes'],
     ask: (i) => `Hola, quisiera pedir una cita para ${i}.`,
     quick: ['¿Qué días atienden?', '¿Reciben mi seguro?', '¿Cuánto dura?'],
   },
@@ -185,7 +186,6 @@ const BY_CATEGORY: Record<string, CatalogCopy> = {
     one: 'plan',
     plural: 'planes',
     search: 'Buscar un plan',
-    suggest: ['Mensualidades', 'Clases', 'Alquiler'],
     quick: ['¿Tienen clase de prueba?', '¿Qué horarios hay?'],
   },
   'tiendas y comercio': {
@@ -194,7 +194,6 @@ const BY_CATEGORY: Record<string, CatalogCopy> = {
     one: 'producto',
     plural: 'productos',
     search: 'Buscar un producto',
-    suggest: ['Alimentos', 'Bebidas', 'Aseo', 'Ropa', 'Calzado', 'Accesorios'],
     kind: 'shop',
     example: 'Camiseta básica',
     ask: (i) => `Hola, ¿tienen ${i} disponible?`,
@@ -203,25 +202,21 @@ const BY_CATEGORY: Record<string, CatalogCopy> = {
   tecnologia: {
     ...GENERIC,
     search: 'Buscar un servicio o producto',
-    suggest: ['Reparaciones', 'Accesorios', 'Software'],
     ask: (i) => `Hola, ¿cuánto sale ${i} para mi equipo? ¿Lo hacen hoy?`,
     quick: ['¿Lo hacen hoy?', '¿Dan garantía?', '¿Revisan sin costo?'],
   },
   mascotas: {
     ...GENERIC,
-    suggest: ['Consultas', 'Vacunas', 'Estética', 'Tienda'],
     ask: (i) => `Hola, quisiera pedir una cita para ${i} para mi mascota.`,
     quick: ['¿Atienden gatos?', '¿Tienen urgencias?', '¿Van a domicilio?'],
   },
   'servicios del hogar': {
     ...GENERIC,
-    suggest: ['Reparaciones', 'Instalaciones', 'Mantenimiento'],
     ask: (i) => `Hola, ¿pueden venir para ${i}? ¿Cuándo tienen disponibilidad?`,
     quick: ['¿Pueden venir hoy?', '¿Cobran la visita?', '¿Dan garantía?'],
   },
   automotriz: {
     ...GENERIC,
-    suggest: ['Mecánica', 'Lavado', 'Repuestos'],
     ask: (i) => `Hola, ¿cuánto sale ${i} para mi carro? ¿Lo hacen hoy?`,
     quick: ['¿Lo hacen hoy?', '¿Hay que dejar el carro?'],
   },
@@ -231,7 +226,6 @@ const BY_CATEGORY: Record<string, CatalogCopy> = {
     one: 'curso',
     plural: 'cursos',
     search: 'Buscar un curso',
-    suggest: ['Niños', 'Adultos', 'Virtual'],
     ask: (i) => `Hola, quisiera información sobre ${i}: horarios y cuándo empieza.`,
     quick: ['¿Cuándo empieza?', '¿Es presencial?', '¿Tienen clase de prueba?'],
   },
@@ -241,19 +235,16 @@ const BY_CATEGORY: Record<string, CatalogCopy> = {
     one: 'plan',
     plural: 'planes',
     search: 'Buscar un plan',
-    suggest: ['Habitaciones', 'Tours', 'Paquetes'],
     ask: (i) => `Hola, ¿tienen disponibilidad para ${i}? ¿Para qué fechas?`,
     quick: ['¿Incluye desayuno?', '¿Aceptan mascotas?', '¿Cómo se reserva?'],
   },
   'eventos y fiestas': {
     ...GENERIC,
-    suggest: ['Decoración', 'Comida', 'Sonido'],
     ask: (i) => `Hola, quisiera cotizar ${i} para un evento.`,
     quick: ['¿Tienen la fecha libre?', '¿Para cuántas personas?'],
   },
   'fotografia y diseno': {
     ...GENERIC,
-    suggest: ['Fotografía', 'Diseño', 'Impresión'],
     ask: (i) => `Hola, quisiera cotizar ${i}.`,
     quick: ['¿Cuánto se demora la entrega?', '¿Tienen ejemplos?'],
   },
@@ -352,23 +343,109 @@ export interface CatalogGroup<T> {
 /** Nombre del grupo de lo que no tiene sección cuando el resto sí la tiene. */
 export const NO_SECTION = 'Más';
 
-/** Agrupa por sección en el orden en que aparecen; lo que no tiene sección va al final, bajo «Más». */
-export function catalogGroups<T extends Pick<ServiceItem, 'section'>>(items: T[]): CatalogGroup<T>[] {
-  const order: string[] = [];
+/** La sección que todo negocio tiene, para lo que no encaja en otra: siempre va al final. */
+export const OTHER_SECTION = 'Otros';
+
+/**
+ * Agrupa por sección. Con `order` (los nombres de las secciones en el orden en que el negocio las muestra), sigue ese
+ * orden; sin él, el orden en que aparecen. «Otros» va siempre al final, y lo que no tiene sección (datos viejos), al
+ * final bajo «Más». Si todo cae en una sola sección, un solo grupo sin título.
+ */
+export function catalogGroups<T extends Pick<ServiceItem, 'section'>>(items: T[], order: string[] = []): CatalogGroup<T>[] {
+  const seen: string[] = [];
   const by = new Map<string, T[]>();
   for (const it of items) {
     const key = (it.section ?? '').trim();
     if (!by.has(key)) {
       by.set(key, []);
-      if (key) order.push(key);
+      if (key) seen.push(key);
     }
     by.get(key)?.push(it);
   }
-  if (order.length === 0) return items.length ? [{ section: '', items }] : [];
-  const out = order.map((section) => ({ section, items: by.get(section) ?? [] }));
+  if (seen.length === 0) return items.length ? [{ section: '', items }] : [];
+  const rank = (name: string) => {
+    if (name === OTHER_SECTION) return Number.MAX_SAFE_INTEGER;
+    const i = order.indexOf(name);
+    return i === -1 ? order.length + seen.indexOf(name) : i;
+  };
+  const sorted = [...seen].sort((a, b) => rank(a) - rank(b));
   const none = by.get('') ?? [];
+  if (sorted.length === 1 && none.length === 0) return [{ section: '', items }];
+  const out = sorted.map((section) => ({ section, items: by.get(section) ?? [] }));
   if (none.length) out.push({ section: NO_SECTION, items: none });
   return out;
+}
+
+// ---------- Fotos ----------
+
+/** Cuántas fotos puede tener un producto. */
+export const MAX_ITEM_PHOTOS = 3;
+
+/** ¿Lo que se muestra va en tarjetas con foto? Sí cuando al menos la mitad tiene foto (si no, lista). */
+export function prefersCards(items: Pick<ServiceItem, 'photos'>[]): boolean {
+  if (items.length === 0) return false;
+  const withPhoto = items.filter((i) => (i.photos ?? []).length > 0).length;
+  return withPhoto * 2 >= items.length;
+}
+
+/** Los productos sin foto (las variantes no cuentan: usan las de su producto). */
+export function withoutPhoto<T extends Pick<ServiceItem, 'photos' | 'parent_id'>>(items: T[]): T[] {
+  return items.filter((i) => !i.parent_id && !(i.photos ?? []).length);
+}
+
+// ---------- Para quién (ropa, calzado, deporte) ----------
+
+export type Audience = 'men' | 'women' | 'kids' | 'unisex';
+
+/** Las opciones de «¿Para quién es?», en el orden en que se muestran. */
+export const AUDIENCE_OPTIONS: { key: Audience; label: string }[] = [
+  { key: 'men', label: 'Hombre' },
+  { key: 'women', label: 'Mujer' },
+  { key: 'kids', label: 'Niños' },
+  { key: 'unisex', label: 'Unisex' },
+];
+
+/** Los filtros del perfil (sin «Unisex»: una prenda unisex sale en Hombre y en Mujer). */
+export const AUDIENCE_FILTERS: { key: Audience; label: string }[] = AUDIENCE_OPTIONS.filter((o) => o.key !== 'unisex');
+
+/** «Hombre, Mujer»; vacío si no se dijo. */
+export function audienceText(list: string[] | undefined | null): string {
+  return AUDIENCE_OPTIONS.filter((o) => list?.includes(o.key))
+    .map((o) => o.label)
+    .join(', ');
+}
+
+/** ¿El ítem sale con este filtro? Sin filtro, todos. «Hombre» y «Mujer» incluyen lo unisex. */
+export function matchesAudience(list: string[] | undefined | null, filter: Audience | null): boolean {
+  if (!filter) return true;
+  const own = list ?? [];
+  if (own.includes(filter)) return true;
+  return (filter === 'men' || filter === 'women') && own.includes('unisex');
+}
+
+/** Los filtros «Para» que tienen al menos un ítem, con su conteo. Ninguno si nadie dijo para quién es. */
+export function audienceChips(items: Pick<ServiceItem, 'audience'>[]): { key: Audience; label: string; count: number }[] {
+  if (!items.some((i) => (i.audience ?? []).length > 0)) return [];
+  return AUDIENCE_FILTERS.map((o) => ({ ...o, count: items.filter((i) => matchesAudience(i.audience, o.key)).length })).filter((c) => c.count > 0);
+}
+
+/**
+ * Las secciones como filtros, en el orden del negocio (vacío si el negocio usa una sola o ninguna). Las secciones salen
+ * de todos los ítems, así no desaparecen al filtrar por «Para»; el conteo es el de `counted` (lo que queda con ese
+ * filtro), y una sección puede quedar en 0.
+ */
+export function sectionChips<T extends Pick<ServiceItem, 'section'>>(items: T[], order: string[] = [], counted: T[] = items): { section: string; count: number }[] {
+  const groups = catalogGroups(items, order);
+  if (groups.length <= 1) return [];
+  const count = (s: string) => counted.filter((i) => ((i.section ?? '').trim() || NO_SECTION) === s).length;
+  return groups.map((g) => ({ section: g.section, count: count(g.section) }));
+}
+
+/** Los ítems de una sección (vacía = todas), en el orden de las secciones del negocio. */
+export function itemsInSection<T extends Pick<ServiceItem, 'section'>>(items: T[], section: string, order: string[] = []): T[] {
+  if (!section) return catalogGroups(items, order).flatMap((g) => g.items);
+  // Por nombre, no por los grupos: con un solo grupo, catalogGroups lo deja sin título y la búsqueda no lo encontraría.
+  return items.filter((i) => ((i.section ?? '').trim() || NO_SECTION) === section);
 }
 
 /** Filtra por texto (sin tildes ni mayúsculas, en nombre, descripción y sección) y por sección («» = todas). */

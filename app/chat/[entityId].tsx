@@ -23,7 +23,9 @@ import { useChat } from '@/chat/ChatProvider';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { AppointmentCard } from '@/components/agenda/AppointmentCard';
+import { ChatItemCard } from '@/components/chat/ChatItemCard';
 import { CHAT_MAX_CONTENT_BYTES, CHAT_MAX_CONTENT_CHARS, FEATURES } from '@/config';
+import { parseChatItem } from '@/lib/chatItem';
 import { formatDayLabel, formatMessageTime } from '@/lib/format';
 import { utf8Length } from '@/lib/text';
 import { colors, fonts, radius, spacing } from '@/theme';
@@ -34,7 +36,8 @@ const QUICK_REPLIES = ['¿Horario?', '¿Precios?', '¿Hacen envíos?'];
 
 export default function ChatScreen() {
   // `draft`: un mensaje ya escrito (por ejemplo, preguntar por un ítem del catálogo); la persona lo revisa y lo envía.
-  const { entityId, userId, name, avatar, draft } = useLocalSearchParams<{ entityId: string; userId?: string; name?: string; avatar?: string; draft?: string }>();
+  // `item`: el producto por el que se pregunta (JSON); va como tarjeta con el primer mensaje.
+  const { entityId, userId, name, avatar, draft, item: itemParam } = useLocalSearchParams<{ entityId: string; userId?: string; name?: string; avatar?: string; draft?: string; item?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -47,6 +50,8 @@ export default function ChatScreen() {
 
   const [text, setText] = useState(() => (typeof draft === 'string' ? draft.slice(0, 1000) : ''));
   const [error, setError] = useState<string | null>(null);
+  // La tarjeta del producto que se va a mandar con el próximo mensaje (se puede quitar).
+  const [attached, setAttached] = useState(() => parseChatItem(itemParam));
   // Mensajes nuevos de esta sesión (más nuevo primero): entrantes + los que enviamos nosotros.
   const [live, setLive] = useState<ChatMessage[]>([]);
 
@@ -200,7 +205,7 @@ export default function ChatScreen() {
       return;
     }
 
-    const sent = chat.send({ entity_id: entityId, user_id: customerId, sent_by_entity: sentByEntity, content });
+    const sent = chat.send({ entity_id: entityId, user_id: customerId, sent_by_entity: sentByEntity, content, ...(attached ? { item_id: attached.id } : {}) });
     if (!sent) {
       setError('Sin conexión con el chat. Reintentando…');
       return;
@@ -216,9 +221,11 @@ export default function ChatScreen() {
         content,
         is_read: false,
         created_at: new Date().toISOString(),
+        ...(attached ? { item_id: attached.id, item: attached } : {}),
       },
       ...prev,
     ]);
+    setAttached(null);
     setText('');
     setError(null);
     void queryClient.invalidateQueries({ queryKey: ['conversations'] });
@@ -324,7 +331,14 @@ export default function ChatScreen() {
                   </View>
                 ) : (
                 <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
-                  <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
+                  <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs, item.item && styles.bubbleWithItem]}>
+                    {item.item ? (
+                      <ChatItemCard
+                        item={item.item}
+                        mine={mine}
+                        onPress={() => router.push({ pathname: '/business/product', params: { entityId, itemId: item.item!.id } })}
+                      />
+                    ) : null}
                     <Text style={[styles.bubbleText, mine && styles.bubbleTextMine]}>{item.content}</Text>
                     <View style={styles.bubbleMeta}>
                       <Text style={[styles.time, mine && styles.timeMine]}>{formatMessageTime(item.created_at)}</Text>
@@ -373,6 +387,13 @@ export default function ChatScreen() {
             </Pressable>
           ))}
         </ScrollView>
+      ) : null}
+
+      {authStatus === 'signedIn' && attached ? (
+        <View style={styles.attached}>
+          <Text style={styles.attachedLabel}>Preguntas por</Text>
+          <ChatItemCard item={attached} onRemove={() => setAttached(null)} />
+        </View>
       ) : null}
 
       {authStatus === 'signedIn' ? (
@@ -479,6 +500,9 @@ const styles = StyleSheet.create({
   bubble: { maxWidth: '80%', borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: 2 },
   bubbleMine: { backgroundColor: colors.primary, borderBottomRightRadius: 4 },
   bubbleTheirs: { backgroundColor: colors.surface, borderBottomLeftRadius: 4 },
+  bubbleWithItem: { gap: spacing.xs, paddingTop: spacing.xs + 2, paddingHorizontal: spacing.xs + 2 },
+  attached: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, gap: 4, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.surface },
+  attachedLabel: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
   bubbleText: { fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink },
   bubbleTextMine: { color: '#fff' },
   bubbleMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end' },

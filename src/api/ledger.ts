@@ -267,8 +267,10 @@ export interface InventoryItem {
   stock_id?: string;
   /** Producto que además se usa como insumo («también lo uso»). */
   also_supply?: boolean;
-  /** Grupo del insumo (Carnes, Verduras…). Un producto que también se usa trae su sección. */
+  /** Sección del insumo (Carnes y pollo, Desechables y empaques…): su nombre y su id. Un producto que también se usa trae
+   * su sección del catálogo (solo el nombre). */
   group?: string;
+  section_id?: string;
   /** Para cuántas unidades alcanzan sus insumos (si todos tienen cantidad y se cuentan) y cuál limita. */
   servings?: number | null;
   limit?: string;
@@ -376,8 +378,8 @@ export interface ItemSettings {
   clear_low_at?: boolean;
   /** «También lo uso en mis servicios o platos» (solo productos). */
   also_supply?: boolean;
-  /** Grupo de un insumo ("" lo deja sin grupo). */
-  group?: string;
+  /** Cambia la sección de un insumo (solo insumos). */
+  section_id?: string;
 }
 
 export interface VoiceLine {
@@ -480,7 +482,7 @@ export const ledgerApi = {
     entityId: string,
     input: { client_id: string; ref: string; counted?: number; delta?: number; reason?: AdjustReason },
   ) => request<InventoryItem>(`${base(entityId)}/inventory/adjust`, { method: 'POST', body: input }),
-  createSupply: (entityId: string, input: { client_id: string; name: string; unit?: string; mode?: StockMode; qty?: number; group?: string }) =>
+  createSupply: (entityId: string, input: { client_id: string; name: string; unit?: string; mode?: StockMode; qty?: number; section_id?: string }) =>
     request<{ id: string; name: string }>(`${base(entityId)}/supplies`, { method: 'POST', body: input }),
   /** «Ya llegó»: suma lo que llegó y, con `paid`, registra la compra como gasto de mercancía. */
   arrived: (entityId: string, ref: string, input: { client_id: string; qty: number; paid?: number; method?: 'cash' | 'transfer' | 'card' }) =>

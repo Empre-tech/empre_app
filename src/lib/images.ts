@@ -39,6 +39,24 @@ export async function pickImage({ aspect, maxWidth = 1600 }: PickOptions = {}): 
 }
 
 
+/**
+ * Abre la cámara y devuelve la foto lista para subir (JPEG reducido), o null si se cancela.
+ */
+export async function takePhoto({ maxWidth = 1600 }: PickOptions = {}): Promise<UploadableImage | null> {
+  const permission = await ImagePicker.requestCameraPermissionsAsync();
+  if (!permission.granted) {
+    throw new Error('Necesitamos permiso para usar la cámara. Actívalo en los ajustes del celular.');
+  }
+  const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 });
+  const asset = result.assets?.[0];
+  if (result.canceled || !asset) return null;
+  const context = ImageManipulator.manipulate(asset.uri);
+  if (asset.width > maxWidth) context.resize({ width: maxWidth });
+  const rendered = await context.renderAsync();
+  const saved = await rendered.saveAsync({ format: SaveFormat.JPEG, compress: 0.8 });
+  return { uri: saved.uri, name: `foto-${Date.now()}.jpg`, type: 'image/jpeg' };
+}
+
 export interface PickedPostMedia extends UploadableImage {
   /** Dimensiones reales del archivo elegido, para dibujar la vista previa con la proporción correcta. */
   width: number;

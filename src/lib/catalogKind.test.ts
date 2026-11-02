@@ -5,7 +5,7 @@ import { catalogCopy, defaultItemKind, listTitle, publicCatalog } from './catalo
 test('cada tipo de negocio pide lo que le corresponde', () => {
   assert.equal(catalogCopy('Tiendas y comercio').kind, 'shop');
   assert.equal(catalogCopy('Restaurantes').kind, 'food');
-  assert.equal(catalogCopy('Cafeterías y postres').kind, 'food');
+  assert.equal(catalogCopy('Cafeterías, panaderías y postres').kind, 'food');
   assert.equal(catalogCopy('Belleza y peluquería').kind, 'service');
   assert.equal(catalogCopy('Salud y bienestar').kind, 'service');
   assert.equal(catalogCopy(null).kind, 'service'); // lo desconocido conserva el comportamiento de siempre
@@ -22,7 +22,7 @@ test('lo que se vende sale del tipo guardado, no del nombre', () => {
   assert.equal(catalogCopy('Restaurantes', 'shop').kind, 'shop');
   assert.equal(catalogCopy('Restaurantes', 'shop').one, 'producto');
   // Si el nombre coincide con el tipo, se conservan sus textos finos.
-  assert.equal(catalogCopy('Cafeterías y postres', 'food').suggest[0], 'Café');
+  assert.equal(catalogCopy('Cafeterías, panaderías y postres', 'food').plural, 'productos');
   // Una categoría renombrada o nueva funciona igual con su tipo.
   assert.equal(catalogCopy('Sabores de la casa', 'food').kind, 'food');
   assert.equal(catalogCopy('Barbería', 'service').kind, 'service');

@@ -41,7 +41,7 @@ import { AskSheet } from '@/components/profile/AskSheet';
 import { CatalogSection } from '@/components/profile/CatalogSection';
 import { OffersFicha } from '@/components/profile/OffersFicha';
 import { PhotosSection } from '@/components/profile/PhotosSection';
-import { ProfileHero } from '@/components/profile/ProfileHero';
+import { ProfileHero, type HeroFact } from '@/components/profile/ProfileHero';
 import { QuickIndex } from '@/components/profile/QuickIndex';
 import { SectionHeader } from '@/components/profile/SectionHeader';
 import { Recommendations } from '@/components/profile/Recommendations';
@@ -53,6 +53,7 @@ import { formatRelativeTime } from '@/lib/format';
 import { resolveImageUrl } from '@/lib/image';
 import { openingFromHours, statusLine } from '@/lib/placeCard';
 import { catalogCopy, formatPesos, lowestPrice, type ServiceItem } from '@/lib/catalog';
+import { chatItemParam } from '@/lib/chatItem';
 import { blockOrder, coverSource, sections, showQuickIndex, type BlockId, type SectionId } from '@/lib/profileLayout';
 import { featuredRating } from '@/lib/reviewSnippet';
 import { useNow } from '@/lib/useNow';
@@ -348,16 +349,28 @@ export default function BusinessScreen() {
     router.push({ pathname: '/chat/[entityId]', params: { entityId: business.id, name: business.name, avatar: business.profile_url } });
   };
 
-  const sendAsk = (message: string) => {
+  const sendAsk = (message: string, about?: ServiceItem | null) => {
     setAsking(null);
     if (status !== 'signedIn') {
       router.push('/(auth)/login');
       return;
     }
     track('contact_started', business.id);
-    router.push({ pathname: '/chat/[entityId]', params: { entityId: business.id, name: business.name, avatar: business.profile_url, draft: message } });
+    // Si pregunta por un producto, la tarjeta viaja con el mensaje.
+    const item = about
+      ? chatItemParam({
+          id: about.id,
+          name: about.name,
+          price: about.price ?? null,
+          price_from: Boolean(about.price_from),
+          ...(about.photos?.[0] ? { photo: about.photos[0] } : {}),
+          ...(about.section ? { section: about.section } : {}),
+        })
+      : undefined;
+    router.push({ pathname: '/chat/[entityId]', params: { entityId: business.id, name: business.name, avatar: business.profile_url, draft: message, ...(item ? { item } : {}) } });
   };
-  const openCatalog = () => router.push({ pathname: '/business/services/[id]', params: { id: business.id } });
+  const openCatalog = (section?: string, audience?: string | null) =>
+    router.push({ pathname: '/business/services/[id]', params: { id: business.id, ...(section ? { section } : {}), ...(audience ? { audience } : {}) } });
 
   const onDirections = () => {
     track('directions_tapped', business.id, { origin: 'profile' });
@@ -524,7 +537,6 @@ export default function BusinessScreen() {
               copy={copy}
               color={business.category?.color}
               icon={business.category?.icon}
-              onAsk={setAsking}
               onAll={openCatalog}
             />
           </View>
@@ -599,6 +611,21 @@ export default function BusinessScreen() {
       </View>
     ) : null;
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)'));
+  // Los datos clave bajo la portada (lienzo C1): cuándo, cómo atiende y dónde. Tocar uno baja a «Información».
+  const toInfo = secs.includes('info') ? () => goTo('info') : undefined;
+  const heroFacts: HeroFact[] = [
+    ...(statusInfo ? [{ icon: 'time-outline' as const, main: statusInfo.tone === 'open' ? 'Abierto' : 'Cerrado', sub: statusInfo.text.replace(/^(Abierto|Cerrado)\s*·?\s*/i, '') || undefined, onPress: toInfo, label: statusInfo.text }] : []),
+    ...(serviceMode
+      ? [
+          business.service_mode === 'both'
+            ? { icon: 'bicycle-outline' as const, main: 'Domicilio', sub: 'y en el local', onPress: toInfo, label: serviceMode }
+            : business.service_mode === 'delivery'
+              ? { icon: 'bicycle-outline' as const, main: 'A domicilio', sub: 'sin local', onPress: toInfo, label: serviceMode }
+              : { icon: 'storefront-outline' as const, main: 'En el local', onPress: toInfo, label: serviceMode },
+        ]
+      : []),
+    ...(location ? [{ icon: 'location-outline' as const, main: business.address || location, sub: business.address ? business.city || undefined : undefined, onPress: hasLocation(business) ? onDirections : toInfo, label: `Dirección: ${location}` }] : []),
+  ];
 
   const barSpace = isOwner ? 0 : ACTION_BAR_HEIGHT + insets.bottom;
 
@@ -628,6 +655,7 @@ export default function BusinessScreen() {
             onAllPhotos={openPhotos}
             onOpenCover={cover.kind === 'photo' || cover.kind === 'video' ? () => openViewer(0) : undefined}
             onNearby={openState === false && !isOwner ? () => scrollRef.current?.scrollTo({ y: Math.max(0, bodyY.current + recsY.current - 70), animated: true }) : undefined}
+            facts={heroFacts}
           >
             <StatusChips entityId={business.id} hasHours={hasHours} isOpen={Boolean(business.is_open_now)} extrasOnly />
             {fromPrice !== null ? (
@@ -665,7 +693,7 @@ export default function BusinessScreen() {
       ) : (
         back
       )}
-      <AskSheet item={asking?.name ?? null} businessName={business.name} copy={copy} onClose={() => setAsking(null)} onSend={sendAsk} />
+      <AskSheet item={asking?.name ?? null} businessName={business.name} copy={copy} onClose={() => setAsking(null)} onSend={(message) => sendAsk(message, asking)} />
       <AskEmpreSheet data={askData} start={askStart} onClose={() => setAskStart(null)} handlers={askHandlers} />
       {agendaSummary.data?.enabled ? (
         <BookingSheet

@@ -9,3 +9,11 @@ export function resolveImageUrl(url: string | null | undefined): string | null {
   if (url.startsWith('/')) return `${API_URL}${url}`;
   return url;
 }
+
+/**
+ * La URL de una foto por su id de medio: la ruta pública del backend, que redirige a la foto. No caduca, así que la
+ * caché del celular la reconoce entre visitas.
+ */
+export function mediaUrl(id: string): string {
+  return `${API_URL}/api/images/${id}`;
+}

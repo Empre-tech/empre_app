@@ -120,7 +120,7 @@ export default function ProfileScreen() {
       {/* La guía de la primera vez de Explorar (3.23), para volver a verla. */}
       <Pressable
         accessibilityRole="button"
-        onPress={() => router.push({ pathname: '/', params: { guide: '1' } })}
+        onPress={() => router.push({ pathname: '/map', params: { guide: '1' } })}
         style={({ pressed }) => [styles.adminCard, pressed && { opacity: 0.85 }]}
       >
         <View style={styles.adminCardIcon}>

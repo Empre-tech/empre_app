@@ -2,9 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { SectionPick } from '@/api/sections';
 import { Button } from '@/components/Button';
+import { SectionChooser } from '@/components/catalog/SectionChooser';
 import { Chip } from '@/components/ledger/parts';
-import { blocksByGroup, cleanLabel, groupCounts, groupOf, hasExact, knownGroups, NO_GROUP, searchSupplies } from '@/lib/supplies';
+import { blocksByGroup, cleanLabel, groupCounts, groupOf, hasExact, searchSupplies } from '@/lib/supplies';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 export interface PickerChoice {
@@ -19,11 +21,14 @@ export interface PickerChoice {
 export interface NewSupply {
   key: string;
   name: string;
+  /** Nombre de su sección (para mostrar) y su id (para crearlo). */
   group: string;
+  sectionId: string;
 }
 
 interface Props {
   visible: boolean;
+  entityId: string;
   /** Para quién se eligen (el nombre del plato o producto). */
   forName: string;
   choices: PickerChoice[];
@@ -38,8 +43,8 @@ const DOT: Record<string, string> = { ok: colors.success, low: colors.accent, ou
 type Row = { type: 'head'; title: string; count: number } | { type: 'item'; item: PickerChoice };
 
 /**
- * Elegir insumos cuando hay cientos: buscar sin tildes, filtrar por grupo, marcar varios y crear el que falta
- * (con su grupo) sin salir de aquí.
+ * Elegir insumos cuando hay cientos: buscar sin tildes, filtrar por sección, marcar varios y crear el que falta
+ * (con su sección) sin salir de aquí.
  */
 export function SupplyPicker(props: Props) {
   // Se monta al abrir: cada vez arranca con lo elegido en la ficha y sin búsqueda.
@@ -47,21 +52,20 @@ export function SupplyPicker(props: Props) {
   return <PickerBody {...props} />;
 }
 
-function PickerBody({ visible, forName, choices, selected, onClose, onDone }: Props) {
+function PickerBody({ visible, entityId, forName, choices, selected, onClose, onDone }: Props) {
   const insets = useSafeAreaInsets();
   const [sel, setSel] = useState<string[]>(selected);
   const [created, setCreated] = useState<NewSupply[]>([]);
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<string | null>(null);
-  // Grupo del insumo nuevo: null = el del filtro elegido (si hay); '' = sin grupo.
-  const [newGroup, setNewGroup] = useState<string | null>(null);
+  // Sección del insumo nuevo (obligatoria).
+  const [newSection, setNewSection] = useState<SectionPick | null>(null);
 
   const all = useMemo<PickerChoice[]>(
     () => [...choices, ...created.map((c) => ({ ref: c.key, name: c.name, group: c.group, status: 'none', pending: true }))],
     [choices, created],
   );
   const groups = useMemo(() => groupCounts(all), [all]);
-  const named = useMemo(() => knownGroups(all), [all]);
   const byRef = useMemo(() => new Map(all.map((c) => [c.ref, c])), [all]);
 
   const q = query.trim();
@@ -74,17 +78,15 @@ function PickerBody({ visible, forName, choices, selected, onClose, onDone }: Pr
     return blocksByGroup(inGroup).flatMap((b) => [{ type: 'head' as const, title: b.title, count: b.items.length }, ...b.items.map((item) => ({ type: 'item' as const, item }))]);
   }, [inGroup, q]);
   const canCreate = q.length >= 2 && !hasExact(all, q);
-  const newGroupValue = newGroup ?? (group && group !== NO_GROUP ? group : '');
 
   const toggle = (ref: string) => setSel((s) => (s.includes(ref) ? s.filter((r) => r !== ref) : [...s, ref]));
   const create = () => {
+    if (!newSection) return;
     const name = cleanLabel(q);
-    const g = cleanLabel(newGroupValue);
     const key = `new:${Date.now()}`;
-    setCreated((c) => [...c, { key, name, group: g }]);
+    setCreated((c) => [...c, { key, name, group: newSection.name, sectionId: newSection.id }]);
     setSel((s) => [...s, key]);
     setQuery('');
-    setNewGroup(null);
   };
 
   const createBox = canCreate ? (
@@ -98,9 +100,9 @@ function PickerBody({ visible, forName, choices, selected, onClose, onDone }: Pr
           <Text style={styles.meta}>Se crea al guardar y queda en tu lista de Insumos</Text>
         </View>
       </View>
-      <Text style={styles.label}>¿En qué grupo va?</Text>
-      <GroupChooser groups={named} value={newGroupValue} onChange={setNewGroup} />
-      <Button title="Agregar" onPress={create} />
+      <Text style={styles.label}>¿En qué sección va?</Text>
+      <SectionChooser entityId={entityId} kind="supply" value={newSection} onChange={setNewSection} />
+      <Button title={newSection ? 'Agregar' : 'Elige la sección'} disabled={!newSection} onPress={create} />
     </View>
   ) : null;
 
@@ -206,55 +208,6 @@ function PickerBody({ visible, forName, choices, selected, onClose, onDone }: Pr
         </View>
       </KeyboardAvoidingView>
     </Modal>
-  );
-}
-
-/** Elegir el grupo de un insumo: uno de los que ya usas, uno nuevo o ninguno. */
-export function GroupChooser({ groups, value, onChange }: { groups: string[]; value: string; onChange: (g: string) => void }) {
-  const [typing, setTyping] = useState(false);
-  const [text, setText] = useState('');
-  const known = groups.some((g) => g === value);
-  return (
-    <View style={{ gap: spacing.sm }}>
-      <View style={styles.wrap}>
-        {groups.map((g) => (
-          <Chip key={g} label={g} selected={value === g} onPress={() => onChange(value === g ? '' : g)} />
-        ))}
-        {value && !known ? <Chip label={value} selected onPress={() => onChange('')} /> : null}
-        <Chip label="Otro grupo…" icon="add" selected={false} onPress={() => setTyping(true)} />
-        <Chip label={NO_GROUP} selected={value === ''} onPress={() => onChange('')} />
-      </View>
-      {typing ? (
-        <View style={styles.otherRow}>
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder="Ej. Carnes, Empaques"
-            placeholderTextColor={colors.muted}
-            style={styles.otherInput}
-            maxLength={40}
-            autoFocus
-            autoCapitalize="sentences"
-            accessibilityLabel="Nombre del grupo nuevo"
-            onSubmitEditing={() => {
-              if (cleanLabel(text)) onChange(cleanLabel(text));
-              setTyping(false);
-              setText('');
-            }}
-          />
-          <Button
-            title="Usar"
-            variant="secondary"
-            disabled={!cleanLabel(text)}
-            onPress={() => {
-              onChange(cleanLabel(text));
-              setTyping(false);
-              setText('');
-            }}
-          />
-        </View>
-      ) : null}
-    </View>
   );
 }
 

@@ -13,7 +13,7 @@ interface Def {
 }
 
 const DEFS: Def[] = [
-  { id: 'comer', name: 'Comer y beber', members: ['restaurantes', 'cafeterias y postres', 'bares y vida nocturna'] },
+  { id: 'comer', name: 'Comer y beber', members: ['restaurantes', 'cafeterias, panaderias y postres', 'bares y vida nocturna'] },
   { id: 'salud', name: 'Belleza y salud', members: ['belleza y peluqueria', 'salud y bienestar', 'deporte y recreacion'] },
   { id: 'compras', name: 'Compras', members: ['tiendas y comercio', 'tecnologia', 'mascotas'] },
   { id: 'servicios', name: 'Servicios', members: ['servicios del hogar', 'automotriz', 'educacion', 'fotografia y diseno', 'otros'] },

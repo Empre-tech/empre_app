@@ -428,7 +428,7 @@ function EmptyOffers({ searching }: { searching: boolean }) {
       <Ionicons name="pricetag-outline" size={36} color={colors.muted} />
       <Text style={styles.emptyTitle}>{searching ? 'Nada con esa búsqueda' : 'Aún no hay ofertas aquí'}</Text>
       <Text style={styles.emptyText}>{searching ? 'Prueba con otra palabra, otra zona o quita el filtro.' : 'Explora el mapa para ver negocios cerca.'}</Text>
-      {searching ? null : <Button title="Ver en el mapa" variant="secondary" onPress={() => router.replace('/')} />}
+      {searching ? null : <Button title="Ver en el mapa" variant="secondary" onPress={() => router.push('/map')} />}
     </View>
   );
 }

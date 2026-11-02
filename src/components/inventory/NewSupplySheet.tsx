@@ -6,7 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError } from '@/api/client';
 import { ledgerApi } from '@/api/ledger';
 import { Button } from '@/components/Button';
-import { GroupChooser } from '@/components/inventory/SupplyPicker';
+import type { SectionPick } from '@/api/sections';
+import { SectionChooser } from '@/components/catalog/SectionChooser';
 import { Chip } from '@/components/ledger/parts';
 import { fmtQty, normalize } from '@/lib/inventory';
 import { newClientId } from '@/lib/ledger';
@@ -24,27 +25,25 @@ const UNITS = [
 interface Props {
   visible: boolean;
   entityId: string;
-  /** Grupos que ya usa el negocio. */
-  groups: string[];
   /** Nombres de los insumos que ya existen (para no repetirlos). */
   existing: string[];
-  /** Grupo con el que arranca (el del filtro que se esté viendo). */
-  initialGroup?: string;
+  /** Sección con la que arranca (la del filtro que se esté viendo). */
+  initialSection?: SectionPick | null;
   onClose: () => void;
   onAdded: () => void;
 }
 
-/** Agregar un insumo: nombre, grupo y cómo llevas la cuenta (semáforo, o cuántos hay y en qué unidad). */
+/** Agregar un insumo: nombre, sección (obligatoria) y cómo llevas la cuenta (semáforo, o cuántos hay y en qué unidad). */
 export function NewSupplySheet(props: Props) {
   // Se monta al abrir: cada vez arranca vacía.
   if (!props.visible) return null;
   return <Body {...props} />;
 }
 
-function Body({ entityId, groups, existing, initialGroup, onClose, onAdded }: Props) {
+function Body({ entityId, existing, initialSection, onClose, onAdded }: Props) {
   const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
-  const [group, setGroup] = useState(initialGroup ?? '');
+  const [section, setSection] = useState<SectionPick | null>(initialSection ?? null);
   const [mode, setMode] = useState<'light' | 'exact'>('light');
   const [qty, setQty] = useState('');
   const [unit, setUnit] = useState('unidad');
@@ -60,7 +59,7 @@ function Body({ entityId, groups, existing, initialGroup, onClose, onAdded }: Pr
       ledgerApi.createSupply(entityId, {
         client_id: newClientId(),
         name: clean,
-        group: cleanLabel(group) || undefined,
+        section_id: section?.id,
         mode,
         unit,
         ...(mode === 'exact' && qty.trim() !== '' ? { qty: n } : {}),
@@ -68,7 +67,7 @@ function Body({ entityId, groups, existing, initialGroup, onClose, onAdded }: Pr
     onSuccess: () => {
       onAdded();
       if (another) {
-        // Para cargar varios seguidos: mismo grupo y modo, nombre en blanco.
+        // Para cargar varios seguidos: misma sección y modo, nombre en blanco.
         setName('');
         setQty('');
         setError(null);
@@ -82,6 +81,7 @@ function Body({ entityId, groups, existing, initialGroup, onClose, onAdded }: Pr
   const submit = (keepOpen: boolean) => {
     if (clean.length < 2) return setError('Escribe el nombre (mínimo 2 letras).');
     if (dup) return setError(`Ya tienes «${clean}» en tus insumos.`);
+    if (!section) return setError('Elige la sección en la que va.');
     if (mode === 'exact' && qty.trim() !== '' && !(Number.isFinite(n) && n >= 0)) return setError('La cantidad debe ser un número, por ejemplo 12.');
     setError(null);
     setAnother(keepOpen);
@@ -115,8 +115,8 @@ function Body({ entityId, groups, existing, initialGroup, onClose, onAdded }: Pr
             </View>
 
             <View style={{ gap: spacing.xs }}>
-              <Text style={styles.label}>Grupo</Text>
-              <GroupChooser groups={groups} value={group} onChange={setGroup} />
+              <Text style={styles.label}>Sección</Text>
+              <SectionChooser entityId={entityId} kind="supply" value={section} onChange={setSection} />
             </View>
 
             <View style={{ gap: spacing.sm }}>

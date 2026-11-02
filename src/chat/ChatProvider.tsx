@@ -24,6 +24,8 @@ export interface OutgoingMessage {
   user_id: string;
   sent_by_entity: boolean;
   content: string;
+  /** Producto del catálogo por el que se pregunta: el servidor arma la tarjeta. */
+  item_id?: string;
 }
 
 type MessageListener = (message: ChatMessage) => void;

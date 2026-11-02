@@ -58,13 +58,14 @@ const config: ExpoConfig = {
     [
       'expo-image-picker',
       {
-        photosPermission: 'Empre necesita acceder a tus fotos para que puedas subir la imagen de tu perfil o de tu negocio.',
+        photosPermission: 'Empre necesita acceder a tus fotos para que puedas subir la imagen de tu perfil, de tu negocio o de tus productos.',
+        cameraPermission: 'Empre usa la cámara para escanear códigos QR y tomar fotos de tus productos.',
       },
     ],
     [
       'expo-camera',
       {
-        cameraPermission: 'Empre usa la cámara para escanear códigos QR.',
+        cameraPermission: 'Empre usa la cámara para escanear códigos QR y tomar fotos de tus productos.',
         recordAudioAndroid: false,
       },
     ],

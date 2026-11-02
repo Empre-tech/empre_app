@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cartTotal, fmtQty, groupInventory, itemLine, missingIngredients, packToUnits, sectionize, type InvLike } from './inventory.ts';
+import { cartTotal, fmtQty, groupInventory, itemLine, missingIngredients, packToUnits, sectionize, sectionSummary, type InvLike } from './inventory.ts';
 
 const base = { kind: 'product', unit: 'unidad', days_left: null, sold_28: 0, qty: 0 } as const;
 const mk = (o: Partial<InvLike> & { name: string }): InvLike => ({ ref: o.name, mode: 'light', status: 'ok', ...base, ...o }) as InvLike;
@@ -105,4 +105,15 @@ test('las variantes se agrupan bajo su producto, que toma su estado', async () =
   assert.equal(p.children.length, 2);
   assert.equal(p.status, 'low'); // una se acabó: el producto sube a «se acaba»
   assert.equal(variantPill(p).label, '1 se acaba');
+});
+
+test('el resumen de una sección dice lo que importa', () => {
+  const light = (status: string) => ({ mode: 'light', status, qty: 0, level: 'ok' }) as never;
+  assert.deepEqual(sectionSummary([light('out'), light('low'), light('ok')]), { text: '1 se acabó · 1 se acaban pronto', tone: 'out' });
+  assert.equal(sectionSummary([light('low'), light('low')]).text, '2 se acaban pronto');
+  assert.equal(sectionSummary([light('ok')]).text, 'Todo con existencias');
+  assert.equal(sectionSummary([{ mode: 'none', status: 'none', qty: 0 } as never]).text, 'Sin control de existencias');
+  assert.equal(sectionSummary([{ is_service: true, mode: 'none', status: 'none', qty: 0 } as never, { is_service: true, mode: 'none', status: 'none', qty: 0 } as never]).text, '2 servicios');
+  // Un producto con variantes cuenta por sus variantes.
+  assert.equal(sectionSummary([{ ...light('ok'), children: [light('out'), light('ok')] } as never]).text, '1 se acabó');
 });

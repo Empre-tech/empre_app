@@ -2,10 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ApiError } from '@/api/client';
 import { ledgerApi, type AdjustReason, type InventoryItem, type StockLevel, type StockMode } from '@/api/ledger';
 import { Button } from '@/components/Button';
-import { GroupChooser } from '@/components/inventory/SupplyPicker';
 import { Chip } from '@/components/ledger/parts';
 import { fmtQty, itemLine, missingIngredients, MODE_LABEL } from '@/lib/inventory';
 import { formatPesos, newClientId } from '@/lib/ledger';
@@ -214,49 +212,6 @@ function ArchiveSupply({ entityId, item, onChanged, onError }: { entityId: strin
   return <Button title="Quitar de mi lista" variant="ghost" loading={archive.isPending} onPress={() => archive.mutate()} />;
 }
 
-/** Insumos: lo que no vendes pero se gasta (lechuga, vasos, harina). Se agregan escribiendo el nombre. */
-export function AddSupply({ entityId, groups = [], onAdded, onError }: { entityId: string; groups?: string[]; onAdded: () => void; onError: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [problem, setProblem] = useState<string | null>(null);
-  const [group, setGroup] = useState('');
-  const add = useMutation({
-    mutationFn: (n: string) => ledgerApi.createSupply(entityId, { client_id: newClientId(), name: n, mode: 'light', group: group || undefined }),
-    onSuccess: () => {
-      setName('');
-      setProblem(null);
-      setOpen(false);
-      onAdded();
-    },
-    onError: (e) => {
-      // Un 400 trae el motivo en palabras (por ejemplo, que ese nombre ya es un producto).
-      if (e instanceof ApiError && e.status === 400) setProblem(e.message);
-      else onError();
-    },
-  });
-  if (!open) {
-    return (
-      <Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={styles.supplyLink}>
-        <Ionicons name="leaf-outline" size={18} color={colors.primary} />
-        <Text style={styles.link}>Agregar un insumo (algo que gastas pero no vendes)</Text>
-      </Pressable>
-    );
-  }
-  return (
-    <View style={styles.add}>
-      <Text style={styles.sectionTitle}>Insumos: lo que gastas y no vendes</Text>
-      <Text style={styles.meta}>Ingredientes, vasos, bolsas… Si lo vendes, no va aquí: agrégalo como producto.</Text>
-      {problem ? <Text style={styles.error}>{problem}</Text> : null}
-      <View style={styles.countRow}>
-        <TextInput value={name} onChangeText={setName} placeholder="Ej. lechuga" placeholderTextColor={colors.muted} style={[styles.countInput, { textAlign: 'left' }]} maxLength={60} accessibilityLabel="Nombre del insumo" />
-        <Button title="Agregar" loading={add.isPending} disabled={name.trim().length < 2} onPress={() => add.mutate(name.trim())} style={{ minWidth: 110 }} />
-      </View>
-      <Text style={styles.meta}>Grupo (opcional): así lo encuentras rápido cuando tengas muchos.</Text>
-      <GroupChooser groups={groups} value={group} onChange={setGroup} />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },
   link: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.primary, paddingVertical: spacing.xs },
@@ -278,6 +233,5 @@ const styles = StyleSheet.create({
   countBox: { gap: spacing.sm },
   countRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   countInput: { flex: 1, minHeight: 48, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 18, fontFamily: fonts.ui.bold, color: colors.ink, backgroundColor: colors.bg, textAlign: 'center' },
-  supplyLink: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44 },
   add: { gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg },
 });
