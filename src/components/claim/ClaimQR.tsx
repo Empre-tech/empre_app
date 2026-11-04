@@ -85,12 +85,20 @@ export function ClaimQR({ claim, status, now, saved, message, busy, onDirections
         </View>
 
         {active ? (
-          <View style={styles.shortWrap}>
-            <Text style={styles.shortLabel}>¿NO ESCANEA? DICTA EL CÓDIGO</Text>
-            <Text style={styles.shortCode} accessibilityLabel={`Código ${claim.short_code.split('').join(' ')}`}>
-              {claim.short_code}
-            </Text>
-          </View>
+          <>
+            <View style={styles.perforation} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+              <View style={[styles.notch, styles.notchL]} />
+              <View style={styles.dash} />
+              <View style={[styles.notch, styles.notchR]} />
+            </View>
+            <View style={styles.shortWrap}>
+              <Text style={styles.shortLabel}>¿NO ESCANEA? DICTA EL CÓDIGO</Text>
+              <Text style={styles.shortCode} accessibilityLabel={`Código ${claim.short_code.split('').join(' ')}`}>
+                {claim.short_code}
+              </Text>
+              <Text style={styles.waiting}>Muéstralo en la caja · esperando al negocio</Text>
+            </View>
+          </>
         ) : null}
 
         {active && saved ? (
@@ -106,8 +114,8 @@ export function ClaimQR({ claim, status, now, saved, message, busy, onDirections
         <Text style={styles.calloutText}>
           {active ? (
             <>
-              <Text style={styles.bold}>Muéstralo en caja.</Text> Quien te atiende lo escanea. Se usa{' '}
-              <Text style={styles.bold}>una sola vez</Text>: si alguien lo escanea antes, deja de valer.
+              El negocio escanea tu código. Cuando lo valide, el talón se desprende y queda tu sello de Empre. Se usa{' '}
+              <Text style={styles.bold}>una sola vez</Text>.
             </>
           ) : (
             <>
@@ -143,6 +151,12 @@ export function ClaimQR({ claim, status, now, saved, message, busy, onDirections
 const CORNER = 24;
 
 const styles = StyleSheet.create({
+  perforation: { alignSelf: 'stretch', height: 20, justifyContent: 'center', marginHorizontal: -spacing.lg, marginTop: spacing.sm },
+  dash: { marginHorizontal: 14, borderTopWidth: 1.5, borderStyle: 'dashed', borderTopColor: colors.line },
+  notch: { position: 'absolute', top: 0, width: 20, height: 20, borderRadius: 10, backgroundColor: colors.bg },
+  notchL: { left: -10 },
+  notchR: { right: -10 },
+  waiting: { marginTop: 4, fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted, textAlign: 'center' },
   banner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: 9 },
   bannerOk: { backgroundColor: '#E3F5F3' },
   bannerOff: { backgroundColor: '#EEF2F7' },
@@ -175,7 +189,7 @@ const styles = StyleSheet.create({
   pillTextHot: { color: colors.ink },
   pillTextOff: { color: '#4C5C74' },
   until: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
-  shortWrap: { alignSelf: 'stretch', alignItems: 'center', borderTopWidth: 1, borderTopColor: colors.line, borderStyle: 'dashed', paddingTop: spacing.sm, marginTop: spacing.xs },
+  shortWrap: { alignSelf: 'stretch', alignItems: 'center', paddingTop: spacing.sm, marginTop: spacing.xs },
   shortLabel: { fontSize: 10.5, fontFamily: fonts.ui.bold, letterSpacing: 0.9, color: colors.muted },
   shortCode: { fontSize: 30, fontFamily: fonts.display.bold, letterSpacing: 8, color: colors.ink },
   savedChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.verifiedSoft, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4 },

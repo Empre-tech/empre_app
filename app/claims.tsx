@@ -97,6 +97,13 @@ export default function ClaimsScreen() {
                   <Text style={styles.meta} numberOfLines={1}>
                     {[item.entity_name, active ? `vence a las ${formatClock(item.expires_at)}` : null].filter(Boolean).join(' · ')}
                   </Text>
+                  {state === 'EXPIRADO' ? <Text style={styles.why}>El código venció a las {formatClock(item.expires_at)}. No se cobró nada.</Text> : null}
+                  {state === 'CANCELADO' ? <Text style={styles.why}>Lo cancelaste. Si la oferta sigue vigente, puedes reclamarla otra vez.</Text> : null}
+                  {(state === 'EXPIRADO' || state === 'CANCELADO') && item.offer?.entity_id ? (
+                    <Pressable accessibilityRole="link" hitSlop={8} onPress={() => router.push({ pathname: '/offer/[id]', params: { id: item.offer_id, entityId: item.offer!.entity_id } })}>
+                      <Text style={styles.seeOffer}>Ver la oferta</Text>
+                    </Pressable>
+                  ) : null}
                 </View>
                 <View style={[styles.chip, active && styles.chipActive]}>
                   <Text style={[styles.chipText, active && styles.chipTextActive]}>{LABEL[state]}</Text>
@@ -123,6 +130,8 @@ const styles = StyleSheet.create({
   text: { flex: 1, gap: 2 },
   name: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink },
   meta: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
+  why: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.ink, marginTop: 2 },
+  seeOffer: { marginTop: 4, fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink, textDecorationLine: 'underline' },
   chip: { paddingHorizontal: 10, height: 26, borderRadius: radius.pill, backgroundColor: '#EEF2F7', alignItems: 'center', justifyContent: 'center' },
   chipActive: { backgroundColor: colors.selectedSoft },
   chipText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: '#4C5C74' },

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi } from '@/api/endpoints';
@@ -80,6 +80,13 @@ export default function ClaimScreen() {
   });
   const claim = claimQuery.data ?? null;
   const status = claim ? effectiveClaimStatus(claim, now) : null;
+  // El talón se desprende solo si el canje pasa mientras miras el QR; al volver después, ya está sellado.
+  const wasLive = useRef(false);
+  const [justRedeemed, setJustRedeemed] = useState(false);
+  useEffect(() => {
+    if (status === 'CANJEADO' && wasLive.current) setJustRedeemed(true);
+    wasLive.current = status === 'RECLAMADO';
+  }, [status]);
 
   // La oferta, mientras no hay reclamo (para la pantalla de reglas).
   const offerQuery = useQuery({
@@ -192,7 +199,7 @@ export default function ClaimScreen() {
           <ClaimEnvelope claim={claim} onOpen={() => setSealed(false)} />
         ) : claim && status ? (
           status === 'CANJEADO' ? (
-            <ClaimRedeemed claim={claim} busy={busy} message={message} onConfirm={() => void onConfirm()} />
+            <ClaimRedeemed claim={claim} busy={busy} message={message} onConfirm={() => void onConfirm()} animate={justRedeemed} />
           ) : (
             <ClaimQR
               claim={claim}
