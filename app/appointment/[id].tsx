@@ -8,6 +8,7 @@ import { agendaApi, type Appointment } from '@/api/agenda';
 import { useAuth } from '@/auth/AuthContext';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
+import { Timeline } from '@/components/Timeline';
 import {
   DECLINE_REASONS,
   formatClock,
@@ -46,6 +47,8 @@ function statusLine(appt: Appointment, isBusiness: boolean): string {
       return '';
   }
 }
+
+const shortClock = (iso: string) => new Date(iso).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
 
 export default function AppointmentScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -154,6 +157,20 @@ export default function AppointmentScreen() {
             <Text style={[styles.status, { color: STATUS_COLOR[appt.status] }]}>{STATUS_LABEL[appt.status]}</Text>
           </View>
           <Text style={styles.statusText}>{statusLine(appt, isBusiness)}</Text>
+          {appt.status === 'requested' || appt.status === 'confirmed' || appt.status === 'completed' ? (
+            <View style={styles.timeline}>
+              <Timeline
+                items={[
+                  { label: 'Pedida', time: shortClock(appt.created_at) },
+                  { label: 'Confirmada' },
+                  { label: 'Tu cita', time: shortClock(appt.starts_at) },
+                  { label: 'Atendida' },
+                ]}
+                current={appt.status === 'requested' ? 0 : appt.status === 'confirmed' ? 2 : 4}
+                accessibilityLabel={`Tu cita: ${STATUS_LABEL[appt.status]}`}
+              />
+            </View>
+          ) : null}
 
           <View style={styles.personRow}>
             <Avatar uri={isBusiness ? appt.customer?.profile_picture_url : appt.entity?.profile_url} name={other} size={44} />
@@ -249,6 +266,7 @@ export default function AppointmentScreen() {
 }
 
 const styles = StyleSheet.create({
+  timeline: { marginTop: spacing.md, alignSelf: 'stretch' },
   screen: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg, padding: spacing.xl },
   header: {
