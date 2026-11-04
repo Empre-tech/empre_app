@@ -102,7 +102,7 @@ export default function ClaimScreen() {
   const entity = useQuery({
     queryKey: ['entity', directionsEntityId],
     queryFn: () => entitiesApi.get(directionsEntityId),
-    enabled: Boolean(directionsEntityId) && status === 'RECLAMADO',
+    enabled: Boolean(directionsEntityId),
     staleTime: 60_000,
   });
 
@@ -179,33 +179,36 @@ export default function ClaimScreen() {
     ? () => void Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${entity.data.latitude},${entity.data.longitude}`)
     : undefined;
 
-  const title = !claim ? 'Reclamar oferta' : status === 'CANJEADO' ? 'Canjeado' : 'Tu oferta';
+  const isSealed = Boolean(claim && sealed && status === 'RECLAMADO');
+  const title = !claim ? 'Reclamar oferta' : isSealed ? 'Reclamaste una oferta' : status === 'CANJEADO' ? 'Canjeado' : 'Tu oferta';
   const loadingOffer = !claim && Boolean(entityId) && offerQuery.isLoading;
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + spacing.sm }]}>
       <View style={styles.header}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={() => router.back()} hitSlop={10} style={styles.back}>
-          <Ionicons name="arrow-back" size={22} color={colors.ink} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={() => router.back()} style={styles.back}>
+          <Ionicons name="chevron-back" size={20} color={colors.ink} />
         </Pressable>
-        <Text style={styles.title}>{title}</Text>
-        <View style={styles.back} />
+        <Text style={styles.title} accessibilityRole="header">
+          {title}
+        </Text>
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]} showsVerticalScrollIndicator={false}>
         {authStatus === 'loading' || loadingOffer ? (
           <ActivityIndicator color={colors.primary} style={styles.spinner} />
-        ) : claim && sealed && status === 'RECLAMADO' ? (
+        ) : isSealed && claim ? (
           <ClaimEnvelope claim={claim} onOpen={() => setSealed(false)} />
         ) : claim && status ? (
           status === 'CANJEADO' ? (
-            <ClaimRedeemed claim={claim} busy={busy} message={message} onConfirm={() => void onConfirm()} animate={justRedeemed} />
+            <ClaimRedeemed claim={claim} entity={entity.data} busy={busy} message={message} onConfirm={() => void onConfirm()} animate={justRedeemed} />
           ) : (
             <ClaimQR
               claim={claim}
               status={status}
               now={now}
               saved={isSaved}
+              entity={entity.data}
               message={message}
               busy={busy}
               onDirections={onDirections}
@@ -240,10 +243,10 @@ export default function ClaimScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, minHeight: 44 },
-  back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  title: { flex: 1, textAlign: 'center', fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
-  content: { padding: spacing.lg, gap: spacing.md, flexGrow: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, minHeight: 56 },
+  back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  title: { flex: 1, fontSize: 20, fontFamily: fonts.display.semibold, color: colors.ink },
+  content: { paddingTop: 4, paddingHorizontal: 24, gap: 14, flexGrow: 1 },
   spinner: { marginTop: spacing.xxl },
   empty: { alignItems: 'stretch', gap: spacing.md, paddingTop: spacing.xl },
   emptyTitle: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },

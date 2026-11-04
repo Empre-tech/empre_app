@@ -1,17 +1,18 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import type { OfferClaim } from '@/api/types';
-import { Button } from '@/components/Button';
+import type { EntityDetail as Entity, OfferClaim } from '@/api/types';
+import { ClaimTicket } from '@/components/claim/ClaimTicket';
 import { ReviewAfterClaim } from '@/components/claim/ReviewAfterClaim';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { formatPesos } from '@/lib/ledger';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { colors, fonts, softShadow } from '@/theme';
+import { planHour } from '@/lib/plans';
 
 interface Props {
   claim: OfferClaim;
+  entity?: Entity | null;
   busy: boolean;
   message: string | null;
   onConfirm: () => void;
@@ -23,13 +24,13 @@ interface Props {
  * El negocio ya canjeó la oferta: el ticket sellado, lo que ahorraste y una pregunta que verifica el canje. Solo los
  * canjes confirmados cuentan para el ranking, así que este botón es la señal antifraude.
  */
-export function ClaimRedeemed({ claim, busy, message, onConfirm, animate = false }: Props) {
+export function ClaimRedeemed({ claim, entity, busy, message, onConfirm, animate = false }: Props) {
   const router = useRouter();
   const offer = claim.offer;
   const verified = Boolean(claim.verified_by_client);
   const saving = offer?.reference_price && offer?.special_price && offer.reference_price > offer.special_price ? offer.reference_price - offer.special_price : 0;
   const when = claim.redeemed_at ? new Date(claim.redeemed_at) : null;
-  const whenText = when ? `${when.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })} · ${when.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' })}` : '';
+  const whenText = when ? `${when.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })} · ${planHour(when.getTime())}` : '';
 
   const [stub] = useState(() => new Animated.Value(animate ? 0 : 1));
   const [stamp] = useState(() => new Animated.Value(animate ? 0 : 1));
@@ -57,18 +58,18 @@ export function ClaimRedeemed({ claim, busy, message, onConfirm, animate = false
 
   return (
     <>
-      <View style={styles.ticket}>
-        {claim.entity_name ? <Text style={styles.biz}>{claim.entity_name}</Text> : null}
-        <Text style={styles.offerName}>{offer?.title ?? 'Tu oferta'}</Text>
+      <ClaimTicket claim={claim} entity={entity}>
         <View style={styles.qrBox} accessible accessibilityLabel="Código canjeado, con el sello de Empre">
           <View style={styles.qrFaded}>
-            <QRCode value={claim.id} size={150} color={colors.ink} backgroundColor="#ffffff" />
+            <QRCode value={claim.id} size={168} color={colors.ink} backgroundColor="#ffffff" />
           </View>
-          <Animated.View style={[styles.stamp, { opacity: stamp, transform: [{ scale: stamp.interpolate({ inputRange: [0, 1], outputRange: [1.7, 1] }) }, { rotate: '-8deg' }] }]}>
-            <EmpreSymbol product="offers" size={46} />
-            <Text style={styles.stampText}>CANJEADO</Text>
+          <Animated.View style={[styles.disc, { opacity: stamp, transform: [{ scale: stamp.interpolate({ inputRange: [0, 1], outputRange: [1.7, 1] }) }] }]}>
+            <EmpreSymbol product="offers" size={56} />
           </Animated.View>
         </View>
+        <Animated.View style={[styles.stamp, { opacity: stamp, transform: [{ rotate: '-4deg' }] }]}>
+          <Text style={styles.stampText}>CANJEADO</Text>
+        </Animated.View>
         {animate ? (
           <Animated.View
             pointerEvents="none"
@@ -76,35 +77,29 @@ export function ClaimRedeemed({ claim, busy, message, onConfirm, animate = false
             importantForAccessibility="no-hide-descendants"
             style={[styles.stub, { opacity: stub.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }), transform: [{ translateY: stub.interpolate({ inputRange: [0, 1], outputRange: [0, 70] }) }, { rotate: stub.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '6deg'] }) }] }]}
           >
-            <Text style={styles.stubText}>{claim.short_code}</Text>
+            <Text style={styles.stubText}>Muéstralo en la caja</Text>
           </Animated.View>
         ) : null}
-      </View>
+      </ClaimTicket>
 
-      <View style={styles.hero} accessibilityLiveRegion="polite">
-        <Text style={styles.heroTitle}>{saving > 0 ? `Ahorraste ${formatPesos(saving)}` : '¡Listo, disfruta!'}</Text>
-        <Text style={styles.heroText}>{[claim.entity_name, whenText].filter(Boolean).join(' · ')}</Text>
+      <View style={styles.saved} accessibilityLiveRegion="polite">
+        <View style={styles.savedText}>
+          <Text style={styles.savedTitle}>{saving > 0 ? `Ahorraste ${formatPesos(saving)}` : '¡Listo, disfruta!'}</Text>
+          <Text style={styles.savedSub}>{[claim.entity_name, whenText].filter(Boolean).join(' · ')}</Text>
+        </View>
         <Pressable accessibilityRole="link" onPress={() => router.push('/salidas')} style={styles.link}>
-          <Text style={styles.linkText}>En Mis salidas</Text>
-          <Ionicons name="chevron-forward" size={15} color={colors.ink} />
+          <Text style={styles.linkText}>En Mis salidas ›</Text>
         </Pressable>
       </View>
 
       {verified ? (
-        <View style={styles.thanks}>
-          <Ionicons name="shield-checkmark" size={18} color="#075E62" />
-          <Text style={styles.thanksText}>Gracias. Tu reseña contará como canje verificado.</Text>
-        </View>
+        <Text style={styles.thanks}>Gracias. Tu reseña contará como canje verificado.</Text>
       ) : (
         <>
-          <View style={styles.callout}>
-            <Ionicons name="heart-outline" size={18} color={colors.accentInk} />
-            <Text style={styles.calloutText}>
-              <Text style={styles.bold}>¿Todo salió bien?</Text> Confirmar ayuda a que las ofertas reales suban en Destacados.
-            </Text>
-          </View>
           {message ? <Text style={styles.message}>{message}</Text> : null}
-          <Button title="Sí, me atendieron" onPress={onConfirm} loading={busy} />
+          <Pressable accessibilityRole="button" disabled={busy} onPress={onConfirm} style={[styles.confirm, busy && { opacity: 0.6 }]}>
+            <Text style={styles.confirmText}>Sí, me atendieron</Text>
+          </Pressable>
         </>
       )}
 
@@ -114,25 +109,21 @@ export function ClaimRedeemed({ claim, busy, message, onConfirm, animate = false
 }
 
 const styles = StyleSheet.create({
-  ticket: { alignItems: 'center', gap: 4, padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
-  biz: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
-  offerName: { fontSize: 19, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
-  qrBox: { marginTop: spacing.sm, alignItems: 'center', justifyContent: 'center' },
+  qrBox: { alignItems: 'center', justifyContent: 'center', padding: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.hairline },
   qrFaded: { opacity: 0.18 },
-  stamp: { position: 'absolute', alignItems: 'center', gap: 4, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.md, borderWidth: 3, borderColor: colors.verified, backgroundColor: 'rgba(255,255,255,0.92)' },
-  stampText: { fontSize: 14, letterSpacing: 1.5, fontFamily: fonts.ui.extrabold, color: colors.verified },
-  stub: { position: 'absolute', left: spacing.lg, right: spacing.lg, bottom: 0, alignItems: 'center', paddingVertical: spacing.xs, borderTopWidth: 1.5, borderStyle: 'dashed', borderTopColor: colors.line },
-  stubText: { fontSize: 16, letterSpacing: 2, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  link: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 2 },
-  linkText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  hero: { alignItems: 'center', gap: spacing.xs, paddingTop: spacing.md },
-  // 94 con el borde de 9 incluido: el círculo verde mide 76.
-  heroTitle: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.ink, marginTop: spacing.sm },
-  heroText: { fontSize: 13.5, fontFamily: fonts.ui.medium, color: colors.muted },
-  callout: { flexDirection: 'row', gap: spacing.md, backgroundColor: colors.accentSoft, borderRadius: radius.md, padding: spacing.md },
-  calloutText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.ink },
-  bold: { fontFamily: fonts.ui.extrabold },
-  thanks: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.verifiedSoft, borderRadius: radius.md, padding: spacing.md },
-  thanksText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.bold, color: '#0A6E6A' },
+  disc: { position: 'absolute', width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.16, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+  stamp: { paddingVertical: 5, paddingHorizontal: 14, borderRadius: 8, borderWidth: 2.5, borderColor: colors.verified },
+  stampText: { fontSize: 16, letterSpacing: 2.6, fontFamily: fonts.ui.extrabold, color: colors.verified },
+  stub: { position: 'absolute', left: 0, right: 0, bottom: -6, alignItems: 'center', paddingVertical: 6, borderTopWidth: 2, borderStyle: 'dashed', borderTopColor: colors.line, backgroundColor: colors.surface },
+  stubText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  saved: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
+  savedText: { flex: 1, minWidth: 0, gap: 2 },
+  savedTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  savedSub: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.faint },
+  link: { minHeight: 44, justifyContent: 'center' },
+  linkText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
+  confirm: { minHeight: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.primary },
+  confirmText: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  thanks: { paddingVertical: 13, paddingHorizontal: 16, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.verifiedSoft, fontSize: 14.5, fontFamily: fonts.ui.bold, color: colors.verified, textAlign: 'center' },
   message: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger, textAlign: 'center' },
 });

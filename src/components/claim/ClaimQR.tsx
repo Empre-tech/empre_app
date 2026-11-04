@@ -1,10 +1,10 @@
-import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import type { ClaimStatus, OfferClaim } from '@/api/types';
+import type { ClaimStatus, EntityDetail as Entity, OfferClaim } from '@/api/types';
 import { Button } from '@/components/Button';
-import { formatClock, formatCurrency } from '@/lib/offer';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { ClaimTicket } from '@/components/claim/ClaimTicket';
+import { EmpreSymbol } from '@/components/EmpreSymbol';
+import { colors, fonts } from '@/theme';
 
 interface Props {
   claim: OfferClaim;
@@ -16,127 +16,88 @@ interface Props {
   /** Mensaje de una acción anterior (error al cancelar, etc.). */
   message: string | null;
   busy: boolean;
+  entity?: Entity | null;
   onDirections?: () => void;
   onCancel: () => void;
   onClaimAgain: () => void;
   onSeeOthers: () => void;
 }
 
-/** mm:ss del tiempo que queda. */
+/** h:mm:ss o mm:ss del tiempo que queda. */
 function countdown(ms: number): string {
   const total = Math.max(0, Math.ceil(ms / 1000));
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
 }
 
-/** QR del reclamo, con su cuenta regresiva, el código para dictar y qué hacer. También su versión apagada (vencido o cancelado). */
-export function ClaimQR({ claim, status, now, saved, message, busy, onDirections, onCancel, onClaimAgain, onSeeOthers }: Props) {
+/** El ticket con su QR, la cuenta regresiva, el código para dictar y el talón. También su versión sellada (vencido o cancelado). */
+export function ClaimQR({ claim, status, now, saved, message, busy, entity, onDirections, onCancel, onClaimAgain, onSeeOthers }: Props) {
   const active = status === 'RECLAMADO';
   const msLeft = new Date(claim.expires_at).getTime() - now;
-  const offer = claim.offer;
-  const price = formatCurrency(offer?.price);
-
-  // El cronómetro cambia con el tiempo: calma, aviso (< 5 min) y último minuto.
-  const pill = !active ? styles.pillOff : msLeft < 60_000 ? styles.pillHot : msLeft < 5 * 60_000 ? styles.pillWarn : styles.pillCalm;
-  const pillText = !active ? styles.pillTextOff : msLeft < 60_000 ? styles.pillTextHot : msLeft < 5 * 60_000 ? styles.pillTextWarn : styles.pillTextCalm;
-
-  const banner = active
-    ? { text: 'Cupo reservado a tu nombre', icon: 'checkmark' as const, style: styles.bannerOk, color: '#17673A' }
-    : status === 'CANCELADO'
-      ? { text: 'Cancelaste este reclamo', icon: 'close' as const, style: styles.bannerOff, color: '#4C5C74' }
-      : { text: `Venció a las ${formatClock(claim.expires_at)}`, icon: 'time-outline' as const, style: styles.bannerOff, color: '#4C5C74' };
+  const hot = msLeft < 60_000;
 
   return (
     <>
-      <View style={[styles.banner, banner.style]}>
-        <Ionicons name={banner.icon} size={16} color={banner.color} />
-        <Text style={[styles.bannerText, { color: banner.color }]}>{banner.text}</Text>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={[styles.offerTitle, !active && styles.dim]} numberOfLines={2}>
-          {offer?.title ?? 'Tu oferta'}
-          {price ? ` · ${price}` : ''}
-        </Text>
-        {claim.entity_name ? <Text style={styles.business}>{claim.entity_name}</Text> : null}
-
-        <View style={styles.qrFrame}>
-          <View style={[styles.qrBox, !active && styles.qrBoxOff]}>
-            {/* El QR lleva el id del reclamo; el escáner del negocio lo valida en el servidor. */}
-            <QRCode value={claim.id} size={176} color={colors.ink} backgroundColor="#ffffff" />
-            {!active ? (
-              <View style={styles.qrOverlay}>
-                <Text style={styles.qrOverlayText}>{status === 'CANCELADO' ? 'Cancelado' : 'Venció'}</Text>
+      <ClaimTicket
+        claim={claim}
+        entity={entity}
+        dim={!active}
+        stub={
+          active ? (
+            <View style={styles.stubRow}>
+              <View style={styles.stubText}>
+                <Text style={styles.stubTitle}>Muéstralo en la caja</Text>
+                <View style={styles.waitRow}>
+                  <View style={styles.waitDot} />
+                  <Text style={styles.waitText}>Esperando al negocio</Text>
+                </View>
               </View>
-            ) : null}
-          </View>
-          <View style={[styles.corner, styles.cornerTL, !active && styles.cornerOff]} />
-          <View style={[styles.corner, styles.cornerTR, !active && styles.cornerOff]} />
-          <View style={[styles.corner, styles.cornerBL, !active && styles.cornerOff]} />
-          <View style={[styles.corner, styles.cornerBR, !active && styles.cornerOff]} />
-        </View>
-
-        <View style={styles.pillRow}>
-          <View style={[styles.pill, pill]}>
-            <Text style={[styles.pillText, pillText]}>
-              {active ? (msLeft < 60_000 ? `¡${countdown(msLeft)}! Ve a caja` : `Vence en ${countdown(msLeft)}`) : 'No se puede usar'}
-            </Text>
-          </View>
-          {active ? <Text style={styles.until}>hasta las {formatClock(claim.expires_at)}</Text> : null}
-        </View>
-
-        {active ? (
-          <>
-            <View style={styles.perforation} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-              <View style={[styles.notch, styles.notchL]} />
-              <View style={styles.dash} />
-              <View style={[styles.notch, styles.notchR]} />
+              <EmpreSymbol product="offers" size={34} />
             </View>
-            <View style={styles.shortWrap}>
-              <Text style={styles.shortLabel}>¿NO ESCANEA? DICTA EL CÓDIGO</Text>
-              <Text style={styles.shortCode} accessibilityLabel={`Código ${claim.short_code.split('').join(' ')}`}>
-                {claim.short_code}
-              </Text>
-              <Text style={styles.waiting}>Muéstralo en la caja · esperando al negocio</Text>
-            </View>
-          </>
-        ) : null}
-
-        {active && saved ? (
-          <View style={styles.savedChip}>
-            <Ionicons name="checkmark" size={12} color="#075E62" />
-            <Text style={styles.savedChipText}>Guardado en tu teléfono</Text>
-          </View>
-        ) : null}
-      </View>
-
-      <View style={[styles.callout, !active && styles.calloutWarn]}>
-        <Ionicons name="information-circle-outline" size={18} color={active ? colors.primary : colors.accentInk} />
-        <Text style={styles.calloutText}>
-          {active ? (
-            <>
-              El negocio escanea tu código. Cuando lo valide, el talón se desprende y queda tu sello de Empre. Se usa{' '}
-              <Text style={styles.bold}>una sola vez</Text>.
-            </>
           ) : (
-            <>
-              <Text style={styles.bold}>Liberamos tu cupo</Text> para otra persona. Si la oferta sigue activa y quedan cupos, puedes reclamar de nuevo.
-            </>
-          )}
+            <View style={styles.stubRow}>
+              <View style={styles.stamp}>
+                <Text style={styles.stampText}>{status === 'CANCELADO' ? 'CANCELADO' : 'VENCIDO'}</Text>
+              </View>
+            </View>
+          )
+        }
+      >
+        <View style={[styles.qr, !active && styles.qrOff]}>
+          {/* El QR lleva el id del reclamo; el escáner del negocio lo valida en el servidor. */}
+          <QRCode value={claim.id} size={168} color={colors.ink} backgroundColor="#ffffff" />
+        </View>
+        {active ? (
+          <View style={styles.codeRow}>
+            <Text style={styles.code} accessibilityLabel={`Código ${claim.short_code.split('').join(' ')}`}>
+              {claim.short_code}
+            </Text>
+            <View style={[styles.left, hot && styles.leftHot]} accessibilityLiveRegion={hot ? 'polite' : 'none'}>
+              <Text style={[styles.leftText, hot && styles.leftTextHot]}>{hot ? `¡${countdown(msLeft)}! Ve a caja` : `Vence en ${countdown(msLeft)}`}</Text>
+            </View>
+          </View>
+        ) : null}
+      </ClaimTicket>
+
+      {active ? (
+        <Text style={styles.how}>
+          El negocio escanea tu código. Cuando lo valide, el talón se desprende y queda tu sello de Empre.
+          {saved ? ' Ya está guardado en tu teléfono, también sirve sin señal.' : ''}
         </Text>
-      </View>
+      ) : (
+        <Text style={styles.how}>{status === 'CANCELADO' ? 'Lo cancelaste y liberamos tu cupo. Si la oferta sigue vigente, puedes reclamarla otra vez.' : 'El código venció. No se cobró nada. Si la oferta sigue activa y quedan cupos, puedes reclamarla otra vez.'}</Text>
+      )}
 
       {message ? <Text style={styles.message}>{message}</Text> : null}
 
       {active ? (
         <>
           {onDirections ? <Button title="Cómo llegar" variant="secondary" onPress={onDirections} /> : null}
-          <Text
-            accessibilityRole="button"
-            onPress={busy ? undefined : onCancel}
-            style={[styles.cancel, busy && styles.dim]}
-          >
-            Cancelar reclamo y liberar mi cupo
-          </Text>
+          <Pressable accessibilityRole="button" disabled={busy} onPress={onCancel} style={[styles.cancelBtn, busy && { opacity: 0.55 }]}>
+            <Text style={styles.cancel}>Cancelar reclamo y liberar mi cupo</Text>
+          </Pressable>
         </>
       ) : (
         <>
@@ -148,56 +109,25 @@ export function ClaimQR({ claim, status, now, saved, message, busy, onDirections
   );
 }
 
-const CORNER = 24;
-
 const styles = StyleSheet.create({
-  perforation: { alignSelf: 'stretch', height: 20, justifyContent: 'center', marginHorizontal: -spacing.lg, marginTop: spacing.sm },
-  dash: { marginHorizontal: 14, borderTopWidth: 1.5, borderStyle: 'dashed', borderTopColor: colors.line },
-  notch: { position: 'absolute', top: 0, width: 20, height: 20, borderRadius: 10, backgroundColor: colors.bg },
-  notchL: { left: -10 },
-  notchR: { right: -10 },
-  waiting: { marginTop: 4, fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted, textAlign: 'center' },
-  banner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: 9 },
-  bannerOk: { backgroundColor: '#E3F5F3' },
-  bannerOff: { backgroundColor: '#EEF2F7' },
-  bannerText: { fontSize: 13, fontFamily: fonts.ui.extrabold, flex: 1 },
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg + 2, padding: spacing.lg, alignItems: 'center', gap: spacing.sm },
-  offerTitle: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
-  business: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, marginTop: -4 },
-  dim: { opacity: 0.55 },
-  qrFrame: { marginVertical: spacing.sm, padding: 6 },
-  qrBox: { backgroundColor: '#fff', padding: 10, borderRadius: radius.md },
-  qrBoxOff: { opacity: 0.35 },
-  qrOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  qrOverlayText: { fontSize: 22, fontFamily: fonts.display.bold, color: '#4C5C74', backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 14, paddingVertical: 4, borderRadius: radius.pill, overflow: 'hidden' },
-  // Esquinas del marco: el QR se ve como algo que se apunta con la cámara.
-  corner: { position: 'absolute', width: CORNER, height: CORNER, borderColor: colors.primary },
-  cornerOff: { borderColor: '#8796AB' },
-  cornerTL: { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 12 },
-  cornerTR: { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 12 },
-  cornerBL: { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 12 },
-  cornerBR: { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 12 },
-  pillRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.sm },
-  pill: { borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6 },
-  pillCalm: { backgroundColor: colors.primarySoft },
-  pillWarn: { backgroundColor: colors.accentSoft },
-  pillHot: { backgroundColor: colors.accent },
-  pillOff: { backgroundColor: '#EEF2F7' },
-  pillText: { fontSize: 13, fontFamily: fonts.ui.extrabold },
-  pillTextCalm: { color: colors.primaryDark },
-  pillTextWarn: { color: colors.accentInk },
-  pillTextHot: { color: colors.ink },
-  pillTextOff: { color: '#4C5C74' },
-  until: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
-  shortWrap: { alignSelf: 'stretch', alignItems: 'center', paddingTop: spacing.sm, marginTop: spacing.xs },
-  shortLabel: { fontSize: 10.5, fontFamily: fonts.ui.bold, letterSpacing: 0.9, color: colors.muted },
-  shortCode: { fontSize: 30, fontFamily: fonts.display.bold, letterSpacing: 8, color: colors.ink },
-  savedChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.verifiedSoft, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4 },
-  savedChipText: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: '#0A6E6A' },
-  callout: { flexDirection: 'row', gap: spacing.md, backgroundColor: colors.primarySoft, borderRadius: radius.md, padding: spacing.md },
-  calloutWarn: { backgroundColor: colors.accentSoft },
-  calloutText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.ink },
-  bold: { fontFamily: fonts.ui.extrabold },
+  qr: { padding: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.hairline, backgroundColor: '#fff' },
+  qrOff: { opacity: 0.3 },
+  codeRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', gap: 10 },
+  code: { fontSize: 15, letterSpacing: 2.1, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  left: { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 999, backgroundColor: colors.accentSoft },
+  leftHot: { backgroundColor: colors.accent },
+  leftText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
+  leftTextHot: { color: colors.ink },
+  stubRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingTop: 14, paddingHorizontal: 18, paddingBottom: 16 },
+  stubText: { gap: 3 },
+  stubTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  waitRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  waitDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.verified },
+  waitText: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.verified },
+  stamp: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8, borderWidth: 2.5, borderColor: colors.faint },
+  stampText: { fontSize: 14, letterSpacing: 2.2, fontFamily: fonts.ui.extrabold, color: colors.faint },
+  how: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.faint, textAlign: 'center' },
   message: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger, textAlign: 'center' },
-  cancel: { textAlign: 'center', fontSize: 13.5, fontFamily: fonts.ui.bold, color: '#9B2C2C', paddingVertical: spacing.sm },
+  cancelBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  cancel: { textAlign: 'center', fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.danger },
 });
