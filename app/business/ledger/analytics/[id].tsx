@@ -4,12 +4,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { ledgerApi, type Analytics, type InvLine, type ProductStat } from '@/api/ledger';
 import { EmptyState } from '@/components/EmptyState';
-import { BarPairs, Delta, HBars, HeatGrid, StackBar } from '@/components/finance/Charts';
+import { Delta, HBars, HeatGrid, SALES_COLOR } from '@/components/finance/Charts';
 import { RangeSheet } from '@/components/finance/RangeSheet';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
-import { bestSlot, compareText, deltaLabel, lowMargin, marginPct, rangeFromParams, rangeTitle, rankProducts, topMismatch, type DateRange } from '@/lib/finance';
+import { bestSlot, bucketLabel, compareText, dayLong, deltaLabel, lowMargin, marginPct, rangeFromParams, rangeTitle, rankProducts, topMismatch, type DateRange } from '@/lib/finance';
 import { categoryLabel, formatPesos, METHOD_LABEL } from '@/lib/ledger';
 import { colors, fonts, radius, spacing } from '@/theme';
 
@@ -21,8 +22,9 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 /**
- * Análisis del negocio: un rango libre de fechas comparado con otro, con gráficos (ventas y gastos por día, cuándo se
- * vende, cómo pagan, en qué se va la plata), la ganancia por producto y el inventario en plata.
+ * Análisis del negocio: un rango libre de fechas comparado con otro. El Resumen va por bloques (lienzo «Empre», página
+ * 13): lo que quedó con sus barras, margen, ventas, lo que te deben, los gastos, cuándo se vende y cómo pagan. Luego la
+ * ganancia por producto y el inventario en plata.
  */
 export default function AnalyticsScreen() {
   const params = useLocalSearchParams<{ id: string; from?: string; to?: string; compare?: string; preset?: string; tab?: string }>();
@@ -45,7 +47,7 @@ export default function AnalyticsScreen() {
       <SubScreenHeader title="Análisis del negocio" />
       <View style={styles.top}>
         <Pressable accessibilityRole="button" accessibilityLabel={`Fechas: ${rangeTitle(range)}. Cambiar`} onPress={() => setSheet(true)} style={styles.rangeBtn}>
-          <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+          <Ionicons name="calendar-outline" size={18} color={colors.primaryDark} />
           <View style={{ flex: 1 }}>
             <Text style={styles.rangeTitle}>{rangeTitle(range)}</Text>
             {a ? <Text style={styles.meta}>{compareText(a)}</Text> : null}
@@ -70,7 +72,7 @@ export default function AnalyticsScreen() {
         ) : q.isError || !a ? (
           <EmptyState icon="cloud-offline-outline" title="No pudimos cargar el análisis" body="Revisa tu conexión e inténtalo de nuevo." action={{ title: 'Reintentar', onPress: () => void q.refetch() }} />
         ) : tab === 'summary' ? (
-          <Summary a={a} />
+          <Summary a={a} entityId={entityId} />
         ) : tab === 'products' ? (
           <Products a={a} entityId={entityId} />
         ) : (
@@ -83,14 +85,112 @@ export default function AnalyticsScreen() {
   );
 }
 
-function Kpi({ label, value, delta, color, worseUp }: { label: string; value: string; delta: ReturnType<typeof deltaLabel>; color?: string; worseUp?: boolean }) {
+function Kpi({ label, value, delta, worseUp }: { label: string; value: string; delta: ReturnType<typeof deltaLabel>; worseUp?: boolean }) {
   return (
-    <View style={styles.kpi}>
+    <View style={styles.tile}>
       <Text style={styles.kpiLabel}>{label}</Text>
-      <Text style={[styles.kpiValue, color ? { color } : null]} numberOfLines={1} adjustsFontSizeToFit>
+      <Text style={styles.kpiValue} numberOfLines={1} adjustsFontSizeToFit>
         {value}
       </Text>
       <Delta d={delta} worseIsWarn={worseUp} />
+    </View>
+  );
+}
+
+/** El margen en un medidor: se lee sin mirar el número. */
+function MarginGauge({ pct }: { pct: number }) {
+  const v = Math.max(0, Math.min(100, pct));
+  const angle = ((v / 100) * 180 - 180) * (Math.PI / 180);
+  return (
+    <Svg width={132} height={74} viewBox="0 0 132 74" accessibilityRole="image" accessibilityLabel={`Margen de ${pct} por ciento`}>
+      <Path d="M 10 68 A 56 56 0 0 1 122 68" fill="none" stroke={colors.selectedSoft} strokeWidth={10} strokeLinecap="round" />
+      {v > 0 ? <Path d={`M 10 68 A 56 56 0 ${v > 50 ? 1 : 0} 1 ${66 + 56 * Math.cos(angle)} ${68 + 56 * Math.sin(angle)}`} fill="none" stroke={colors.ink} strokeWidth={10} strokeLinecap="round" /> : null}
+      <Line x1={66} y1={68} x2={66 + 42 * Math.cos(angle)} y2={68 + 42 * Math.sin(angle)} stroke={colors.ink} strokeWidth={2.5} strokeLinecap="round" />
+      <Circle cx={66} cy={68} r={4.5} fill={colors.ink} />
+    </Svg>
+  );
+}
+
+/** Lo que quedó en cada día (o semana, o mes): una barra por parte; tocarla dice qué pasó. */
+function ProfitBars({ series, bucket }: { series: Analytics['series']; bucket: Analytics['bucket'] }) {
+  const [sel, setSel] = useState<number | null>(null);
+  const left = series.map((p) => p.sales - p.expenses);
+  const max = Math.max(1, ...left.map(Math.abs));
+  const every = series.length > 16 ? Math.ceil(series.length / 8) : 1;
+  const bestI = left.indexOf(Math.max(...left));
+  const nameOf = (start: string) => (bucket === 'month' ? bucketLabel('month', start, 0) : bucket === 'week' ? `Semana del ${dayLong(start)}` : dayLong(start));
+  const p = sel !== null ? series[sel] : null;
+  const line = p
+    ? `${nameOf(p.start)}: vendiste ${formatPesos(p.sales)} y ${p.sales - p.expenses >= 0 ? 'te quedaron' : 'perdiste'} ${formatPesos(Math.abs(p.sales - p.expenses))}`
+    : series.length > 1 && left[bestI] > 0
+      ? `Lo mejor: ${nameOf(series[bestI].start)}, te quedaron ${formatPesos(left[bestI])}`
+      : null;
+  return (
+    <View style={{ gap: 6 }}>
+      <View style={styles.pBars}>
+        {series.map((pt, i) => {
+          const v = left[i];
+          return (
+            <Pressable
+              key={pt.start}
+              accessibilityRole="button"
+              accessibilityState={{ selected: sel === i }}
+              accessibilityLabel={`${nameOf(pt.start)}: ${v >= 0 ? 'te quedaron' : 'perdiste'} ${formatPesos(Math.abs(v))}`}
+              onPress={() => setSel(sel === i ? null : i)}
+              style={styles.pSlot}
+            >
+              <View style={[styles.pBar, { height: `${Math.max(8, (Math.abs(v) / max) * 100)}%`, backgroundColor: v < 0 ? colors.warning : SALES_COLOR, opacity: sel === null ? 0.45 + (Math.abs(v) / max) * 0.55 : sel === i ? 1 : 0.3 }]} />
+            </Pressable>
+          );
+        })}
+      </View>
+      <View style={{ flexDirection: 'row', gap: 2 }}>
+        {series.map((pt, i) => (
+          <Text key={pt.start} style={[styles.pLabel, sel === i && { color: colors.ink, fontFamily: fonts.ui.extrabold }]} numberOfLines={1}>
+            {i % every === 0 ? bucketLabel(bucket, pt.start, series.length) : ''}
+          </Text>
+        ))}
+      </View>
+      {line ? <Text style={styles.heroLine}>{line}</Text> : null}
+    </View>
+  );
+}
+
+/** Cómo pagaron: una pila de tarjetas; la que se toca pasa al frente y abajo se ve su plata. */
+function PayStack({ parts }: { parts: { key: string; label: string; icon: keyof typeof Ionicons.glyphMap; value: number; bg: string }[] }) {
+  const total = Math.max(1, parts.reduce((s, x) => s + x.value, 0));
+  const shown = parts.filter((x) => x.value > 0);
+  const biggest = shown.reduce((a, c) => (c.value > a.value ? c : a), shown[0]);
+  const [front, setFront] = useState(biggest?.key);
+  if (!biggest) return null;
+  const order = [...shown.filter((x) => x.key !== front), shown.find((x) => x.key === front) ?? biggest];
+  const cur = order[order.length - 1];
+  return (
+    <View>
+      <View style={{ height: order.length * 40 + 20 }}>
+        {order.map((x, pos) => {
+          const back = order.length - 1 - pos;
+          const pct = Math.round((x.value / total) * 100);
+          return (
+            <Pressable
+              key={x.key}
+              accessibilityRole="button"
+              accessibilityState={{ selected: back === 0 }}
+              accessibilityLabel={`${x.label}: ${pct} por ciento, ${formatPesos(x.value)}`}
+              onPress={() => setFront(x.key)}
+              style={[styles.payCard, { top: pos * 40, left: back * 8, right: back * 8, backgroundColor: x.bg }]}
+            >
+              <Ionicons name={x.icon} size={18} color={colors.ink} />
+              <Text style={styles.payName}>{x.label}</Text>
+              <Text style={styles.payPct}>{pct} %</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <View style={styles.payFoot}>
+        <Text style={styles.heroLine}>{cur.label}</Text>
+        <Text style={styles.payAmt}>{formatPesos(cur.value)}</Text>
+      </View>
     </View>
   );
 }
@@ -107,7 +207,8 @@ function Card({ title, children, right }: { title: string; children: ReactNode; 
   );
 }
 
-function Summary({ a }: { a: Analytics }) {
+function Summary({ a, entityId }: { a: Analytics; entityId: string }) {
+  const router = useRouter();
   const c = a.current;
   const p = a.previous;
   const m = marginPct(c);
@@ -117,69 +218,104 @@ function Summary({ a }: { a: Analytics }) {
     .sort(([, x], [, y]) => y - x)
     .map(([k, v]) => ({ key: k, value: v, d: deltaLabel(v, p.expenses_by_category[k] ?? 0, true) }));
   const noData = c.sales_count === 0 && c.expenses_total === 0;
+  const SHADES = [colors.ink, '#5B6B82', '#8796AB', colors.line];
 
+  if (noData) {
+    return <EmptyState icon="bar-chart-outline" title="Sin movimientos en estas fechas" body="Registra ventas y gastos y aquí verás tus gráficos. Prueba otras fechas." />;
+  }
   return (
     <>
-      <View style={styles.kpis}>
-        <Kpi label="Vendiste" value={formatPesos(c.sales_total)} delta={deltaLabel(c.sales_total, p.sales_total)} />
-        <Kpi label={c.profit >= 0 ? 'Te quedó' : 'Perdiste'} value={formatPesos(Math.abs(c.profit))} color={c.profit >= 0 ? '#1D6B3D' : '#B3261E'} delta={deltaLabel(c.profit, p.profit)} />
-        <Kpi label="Ticket promedio" value={formatPesos(c.avg_ticket)} delta={deltaLabel(c.avg_ticket, p.avg_ticket)} />
-        <Kpi
-          label="Ventas"
-          value={`${c.sales_count}${a.days > 1 ? ` · ${(c.sales_count / a.days).toFixed(1).replace('.', ',')}/día` : ''}`}
-          delta={deltaLabel(c.sales_count, p.sales_count)}
-        />
-        {m !== null ? (
-          <Kpi
-            label={c.margin_coverage_pct < 100 ? `Margen (${c.margin_coverage_pct} % con costo)` : 'Margen'}
-            value={`${m} %`}
-            delta={pm !== null && pm !== m ? { text: `${m > pm ? '▲' : '▼'} ${Math.abs(m - pm)} puntos`, tone: m > pm ? 'good' : 'bad' } : null}
-          />
-        ) : null}
-        <Kpi label="Gastaste" value={formatPesos(c.expenses_total)} delta={deltaLabel(c.expenses_total, p.expenses_total, true)} worseUp />
+      <View style={styles.hero}>
+        <View style={styles.heroTop}>
+          <Text style={styles.kpiLabel}>{c.profit >= 0 ? 'Te quedó' : 'Perdiste'}</Text>
+          <Delta d={deltaLabel(c.profit, p.profit)} />
+        </View>
+        <Text style={[styles.heroValue, c.profit < 0 && { color: colors.warning }]} numberOfLines={1} adjustsFontSizeToFit>
+          {formatPesos(Math.abs(c.profit))}
+        </Text>
+        <ProfitBars series={a.series} bucket={a.bucket} />
       </View>
 
-      {noData ? (
-        <EmptyState icon="bar-chart-outline" title="Sin movimientos en estas fechas" body="Registra ventas y gastos y aquí verás tus gráficos. Prueba otras fechas." />
-      ) : (
-        <>
-          <Card title={a.bucket === 'day' ? 'Ventas y gastos por día' : a.bucket === 'week' ? 'Ventas y gastos por semana' : 'Ventas y gastos por mes'}>
-            <BarPairs series={a.series} bucket={a.bucket} />
-          </Card>
+      <View style={styles.pair}>
+        {m !== null ? (
+          <View style={[styles.tile, { alignItems: 'center' }]}>
+            <Text style={[styles.kpiLabel, { alignSelf: 'flex-start' }]}>Margen</Text>
+            <MarginGauge pct={m} />
+            <Text style={styles.kpiValue}>{m} %</Text>
+            {pm !== null && pm !== m ? <Delta d={{ text: `${m > pm ? '▲' : '▼'} ${Math.abs(m - pm)} puntos`, tone: m > pm ? 'good' : 'bad' }} /> : null}
+            {c.margin_coverage_pct < 100 ? <Text style={styles.meta}>{c.margin_coverage_pct} % con costo</Text> : null}
+          </View>
+        ) : null}
+        <View style={{ flex: 1, gap: spacing.sm }}>
+          <Kpi label="Vendiste" value={formatPesos(c.sales_total)} delta={deltaLabel(c.sales_total, p.sales_total)} />
+          <Kpi label="Ticket promedio" value={formatPesos(c.avg_ticket)} delta={deltaLabel(c.avg_ticket, p.avg_ticket)} />
+        </View>
+      </View>
 
-          {c.sales_count > 0 ? (
-            <Card title="¿Cuándo vendes más?">
-              {best ? (
-                <View style={styles.callout}>
-                  <Ionicons name="sunny-outline" size={18} color={colors.primaryDark} />
-                  <Text style={styles.calloutText}>Tu mejor momento: {best}</Text>
-                </View>
-              ) : null}
-              <HeatGrid heat={a.heat} />
-            </Card>
-          ) : null}
-
-          {c.sales_total > 0 ? (
-            <Card title="¿Cómo te pagan?">
-              <StackBar
-                parts={[
-                  { label: METHOD_LABEL.cash, value: c.by_method.cash, color: colors.primary },
-                  { label: METHOD_LABEL.transfer, value: c.by_method.transfer, color: '#6E9EDD' },
-                  { label: METHOD_LABEL.card, value: c.by_method.card, color: colors.verified },
-                  { label: 'Fiado', value: c.by_method.credit, color: colors.accent },
-                ]}
-              />
-            </Card>
-          ) : null}
-
+      <View style={styles.pair}>
+        {a.receivable > 0 ? (
+          <View style={styles.oweTile}>
+            <Text style={styles.oweLabel}>Te deben</Text>
+            <Text style={styles.oweValue} numberOfLines={1} adjustsFontSizeToFit>
+              {formatPesos(a.receivable)}
+            </Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Ver quién te debe y recordarle" onPress={() => router.push({ pathname: '/business/ledger/debts/[id]', params: { id: entityId } })} style={styles.oweBtn}>
+              <Text style={styles.oweBtnText}>Recordarles</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Kpi label="Ventas" value={`${c.sales_count}${a.days > 1 ? ` · ${(c.sales_count / a.days).toFixed(1).replace('.', ',')}/día` : ''}`} delta={deltaLabel(c.sales_count, p.sales_count)} />
+        )}
+        <View style={styles.tile}>
+          <Text style={styles.kpiLabel}>Gastaste</Text>
+          <Text style={styles.kpiValue} numberOfLines={1} adjustsFontSizeToFit>
+            {formatPesos(c.expenses_total)}
+          </Text>
+          <Delta d={deltaLabel(c.expenses_total, p.expenses_total, true)} worseIsWarn />
           {cats.length > 0 ? (
-            <Card title="¿En qué se te va la plata?">
-              <HBars rows={cats.map((x) => ({ label: categoryLabel(x.key), value: x.value, extra: <View style={{ width: 62, alignItems: 'flex-end' }}><Delta d={x.d} worseIsWarn /></View> }))} />
-              <Text style={styles.meta}>Cada gasto frente al periodo con que comparas.</Text>
-            </Card>
+            <>
+              <View style={styles.spendBar}>
+                {cats.slice(0, 4).map((x, i) => (
+                  <View key={x.key} style={{ flex: x.value, borderRadius: 5, backgroundColor: SHADES[i] }} />
+                ))}
+              </View>
+              {cats.slice(0, 4).map((x, i) => (
+                <View key={x.key} style={styles.spendRow}>
+                  <View style={[styles.dot, { width: 8, height: 8, backgroundColor: SHADES[i] }]} />
+                  <Text style={styles.spendName} numberOfLines={1}>
+                    {categoryLabel(x.key)}
+                  </Text>
+                  <Delta d={x.d} worseIsWarn />
+                </View>
+              ))}
+            </>
           ) : null}
-        </>
-      )}
+        </View>
+      </View>
+
+      {a.receivable > 0 ? (
+        <Kpi label="Ventas" value={`${c.sales_count}${a.days > 1 ? ` · ${(c.sales_count / a.days).toFixed(1).replace('.', ',')}/día` : ''}`} delta={deltaLabel(c.sales_count, p.sales_count)} />
+      ) : null}
+
+      {c.sales_count > 0 ? (
+        <Card title="¿Cuándo vendes más?">
+          {best ? <Text style={styles.bestLine}>Tu mejor momento: {best}</Text> : null}
+          <HeatGrid heat={a.heat} />
+        </Card>
+      ) : null}
+
+      {c.sales_total > 0 ? (
+        <Card title="¿Cómo te pagaron?">
+          <PayStack
+            parts={[
+              { key: 'card', label: METHOD_LABEL.card, icon: 'card-outline', value: c.by_method.card, bg: '#D5DEEA' },
+              { key: 'credit', label: 'Fiado', icon: 'person-outline', value: c.by_method.credit, bg: colors.accentSoft },
+              { key: 'transfer', label: METHOD_LABEL.transfer, icon: 'phone-portrait-outline', value: c.by_method.transfer, bg: colors.selectedSoft },
+              { key: 'cash', label: METHOD_LABEL.cash, icon: 'cash-outline', value: c.by_method.cash, bg: colors.verifiedSoft },
+            ]}
+          />
+        </Card>
+      ) : null}
     </>
   );
 }
@@ -271,7 +407,7 @@ function ProductRow({ p, rank, by, max }: { p: ProductStat; rank: number; by: 'r
         <Text style={[styles.lineName, { flex: 1 }]} numberOfLines={1}>
           {p.name}
         </Text>
-        <Text style={[styles.lineName, by === 'profit' && { color: (p.profit ?? 0) < 0 ? '#B3261E' : '#1D6B3D' }]}>{main === null ? 'Sin costo' : formatPesos(main)}</Text>
+        <Text style={[styles.lineName, by === 'profit' && { color: (p.profit ?? 0) < 0 ? '#B3261E' : '#0A6E6A' }]}>{main === null ? 'Sin costo' : formatPesos(main)}</Text>
       </View>
       <View style={[styles.track, { marginLeft: 30 }]}>
         <View style={[styles.fill, { width: `${Math.max(0, ((main ?? 0) / max) * 100)}%`, backgroundColor: by === 'profit' ? colors.success : colors.primary }]} />
@@ -281,8 +417,8 @@ function ProductRow({ p, rank, by, max }: { p: ProductStat; rank: number; by: 'r
           {by === 'profit' ? `Vendiste ${formatPesos(p.revenue)}` : p.profit !== null ? `Te dejó ${formatPesos(p.profit)}` : 'Sin costo'} · {String(Math.round(p.qty * 10) / 10).replace('.', ',')} und
         </Text>
         {p.margin_pct !== null ? (
-          <View style={[styles.pill, { backgroundColor: good ? '#E7F5EC' : colors.accentSoft }]}>
-            <Text style={[styles.pillText, { color: good ? '#1D6B3D' : colors.accentInk }]}>{Math.round(p.margin_pct)} %</Text>
+          <View style={[styles.pill, { backgroundColor: good ? '#E3F5F3' : colors.accentSoft }]}>
+            <Text style={[styles.pillText, { color: good ? '#0A6E6A' : colors.accentInk }]}>{Math.round(p.margin_pct)} %</Text>
           </View>
         ) : null}
       </View>
@@ -319,11 +455,11 @@ function Inventory({ a, entityId }: { a: Analytics; entityId: string }) {
         <Text style={styles.kpiLabel}>Plata en mercancía hoy</Text>
         <Text style={styles.big}>{formatPesos(inv.value_cost)}</Text>
         {inv.value_price > inv.value_cost ? (
-          <Text style={[styles.meta, { color: '#1D6B3D', fontFamily: fonts.ui.bold }]}>
+          <Text style={[styles.meta, { color: '#0A6E6A', fontFamily: fonts.ui.bold }]}>
             Si lo vendes todo: {formatPesos(inv.value_price)} · ganarías {formatPesos(inv.value_price - inv.value_cost)}
           </Text>
         ) : null}
-        {inv.by_section.length > 1 ? <HBars rows={inv.by_section.map((s) => ({ label: s.name, value: s.value }))} color={colors.primary} /> : null}
+        {inv.by_section.length > 1 ? <HBars rows={inv.by_section.map((s) => ({ label: s.name, value: s.value }))} color={colors.ink} /> : null}
         <Text style={styles.meta}>
           {inv.valued === 0
             ? 'Para calcularlo, cuenta tus productos en cantidad exacta y ponles costo.'
@@ -365,36 +501,58 @@ const styles = StyleSheet.create({
   rangeTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   tabs: { flexDirection: 'row' },
   tab: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 3, borderBottomColor: 'transparent' },
-  tabOn: { borderBottomColor: colors.primary },
+  tabOn: { borderBottomColor: colors.brand },
   tabText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.muted },
-  tabTextOn: { fontFamily: fonts.ui.extrabold, color: colors.primary },
+  tabTextOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
   meta: { fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
-  link: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primary },
-  kpis: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  kpi: { flexBasis: '48%', flexGrow: 1, gap: 2, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  link: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
+  hero: { gap: spacing.sm, padding: spacing.lg, borderRadius: radius.lg + 2, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  heroValue: { fontSize: 34, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  heroLine: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted },
+  pBars: { height: 104, flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
+  pSlot: { flex: 1, height: 104, justifyContent: 'flex-end' },
+  pBar: { borderRadius: 5 },
+  pLabel: { flex: 1, textAlign: 'center', fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  pair: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.sm },
+  tile: { flex: 1, minWidth: 0, gap: 2, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  oweTile: { flex: 1, minWidth: 0, gap: 4, padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.primary },
+  oweLabel: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  oweValue: { fontSize: 28, fontFamily: fonts.display.bold, color: '#fff', fontVariant: ['tabular-nums'] },
+  oweBtn: { marginTop: 'auto', minHeight: 46, borderRadius: radius.md, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  oweBtnText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  spendBar: { flexDirection: 'row', gap: 3, height: 22, marginVertical: spacing.sm },
+  spendRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 22 },
+  spendName: { flex: 1, minWidth: 0, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
+  bestLine: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  payCard: { position: 'absolute', height: 96, flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line },
+  payName: { flex: 1, fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  payPct: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  payFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 52, marginHorizontal: -spacing.md, marginBottom: -spacing.md, paddingHorizontal: spacing.md, borderTopWidth: 1, borderTopColor: colors.line, borderBottomLeftRadius: radius.lg, borderBottomRightRadius: radius.lg, backgroundColor: colors.surface },
+  payAmt: { fontSize: 21, fontFamily: fonts.ui.extrabold, color: colors.ink, fontVariant: ['tabular-nums'] },
   kpiLabel: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
-  kpiValue: { fontSize: 19, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  kpiValue: { fontSize: 21, fontFamily: fonts.ui.extrabold, color: colors.ink, fontVariant: ['tabular-nums'] },
   big: { fontSize: 30, fontFamily: fonts.display.bold, color: colors.ink },
   card: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   cardHead: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
   cardTitle: { flex: 1, fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   callout: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
   calloutText: { flexShrink: 1, fontSize: 13, lineHeight: 19, fontFamily: fonts.ui.bold, color: colors.primaryDark },
-  seg: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: '#E8EEF6' },
+  seg: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: colors.selectedSoft },
   segBtn: { flex: 1, minHeight: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   segOn: { backgroundColor: colors.surface },
-  segText: { fontSize: 14, fontFamily: fonts.ui.bold, color: '#55657C' },
+  segText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.muted },
   segTextOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
   pRow: { gap: 6, padding: spacing.md },
-  pLine: { borderTopWidth: 1, borderTopColor: '#EEF2F7' },
+  pLine: { borderTopWidth: 1, borderTopColor: colors.selectedSoft },
   pHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   rank: { width: 22, fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.muted },
   track: { height: 8, borderRadius: 4, backgroundColor: colors.bg },
   fill: { height: 8, borderRadius: 4 },
   pill: { minHeight: 24, paddingHorizontal: 8, borderRadius: radius.pill, justifyContent: 'center' },
   pillText: { fontSize: 12, fontFamily: fonts.ui.extrabold },
-  more: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderTopWidth: 1, borderTopColor: '#EEF2F7' },
-  line: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 46, borderTopWidth: 1, borderTopColor: '#EEF2F7' },
+  more: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderTopWidth: 1, borderTopColor: colors.selectedSoft },
+  line: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 46, borderTopWidth: 1, borderTopColor: colors.selectedSoft },
   lineName: { fontSize: 14.5, fontFamily: fonts.ui.bold, color: colors.ink },
   lineTag: { fontSize: 12.5, fontFamily: fonts.ui.extrabold },
   lineValue: { minWidth: 76, textAlign: 'right', fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },

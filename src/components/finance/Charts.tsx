@@ -1,13 +1,13 @@
-import { useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { bucketLabel, dayLong, FRANJAS, heatLevel, WEEK_INITIALS } from '@/lib/finance';
+import { type ReactNode } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { FRANJAS, heatLevel, WEEK_INITIALS } from '@/lib/finance';
 import { formatPesos } from '@/lib/ledger';
 import { colors, fonts, radius, spacing } from '@/theme';
 
-export const SALES_COLOR = colors.primary;
-export const EXPENSE_COLOR = colors.accent;
-const HEAT = ['#EEF4FC', '#B9D0F0', '#6E9EDD', colors.primary];
-const TONE = { good: '#1D6B3D', bad: '#B3261E', warn: colors.accentInk, flat: colors.muted } as const;
+export const SALES_COLOR = colors.brand;
+export const EXPENSE_COLOR = '#8796AB';
+const HEAT = [colors.selectedSoft, '#B6C1D1', '#5B6B82', colors.selected];
+const TONE = { good: colors.verified, bad: colors.warning, warn: colors.accentInk, flat: colors.muted } as const;
 
 /** «▲ 12 %» con su color. */
 export function Delta({ d, worseIsWarn = false }: { d: { text: string; tone: 'good' | 'bad' | 'flat' } | null; worseIsWarn?: boolean }) {
@@ -24,72 +24,9 @@ export function Sparkline({ values, height = 56 }: { values: number[]; height?: 
       {values.map((v, i) => (
         <View
           key={i}
-          style={{ flex: 1, height: `${Math.max(3, (v / max) * 100)}%`, borderTopLeftRadius: 3, borderTopRightRadius: 3, backgroundColor: i === values.length - 1 ? EXPENSE_COLOR : '#9DBDE8' }}
+          style={{ flex: 1, height: `${Math.max(3, (v / max) * 100)}%`, borderTopLeftRadius: 3, borderTopRightRadius: 3, backgroundColor: i === values.length - 1 ? SALES_COLOR : colors.line }}
         />
       ))}
-    </View>
-  );
-}
-
-interface Point {
-  start: string;
-  sales: number;
-  expenses: number;
-}
-
-/** Ventas y gastos por día (o semana o mes), lado a lado. Tocar una barra muestra su detalle. */
-export function BarPairs({ series, bucket }: { series: Point[]; bucket: string }) {
-  const [sel, setSel] = useState<number | null>(null);
-  const max = Math.max(1, ...series.map((p) => Math.max(p.sales, p.expenses)));
-  const every = series.length > 16 ? Math.ceil(series.length / 8) : 1;
-  const p = sel !== null ? series[sel] : null;
-  const what = bucket === 'week' ? 'Semana del ' : '';
-  return (
-    <View style={{ gap: spacing.sm }}>
-      <View style={styles.legend}>
-        <Legend color={SALES_COLOR} label="Ventas" />
-        <Legend color={EXPENSE_COLOR} label="Gastos" />
-      </View>
-      {p ? (
-        <View style={styles.tip}>
-          <Text style={styles.tipText}>
-            {what}
-            {bucket === 'month' ? bucketLabel('month', p.start, 0) : dayLong(p.start)} · vendiste {formatPesos(p.sales)} · gastaste {formatPesos(p.expenses)} · {p.sales - p.expenses >= 0 ? 'te quedaron' : 'perdiste'}{' '}
-            {formatPesos(Math.abs(p.sales - p.expenses))}
-          </Text>
-        </View>
-      ) : null}
-      <View style={styles.bars} accessibilityLabel="Gráfico de ventas y gastos">
-        {series.map((pt, i) => (
-          <Pressable
-            key={pt.start}
-            accessibilityRole="button"
-            accessibilityLabel={`${dayLong(pt.start)}: vendiste ${formatPesos(pt.sales)}, gastaste ${formatPesos(pt.expenses)}`}
-            onPress={() => setSel(sel === i ? null : i)}
-            style={[styles.barSlot, sel === i && { backgroundColor: colors.primarySoft }]}
-          >
-            <View style={[styles.bar, { height: `${(pt.sales / max) * 100}%`, backgroundColor: SALES_COLOR }]} />
-            <View style={[styles.bar, { height: `${(pt.expenses / max) * 100}%`, backgroundColor: EXPENSE_COLOR }]} />
-          </Pressable>
-        ))}
-      </View>
-      <View style={styles.labels}>
-        {series.map((pt, i) => (
-          <Text key={pt.start} style={styles.barLabel} numberOfLines={1}>
-            {i % every === 0 ? bucketLabel(bucket, pt.start, series.length) : ''}
-          </Text>
-        ))}
-      </View>
-      <Text style={styles.hint}>Toca una barra para ver su detalle.</Text>
-    </View>
-  );
-}
-
-function Legend({ color, label }: { color: string; label: string }) {
-  return (
-    <View style={styles.legendItem}>
-      <View style={[styles.swatch, { backgroundColor: color }]} />
-      <Text style={styles.hint}>{label}</Text>
     </View>
   );
 }
@@ -127,30 +64,6 @@ export function HeatGrid({ heat }: { heat: number[][] }) {
         ))}
         <Text style={styles.hint}>Más</Text>
       </View>
-    </View>
-  );
-}
-
-/** Una barra partida (medios de pago) con su leyenda. */
-export function StackBar({ parts }: { parts: { label: string; value: number; color: string }[] }) {
-  const total = parts.reduce((s, p) => s + p.value, 0);
-  const shown = parts.filter((p) => p.value > 0);
-  if (total <= 0) return <Text style={styles.hint}>Sin ventas en estas fechas.</Text>;
-  return (
-    <View style={{ gap: spacing.sm }}>
-      <View style={styles.stack} accessibilityRole="image" accessibilityLabel={shown.map((p) => `${p.label} ${Math.round((p.value / total) * 100)} %`).join(', ')}>
-        {shown.map((p) => (
-          <View key={p.label} style={{ flex: p.value, backgroundColor: p.color }} />
-        ))}
-      </View>
-      {shown.map((p) => (
-        <View key={p.label} style={styles.legendRow}>
-          <View style={[styles.swatch, { backgroundColor: p.color }]} />
-          <Text style={[styles.rowLabel, { flex: 1 }]}>{p.label}</Text>
-          <Text style={styles.hint}>{Math.round((p.value / total) * 100)} %</Text>
-          <Text style={styles.rowValue}>{formatPesos(p.value)}</Text>
-        </View>
-      ))}
     </View>
   );
 }
