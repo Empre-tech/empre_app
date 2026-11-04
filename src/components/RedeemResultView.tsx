@@ -32,8 +32,8 @@ function rejectionLook(r: RedeemResult): Look {
         tone: 'bad',
         icon: 'close',
         title: 'Ya fue canjeado',
-        why: r.redeemed_at ? `Este código se usó ${formatAgo(r.redeemed_at)}.` : 'Este código ya se usó.',
-        hint: 'No entregues la oferta. Si insiste, pídele que te muestre «Canjeado» en su pantalla.',
+        why: r.redeemed_at ? `Este código se usó ${formatAgo(r.redeemed_at)}. No lo entregues otra vez.` : 'Este código ya se usó. No lo entregues otra vez.',
+        hint: 'Su pantalla sigue mostrando que ya lo usó: si insiste, pídele que te la enseñe.',
       };
     case 'EXPIRED':
       return {
@@ -82,6 +82,8 @@ interface Props {
   onRetry: () => void;
   /** Abrir Finanzas del negocio. */
   onFinance?: (entityId: string) => void;
+  /** Modo práctica: nada se registra y lo dice. */
+  practice?: boolean;
 }
 
 /**
@@ -89,7 +91,7 @@ interface Props {
  * verde = entrega, rojo suave = no entregues, ámbar/gris = reintenta o
  * explica. Cada rechazo dice por qué y qué hacer.
  */
-export function RedeemResultView({ result, offline, onNext, onRetry, onFinance }: Props) {
+export function RedeemResultView({ result, offline, onNext, onRetry, onFinance, practice = false }: Props) {
   const insets = useSafeAreaInsets();
   if (!result && !offline) return null;
 
@@ -102,7 +104,7 @@ export function RedeemResultView({ result, offline, onNext, onRetry, onFinance }
         hint: 'El cliente conserva su QR: no se ha canjeado nada. Reconecta y reintenta.',
       }
     : result!.valid
-      ? { tone: 'ok', icon: 'checkmark', title: 'VÁLIDO', why: 'Entrega esta oferta' }
+      ? { tone: 'ok', icon: 'checkmark', title: 'VÁLIDO', why: 'Entrega la oferta y cobra el precio de la oferta.' }
       : rejectionLook(result!);
 
   const ok = look.tone === 'ok';
@@ -124,7 +126,13 @@ export function RedeemResultView({ result, offline, onNext, onRetry, onFinance }
         <Text style={[styles.why, { color: mutedColor }]}>{look.why}</Text>
 
         {result && ok ? <ValidDetails result={result} /> : null}
-        {result && ok ? <SaleReceipt key={result.claim_id} result={result} onFinance={onFinance} /> : null}
+        {result && ok && !practice ? <SaleReceipt key={result.claim_id} result={result} onFinance={onFinance} /> : null}
+        {result && ok && practice ? (
+          <View style={styles.sale}>
+            <Text style={styles.saleTitle}>Aquí Empre Finance registra la venta</Text>
+            <Text style={styles.saleSub}>En práctica no se registra nada ni se toca el inventario.</Text>
+          </View>
+        ) : null}
         {result && !ok && !offline ? <RejectedFacts result={result} /> : null}
 
         {look.hint ? (
@@ -152,7 +160,7 @@ export function RedeemResultView({ result, offline, onNext, onRetry, onFinance }
             style={[styles.btn, ok ? styles.btnLight : styles.btnDark]}
           >
             <Text style={[styles.btnText, { color: ok ? OK_GREEN : '#fff' }]}>
-              {ok ? 'Escanear siguiente' : 'Escanear otro'}
+              {ok ? (practice ? 'Listo, ya sé canjear' : 'Listo, escanear otro') : 'Escanear otro código'}
             </Text>
           </Pressable>
         )}
@@ -168,9 +176,9 @@ function ValidDetails({ result }: { result: RedeemResult }) {
   return (
     <>
       <View style={styles.deliver}>
-        <Text style={styles.deliverLabel}>ENTREGAR</Text>
+        <Text style={styles.deliverLabel}>ENTREGA</Text>
         <Text style={styles.deliverTitle}>{result.offer_title}</Text>
-        {price ? <Text style={styles.deliverPrice}>{price}</Text> : null}
+        {price ? <Text style={styles.deliverPrice}>Cobra {price}</Text> : null}
       </View>
 
       {result.client_name ? (

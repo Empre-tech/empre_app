@@ -89,7 +89,7 @@ export default function ScanScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top + spacing.md }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Escanear canje</Text>
+        <Text style={styles.title}>Canjear ofertas</Text>
         <View style={styles.modeToggle}>
           <Pressable onPress={() => setMode('scan')} style={[styles.modeBtn, mode === 'scan' && styles.modeBtnActive]}>
             <Text style={[styles.modeText, mode === 'scan' && styles.modeTextActive]}>Escáner</Text>

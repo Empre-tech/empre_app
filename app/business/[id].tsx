@@ -41,6 +41,7 @@ import { AskSheet } from '@/components/profile/AskSheet';
 import { CatalogSection } from '@/components/profile/CatalogSection';
 import { OffersFicha } from '@/components/profile/OffersFicha';
 import { PhotosSection } from '@/components/profile/PhotosSection';
+import { getPhoneFlag, setPhoneFlag } from '@/lib/phoneFlags';
 import { LatestStrip } from '@/components/profile/LatestStrip';
 import { ProfileHero } from '@/components/profile/ProfileHero';
 import { QuickIndex } from '@/components/profile/QuickIndex';
@@ -97,6 +98,11 @@ export default function BusinessScreen() {
   const business = query.data;
 
   const photos = useMemo(() => [...(business?.photos ?? [])].sort((a, b) => a.order - b.order), [business?.photos]);
+  // Consejo de primera vez: una sola vez en este teléfono.
+  const [coach, setCoach] = useState(false);
+  useEffect(() => {
+    void getPhoneFlag('coach-reservar').then((seen) => setCoach(!seen));
+  }, []);
 
   const isOwner = status === 'signedIn' && user?.id === business?.owner_id;
 
@@ -685,6 +691,21 @@ export default function BusinessScreen() {
             </>
         </View>
       </ScrollView>
+      {!isOwner && coach && FEATURES.agenda && agendaSummary.data?.enabled ? (
+        <View style={[styles.coach, { bottom: Math.max(insets.bottom, spacing.md) + 78 }]} accessibilityLiveRegion="polite">
+          <Text style={styles.coachText}>Con «Reservar» pides una hora. El negocio te confirma y la cita queda en Mis salidas.</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              setCoach(false);
+              void setPhoneFlag('coach-reservar', '1');
+            }}
+            style={styles.coachBtn}
+          >
+            <Text style={styles.coachBtnText}>Entendido</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {!isOwner ? (
         <ActionBar
           name={business.name}
@@ -874,6 +895,10 @@ function StarPicker({ value, onChange }: { value: number; onChange: (rating: num
 }
 
 const styles = StyleSheet.create({
+  coach: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.ink },
+  coachText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: '#fff' },
+  coachBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm },
+  coachBtnText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#fff', textDecorationLine: 'underline' },
   visitGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   visitTile: { flexBasis: '47%', flexGrow: 1, gap: 4, padding: spacing.md, minHeight: 92, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   visitLabel: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },

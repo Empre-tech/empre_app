@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi, usersApi } from '@/api/endpoints';
 import type { VerificationStatus } from '@/api/types';
@@ -16,6 +16,10 @@ import { verificationLabel } from '@/lib/format';
 import { pickImage } from '@/lib/images';
 import { useInboxSummary } from '@/chat/useInboxSummary';
 import { requestsLabel } from '@/lib/inbox';
+import { ledgerApi } from '@/api/ledger';
+import { formatPesos } from '@/lib/ledger';
+import { todayCO } from '@/lib/finance';
+import { getPhoneFlag, setPhoneFlag } from '@/lib/phoneFlags';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const STATUS_STYLE: Record<VerificationStatus, { fg: string; bg: string; icon: keyof typeof Ionicons.glyphMap }> = {
@@ -42,6 +46,30 @@ export default function ProfileScreen() {
     queryFn: entitiesApi.mine,
     enabled: status === 'signedIn',
   });
+  // El negocio en el que estás trabajando: lo recuerda este teléfono.
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [allOpen, setAllOpen] = useState(false);
+  useEffect(() => {
+    void getPhoneFlag('active-business').then(setActiveId);
+  }, []);
+  const entities = mine.data ?? [];
+  const active = entities.find((e) => e.id === activeId)?.id ?? entities[0]?.id;
+  const pick = (id: string) => {
+    setActiveId(id);
+    void setPhoneFlag('active-business', id);
+  };
+  const today = todayCO();
+  const todays = useQueries({
+    queries: entities.map((e) => ({
+      queryKey: ['ledger', e.id, 'analytics', today, today, 'prev'],
+      queryFn: () => ledgerApi.analytics(e.id, { from: today, to: today, compare: 'prev' as const }),
+      staleTime: 60_000,
+      retry: false,
+      enabled: status === 'signedIn',
+    })),
+  });
+  const salesOf = (id: string) => todays[entities.findIndex((e) => e.id === id)]?.data?.current;
+  const allTotal = todays.reduce((s, q) => s + (q.data?.current.sales_total ?? 0), 0);
 
   if (status !== 'signedIn' || !user) {
     return (
@@ -69,10 +97,33 @@ export default function ProfileScreen() {
   };
 
   const hasBusiness = (mine.data ?? []).length > 0;
+  const allSheet = (
+    <Modal visible={allOpen} transparent animationType="slide" onRequestClose={() => setAllOpen(false)}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" style={styles.veil} onPress={() => setAllOpen(false)} />
+      <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.md }]}>
+        <Text style={styles.section} accessibilityRole="header">
+          Todos mis negocios · hoy
+        </Text>
+        {entities.map((e) => (
+          <View key={e.id} style={styles.allRow}>
+            <Text style={styles.cardTitle} numberOfLines={1}>
+              {e.name}
+            </Text>
+            <Text style={styles.cardTitle}>{formatPesos(salesOf(e.id)?.sales_total ?? 0)}</Text>
+          </View>
+        ))}
+        <View style={[styles.allRow, styles.allTotal]}>
+          <Text style={styles.cardTitle}>Total</Text>
+          <Text style={styles.cardTitle}>{formatPesos(allTotal)}</Text>
+        </View>
+        <Text style={styles.meta}>Solo para ver. Cada venta, gasto o canje se registra en un negocio a la vez.</Text>
+      </View>
+    </Modal>
+  );
   const businesses = (
     <>
       <View style={styles.sectionRow}>
-        <Text style={styles.section}>{hasBusiness ? 'Mis negocios' : 'Tu negocio'}</Text>
+        <Text style={styles.section}>{hasBusiness ? `Mis negocios${entities.length > 1 ? ` · ${entities.length}` : ''}` : 'Tu negocio'}</Text>
         <Pressable accessibilityRole="button" onPress={() => router.push('/business/new')} hitSlop={8}>
           <Text style={styles.link}>+ Crear negocio</Text>
         </Pressable>
@@ -87,8 +138,11 @@ export default function ProfileScreen() {
         (mine.data ?? []).map((entity) => (
           <Pressable
             key={entity.id}
-            onPress={() => router.push({ pathname: '/business/hub/[id]', params: { id: entity.id } })}
-            style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: entity.id === active }}
+            accessibilityLabel={entities.length > 1 && entity.id !== active ? `${entity.name}. Toca para trabajar en él` : `${entity.name}, negocio activo. Administrar`}
+            onPress={() => (entities.length > 1 && entity.id !== active ? pick(entity.id) : router.push({ pathname: '/business/hub/[id]', params: { id: entity.id } }))}
+            style={({ pressed }) => [styles.card, entities.length > 1 && entity.id === active && styles.cardActive, pressed && { opacity: 0.85 }]}
           >
             <Avatar uri={entity.profile_url} name={entity.name} size={48} />
             <View style={styles.cardInfo}>
@@ -124,6 +178,21 @@ export default function ProfileScreen() {
                 <Text style={styles.reqStripLink}>Ver agenda</Text>
               </Pressable>
             ) : null}
+            {entity.id === active ? (
+              <View style={styles.activeBlock}>
+                {entities.length > 1 ? <Text style={styles.activeTag}>ACTIVO</Text> : null}
+                {salesOf(entity.id) ? (
+                  <Text style={styles.meta}>
+                    Hoy · {salesOf(entity.id)!.sales_count === 1 ? '1 venta' : `${salesOf(entity.id)!.sales_count} ventas`} · {formatPesos(salesOf(entity.id)!.sales_total)}
+                  </Text>
+                ) : null}
+                <View style={styles.quickRow}>
+                  <QuickAction icon="scan-outline" label="Canjear" onPress={() => router.push('/business/scan')} />
+                  <QuickAction icon="add-circle-outline" label="Vender" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entity.id } })} />
+                  <QuickAction icon="calendar-outline" label="Agenda" onPress={() => router.push({ pathname: '/business/agenda/[id]', params: { id: entity.id } })} />
+                </View>
+              </View>
+            ) : null}
             {/* «Mi negocio» es el centro: datos, productos e inventario, fotos, ofertas, ventas, agenda y suscripción. */}
             <Pressable
               accessibilityRole="button"
@@ -140,8 +209,6 @@ export default function ProfileScreen() {
           </Pressable>
         ))
       )}
-
-      <Button title="Cerrar sesión" variant="secondary" onPress={() => void signOut()} style={styles.logout} />
     </>
   );
 
@@ -171,6 +238,16 @@ export default function ProfileScreen() {
       </View>
 
       {hasBusiness || mine.isLoading ? businesses : null}
+      {entities.length > 1 ? (
+        <Pressable accessibilityRole="button" onPress={() => setAllOpen(true)} style={({ pressed }) => [styles.allBtn, pressed && { opacity: 0.85 }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>Todos mis negocios</Text>
+            <Text style={styles.meta}>Ventas de hoy: {formatPesos(allTotal)}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+        </Pressable>
+      ) : null}
+      {allSheet}
 
       <Pressable
         accessibilityRole="button"
@@ -258,11 +335,32 @@ export default function ProfileScreen() {
       )}
 
       {!hasBusiness && !mine.isLoading ? businesses : null}
+      <Button title="Cerrar sesión" variant="secondary" onPress={() => void signOut()} style={styles.logout} />
     </ScrollView>
   );
 }
 
+function QuickAction({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.quick, pressed && { opacity: 0.85 }]}>
+      <Ionicons name={icon} size={18} color={colors.ink} />
+      <Text style={styles.quickText}>{label}</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  cardActive: { borderWidth: 2, borderColor: colors.ink },
+  activeBlock: { width: '100%', gap: spacing.sm },
+  activeTag: { alignSelf: 'flex-start', fontSize: 11, letterSpacing: 0.8, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  quickRow: { flexDirection: 'row', gap: spacing.sm },
+  quick: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 2, borderRadius: radius.md, backgroundColor: colors.selectedSoft },
+  quickText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  allBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 60, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  veil: { flex: 1, backgroundColor: 'rgba(11,26,54,0.45)' },
+  sheet: { gap: spacing.sm, padding: spacing.lg, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, backgroundColor: colors.surface },
+  allRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, paddingVertical: spacing.sm },
+  allTotal: { borderTopWidth: 1, borderTopColor: colors.line },
   // La franja ocupa todo el ancho y pasa a su propia línea (la tarjeta envuelve).
   reqStrip: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.accentSoft },
   ledgerStrip: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },

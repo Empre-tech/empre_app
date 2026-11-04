@@ -102,7 +102,8 @@ export default function BusinessHubScreen() {
               />
             ) : null}
             {FEATURES.agenda ? <Tile symbol="agenda" icon="calendar-outline" title="Empre Agenda" sub="Solicitudes y reservas" onPress={go({ pathname: '/business/agenda/[id]', params: { id: entityId } })} /> : null}
-            <Tile icon="scan-outline" title="Escanear canje" sub="Valida el código de un cliente" onPress={go('/business/scan')} />
+            <Tile icon="scan-outline" title="Canjear ofertas" sub="Valida el código de un cliente" onPress={go('/business/scan')} />
+            <Tile icon="school-outline" title="Practicar el canje" sub="Con un QR de práctica: no cuenta como venta" onPress={go('/business/practice')} />
           </Group>
         ) : null}
 

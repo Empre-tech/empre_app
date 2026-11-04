@@ -45,6 +45,7 @@ interface Props {
  * no se muestran), servicio si el negocio definió varios y una nota opcional.
  */
 export function BookingSheet({ visible, entityId, entityName, summary, onClose, onBooked, initialServiceId }: Props) {
+  const [howOpen, setHowOpen] = useState(false);
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const days = useMemo(() => nextDays(Math.min(summary.horizon_days + 1, 15)), [summary.horizon_days]);
@@ -116,6 +117,10 @@ export function BookingSheet({ visible, entityId, entityName, summary, onClose, 
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>Elegir día y hora</Text>
+              <Pressable accessibilityRole="button" accessibilityState={{ expanded: howOpen }} onPress={() => setHowOpen((v) => !v)} hitSlop={8} style={styles.howBtn}>
+                <Text style={styles.howLink}>¿Cómo funciona?</Text>
+              </Pressable>
+              {howOpen ? <Text style={styles.howText}>Eliges un servicio y una hora libre. {summary.intake_mode === 'auto' ? 'La cita queda confirmada al instante' : 'El negocio te confirma y te avisamos'}. La cita queda en Mis salidas, y puedes cancelarla si no vas a ir.</Text> : null}
               <Text style={styles.subtitle} numberOfLines={1}>
                 {entityName}
               </Text>
@@ -237,6 +242,9 @@ export function BookingSheet({ visible, entityId, entityName, summary, onClose, 
 }
 
 const styles = StyleSheet.create({
+  howBtn: { minHeight: 32, justifyContent: 'center' },
+  howLink: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink, textDecorationLine: 'underline' },
+  howText: { fontSize: 13, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.muted },
   backdrop: { flex: 1, backgroundColor: 'rgba(22,35,58,0.45)' },
   sheet: {
     backgroundColor: colors.surface,
