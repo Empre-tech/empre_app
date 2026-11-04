@@ -57,6 +57,7 @@ export default function AppointmentScreen() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [now, setNow] = useState(Date.now());
+  const [stillComing, setStillComing] = useState(false);
 
   // La cuenta regresiva se refresca sola (el estado llega aparte por WebSocket).
   useEffect(() => {
@@ -208,6 +209,17 @@ export default function AppointmentScreen() {
               style={{ flex: 1 }}
             />
             <Button title="Aceptar" onPress={() => accept.mutate()} loading={accept.isPending} style={{ flex: 1 }} />
+          </View>
+        ) : null}
+
+        {!isBusiness && appt.status === 'confirmed' && !stillComing && Date.parse(appt.starts_at) > now && Date.parse(appt.starts_at) - now <= 2 * 3_600_000 ? (
+          <View style={styles.card}>
+            <Text style={styles.question}>¿Sigues viniendo?</Text>
+            <Text style={styles.statusText}>Si ya no puedes, la hora le sirve a otra persona.</Text>
+            <View style={[styles.actions, { marginTop: spacing.sm }]}>
+              <Button title="Ya no puedo" variant="secondary" onPress={confirmCancel} loading={cancel.isPending} style={{ flex: 1 }} />
+              <Button title="Sí, voy" onPress={() => setStillComing(true)} style={{ flex: 1 }} />
+            </View>
           </View>
         ) : null}
 
