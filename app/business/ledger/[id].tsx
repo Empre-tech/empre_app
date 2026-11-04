@@ -43,6 +43,14 @@ interface Movement {
   pending: boolean;
 }
 
+/** El periodo en una frase, armada con los números: sin modelo y sin inventar causas. */
+function daySentence(isToday: boolean, sold: number, left: number, count: number): string {
+  const when = isToday ? 'Hoy' : 'En estas fechas';
+  if (sold === 0) return isToday ? 'Hoy todavía no registras ventas.' : 'En estas fechas no hay ventas registradas.';
+  const sales = count === 1 ? '1 venta' : `${count} ventas`;
+  return left >= 0 ? `${when} vendiste ${formatPesos(sold)} en ${sales} y te quedaron ${formatPesos(left)}.` : `${when} vendiste ${formatPesos(sold)} en ${sales}, pero gastaste ${formatPesos(-left)} más de lo que vendiste.`;
+}
+
 function timeOf(iso: string, withDay = false): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
@@ -164,6 +172,7 @@ export default function LedgerHome() {
           <EmptyState icon="cloud-offline-outline" title="No pudimos cargar el resumen" body="Sin conexión puedes seguir registrando ventas y gastos: se envían solos cuando vuelva la señal." action={{ title: 'Reintentar', onPress: onRefresh }} />
         ) : (
           <View style={styles.card}>
+            {sum ? <Text style={styles.daySentence}>{daySentence(range.preset === 'today', salesTotal, profit, sum.current.sales_count)}</Text> : null}
             <View style={styles.kpiTop}>
               <View style={{ flex: 1 }}>
                 <Stat title="Vendiste" value={salesTotal} big />
@@ -381,6 +390,7 @@ const styles = StyleSheet.create({
   analyticsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, minHeight: 46, borderRadius: radius.md, backgroundColor: colors.primarySoft, marginTop: spacing.xs },
   analyticsText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.primary },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.sm },
+  daySentence: { fontSize: 15, lineHeight: 21, fontFamily: fonts.ui.bold, color: colors.ink, marginBottom: spacing.sm },
   compare: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
   statRow: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.sm },
   methods: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.xs },

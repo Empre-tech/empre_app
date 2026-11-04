@@ -37,9 +37,17 @@ interface Props {
  * en la `key` lo que cambia su aspecto (zoom, selección, oferta), así un cambio
  * real lo vuelve a dibujar.
  */
+function closesSoon(closesAt?: string): boolean {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(closesAt ?? '');
+  if (!m) return false;
+  const now = new Date();
+  const left = Number(m[1]) * 60 + Number(m[2]) - (now.getHours() * 60 + now.getMinutes());
+  return left > 0 && left <= 60;
+}
+
 function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, dimmed, onPress }: Props) {
   // Lo que cambia la imagen del pin; al cambiar, se redibuja sin desmontarse (3.29).
-  const look = [tier, emphasis ?? '', selected ? 's' : '', mine ? 'm' : '', entity.has_active_offer ? 'o' : '', entity.is_open_now ? 'a' : 'c', distanceLabel ?? ''].join('|');
+  const look = [tier, emphasis ?? '', selected ? 's' : '', mine ? 'm' : '', entity.has_active_offer ? 'o' : '', entity.is_open_now ? 'a' : 'c', closesSoon(entity.closes_at) ? 'p' : '', distanceLabel ?? ''].join('|');
   const { tracking, onLayout, onImageSettled, markerRef } = useMarkerTracking(look);
 
   const cat = categoryColor(entity.category_color);
@@ -50,7 +58,7 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
   const hasOffer = entity.has_active_offer;
   const showRayo = hasOffer && (entity.active_offer?.type === 'HORAS' || entity.active_offer?.type === 'DIA');
   const borderColor = selected ? colors.primary : hasOffer ? colors.accent : '#ffffff';
-  const statusColor = open ? '#14B8B0' : '#8796AB';
+  const statusColor = !open ? '#8796AB' : closesSoon(entity.closes_at) ? colors.warning : '#14B8B0';
   const coordinate = { latitude: entity.latitude, longitude: entity.longitude };
 
   if (emphasis) {

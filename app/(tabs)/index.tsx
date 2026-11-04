@@ -10,7 +10,7 @@ import { Image } from 'expo-image';
 import { BusinessCardModal } from '@/components/explore/BusinessCardModal';
 import type { WithDistance } from '@/components/explore/FeaturedCard';
 import { FigureTile } from '@/components/figures/Figure';
-import { QUICK_ASKS } from '@/lib/askChips';
+import { hourIdeas } from '@/lib/askChips';
 import { categoryColor } from '@/lib/categoryColor';
 import { formatDistance } from '@/lib/format';
 import { resolveImageUrl } from '@/lib/image';
@@ -37,6 +37,7 @@ export default function HomeScreen() {
   const [card, setCard] = useState<WithDistance | null>(null);
   const openNear = useMemo(() => (open.data?.items ?? []).filter((b) => b.is_open_now).slice(0, 6), [open.data]);
 
+  const ideas = hourIdeas(new Date().getHours());
   const time = new Date().toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
   const ask = (q?: string, voice = false) => router.push({ pathname: '/ask', params: { ...(q ? { q } : {}), ...(voice ? { voice: '1' } : {}) } });
 
@@ -64,10 +65,12 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
+      <Text style={styles.hourLabel}>PARA ESTA HORA · {ideas[0].name}</Text>
       <View style={styles.quick}>
-        {QUICK_ASKS.map((q) => (
-          <Pressable key={q} accessibilityRole="button" onPress={() => ask(q)} style={({ pressed }) => [styles.quickChip, pressed && styles.pressed]}>
-            <Text style={styles.quickText}>{q}</Text>
+        {ideas.map((q) => (
+          <Pressable key={q.label} accessibilityRole="button" onPress={() => ask(q.ask)} style={({ pressed }) => [styles.quickTile, pressed && styles.pressed]}>
+            <Ionicons name={q.icon} size={22} color={colors.ink} />
+            <Text style={styles.quickText}>{q.label}</Text>
           </Pressable>
         ))}
       </View>
@@ -173,9 +176,11 @@ const styles = StyleSheet.create({
   searchTap: { flex: 1, height: '100%', justifyContent: 'center' },
   searchText: { fontSize: 16, fontFamily: fonts.ui.bold, color: colors.muted },
   mic: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.selectedSoft, alignItems: 'center', justifyContent: 'center' },
-  quick: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.lg },
+  hourLabel: { marginTop: spacing.lg, fontSize: 11, letterSpacing: 1, fontFamily: fonts.ui.extrabold, color: colors.muted },
+  quick: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  quickTile: { flex: 1, minHeight: 84, padding: spacing.sm, borderRadius: radius.md + 2, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', gap: 6, ...cardShadow },
   quickChip: { minHeight: 44, paddingHorizontal: 16, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line, justifyContent: 'center' },
-  quickText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  quickText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink, textAlign: 'center' },
   pressed: { opacity: 0.7 },
   secHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: spacing.xl, marginBottom: spacing.sm },
   secTitle: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
