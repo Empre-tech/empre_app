@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { agendaApi } from '@/api/agenda';
 import { useAuth } from '@/auth/AuthContext';
 import { BookingSheet } from '@/components/agenda/BookingSheet';
+import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { formatWhen } from '@/lib/agendaFormat';
 import { colors, fonts, radius, spacing } from '@/theme';
 
@@ -51,6 +52,13 @@ export function AgendaStrip({ entityId, entityName }: Props) {
           <Text style={styles.buttonText}>Agendar</Text>
         </Pressable>
       </View>
+      {data.next_slot ? (
+        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/agent/[id]', params: { id: entityId, name: entityName } })} style={styles.agent}>
+          <EmpreSymbol product="agent" size={22} />
+          <Text style={styles.agentText}>Prefiero pedirla por chat con Empre Agent</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+        </Pressable>
+      ) : null}
       <BookingSheet
         visible={open}
         entityId={entityId}
@@ -67,6 +75,8 @@ export function AgendaStrip({ entityId, entityName }: Props) {
 }
 
 const styles = StyleSheet.create({
+  agent: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg },
+  agentText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   strip: {
     flexDirection: 'row',
     alignItems: 'center',

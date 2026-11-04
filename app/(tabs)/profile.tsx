@@ -263,6 +263,18 @@ export default function ProfileScreen() {
 
       <Pressable
         accessibilityRole="button"
+        onPress={() => router.push('/agent/privacy')}
+        style={({ pressed }) => [styles.adminCard, pressed && { opacity: 0.85 }]}
+      >
+        <View style={styles.adminCardIcon}>
+          <Ionicons name="shield-checkmark-outline" size={19} color={colors.primary} />
+        </View>
+        <Text style={styles.adminCardText}>Lo que Agent sabe de ti</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+      </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
         onPress={() => router.push('/salidas')}
         style={({ pressed }) => [styles.adminCard, pressed && { opacity: 0.85 }]}
       >

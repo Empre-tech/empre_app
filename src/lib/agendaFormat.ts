@@ -11,6 +11,20 @@ function co(date: Date): Date {
   return new Date(date.getTime() + CO_OFFSET_MS);
 }
 
+/** Hora de inicio de un día (en Colombia) como instante ISO. */
+export function dayStartIso(key: string): string {
+  return new Date(`${key}T00:00:00-05:00`).toISOString();
+}
+
+export function dayEndIso(key: string): string {
+  return new Date(Date.parse(`${key}T00:00:00-05:00`) + 24 * 60 * 60 * 1000).toISOString();
+}
+
+/** «7:00 pm», como lo escribe el lienzo. */
+export function clockShort(iso: string | Date): string {
+  return formatClock(iso).toLowerCase().replace(/\s*([ap])\.\s*m\.?/, ' $1m');
+}
+
 /** `YYYY-MM-DD` del día (en hora de Colombia). */
 export function dayKey(date: Date): string {
   const d = co(date);

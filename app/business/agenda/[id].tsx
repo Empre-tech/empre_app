@@ -18,8 +18,7 @@ import {
   nextDays,
   STATUS_COLOR,
   STATUS_LABEL,
-  weekdayShort,
-} from '@/lib/agendaFormat';
+  weekdayShort, dayEndIso, dayStartIso } from '@/lib/agendaFormat';
 import { FEATURES } from '@/config';
 import { newClientId } from '@/lib/ledger';
 import { useNow } from '@/lib/useNow';
@@ -29,13 +28,6 @@ import { colors, fonts, radius, spacing } from '@/theme';
 const DAYS_AHEAD = 14;
 const BLOCK_DURATIONS = [30, 60, 120, 180, 240];
 
-/** Hora de inicio de un día (en Colombia) como instante ISO. */
-function dayStartIso(key: string): string {
-  return new Date(`${key}T00:00:00-05:00`).toISOString();
-}
-function dayEndIso(key: string): string {
-  return new Date(Date.parse(`${key}T00:00:00-05:00`) + 24 * 60 * 60 * 1000).toISOString();
-}
 function timeOptions(key: string, stepMin: number): string[] {
   const out: string[] = [];
   const start = Date.parse(`${key}T06:00:00-05:00`);
