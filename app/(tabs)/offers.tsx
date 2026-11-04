@@ -15,10 +15,12 @@ import { Reveal, RollText } from '@/components/offers/MarketMotion';
 import { FeaturedOffer, OfferRow, OfferTile, TILE_GAP, TILE_W, ZONE_W, ZoneCard } from '@/components/offers/OfferTiles';
 import { SkeletonBlock } from '@/components/Skeleton';
 import { loadLastCity, saveLastCity } from '@/lib/lastCityStore';
+import { planKey, planLevel, planTitle } from '@/lib/plans';
 import {
   effectiveSort,
   endText,
   flattenPages,
+  pesos,
   listTitle,
   nearEnd,
   shortCategory,
@@ -386,6 +388,39 @@ export default function OffersScreen() {
           </View>
         ) : null}
 
+        {data?.routes.length && !q ? (
+          <View style={styles.sec}>
+            {header('Planes para hoy', 'Negocios distintos, un mismo recorrido')}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
+              {data.routes.map((r) => (
+                <Pressable
+                  key={planKey(r)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${planTitle(r, city)}. ${planLevel(r.level)}, ${r.stops.length} paradas.${r.saving > 0 ? ` Ahorras ${pesos(r.saving)}.` : ''}`}
+                  onPress={() => router.push({ pathname: '/plan', params: { plan: JSON.stringify(r), city } })}
+                  style={({ pressed }) => [styles.planCard, pressed && { opacity: 0.85 }]}
+                >
+                  <Text style={styles.planTag} numberOfLines={1}>
+                    {[r.zone?.toUpperCase(), planLevel(r.level).toUpperCase()].filter(Boolean).join(' · ')}
+                  </Text>
+                  <Text style={styles.planTitle} numberOfLines={2}>
+                    {planTitle(r, city)}
+                  </Text>
+                  {r.stops.map((s, i) => (
+                    <View key={s.id} style={styles.planStop}>
+                      <Text style={styles.planTime}>{r.times[i] ? new Date(r.times[i]!).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' }) : `${i + 1}.`}</Text>
+                      <Text style={styles.planBiz} numberOfLines={1}>
+                        {s.entity_name}
+                      </Text>
+                    </View>
+                  ))}
+                  {r.saving > 0 ? <Text style={styles.planSaving}>Ahorras {pesos(r.saving)}</Text> : null}
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+
         {data?.featured && !q ? (
           <Reveal key={`featured|${key}|${data.featured.id}`} style={styles.sec}>
             <FeaturedOffer item={data.featured} now={now} onPress={() => open(data.featured!)} />
@@ -541,6 +576,13 @@ const styles = StyleSheet.create({
   pin: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 3, borderColor: colors.accent },
   pinOn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.accentSoft, borderWidth: 4 },
   searchWrap: { paddingHorizontal: spacing.lg },
+  planCard: { width: 270, gap: 4, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  planTag: { fontSize: 11, letterSpacing: 0.6, fontFamily: fonts.ui.extrabold, color: colors.muted },
+  planTitle: { fontSize: 17, lineHeight: 22, fontFamily: fonts.display.bold, color: colors.ink, marginBottom: 2 },
+  planStop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  planTime: { width: 68, fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
+  planBiz: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.ink },
+  planSaving: { marginTop: 4, fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
   hero: { fontSize: 26, lineHeight: 32, fontFamily: fonts.display.bold, color: colors.ink },
   search: { marginTop: spacing.sm, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 52, paddingHorizontal: spacing.lg, borderRadius: 26, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, ...cardShadow },
   searchInput: { flex: 1, fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink, paddingVertical: 0 },

@@ -1,3 +1,4 @@
+import type { MarketRoute } from '@/lib/plans';
 // Vitrina de ofertas (3.38, mockup ofertas_marketplace.html): lo que muestra cada tarjeta y qué secciones se ven.
 // Las secciones las arma el servidor (sin repetir ofertas); aquí solo se decide cómo se dibujan. Sin React para
 // probarlo con Node.
@@ -52,6 +53,8 @@ export interface MarketResponse {
   searched: { terms: { term: string; label: string }[]; term: string; items: MarketItem[] };
   trending: MarketItem[];
   for_you: { top_rated: boolean; items: MarketItem[] };
+  /** Planes para hoy: negocios distintos, un mismo recorrido. */
+  routes: MarketRoute[];
 }
 
 /** Una tanda de «Todas las ofertas de la ciudad»; `next_cursor` vacío = no hay más. */

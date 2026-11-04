@@ -189,6 +189,7 @@ export const offersApi = {
       searched: { terms: r.searched?.terms ?? [], term: r.searched?.term ?? '', items: r.searched?.items ?? [] },
       trending: r.trending ?? [],
       for_you: { top_rated: Boolean(r.for_you?.top_rated), items: r.for_you?.items ?? [] },
+      routes: (r.routes ?? []).map((x) => ({ ...x, stops: x.stops ?? [], times: x.times ?? [] })),
     };
   },
 

@@ -15,6 +15,7 @@ import { SignInPrompt } from '@/components/SignInPrompt';
 import { formatWhen, STATUS_LABEL } from '@/lib/agendaFormat';
 import { effectiveClaimStatus, mergeClaims } from '@/lib/claims';
 import { formatPesos } from '@/lib/ledger';
+import { loadSavedPlans, planKey, planTitle } from '@/lib/plans';
 import { useNow } from '@/lib/useNow';
 import { colors, fonts, radius, spacing } from '@/theme';
 
@@ -60,6 +61,7 @@ export default function SalidasScreen() {
   const places = new Set(thisMonth.map((c) => c.entity_name).filter(Boolean)).size;
   const faces = [...new Map(thisMonth.map((c) => [c.entity_name ?? c.id, c])).values()].slice(0, 4);
   const [stackOpen, setStackOpen] = useState(false);
+  const plans = useQuery({ queryKey: ['saved-plans'], queryFn: loadSavedPlans });
   const [openDay, setOpenDay] = useState<string | null>(null);
 
   // Hoy, en orden: lo canjeado, los QR listos y las citas de hoy.
@@ -212,6 +214,21 @@ export default function SalidasScreen() {
           <Text style={styles.rowSub}>No tienes QR por usar. Cuando reclames una oferta, su sobre aparece aquí.</Text>
         )}
       </View>
+
+      {plans.data?.length ? (
+        <Section title="Planes guardados">
+          {plans.data.map((p, i) => (
+            <Row
+              key={planKey(p)}
+              first={i === 0}
+              icon="map-outline"
+              title={planTitle(p)}
+              sub={p.stops.map((s) => s.entity_name).join(' · ')}
+              onPress={() => router.push({ pathname: '/plan', params: { plan: JSON.stringify(p) } })}
+            />
+          ))}
+        </Section>
+      ) : null}
 
       {laterAppts.length ? (
         <Section title="Lo que sigue">
