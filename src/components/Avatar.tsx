@@ -26,7 +26,13 @@ export function Avatar({ uri, name, size = 48 }: Props) {
 }
 
 const styles = StyleSheet.create({
-  image: { backgroundColor: colors.primarySoft },
-  fallback: { backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  initials: { color: colors.primary, fontWeight: '700', fontFamily: fonts.ui.bold },
+  image: { backgroundColor: colors.selectedSoft },
+  fallback: {
+    backgroundColor: colors.selectedSoft,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  initials: { color: colors.ink, fontFamily: fonts.ui.extrabold },
 });

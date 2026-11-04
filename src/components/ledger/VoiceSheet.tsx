@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError } from '@/api/client';
 import { ledgerApi, type VoiceAction, type VoiceResult } from '@/api/ledger';
@@ -69,6 +69,7 @@ export function VoiceSheet({
   onClose,
   hints,
   tabId,
+  onConfirmed,
 }: {
   entityId: string;
   visible: boolean;
@@ -76,6 +77,8 @@ export function VoiceSheet({
   hints: string[];
   /** Se dicta desde dentro de una cuenta abierta: lo pedido va a esa cuenta. */
   tabId?: string;
+  /** Permite avisar al mostrador cuando se confirma una venta o gasto dictado. */
+  onConfirmed?: (actions: VoiceAction[]) => void;
 }) {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
@@ -158,6 +161,7 @@ export function VoiceSheet({
       void qc.invalidateQueries({ queryKey: ['ledger', entityId] });
       setSavedList(actions);
       setDone(true);
+      onConfirmed?.(actions);
     } catch (e) {
       setError(errorText(e));
     } finally {

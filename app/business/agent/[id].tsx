@@ -1,19 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi, type Appointment } from '@/api/agenda';
+import { Button } from '@/components/Button';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { clockShort, dayEndIso, dayKey, dayStartIso, formatDay, formatRemaining, nextDays } from '@/lib/agendaFormat';
 import { initials } from '@/lib/text';
-import { colors, fonts, softShadow } from '@/theme';
+import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 
 const STATE = { auto: 'Agent activo', rules: 'Agent activo', manual: 'Agent en pausa' } as const;
 
 /** Lo que Agent resolvió solo: entró confirmada, sin pasar por «por responder» (esas llevan vencimiento). */
-const solvedByAgent = (a: Appointment) => a.kind === 'booking' && (a.status === 'confirmed' || a.status === 'completed') && !a.expires_at;
+const solvedByAgent = (a: Appointment) => a.kind === 'booking' && Boolean(a.customer_id) && (a.status === 'confirmed' || a.status === 'completed') && !a.expires_at;
 
 function whyAsks(a: Appointment, now: number): string {
   const reasons = [a.out_of_hours ? 'Es fuera de tu horario.' : null, a.customer_note?.trim() ? `Dice: «${a.customer_note.trim()}».` : null].filter(Boolean);
@@ -32,6 +33,7 @@ export default function AgentInboxScreen() {
   const days = useMemo(() => nextDays(30), []);
   const now = Date.now();
   const today = dayKey(new Date());
+  const [inspectAppt, setInspectAppt] = useState<Appointment | null>(null);
 
   const settings = useQuery({ queryKey: ['agenda-settings', id], queryFn: () => agendaApi.settings(id), enabled: Boolean(id) });
   const agenda = useQuery({
@@ -151,7 +153,13 @@ export default function AgentInboxScreen() {
         <View style={styles.log}>
           {solved.length ? (
             solved.map((a, i) => (
-              <View key={a.id} style={[styles.logRow, i < solved.length - 1 && styles.logLine]}>
+              <Pressable
+                key={a.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Confirmó a ${a.customer?.name ?? 'un cliente'}. Toca para ver la cita`}
+                onPress={() => setInspectAppt(a)}
+                style={[styles.logRow, i < solved.length - 1 && styles.logLine]}
+              >
                 <View style={styles.logIcon}>
                   <Ionicons name="checkmark" size={16} color={colors.verified} />
                 </View>
@@ -166,7 +174,7 @@ export default function AgentInboxScreen() {
                 <View style={styles.by}>
                   <Text style={styles.byText}>Agent</Text>
                 </View>
-              </View>
+              </Pressable>
             ))
           ) : (
             <Text style={styles.logEmpty}>{mode === 'manual' ? 'Agent está en pausa: hoy respondes tú todas las solicitudes.' : 'Hoy todavía no ha entrado ninguna cita.'}</Text>
@@ -174,6 +182,37 @@ export default function AgentInboxScreen() {
         </View>
         <Text style={styles.foot}>Agent nunca cobra, no cambia tus precios y no cancela una cita por su cuenta.</Text>
       </ScrollView>
+
+      <Modal visible={inspectAppt !== null} transparent animationType="slide" onRequestClose={() => setInspectAppt(null)}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" style={styles.veil} onPress={() => setInspectAppt(null)} />
+        {inspectAppt ? (
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.md }]}>
+            <View style={styles.sheetBrand}>
+              <EmpreSymbol product="agent" size={18} />
+              <Text style={styles.eyebrow}>CONFIRMADA POR TUS REGLAS</Text>
+            </View>
+            <Text style={styles.sheetTitle}>Cita de {inspectAppt.customer?.name ?? 'un cliente'}</Text>
+            <View style={styles.facts}>
+              <Text style={styles.factLine}>
+                {[inspectAppt.service?.name, `${formatDay(inspectAppt.starts_at).toLowerCase()} a las ${clockShort(inspectAppt.starts_at)}`].filter(Boolean).join(' · ')}
+              </Text>
+              {inspectAppt.customer_note?.trim() ? <Text style={styles.factNote}>Dijo: «{inspectAppt.customer_note.trim()}»</Text> : null}
+            </View>
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <Button title="Cerrar" variant="secondary" onPress={() => setInspectAppt(null)} style={{ flex: 1 }} />
+              <Button
+                title="Ver detalle de la cita"
+                onPress={() => {
+                  const targetId = inspectAppt.id;
+                  setInspectAppt(null);
+                  router.push({ pathname: '/appointment/[id]', params: { id: targetId } });
+                }}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
+        ) : null}
+      </Modal>
     </View>
   );
 }
@@ -184,7 +223,7 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   headText: { flex: 1, minWidth: 0 },
-  eyebrow: { fontSize: 11, letterSpacing: 1.1, fontFamily: fonts.ui.extrabold, color: colors.faint },
+  eyebrow: { fontSize: 12, letterSpacing: 1, fontFamily: fonts.ui.extrabold, color: colors.faint },
   title: { fontSize: 24, lineHeight: 29, fontFamily: fonts.display.bold, color: colors.ink },
   state: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 6, paddingRight: 12, borderRadius: 20, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   stateText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
@@ -222,4 +261,11 @@ const styles = StyleSheet.create({
   byText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.verified },
   logEmpty: { paddingVertical: 12, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
   foot: { fontSize: 12, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.faint },
+  veil: { flex: 1, backgroundColor: 'rgba(11,26,54,0.45)' },
+  sheet: { gap: spacing.md, padding: spacing.lg, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, backgroundColor: colors.surface },
+  sheetBrand: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  sheetTitle: { fontSize: 19, fontFamily: fonts.display.bold, color: colors.ink },
+  facts: { gap: 6, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.bg },
+  factLine: { fontSize: 14.5, lineHeight: 20, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  factNote: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.muted },
 });

@@ -8,7 +8,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { BookingSheet } from '@/components/agenda/BookingSheet';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { formatWhen } from '@/lib/agendaFormat';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { colors, fonts, spacing } from '@/theme';
 
 interface Props {
   entityId: string;
@@ -37,7 +37,9 @@ export function AgendaStrip({ entityId, entityName }: Props) {
   return (
     <>
       <View style={styles.strip}>
-        <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+        <View style={styles.icon}>
+          <Ionicons name="calendar-outline" size={18} color={colors.ink} />
+        </View>
         <View style={styles.textWrap}>
           <Text style={styles.line} numberOfLines={1}>
             {data.next_slot ? `Próximo espacio: ${formatWhen(data.next_slot).toLowerCase()}` : 'Sin espacios por ahora'}
@@ -77,27 +79,10 @@ export function AgendaStrip({ entityId, entityName }: Props) {
 const styles = StyleSheet.create({
   agent: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg },
   agentText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  strip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    minHeight: 52,
-    paddingLeft: spacing.md,
-    paddingRight: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.primarySoft,
-  },
-  textWrap: { flex: 1 },
-  line: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
-  button: {
-    minHeight: 40,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.pill,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.primary },
+  strip: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 16, backgroundColor: colors.surface },
+  icon: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
+  textWrap: { flex: 1, minWidth: 0 },
+  line: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  button: { minHeight: 44, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  buttonText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

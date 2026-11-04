@@ -4,26 +4,26 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi, type Expense, type Insight, type Sale } from '@/api/ledger';
 import { EmptyState } from '@/components/EmptyState';
 import { Delta } from '@/components/finance/Charts';
 import { RangeSheet } from '@/components/finance/RangeSheet';
-import { Chip, Stat } from '@/components/ledger/parts';
+import { Chip } from '@/components/ledger/parts';
 import { VoiceSheet } from '@/components/ledger/VoiceSheet';
-import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
+import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { addDays, compareText, deltaLabel, presetRange, rangeTitle, todayCO, type DateRange, type Preset } from '@/lib/finance';
 import { categoryLabel, formatPesos, METHOD_LABEL, pendingTotals, salePayText } from '@/lib/ledger';
 import { useParkedSales } from '@/ledger/parkedSales';
 import { discardLedgerItem, flushLedger, queueVoid, retryLedgerItem, useLedgerOutbox } from '@/ledger/ledgerStore';
 import { FEATURES } from '@/config';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { colors, fonts, softShadow, spacing } from '@/theme';
 
-// Los atajos de siempre; cualquier otro rango sale de «Fechas».
-const QUICK: { key: Exclude<Preset, 'custom' | 'yesterday' | '30d' | 'year'>; label: string }[] = [
+// Los tres de siempre; cualquier otro rango sale de «Fechas».
+const PERIODS: { key: Exclude<Preset, 'custom' | 'yesterday' | '30d' | 'year' | 'lastMonth'>; label: string }[] = [
   { key: 'today', label: 'Hoy' },
-  { key: '7d', label: '7 días' },
-  { key: 'month', label: 'Este mes' },
-  { key: 'lastMonth', label: 'Mes pasado' },
+  { key: '7d', label: 'Semana' },
+  { key: 'month', label: 'Mes' },
 ];
 
 /** Inicio del día en Colombia, como fecha-hora para filtrar ventas y gastos. */
@@ -95,6 +95,7 @@ export default function LedgerHome() {
   const pending = includesToday ? pendingAll : { sales: 0, expenses: 0 };
 
   const parked = useParkedSales(entityId);
+  const entity = useQuery({ queryKey: ['entity', entityId], queryFn: () => entitiesApi.get(entityId), enabled: Boolean(entityId), staleTime: 60_000 });
   const summary = useQuery({
     queryKey: ['ledger', entityId, 'analytics', range.from, range.to, range.compare],
     queryFn: () => ledgerApi.analytics(entityId, { from: range.from, to: range.to, compare: range.compare }),
@@ -171,134 +172,182 @@ export default function LedgerHome() {
 
   return (
     <View style={styles.screen}>
-      <SubScreenHeader title="Finanzas" />
-      <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 110 }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
-          {QUICK.map((p) => (
-            <Chip key={p.key} label={p.label} selected={range.preset === p.key} onPress={() => setRange(presetRange(p.key, todayCO()))} />
-          ))}
-          <Chip label={range.preset === 'custom' ? rangeTitle(range) : 'Fechas'} icon="calendar-outline" selected={!QUICK.some((p) => p.key === range.preset)} onPress={() => setRangeOpen(true)} />
-        </ScrollView>
-        <Text style={styles.compare}>
-          {rangeTitle(range)}
-          {sum ? ` · ${compareText(sum)}` : ''}
-        </Text>
+      <ScrollView contentContainerStyle={[styles.body, { paddingTop: insets.top + 14, paddingBottom: insets.bottom + 100 }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+        <View style={styles.head}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={() => router.back()} style={styles.back}>
+            <Ionicons name="chevron-back" size={20} color={colors.ink} />
+          </Pressable>
+          <EmpreSymbol product="finance" size={32} />
+          <View style={styles.headText}>
+            <Text style={styles.eyebrow} numberOfLines={1}>
+              EMPRE FINANCE{entity.data?.name ? ` · ${entity.data.name.toUpperCase()}` : ''}
+            </Text>
+            <Text style={styles.title} accessibilityRole="header">
+              Finanzas
+            </Text>
+          </View>
+        </View>
 
         {outbox.items.some((x) => x.entityId === entityId) ? <OutboxBanner entityId={entityId} /> : null}
 
-        {summary.isLoading ? (
-          <ActivityIndicator style={{ marginVertical: spacing.xl }} color={colors.primary} />
-        ) : summary.isError && !sum ? (
-          <EmptyState icon="cloud-offline-outline" title="No pudimos cargar el resumen" body="Sin conexión puedes seguir registrando ventas y gastos: se envían solos cuando vuelva la señal." action={{ title: 'Reintentar', onPress: onRefresh }} />
-        ) : (
-          <View style={styles.card}>
-            {sum ? <Text style={styles.daySentence}>{daySentence(range.preset === 'today', salesTotal, profit, sum.current.sales_count)}</Text> : null}
-            <Text style={styles.heroLabel}>{profit >= 0 ? 'TE QUEDÓ' : 'PERDISTE'}</Text>
-            <View style={styles.kpiTop}>
-              <Text style={[styles.heroValue, profit < 0 && { color: colors.danger }]} accessibilityLiveRegion="polite">
-                {formatPesos(Math.abs(profit))}
-              </Text>
-              {sum ? <Delta d={deltaLabel(profit, sum.previous.profit)} /> : null}
-            </View>
-            <View style={styles.statRow}>
-              <View style={{ flex: 1 }}>
-                <Stat title="Vendiste" value={salesTotal} />
-                {sum ? <Delta d={deltaLabel(salesTotal, sum.previous.sales_total)} /> : null}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Stat title="Gastaste" value={expensesTotal} />
-                {sum ? <Delta d={deltaLabel(expensesTotal, sum.previous.expenses_total, true)} worseIsWarn /> : null}
-              </View>
-            </View>
-            {source && sourceTotal > 0 ? (
-              <View style={{ gap: 6, marginTop: spacing.xs }} accessible accessibilityLabel={sourceText}>
-                <View style={styles.splitBar}>
-                  {source.manual > 0 ? <View style={{ flex: source.manual, backgroundColor: colors.ink }} /> : null}
-                  {source.offers > 0 ? <View style={{ flex: source.offers, backgroundColor: colors.accent }} /> : null}
-                  {source.agenda > 0 ? <View style={{ flex: source.agenda, backgroundColor: colors.verified }} /> : null}
-                </View>
-                <Text style={styles.compare}>{sourceText}</Text>
-              </View>
-            ) : null}
-            <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/ledger/cash/[id]', params: { id: entityId } })} style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.85 }]}>
-              <Ionicons name="cash-outline" size={18} color={colors.ink} />
-              <Text style={styles.closeText}>Cerrar caja de hoy</Text>
+        <View style={styles.section}>
+          <View style={styles.eyebrowRow}>
+            <Text style={styles.eyebrow}>{range.preset === 'today' ? `HOY · ${new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric' }).replace(',', '').toUpperCase()}` : rangeTitle(range).toUpperCase()}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Elegir otras fechas" onPress={() => setRangeOpen(true)} hitSlop={10} style={styles.datesBtn}>
+              <Ionicons name="calendar-outline" size={14} color={colors.primaryDark} />
+              <Text style={styles.datesText}>Fechas</Text>
             </Pressable>
           </View>
-        )}
-
-        <Text style={styles.zone}>REGISTRAR</Text>
-        <View style={styles.actions}>
-          <ActionButton icon="add-circle" label="Venta" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId } })} tone="primary" />
-          <ActionButton icon="remove-circle" label="Gasto" onPress={() => router.push({ pathname: '/business/ledger/expense/[id]', params: { id: entityId } })} tone="accent" />
+          {summary.isLoading ? (
+            <ActivityIndicator style={{ marginVertical: spacing.xl }} color={colors.primary} />
+          ) : summary.isError && !sum ? (
+            <EmptyState icon="cloud-offline-outline" title="No pudimos cargar el resumen" body="Sin conexión puedes seguir registrando ventas y gastos: se envían solos cuando vuelva la señal." action={{ title: 'Reintentar', onPress: onRefresh }} />
+          ) : (
+            <View style={styles.card}>
+              {sum ? (
+                <View style={styles.sentenceBox}>
+                  <EmpreSymbol product="finance" size={26} />
+                  <View style={styles.sentenceText}>
+                    <Text style={styles.sentence}>{daySentence(range.preset === 'today', salesTotal, profit, sum.current.sales_count)}</Text>
+                    <Text style={styles.sentenceFrom}>EMPRE AI · con tus ventas registradas</Text>
+                  </View>
+                </View>
+              ) : null}
+              <View style={styles.segment} accessibilityRole="tablist">
+                {PERIODS.map((o) => {
+                  const on = range.preset === o.key;
+                  return (
+                    <Pressable key={o.key} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => setRange(presetRange(o.key, todayCO()))} style={[styles.segmentItem, on && styles.segmentOn]}>
+                      <Text style={styles.segmentText}>{o.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <View style={styles.heroRow}>
+                <View style={styles.heroLeft}>
+                  <Text style={styles.eyebrow}>{profit >= 0 ? 'TE QUEDÓ' : 'PERDISTE'}</Text>
+                  <Text style={[styles.heroValue, profit < 0 && { color: colors.danger }]} accessibilityLiveRegion="polite">
+                    {formatPesos(Math.abs(profit))}
+                  </Text>
+                </View>
+                {sum ? <Delta d={deltaLabel(profit, sum.previous.profit)} /> : null}
+              </View>
+              {sum ? <Text style={styles.compare}>{compareText(sum)}</Text> : null}
+              <View style={styles.stats}>
+                <View style={styles.statBox}>
+                  <Text style={styles.statLabel}>Vendiste</Text>
+                  <Text style={styles.statValue}>{formatPesos(salesTotal)}</Text>
+                </View>
+                <View style={styles.statBox}>
+                  <Text style={styles.statLabel}>Gastaste</Text>
+                  <Text style={styles.statValue}>{formatPesos(expensesTotal)}</Text>
+                </View>
+              </View>
+              {source && sourceTotal > 0 ? (
+                <View style={styles.splitWrap} accessible accessibilityLabel={sourceText}>
+                  <View style={styles.splitBar}>
+                    {source.manual > 0 ? <View style={{ flex: source.manual, backgroundColor: colors.ink }} /> : null}
+                    {source.offers > 0 ? <View style={{ flex: source.offers, backgroundColor: colors.accent }} /> : null}
+                    {source.agenda > 0 ? <View style={{ flex: source.agenda, backgroundColor: '#14B8B0' }} /> : null}
+                  </View>
+                  <Text style={styles.splitText}>{sourceText}</Text>
+                </View>
+              ) : null}
+              <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/ledger/cash/[id]', params: { id: entityId } })} style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.85 }]}>
+                <Ionicons name="cash-outline" size={18} color={colors.ink} />
+                <Text style={styles.closeText}>Cerrar caja de hoy</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
 
-        <Text style={styles.zoneSub}>OTRAS FORMAS DE VENDER</Text>
-        <View style={styles.group}>
-          {quick ? <GroupRow icon="flash-outline" title="Modo mostrador" meta="Para cuando hay fila: un toque, una venta" onPress={() => router.push({ pathname: '/business/ledger/quick/[id]', params: { id: entityId } })} /> : null}
-          {quick && FEATURES.tabs ? <GroupRow icon="restaurant-outline" title="Mesas y cuentas" meta="El cliente va pidiendo y paga al final" onPress={goTabs} /> : null}
-          <GroupRow icon="person-outline" title="Fiado" meta="Lo paga después; queda en «Te deben»" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId, fiado: '1' } })} />
-          {parked.length > 0 ? <GroupRow icon="time-outline" title={parked.length === 1 ? '1 venta en espera' : `${parked.length} ventas en espera`} meta="No cuentan en la caja hasta que las cobres" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId } })} /> : null}
-        </View>
-
-        <Text style={styles.zone}>PENDIENTES</Text>
-        {sum && (sum.receivable > 0 || sum.payable > 0) || stockAlerts.length > 0 ? (
-          <View style={styles.group}>
-            {sum && sum.receivable > 0 ? <GroupRow icon="person-outline" title="Te deben" meta="Toca para ver quién y recordarles" amount={formatPesos(sum.receivable)} onPress={goDebts} /> : null}
-            {sum && sum.payable > 0 ? <GroupRow icon="car-outline" title="Debes" meta="A tus proveedores" amount={formatPesos(sum.payable)} onPress={goDebts} /> : null}
-            {stockAlerts.slice(0, 2).map((a) => (
-              <GroupRow key={`${a.kind}-${a.ref ?? a.title}`} icon="cube-outline" title="Se acaba" meta={a.title} onPress={() => goAnalyticsTab('inventory')} />
-            ))}
+        <View style={styles.section}>
+          <Text style={styles.eyebrow}>REGISTRAR</Text>
+          <View style={styles.actions}>
+            <ActionButton icon="add" label="Venta" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId } })} tone="primary" />
+            <ActionButton icon="remove" label="Gasto" onPress={() => router.push({ pathname: '/business/ledger/expense/[id]', params: { id: entityId } })} tone="accent" />
           </View>
-        ) : (
-          <Pressable accessibilityRole="button" onPress={goDebts} style={styles.allClear}>
-            <Text style={styles.compare}>Nada espera por ti. Ver fiados</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
-          </Pressable>
-        )}
+          <Text style={[styles.eyebrow, { paddingTop: 4 }]}>OTRAS FORMAS DE VENDER</Text>
+          <View style={styles.group}>
+            {quick ? <GroupRow first icon="flash-outline" title="Modo mostrador" meta="Para cuando hay fila: un toque, una venta" onPress={() => router.push({ pathname: '/business/ledger/quick/[id]', params: { id: entityId } })} /> : null}
+            {quick && FEATURES.tabs ? <GroupRow icon="restaurant-outline" title="Mesas y cuentas" meta="El cliente va pidiendo y paga al final" onPress={goTabs} /> : null}
+            <GroupRow first={!quick} icon="person-outline" title="Fiado" meta="Lo paga después; queda en «Te deben»" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId, fiado: '1' } })} />
+            {parked.length > 0 ? <GroupRow icon="time-outline" title={parked.length === 1 ? '1 venta en espera' : `${parked.length} ventas en espera`} meta="No cuentan en la caja hasta que las cobres" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId } })} /> : null}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.eyebrow}>PENDIENTES</Text>
+          {sum && (sum.receivable > 0 || sum.payable > 0) || stockAlerts.length > 0 ? (
+            <View style={styles.group}>
+              {sum && sum.receivable > 0 ? <GroupRow first icon="person-outline" title="Te deben" meta="Toca para ver quién y recordarles" amount={formatPesos(sum.receivable)} onPress={goDebts} /> : null}
+              {sum && sum.payable > 0 ? <GroupRow first={!sum.receivable} icon="car-outline" title="Debes" meta="A tus proveedores" amount={formatPesos(sum.payable)} onPress={goDebts} /> : null}
+              {stockAlerts.slice(0, 2).map((a, i) => (
+                <GroupRow key={`${a.kind}-${a.ref ?? a.title}`} first={i === 0 && !sum?.receivable && !sum?.payable} warn icon="cube-outline" title="Se acaba" meta={a.title} onPress={() => goAnalyticsTab('inventory')} />
+              ))}
+            </View>
+          ) : (
+            <Pressable accessibilityRole="button" onPress={goDebts} style={styles.allClear}>
+              <Text style={styles.compare}>Nada espera por ti. Ver fiados</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.placeholder} />
+            </Pressable>
+          )}
+        </View>
 
         {moneyInsights.length > 0 ? (
-          <View style={{ gap: spacing.sm }}>
-            <Text style={styles.sectionTitle}>Para que no se te pase</Text>
+          <View style={styles.section}>
+            <Text style={styles.eyebrow}>PARA QUE NO SE TE PASE</Text>
             {moneyInsights.slice(0, 3).map((i) => (
               <InsightCard key={`${i.kind}-${i.ref ?? i.title}`} insight={i} onPress={() => openInsight(i)} />
             ))}
           </View>
         ) : null}
 
-        <Text style={styles.zone}>ENTENDER</Text>
-        {bars.length > 1 ? (
-          <View style={styles.card} accessible accessibilityLabel={`Ventas y gastos de ${rangeTitle(range)}`}>
-            <View style={styles.legend}>
-              <View style={[styles.legendDot, { backgroundColor: colors.brand }]} />
-              <Text style={styles.compare}>Ventas</Text>
-              <View style={[styles.legendDot, { backgroundColor: '#8796AB' }]} />
-              <Text style={styles.compare}>Gastos</Text>
-            </View>
-            <View style={styles.bars}>
-              {bars.map((b) => (
-                <View key={b.start} style={styles.barCol}>
-                  <View style={styles.barPair}>
-                    <View style={[styles.bar, { height: Math.max(2, (b.sales / barTop) * 84), backgroundColor: colors.brand }]} />
-                    <View style={[styles.bar, { height: Math.max(2, (b.expenses / barTop) * 84), backgroundColor: '#8796AB' }]} />
+        <View style={styles.section}>
+          <Text style={styles.eyebrow}>ENTENDER</Text>
+          <View style={styles.card} accessible={bars.length > 1} accessibilityLabel={`Ventas y gastos de ${rangeTitle(range)}`}>
+            {bars.length > 1 ? (
+              <>
+                <View style={styles.chartHead}>
+                  <Text style={styles.eyebrow} numberOfLines={1}>
+                    {rangeTitle(range).toUpperCase()}
+                  </Text>
+                  <View style={styles.legend}>
+                    <View style={[styles.legendDot, { backgroundColor: colors.brand }]} />
+                    <Text style={styles.legendText}>Ventas</Text>
+                    <View style={[styles.legendDot, { backgroundColor: colors.line }]} />
+                    <Text style={styles.legendText}>Gastos</Text>
                   </View>
-                  <Text style={styles.barLabel}>{Number(b.start.slice(8, 10))}</Text>
                 </View>
-              ))}
-            </View>
+                <View style={styles.bars}>
+                  {bars.map((b) => (
+                    <View key={b.start} style={styles.barCol}>
+                      <View style={styles.barPair}>
+                        <View style={[styles.bar, { height: Math.max(2, (b.sales / barTop) * 100), backgroundColor: colors.brand }]} />
+                        <View style={[styles.bar, { height: Math.max(2, (b.expenses / barTop) * 100), backgroundColor: colors.line }]} />
+                      </View>
+                      <Text style={styles.barLabel}>{Number(b.start.slice(8, 10))}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            ) : null}
+            <Pressable accessibilityRole="button" onPress={goAnalytics} style={styles.analysisBtn}>
+              <Text style={styles.analysisText}>Ver análisis del negocio</Text>
+            </Pressable>
           </View>
-        ) : null}
-        <View style={styles.group}>
-          <GroupRow icon="bar-chart-outline" title="Ver análisis del negocio" meta="Márgenes, productos y días que más venden" onPress={goAnalytics} />
-          {sum && sum.inventory.value_cost > 0 ? (
-            <GroupRow
-              icon="cube-outline"
-              title={`${formatPesos(sum.inventory.value_cost)} en mercancía`}
-              meta={[sum.inventory.lost_total > 0 ? `Perdiste ${formatPesos(sum.inventory.lost_total)}` : null, sum.inventory.idle_total > 0 ? `Quieta ${formatPesos(sum.inventory.idle_total)}` : null].filter(Boolean).join(' · ') || 'Tu inventario en plata'}
-              onPress={() => goAnalyticsTab('inventory')}
-            />
-          ) : null}
-          <GroupRow icon="pricetags-outline" title="Costo de tus productos" meta="Para saber cuánto ganas en cada venta" onPress={() => router.push({ pathname: '/business/ledger/costs/[id]', params: { id: entityId } })} />
+          <View style={styles.group}>
+            {sum && sum.inventory.value_cost > 0 ? (
+              <GroupRow
+                first
+                icon="cube-outline"
+                title={`${formatPesos(sum.inventory.value_cost)} en mercancía`}
+                meta={[sum.inventory.lost_total > 0 ? `Perdiste ${formatPesos(sum.inventory.lost_total)}` : null, sum.inventory.idle_total > 0 ? `Quieta ${formatPesos(sum.inventory.idle_total)}` : null].filter(Boolean).join(' · ') || 'Tu inventario en plata'}
+                onPress={() => goAnalyticsTab('inventory')}
+              />
+            ) : null}
+            <GroupRow first={!(sum && sum.inventory.value_cost > 0)} icon="pricetags-outline" title="Costo de tus productos" meta="Para saber cuánto ganas en cada venta" onPress={() => router.push({ pathname: '/business/ledger/costs/[id]', params: { id: entityId } })} />
+          </View>
         </View>
 
         <Text style={styles.sectionTitle}>{range.preset === 'today' ? 'Movimientos de hoy' : 'Movimientos'}</Text>
@@ -336,10 +385,12 @@ export default function LedgerHome() {
         )}
       </ScrollView>
 
-      <Pressable accessibilityRole="button" accessibilityLabel="Dictar una venta o un gasto" onPress={() => setVoiceOpen(true)} style={[styles.fab, { bottom: insets.bottom + spacing.lg }]}>
-        <Ionicons name="mic" size={26} color="#fff" />
-        <Text style={styles.fabText}>Dictar</Text>
-      </Pressable>
+      <View style={[styles.foot, { paddingBottom: insets.bottom + 16 }]}>
+        <Pressable accessibilityRole="button" onPress={() => setVoiceOpen(true)} style={({ pressed }) => [styles.dictate, pressed && { opacity: 0.85 }]}>
+          <Ionicons name="mic-outline" size={20} color={colors.ink} />
+          <Text style={styles.dictateText}>Dictar una venta o gasto</Text>
+        </Pressable>
+      </View>
 
       <VoiceSheet entityId={entityId} visible={voiceOpen} onClose={() => setVoiceOpen(false)} hints={hints} />
       <RangeSheet visible={rangeOpen} value={range} onApply={setRange} onClose={() => setRangeOpen(false)} />
@@ -366,23 +417,24 @@ function InsightCard({ insight, onPress }: { insight: Insight; onPress: () => vo
 function ActionButton({ icon, label, onPress, tone }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; tone: 'primary' | 'accent' }) {
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.action, tone === 'primary' ? styles.actionPrimary : styles.actionAccent, pressed && { opacity: 0.88 }]}>
-      <Ionicons name={icon} size={26} color={tone === 'primary' ? '#fff' : colors.ink} />
+      <Ionicons name={icon} size={20} color={tone === 'primary' ? '#fff' : colors.ink} />
       <Text style={[styles.actionText, tone !== 'primary' && { color: colors.ink }]}>{label}</Text>
     </Pressable>
   );
 }
 
-function GroupRow({ icon, title, meta, amount, onPress }: { icon: keyof typeof Ionicons.glyphMap; title: string; meta: string; amount?: string; onPress: () => void }) {
+function GroupRow({ icon, title, meta, amount, onPress, first, warn }: { icon: keyof typeof Ionicons.glyphMap; title: string; meta: string; amount?: string; onPress: () => void; first?: boolean; warn?: boolean }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={[title, amount, meta].filter(Boolean).join('. ')} onPress={onPress} style={({ pressed }) => [styles.groupRow, pressed && { opacity: 0.85 }]}>
-      <View style={styles.groupIcon}>
-        <Ionicons name={icon} size={18} color={colors.ink} />
+    <Pressable accessibilityRole="button" accessibilityLabel={[title, amount, meta].filter(Boolean).join('. ')} onPress={onPress} style={({ pressed }) => [styles.groupRow, !first && styles.groupLine, pressed && { opacity: 0.85 }]}>
+      <View style={[styles.groupIcon, warn && { backgroundColor: colors.accentSoft }]}>
+        <Ionicons name={icon} size={18} color={warn ? colors.warning : colors.muted} />
       </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
+      <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
         <Text style={styles.linkTitle}>{title}</Text>
-        <Text style={styles.linkMeta}>{meta}</Text>
+        <Text style={[styles.linkMeta, warn && { color: colors.warning, fontFamily: fonts.ui.bold }]}>{meta}</Text>
       </View>
-      {amount ? <Text style={styles.groupAmount}>{amount}</Text> : <Ionicons name="chevron-forward" size={18} color={colors.muted} />}
+      {amount ? <Text style={styles.groupAmount}>{amount}</Text> : null}
+      <Ionicons name="chevron-forward" size={18} color={colors.placeholder} />
     </Pressable>
   );
 }
@@ -421,62 +473,76 @@ function OutboxBanner({ entityId }: { entityId: string }) {
 }
 
 const styles = StyleSheet.create({
-  heroLabel: { fontSize: 11.5, letterSpacing: 0.8, fontFamily: fonts.ui.extrabold, color: colors.muted },
-  heroValue: { flex: 1, fontSize: 36, lineHeight: 42, fontFamily: fonts.display.bold, color: colors.ink },
-  splitBar: { flexDirection: 'row', height: 8, gap: 2, borderRadius: 4, overflow: 'hidden' },
-  closeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, minHeight: 46, marginTop: spacing.xs, borderRadius: radius.md, backgroundColor: colors.selectedSoft },
-  closeText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  zone: { marginTop: spacing.sm, fontSize: 12, letterSpacing: 1, fontFamily: fonts.ui.extrabold, color: colors.muted },
-  zoneSub: { fontSize: 11, letterSpacing: 0.8, fontFamily: fonts.ui.bold, color: colors.muted },
-  group: { borderRadius: radius.md, overflow: 'hidden', gap: 1, backgroundColor: colors.line, borderWidth: 1, borderColor: colors.line },
-  groupRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 62, padding: spacing.md, backgroundColor: colors.surface },
-  groupIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.selectedSoft, alignItems: 'center', justifyContent: 'center' },
-  groupAmount: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  allClear: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface },
-  legend: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendDot: { width: 9, height: 9, borderRadius: 3, marginLeft: 4 },
-  bars: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 108 },
-  barCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
-  barPair: { flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
-  bar: { width: 7, borderRadius: 3 },
-  barLabel: { fontSize: 11, fontFamily: fonts.ui.semibold, color: colors.muted },
   screen: { flex: 1, backgroundColor: colors.bg },
-  body: { padding: spacing.lg, gap: spacing.md },
-  tabs: { flexDirection: 'row', gap: spacing.sm },
-  kpiTop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
-  analyticsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, minHeight: 46, borderRadius: radius.md, backgroundColor: colors.primarySoft, marginTop: spacing.xs },
-  analyticsText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.primary },
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.sm },
-  daySentence: { fontSize: 15, lineHeight: 21, fontFamily: fonts.ui.bold, color: colors.ink, marginBottom: spacing.sm },
+  body: { paddingHorizontal: 18, gap: 20 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  headText: { flex: 1, minWidth: 0 },
+  title: { fontSize: 24, lineHeight: 29, fontFamily: fonts.display.bold, color: colors.ink },
+  eyebrow: { flexShrink: 1, fontSize: 11, letterSpacing: 1.1, fontFamily: fonts.ui.extrabold, color: colors.faint },
+  eyebrowRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  datesBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 28 },
+  datesText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
+  section: { gap: 10 },
+  card: { padding: 16, gap: 14, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
+  sentenceBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderRadius: 16, backgroundColor: colors.bg },
+  sentenceText: { flex: 1, minWidth: 0, gap: 4 },
+  sentence: { fontSize: 15, lineHeight: 22, fontFamily: fonts.ui.bold, color: colors.ink },
+  sentenceFrom: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.faint },
+  segment: { flexDirection: 'row', padding: 3, borderRadius: 12, backgroundColor: colors.selectedSoft },
+  segmentItem: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
+  segmentOn: { backgroundColor: colors.surface },
+  segmentText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  heroRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 },
+  heroLeft: { flexShrink: 1, gap: 4 },
+  heroValue: { fontSize: 38, lineHeight: 42, fontFamily: fonts.display.bold, color: colors.verified },
   compare: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
-  statRow: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.sm },
-  methods: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.xs },
-  method: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
-  margin: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.verified },
-  actions: { flexDirection: 'row', gap: spacing.md },
-  action: { flex: 1, minHeight: 72, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: spacing.sm },
+  stats: { flexDirection: 'row', gap: 10 },
+  statBox: { flex: 1, gap: 2, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.bg },
+  statLabel: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  statValue: { fontSize: 17, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  splitWrap: { gap: 8 },
+  splitBar: { flexDirection: 'row', height: 8, gap: 2, borderRadius: 4, overflow: 'hidden' },
+  splitText: { fontSize: 12, lineHeight: 17, fontFamily: fonts.ui.bold, color: colors.muted },
+  closeBtn: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, borderWidth: 1.5, borderColor: colors.ink },
+  closeText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  actions: { flexDirection: 'row', gap: 10 },
+  action: { flex: 1, minHeight: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16 },
   actionPrimary: { backgroundColor: colors.primary },
   actionAccent: { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line },
-  actionText: { fontSize: 18, fontFamily: fonts.display.bold, color: '#fff' },
-  linkCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md },
-  linkIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  insight: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, borderLeftWidth: 4 },
-  linkTitle: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
-  linkMeta: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
-  sectionTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink, marginTop: spacing.sm },
-  topRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  topName: { flex: 1, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink },
-  topQty: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
-  topValue: { minWidth: 80, textAlign: 'right', fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
-  move: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md },
-  moveIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  moveTitle: { fontSize: 14.5, fontFamily: fonts.ui.semibold, color: colors.ink },
-  moveSub: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
-  moveAmount: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
+  actionText: { fontSize: 15.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  group: { paddingVertical: 2, paddingHorizontal: 14, borderRadius: 20, backgroundColor: colors.surface },
+  groupRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  groupLine: { borderTopWidth: 1, borderTopColor: colors.selectedSoft },
+  groupIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
+  groupAmount: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  linkTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  linkMeta: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.faint },
+  allClear: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.surface },
+  insight: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 16, borderLeftWidth: 4, backgroundColor: colors.surface },
+  chartHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  legend: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  legendDot: { width: 9, height: 9, borderRadius: 3, marginLeft: 6 },
+  legendText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
+  bars: { height: 120, flexDirection: 'row', alignItems: 'flex-end', gap: 4 },
+  barCol: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'flex-end', gap: 6 },
+  barPair: { flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
+  bar: { width: 7, borderTopLeftRadius: 4, borderTopRightRadius: 4, borderBottomLeftRadius: 2, borderBottomRightRadius: 2 },
+  barLabel: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
+  analysisBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.bg },
+  analysisText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  tabs: { flexDirection: 'row', gap: spacing.sm },
+  sectionTitle: { fontSize: 11, letterSpacing: 1.1, fontFamily: fonts.ui.extrabold, color: colors.faint, textTransform: 'uppercase', marginBottom: -10 },
+  move: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: -10, padding: 12, borderRadius: 16, backgroundColor: colors.surface },
+  moveIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  moveTitle: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  moveSub: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.faint },
+  moveAmount: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   struck: { textDecorationLine: 'line-through', color: colors.muted },
-  banner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.accentSoft, borderRadius: radius.md, padding: spacing.md },
+  banner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: 12, borderRadius: 12, backgroundColor: colors.accentSoft },
   bannerText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.accentInk },
-  bannerLink: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.primary },
-  fab: { position: 'absolute', right: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.verified, paddingHorizontal: spacing.lg, height: 56, borderRadius: 28, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 6 },
-  fabText: { fontSize: 16, fontFamily: fonts.display.bold, color: '#fff' },
+  bannerLink: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
+  foot: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: 12, paddingHorizontal: 16, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.hairline },
+  dictate: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
+  dictateText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi, type Appointment, type AppointmentService } from '@/api/agenda';
 import { ApiError } from '@/api/client';
@@ -10,7 +10,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { clockShort, dayKey, formatDay, nextDays } from '@/lib/agendaFormat';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { colors, fonts } from '@/theme';
+import { colors, fonts, radius } from '@/theme';
 
 type Msg = { id: number; from: 'agent' | 'you'; text: string };
 type Step = 'start' | 'hi' | 'svc' | 'looking' | 'times' | 'confirm' | 'sending' | 'done' | 'none';
@@ -39,6 +39,8 @@ export default function AgentBookingScreen() {
   const [slots, setSlots] = useState<string[]>([]);
   const [slot, setSlot] = useState<string | null>(null);
   const [booked, setBooked] = useState<Appointment | null>(null);
+  const [draft, setDraft] = useState('');
+  const [noteText, setNoteText] = useState<string | undefined>(undefined);
   const seq = useRef(0);
   const idem = useRef(`agent-${id}-${Date.now()}`);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -99,7 +101,7 @@ export default function AgentBookingScreen() {
     setStep('sending');
     setTyping(true);
     try {
-      const a = await agendaApi.book({ entity_id: id, service_id: service?.id, starts_at: slot }, idem.current);
+      const a = await agendaApi.book({ entity_id: id, service_id: service?.id, starts_at: slot, note: noteText }, idem.current);
       setBooked(a);
       void mine.refetch();
       void summary.refetch();
@@ -119,6 +121,35 @@ export default function AgentBookingScreen() {
         say(null, 'Tu cita no se apartó y nada se cobró. Revisa tu conexión e inténtalo de nuevo.', 'confirm');
       }
     }
+  };
+
+  const sendFreeText = () => {
+    const clean = draft.trim();
+    if (!clean || typing) return;
+    setDraft('');
+    const normalized = clean.toLowerCase();
+    // Si escribió el nombre de un servicio disponible, lo elegimos directamente
+    const matchedService = services.find((s) => normalized.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(normalized));
+    if ((step === 'svc' || step === 'hi') && matchedService) {
+      void offerTimes(clean, matchedService);
+      return;
+    }
+    // Solo un sí claro y sin más aparta la cita: «si me das mejor mañana» o «sin barba» no.
+    if (step === 'confirm' && /^(s[ií]|claro|ap[aá]rtala|s[ií],? ap[aá]rtala|dale|listo)[.!]*$/i.test(normalized)) {
+      void book();
+      return;
+    }
+    // Guardamos el mensaje como nota para el negocio y seguimos el paso actual
+    setNoteText(clean);
+    say(
+      clean,
+      step === 'times'
+        ? `Anoté tu comentario para ${biz}. Elige cuál de las horas disponibles te sirve para apartarla:`
+        : step === 'confirm'
+          ? `Le dejé esa nota a ${biz}. ¿Confirmamos la cita para ${slot ? when(slot) : 'esa hora'}?`
+          : `Le paso ese detalle a ${biz}. Elige una opción abajo para ver las horas libres:`,
+      step,
+    );
   };
 
   // El saludo: lo de siempre si ya viniste; si no, qué se te ofrece.
@@ -157,7 +188,7 @@ export default function AgentBookingScreen() {
             : [];
 
   return (
-    <View style={styles.screen}>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={() => router.back()} style={styles.back}>
           <Ionicons name="chevron-back" size={20} color={colors.ink} />
@@ -171,7 +202,7 @@ export default function AgentBookingScreen() {
         </View>
       </View>
 
-      <ScrollView ref={scroll} style={styles.msgs} contentContainerStyle={styles.msgsIn} onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: !reduce })}>
+      <ScrollView ref={scroll} style={styles.msgs} contentContainerStyle={styles.msgsIn} onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: !reduce })} keyboardShouldPersistTaps="handled">
         {summary.isLoading ? <ActivityIndicator color={colors.primary} /> : null}
         {summary.isError ? (
           <View accessibilityLiveRegion="polite" style={[styles.bub, styles.bubAgent]}>
@@ -209,19 +240,44 @@ export default function AgentBookingScreen() {
         ) : null}
       </ScrollView>
 
-      {replies.length ? (
-        <View style={[styles.foot, { paddingBottom: insets.bottom + 12 }]}>
-          {replies.map((r, i) => {
-            const main = step === 'confirm' && i === 0;
-            return (
-              <Pressable key={r.label} accessibilityRole="button" onPress={r.run} style={[styles.reply, main && styles.replyMain]}>
-                <Text style={[styles.replyText, main && styles.replyTextMain]}>{r.label}</Text>
-              </Pressable>
-            );
-          })}
+      {step !== 'done' && step !== 'none' ? (
+        <View style={[styles.footContainer, { paddingBottom: insets.bottom + 12 }]}>
+          {replies.length ? (
+            <View style={styles.footReplies}>
+              {replies.map((r, i) => {
+                const main = step === 'confirm' && i === 0;
+                return (
+                  <Pressable key={r.label} accessibilityRole="button" onPress={r.run} style={[styles.reply, main && styles.replyMain]}>
+                    <Text style={[styles.replyText, main && styles.replyTextMain]}>{r.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+          <View style={styles.composeRow}>
+            <TextInput
+              value={draft}
+              onChangeText={setDraft}
+              placeholder="Escribe o toca una opción…"
+              placeholderTextColor={colors.muted}
+              accessibilityLabel="Mensaje para Empre Agent"
+              onSubmitEditing={sendFreeText}
+              returnKeyType="send"
+              style={styles.composeInput}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Enviar mensaje"
+              disabled={!draft.trim() || typing}
+              onPress={sendFreeText}
+              style={[styles.sendBtn, (!draft.trim() || typing) && { opacity: 0.45 }]}
+            >
+              <Ionicons name="arrow-up" size={18} color="#fff" />
+            </Pressable>
+          </View>
         </View>
       ) : null}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -249,9 +305,31 @@ const styles = StyleSheet.create({
   cardSub: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.faint },
   cardLink: { minHeight: 44, justifyContent: 'center' },
   cardLinkText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
-  foot: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingTop: 10, paddingHorizontal: 16, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.hairline },
+  footContainer: { gap: 8, paddingTop: 10, paddingHorizontal: 16, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.hairline },
+  footReplies: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   reply: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 999, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   replyMain: { backgroundColor: colors.primary, borderColor: colors.primary },
   replyText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   replyTextMain: { color: '#fff' },
+  composeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  composeInput: {
+    flex: 1,
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.bg,
+    fontSize: 14,
+    fontFamily: fonts.ui.medium,
+    color: colors.ink,
+  },
+  sendBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

@@ -28,15 +28,6 @@ interface Props {
   onPress: () => void;
 }
 
-/**
- * Pin de un negocio. El mapa dibuja cada marcador como una imagen: si se
- * rastrean sus cambios todo el tiempo, cada vez que la pantalla se vuelve a
- * pintar el marcador se redibuja y la foto vuelve a entrar desde transparente
- * (el pin parpadea o desaparece un momento). Por eso se rastrea solo mientras
- * carga la miniatura y después se congela, igual que la pila. Quien lo usa pone
- * en la `key` lo que cambia su aspecto (zoom, selección, oferta), así un cambio
- * real lo vuelve a dibujar.
- */
 function closesSoon(closesAt?: string): boolean {
   const m = /^(\d{1,2}):(\d{2})$/.exec(closesAt ?? '');
   if (!m) return false;
@@ -46,7 +37,6 @@ function closesSoon(closesAt?: string): boolean {
 }
 
 function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, dimmed, onPress }: Props) {
-  // Lo que cambia la imagen del pin; al cambiar, se redibuja sin desmontarse (3.29).
   const look = [tier, emphasis ?? '', selected ? 's' : '', mine ? 'm' : '', entity.has_active_offer ? 'o' : '', entity.is_open_now ? 'a' : 'c', closesSoon(entity.closes_at) ? 'p' : '', distanceLabel ?? ''].join('|');
   const { tracking, onLayout, onImageSettled, markerRef } = useMarkerTracking(look);
 
@@ -54,7 +44,6 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
   const open = entity.has_hours ? entity.is_open_now : true;
   const icon = (entity.category_icon || 'storefront') as keyof typeof Ionicons.glyphMap;
   const thumb = entity.profile_url ? resolveImageUrl(entity.profile_url) : null;
-  // Borde: azul si está seleccionado, ámbar si hay oferta, blanco si no.
   const hasOffer = entity.has_active_offer;
   const showRayo = hasOffer && (entity.active_offer?.type === 'HORAS' || entity.active_offer?.type === 'DIA');
   const borderColor = selected ? colors.primary : hasOffer ? colors.accent : '#ffffff';
@@ -69,7 +58,6 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
       <Marker
         ref={markerRef}
         coordinate={coordinate}
-        // El centro del pin queda sobre el negocio aunque el grande lleve etiqueta.
         anchor={{ x: 0.5, y: 0.5 }}
         opacity={dimmed ? DIM_OPACITY : 1}
         zIndex={selected ? 1000 : emphasis === 'big' ? 30 : emphasis === 'mid' ? 20 : emphasis === 'dot' ? 10 : 1}
@@ -148,7 +136,6 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
         ) : (
           <View style={[tier === 'near' ? styles.pinNear : styles.pinMid, { borderColor }]}>
             {thumb ? (
-              // Sin transición: dentro de un marcador, el fundido se vería como un parpadeo.
               <Image accessible={false} source={{ uri: thumb }} style={tier === 'near' ? styles.thumbNear : styles.thumbMid} contentFit="cover" cachePolicy="memory-disk" recyclingKey={thumb} onLoad={onImageSettled} onError={onImageSettled} />
             ) : (
               <View style={[tier === 'near' ? styles.thumbNear : styles.thumbMid, styles.fallback, { backgroundColor: cat.bg }]}>
@@ -163,12 +150,6 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
   );
 }
 
-/**
- * Cada consulta trae objetos nuevos aunque el negocio sea el mismo; sin esto,
- * todos los pines se redibujan (y en Android desaparecen un instante). Solo se
- * redibuja si cambia algo que se ve. `onPress` no cuenta: hace lo mismo para el
- * mismo negocio.
- */
 export const PinMarker = memo(PinMarkerView, (a, b) =>
   a.tier === b.tier &&
   a.emphasis === b.emphasis &&
@@ -190,8 +171,8 @@ export const PinMarker = memo(PinMarkerView, (a, b) =>
 const styles = StyleSheet.create({
   pinWrap: { alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44, paddingHorizontal: 10, paddingVertical: 6 },
   pinWrapSelected: { transform: [{ scale: 1.15 }] },
-  pinOwnerLabel: { backgroundColor: colors.primaryDark, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.sm, marginBottom: 3 },
-  pinOwnerLabelText: { fontSize: 10, fontFamily: fonts.ui.bold, color: '#fff' },
+  pinOwnerLabel: { backgroundColor: colors.ink, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, marginBottom: 3 },
+  pinOwnerLabelText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },
   offerBadge: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#fff', marginBottom: -2 },
   pinFar: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: '#fff' },
   pinFarSelected: { borderColor: colors.primary, borderWidth: 3 },
@@ -200,8 +181,8 @@ const styles = StyleSheet.create({
   thumbMid: { width: 28, height: 28, borderRadius: 14 },
   emphWrap: { alignItems: 'center', justifyContent: 'center', padding: 8 },
   labelSpacer: { height: 26 },
-  label: { marginTop: 4, maxWidth: 170, height: 22, paddingHorizontal: 9, borderRadius: radius.pill, backgroundColor: colors.ink, justifyContent: 'center' },
-  labelText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  label: { marginTop: 4, maxWidth: 178, height: 24, paddingHorizontal: 10, borderRadius: radius.pill, backgroundColor: colors.ink, justifyContent: 'center' },
+  labelText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },
   labelDistance: { color: '#FFD2A6', fontFamily: fonts.ui.extrabold },
   pinBig: { width: 56, height: 56, borderRadius: 28, borderWidth: 4, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   thumbBig: { width: 48, height: 48, borderRadius: 24 },

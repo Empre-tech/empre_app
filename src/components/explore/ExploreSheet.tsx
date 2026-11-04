@@ -48,7 +48,7 @@ interface Props {
   };
   /** Tocar una foto (de la tira o de una tarjeta): abre el visor en esa foto. */
   onPhoto: (model: CardModel, index: number) => void;
-  /** Llega algo nuevo con lo anterior todavía a la vista (3.26): barra fina arriba y lo anterior atenuado. */
+  /** Llega algo nuevo con lo anterior todavía a la vista (3.26): barra fina arriba. */
   updating?: boolean;
   /** Abre el perfil de un negocio (la franja de oferta de una ficha). */
   onOpenProfile: (id: string) => void;
@@ -65,10 +65,6 @@ interface Props {
  * el servidor) y «Todos»; con búsqueda, los resultados primero y Descubre a un
  * toque sin perder la consulta. Compacto, intermedio y expandido son el mismo
  * panel a distinta altura; nunca se abre solo por mover el mapa.
- *
- * Está memorizado (3.29): la pantalla le pasa datos memorizados y manejadores estables, así que mover el mapa o
- * empezar a arrastrar no lo vuelve a dibujar; solo cambia cuando cambia lo que muestra. Bajar un poco al arrastrar
- * lo hace la pantalla con una animación nativa alrededor del panel.
  */
 function ExploreSheetView(p: Props) {
   const { anchor, height, snapTo, panHandlers } = p.sheet;
@@ -98,55 +94,68 @@ function ExploreSheetView(p: Props) {
   if (anchor === 'hidden') return null;
   const compact = anchor === 'peek';
   const toggle = () => snapTo(compact ? 'medium' : 'peek');
+  const count = p.searching ? p.results.items.length : p.zone.items.length + p.zone.extras.length;
 
   return (
     <Animated.View style={[styles.sheet, { height, paddingBottom: compact ? 0 : p.bottomInset }]}>
-      {/* Asa + encabezado: el contenedor recibe el arrastre y el botón interior el toque
-          (un toque alterna compacto ⇄ intermedio). Separados, no compiten por el dedo. */}
+      {/* Asa + encabezado unificado: cuando está expandido o intermedio, el conmutador Descubre | Todos sube a la cabecera para no repetir "Descubre" dos veces. */}
       <View {...panHandlers}>
-        <Pressable
-        onPress={toggle}
-        accessibilityRole="adjustable"
-        accessibilityLabel={`${p.header.title}. ${p.header.subtitle}`}
-        accessibilityValue={{ text: compact ? 'compacto' : anchor === 'medium' ? 'intermedio' : 'expandido' }}
-        accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }, { name: 'activate' }]}
-        onAccessibilityAction={(e) => {
-          if (e.nativeEvent.actionName === 'increment') snapTo(compact ? 'medium' : 'full');
-          else if (e.nativeEvent.actionName === 'decrement') snapTo(anchor === 'full' ? 'medium' : 'peek');
-          else toggle();
-        }}
-        style={styles.grab}
-      >
-        <View style={styles.handle} />
-        <View style={styles.headRow}>
-          <View style={styles.headText}>
-            <Text style={styles.title} numberOfLines={1}>
-              {p.header.title}
-            </Text>
-            <Text style={styles.subtitle} numberOfLines={1}>
-              {p.header.subtitle}
-            </Text>
-          </View>
-          {compact && !p.searching && !hasReel ? (
-            <View style={styles.avatars} accessible={false}>
-              {p.avatars.slice(0, 3).map((a, i) => (
-                <View key={a.key} style={[styles.avatar, { backgroundColor: a.color, marginLeft: i === 0 ? 0 : -8 }]}>
-                  <Text style={styles.avatarText}>{a.letter}</Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
-          <Pressable accessibilityRole="button" accessibilityLabel={compact ? 'Expandir panel' : 'Contraer panel'} onPress={toggle} hitSlop={8} style={styles.chevron}>
-            <Ionicons name={compact ? 'chevron-up' : 'chevron-down'} size={18} color={colors.ink} />
+        <View style={styles.grab}>
+          <Pressable
+            onPress={toggle}
+            accessibilityRole="adjustable"
+            accessibilityLabel={`${p.header.title}. ${p.header.subtitle}`}
+            accessibilityValue={{ text: compact ? 'compacto' : anchor === 'medium' ? 'intermedio' : 'expandido' }}
+            accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }, { name: 'activate' }]}
+            onAccessibilityAction={(e) => {
+              if (e.nativeEvent.actionName === 'increment') snapTo(compact ? 'medium' : 'full');
+              else if (e.nativeEvent.actionName === 'decrement') snapTo(anchor === 'full' ? 'medium' : 'peek');
+              else toggle();
+            }}
+            style={styles.handleHit}
+          >
+            <View style={styles.handle} />
           </Pressable>
+          <View style={styles.headRow}>
+            {compact ? (
+              <Pressable onPress={toggle} style={styles.headText}>
+                <Text style={styles.title} numberOfLines={1}>
+                  {p.header.title}
+                </Text>
+                <Text style={styles.subtitle} numberOfLines={1}>
+                  {p.header.subtitle}
+                </Text>
+              </Pressable>
+            ) : (
+              <View style={styles.expandedHeadLeft}>
+                <Tabs searching={p.searching} view={p.view} onView={p.onView} count={count} />
+                {p.header.subtitle ? (
+                  <Text style={styles.expandedMeta} numberOfLines={1}>
+                    {p.header.subtitle}
+                  </Text>
+                ) : null}
+              </View>
+            )}
+            {compact && !p.searching && !hasReel ? (
+              <View style={styles.avatars} accessible={false}>
+                {p.avatars.slice(0, 3).map((a, i) => (
+                  <View key={a.key} style={[styles.avatar, { backgroundColor: a.color, marginLeft: i === 0 ? 0 : -8 }]}>
+                    <Text style={styles.avatarText}>{a.letter}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            <Pressable accessibilityRole="button" accessibilityLabel={compact ? 'Expandir panel' : 'Contraer panel'} onPress={toggle} hitSlop={8} style={styles.chevron}>
+              <Ionicons name={compact ? 'chevron-up' : 'chevron-down'} size={18} color={colors.ink} />
+            </Pressable>
+          </View>
         </View>
-        </Pressable>
       </View>
 
       {p.updating ? <UpdatingBar /> : null}
       {compact ? <PhotoReel tiles={tiles} badge={badge} onPhoto={openTile} /> : null}
       {compact ? null : (
-        <View style={[styles.bodyWrap, p.updating && styles.dim]} accessibilityState={{ busy: Boolean(p.updating) }}>
+        <View style={styles.bodyWrap} accessibilityState={{ busy: Boolean(p.updating) }}>
           <Body {...p} />
         </View>
       )}
@@ -187,8 +196,6 @@ function Hint({ text, action, onAction, warn }: { text: string; action: string; 
 function Body(p: Props) {
   const anchor = p.sheet.anchor;
   const mid = anchor === 'medium';
-  const count = p.searching ? p.results.items.length : p.zone.items.length + p.zone.extras.length;
-  const tabs = <Tabs searching={p.searching} view={p.view} onView={p.onView} count={count} />;
 
   // ---- Descubre ----
   if (p.view === 'discover') {
@@ -274,7 +281,6 @@ function Body(p: Props) {
     const sig = firstLoad ? 'loading' : data.length > 0 ? data.map((sec) => `${sec.id}:${sec.items.map((it) => it.entity_id).join('.')}`).join('|') : `zona:${p.zone.items.map((m) => m.id).join('.')}`;
     return (
       <ScrollView style={styles.body} scrollEnabled={!mid} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
-        {tabs}
         {keep}
         <FadeIn key={sig}>{content}</FadeIn>
       </ScrollView>
@@ -284,7 +290,7 @@ function Body(p: Props) {
   // ---- Resultados de búsqueda ----
   if (p.searching) {
     const r = p.results;
-    if (r.status === 'loading') return <View style={styles.body}>{tabs}<SkeletonRows count={3} /></View>;
+    if (r.status === 'loading') return <View style={styles.body}><SkeletonRows count={3} /></View>;
     if (r.status === 'error') {
       return (
         <View style={[styles.body, styles.state]} accessibilityRole="alert">
@@ -300,7 +306,6 @@ function Body(p: Props) {
     if (r.items.length === 0) {
       return (
         <View style={styles.body}>
-          {tabs}
           <View style={styles.state}>
             <Text style={styles.stateTitle}>No encontramos «{p.query}» {scopeText(r.scope)}</Text>
             <Text style={styles.stateText}>Prueba con otra palabra{r.scope !== 'all' ? ' o busca más lejos' : ''}.</Text>
@@ -320,7 +325,6 @@ function Body(p: Props) {
     if (mid) {
       return (
         <View style={styles.body}>
-          {tabs}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hscroll} contentContainerStyle={styles.hrow}>
             {nearItems.map((m) => <MiniCard key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
           </ScrollView>
@@ -336,7 +340,6 @@ function Body(p: Props) {
     }
     return (
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
-        {tabs}
         <Group title="Coinciden con tu búsqueda" count={nearItems.length} />
         {nearItems.map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
         {farItems.length ? (
@@ -360,13 +363,12 @@ function Body(p: Props) {
   const list = filter ? filter.items : p.zone.items;
   const filterHint = filter ? <Hint text={`Mostrando: ${filter.title}`} action="Quitar" onAction={p.onClearSection} /> : null;
   const loading = filter ? filter.status === 'loading' && list.length === 0 : p.zone.status === 'loading' && list.length === 0;
-  if (loading) return <View style={styles.body}>{tabs}{filterHint}<SkeletonRows count={3} /></View>;
+  if (loading) return <View style={styles.body}>{filterHint}<SkeletonRows count={3} /></View>;
   const extras = filter ? [] : p.zone.extras;
   const everything = [...list, ...extras];
   if (everything.length === 0 && filter) {
     return (
       <View style={styles.body}>
-        {tabs}
         {filterHint}
         <View style={styles.state}>
           <Text style={styles.stateTitle}>Nada para mostrar aquí</Text>
@@ -378,7 +380,6 @@ function Body(p: Props) {
   if (mid) {
     return (
       <View style={styles.body}>
-        {tabs}
         {filterHint}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hscroll} contentContainerStyle={styles.hrow}>
           {everything.map((m) => <MiniCard key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
@@ -392,7 +393,6 @@ function Body(p: Props) {
   if (!filter) {
     return (
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
-        {tabs}
         <ZoneAll
           items={list}
           extras={extras}
@@ -412,7 +412,6 @@ function Body(p: Props) {
   }
   return (
     <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
-      {tabs}
       {filterHint}
       {list.map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
     </ScrollView>
@@ -440,32 +439,34 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...shadow,
   },
-  grab: { paddingTop: spacing.sm, paddingBottom: spacing.sm, paddingLeft: spacing.lg, paddingRight: spacing.md },
-  handle: { width: 38, height: 5, borderRadius: 3, backgroundColor: colors.line, alignSelf: 'center', marginBottom: spacing.sm },
+  grab: { paddingTop: spacing.xs + 2, paddingBottom: spacing.xs + 2, paddingLeft: spacing.lg, paddingRight: spacing.md },
+  handleHit: { paddingVertical: 4 },
+  handle: { width: 38, height: 5, borderRadius: 3, backgroundColor: colors.line, alignSelf: 'center', marginBottom: 6 },
   headRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   headText: { flex: 1, minWidth: 0 },
-  title: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink },
-  subtitle: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
+  expandedHeadLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  expandedMeta: { flexShrink: 1, fontSize: 12, fontFamily: fonts.ui.bold, color: colors.verified },
+  title: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
+  subtitle: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   avatars: { flexDirection: 'row' },
   avatar: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 10, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  chevron: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
+  chevron: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1 },
   bodyWrap: { flex: 1 },
-  dim: { opacity: 0.55 },
   bodyContent: { paddingBottom: spacing.lg },
-  seg: { flexDirection: 'row', gap: 6, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
-  segItem: { height: 34, paddingHorizontal: 13, borderRadius: radius.pill, backgroundColor: colors.bg, justifyContent: 'center' },
+  seg: { flexDirection: 'row', gap: 4, padding: 3, borderRadius: radius.pill, backgroundColor: colors.selectedSoft, borderWidth: 1, borderColor: colors.line },
+  segItem: { height: 32, paddingHorizontal: 12, borderRadius: radius.pill, justifyContent: 'center' },
   segOn: { backgroundColor: colors.ink },
-  segText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
+  segText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
   segTextOn: { color: '#fff' },
   hint: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.lg, marginBottom: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.primarySoft },
   hintWarn: { backgroundColor: '#FBE4E4' },
   hintText: { flex: 1, fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
   hintTextWarn: { color: '#8E2A2A' },
   hintAction: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.primary, textDecorationLine: 'underline' },
-  secHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.sm },
-  secTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink },
+  secHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingTop: spacing.xs + 2, paddingBottom: spacing.sm },
+  secTitle: { fontSize: 15.5, fontFamily: fonts.display.bold, color: colors.ink },
   link: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primary },
   hscroll: { flexGrow: 0 },
   hrow: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },

@@ -45,7 +45,7 @@ interface Props {
   children?: React.ReactNode;
 }
 
-const HERO_HEIGHT = 260;
+const HERO_HEIGHT = 250;
 
 /**
  * La portada del perfil (tablero «Un solo perfil del negocio»): las fotos reales se deslizan, con cuántas hay y
@@ -92,19 +92,6 @@ export function ProfileHero({ name, categoryLabel, tagline, color, icon, profile
               </Text>
             </Pressable>
           ) : null}
-          <View style={{ flex: 1 }} pointerEvents="none" />
-          {follow ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={follow.on ? 'Dejar de seguir' : 'Seguir este negocio'}
-              accessibilityState={{ selected: follow.on }}
-              disabled={follow.busy}
-              onPress={follow.onToggle}
-              style={[styles.follow, follow.on && styles.followOn]}
-            >
-              {follow.busy ? <ActivityIndicator size="small" color={colors.ink} /> : <Text style={styles.followText}>{follow.on ? 'Siguiendo' : 'Seguir'}</Text>}
-            </Pressable>
-          ) : null}
         </View>
         {slides.length > 1 ? (
           <View style={styles.dots} pointerEvents="none">
@@ -116,24 +103,24 @@ export function ProfileHero({ name, categoryLabel, tagline, color, icon, profile
       </View>
 
       <View style={styles.head}>
-        <View style={[styles.logo, hasOffer && styles.logoRing]}>
-          <Avatar uri={profileUrl ?? undefined} name={name} size={52} />
-        </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <View style={styles.titleRow}>
-            <Text style={styles.name} accessibilityRole="header" numberOfLines={2}>
-              {name}
-            </Text>
-            {verified ? <VerifiedBadge size={18} /> : null}
+        <View style={styles.logoRow}>
+          <View style={[styles.logo, hasOffer && styles.logoRing]}>
+            {profileUrl ? <Avatar uri={profileUrl} name={name} size={68} /> : <Ionicons name={(icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap} size={32} color={colors.ink} />}
           </View>
-          {categoryLabel ? (
-            <Text style={styles.category} numberOfLines={1}>
-              {categoryLabel}
-            </Text>
+          {follow ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={follow.on ? 'Dejar de seguir' : 'Seguir este negocio'} accessibilityState={{ selected: follow.on }} disabled={follow.busy} onPress={follow.onToggle} style={[styles.follow, follow.on && styles.followOn]}>
+              {follow.busy ? <ActivityIndicator size="small" color={colors.ink} /> : <Text style={styles.followText}>{follow.on ? 'Siguiendo' : 'Seguir'}</Text>}
+            </Pressable>
           ) : null}
         </View>
+        <View style={styles.titleRow}>
+          <Text style={styles.name} accessibilityRole="header" numberOfLines={2}>
+            {name}
+          </Text>
+          {verified ? <VerifiedBadge size={18} /> : null}
+        </View>
+        {tagline ? <Text style={styles.tagline}>{tagline}</Text> : categoryLabel ? <Text style={styles.category}>{categoryLabel}</Text> : null}
       </View>
-      {tagline ? <Text style={styles.tagline}>{tagline}</Text> : null}
       {rating.hasScore || status ? (
         <View style={styles.stats}>
           {rating.hasScore ? (
@@ -142,9 +129,8 @@ export function ProfileHero({ name, categoryLabel, tagline, color, icon, profile
             </Pressable>
           ) : null}
           {status ? (
-            <View style={styles.stat}>
-              <View style={[styles.statusDot, { backgroundColor: status.tone === 'open' ? colors.verified : colors.danger }]} />
-              <Text style={styles.statText}>{status.text}</Text>
+            <View style={[styles.stat, status.tone === 'open' ? styles.statOpen : styles.statClosed]}>
+              <Text style={[styles.statText, { color: status.tone === 'open' ? colors.verified : colors.danger }]}>{status.text}</Text>
             </View>
           ) : null}
         </View>
@@ -163,26 +149,28 @@ const styles = StyleSheet.create({
   hero: { width: '100%', overflow: 'hidden' },
   fallback: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   topScrim: { position: 'absolute', left: 0, right: 0, top: 0, backgroundColor: 'rgba(0,0,0,0.22)' },
-  heroFoot: { position: 'absolute', left: spacing.md, right: spacing.md, bottom: spacing.md, flexDirection: 'row', alignItems: 'center' },
+  heroFoot: { position: 'absolute', left: 16, right: 16, bottom: 50, flexDirection: 'row', alignItems: 'center' },
   count: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: 'rgba(11,26,54,0.72)' },
   countText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#fff' },
-  follow: { minHeight: 44, minWidth: 92, paddingHorizontal: spacing.md, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  followOn: { backgroundColor: colors.selectedSoft },
+  follow: { minHeight: 40, minWidth: 84, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
+  followOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
   followText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  dots: { position: 'absolute', alignSelf: 'center', bottom: 26, flexDirection: 'row', gap: 5 },
+  dots: { position: 'absolute', right: 16, bottom: 58, flexDirection: 'row', gap: 5 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.55)' },
   dotOn: { width: 18, backgroundColor: '#fff' },
-  head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
-  logo: { width: 58, height: 58, borderRadius: 18, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: colors.surface },
-  logoRing: { borderWidth: 3, borderColor: colors.accent },
+  head: { gap: 6, marginTop: -40, paddingHorizontal: 16 },
+  logoRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginBottom: 6 },
+  logo: { width: 76, height: 76, borderRadius: 20, borderWidth: 4, borderColor: colors.bg, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.15, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 3 },
+  logoRing: { borderColor: colors.accent },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  name: { flexShrink: 1, fontSize: 24, lineHeight: 29, fontFamily: fonts.display.bold, color: colors.ink },
-  category: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted, marginTop: 2 },
-  tagline: { fontSize: 14.5, lineHeight: 21, fontFamily: fonts.ui.medium, color: colors.ink, paddingHorizontal: spacing.lg, marginTop: spacing.sm },
-  stats: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, paddingHorizontal: spacing.lg, marginTop: spacing.sm },
-  stat: { minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 5 },
-  statText: { fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.ink },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  name: { flexShrink: 1, fontSize: 28, lineHeight: 31, fontFamily: fonts.display.bold, color: colors.ink },
+  category: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.muted },
+  tagline: { fontSize: 16, lineHeight: 22, fontFamily: fonts.ui.semibold, color: colors.ink },
+  stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, marginTop: 10 },
+  stat: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, borderRadius: 999, backgroundColor: colors.surface },
+  statOpen: { backgroundColor: colors.verifiedSoft },
+  statClosed: { backgroundColor: colors.primarySoft },
+  statText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   extras: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: spacing.xs, marginHorizontal: spacing.lg },
   nearby: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', marginHorizontal: spacing.lg },
   nearbyText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink, textDecorationLine: 'underline' },

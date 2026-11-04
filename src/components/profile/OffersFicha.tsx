@@ -10,10 +10,12 @@ import { useAuth } from '@/auth/AuthContext';
 import { useActiveOffers } from '@/components/OfferBanner';
 import { OfferTicket } from '@/components/offer/OfferTicket';
 import { effectiveClaimStatus } from '@/lib/claims';
+import { offerPriceParts } from '@/lib/offer';
+import { featuredClock } from '@/lib/offerMarket';
 import { offerIndications } from '@/lib/discover';
 import { offersHasAll, offersMode, offersShown } from '@/lib/profileLayout';
 import { useNow } from '@/lib/useNow';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 import { SectionHeader } from './SectionHeader';
 
 interface Props {
@@ -133,21 +135,79 @@ export function OffersFicha({ entityId, isOwner, preview = false, initialOfferId
     );
   };
 
+  // En el perfil, la oferta en una tarjeta corta (tablero «Un solo perfil»); el detalle vive en su ficha.
+  if (variant === 'profile') {
+    return (
+      <View style={styles.wrap}>
+        {shown.map((o) => {
+          const parts = offerPriceParts(o);
+          const clock = featuredClock(o.ends_at, now);
+          const cta = ctaFor(o);
+          return (
+            <View key={o.id} style={styles.short}>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Oferta: ${o.title}. ${clock.text}. Ver la oferta`} onPress={() => router.push({ pathname: '/offer/[id]', params: { id: o.id, entityId } })} style={styles.shortBody}>
+                <Text style={styles.shortEye} numberOfLines={1}>
+                  OFERTA · {clock.text.toUpperCase()}
+                </Text>
+                <Text style={styles.shortTitle} numberOfLines={2}>
+                  {o.title}
+                </Text>
+                {parts.now ? (
+                  <View style={styles.shortPrice}>
+                    <Text style={styles.shortNow}>{parts.now}</Text>
+                    {parts.was ? <Text style={styles.shortWas}>{parts.was}</Text> : null}
+                    {parts.savingPct > 0 ? (
+                      <View style={styles.shortPct}>
+                        <Text style={styles.shortPctText}>-{parts.savingPct} %</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
+              </Pressable>
+              {cta ? (
+                <Pressable accessibilityRole="button" onPress={cta.onPress} style={styles.shortCta}>
+                  <Text style={styles.shortCtaText}>{cta.title}</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          );
+        })}
+        {offersHasAll(list.length) ? (
+          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/public-offers/[id]', params: { id: entityId } })} style={styles.allBtn}>
+            <Text style={styles.allBtnText}>Ver todas las ofertas</Text>
+          </Pressable>
+        ) : null}
+        {isOwner && !preview ? (
+          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/offers', params: { entityId } })} style={styles.ownerLink}>
+            <Ionicons name="flash-outline" size={16} color={colors.primaryDark} />
+            <Text style={styles.ownerLinkText}>Gestionar ofertas</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.wrap}>
       <SectionHeader title="Ofertas" link={isOwner && !preview ? 'Gestionar' : null} onLink={() => router.push({ pathname: '/business/offers', params: { entityId } })} />
 
       {mode === 'single' ? card(shown[0], 'single') : <View style={styles.stack}>{shown.map((o) => card(o, 'inline'))}</View>}
-      {variant === 'profile' && offersHasAll(list.length) ? (
-        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/public-offers/[id]', params: { id: entityId } })} style={styles.allBtn}>
-          <Text style={styles.allBtnText}>Ver todas las ofertas</Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  short: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
+  shortBody: { flex: 1, minWidth: 0, gap: 4 },
+  shortEye: { fontSize: 11, letterSpacing: 0.9, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
+  shortTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  shortPrice: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  shortNow: { fontSize: 17, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  shortWas: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.faint, textDecorationLine: 'line-through' },
+  shortPct: { paddingVertical: 2, paddingHorizontal: 8, borderRadius: 999, backgroundColor: colors.accent },
+  shortPctText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  shortCta: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
+  shortCtaText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   wrap: { gap: spacing.sm },
   stack: { gap: spacing.md },
   allBtn: { minHeight: 44, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },

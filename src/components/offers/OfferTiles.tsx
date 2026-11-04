@@ -38,8 +38,9 @@ function Price({ item, big }: { item: MarketItem; big?: boolean }) {
 }
 
 /**
- * La tarjeta del lienzo: foto con su ahorro, negocio y distancia, título, precio y cuánto le queda. La elegida en el
- * mapa lleva el aro de tinta.
+ * La tarjeta del lienzo con identidad de Boleto Empre: foto (o lienzo editorial), etiqueta de ahorro,
+ * negocio + píldora de distancia, separador perforado con muescas laterales, precio tabular y reloj de urgencia.
+ * La elegida en el mapa lleva cinta tricolor superior, insignia «En el mapa» y aro de tinta.
  */
 export function OfferTile({ item, now, onPress, width = TILE_W, selected }: { item: MarketItem; now: number; onPress: () => void; width?: number; selected?: boolean }) {
   const dist = distanceLabel(item.distance_meters);
@@ -48,29 +49,50 @@ export function OfferTile({ item, now, onPress, width = TILE_W, selected }: { it
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={tileA11y(item, now)} accessibilityState={{ selected: Boolean(selected) }} onPress={onPress} style={({ pressed }) => [styles.tile, { width }, selected && styles.tileOn, pressed && styles.pressed]}>
       <View style={styles.tileClip}>
-        <Photo item={item} style={styles.tilePhoto} size="md" />
-        {save ? (
-          <View style={styles.saveTag}>
-            <Text style={styles.saveTagText}>{save}</Text>
+        {selected ? (
+          <View style={styles.tricolorBar}>
+            <View style={[styles.tricolorSeg, { backgroundColor: colors.primary }]} />
+            <View style={[styles.tricolorSeg, { backgroundColor: '#14B8B0' }]} />
+            <View style={[styles.tricolorSeg, { backgroundColor: colors.accent }]} />
           </View>
         ) : null}
+        <View style={styles.tilePhotoWrap}>
+          <Photo item={item} style={styles.tilePhoto} size="md" />
+          {save ? (
+            <View style={styles.saveTag}>
+              <Text style={styles.saveTagText}>{save}</Text>
+            </View>
+          ) : null}
+          {selected ? (
+            <View style={styles.mapActiveTag}>
+              <Ionicons name="location" size={11} color="#fff" />
+              <Text style={styles.mapActiveTagText}>En el mapa</Text>
+            </View>
+          ) : null}
+        </View>
         <View style={styles.tileBody}>
-          <Text style={styles.tileBiz} numberOfLines={1}>
-            {item.entity_name}
+          <View style={styles.tileBizRow}>
+            <Text style={styles.tileBiz} numberOfLines={1}>
+              {item.entity_name}
+            </Text>
             {dist ? (
-              <>
-                {' · '}
-                <Text style={styles.tileDist}>a {dist}</Text>
-              </>
+              <View style={styles.tileDistPill}>
+                <Text style={styles.tileDistText}>a {dist}</Text>
+              </View>
             ) : null}
-          </Text>
+          </View>
           <Text style={styles.tileTitle} numberOfLines={2}>
             {item.title}
           </Text>
+          <View style={styles.ticketPerfRow} pointerEvents="none">
+            <View style={styles.notchLeft} />
+            <View style={styles.ticketDash} />
+            <View style={styles.notchRight} />
+          </View>
           <Price item={item} />
-          <View style={styles.tileClock}>
-            <Ionicons name="time-outline" size={14} color={clock.urgent ? colors.warning : colors.muted} />
-            <Text style={[styles.tileClockText, clock.urgent && { color: colors.warning }]} numberOfLines={1}>
+          <View style={[styles.tileClock, clock.urgent && styles.tileClockUrgent]}>
+            <Ionicons name="time-outline" size={13} color={clock.urgent ? ACCENT_INK : colors.muted} />
+            <Text style={[styles.tileClockText, clock.urgent && { color: ACCENT_INK }]} numberOfLines={1}>
               {clock.text}
             </Text>
           </View>
@@ -122,8 +144,14 @@ export function FeaturedOffer({ item, now, onPress }: { item: MarketItem; now: n
   const dist = distanceLabel(item.distance_meters);
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={featuredA11y(item, now)} onPress={onPress} style={({ pressed }) => [styles.feat, pressed && styles.pressed]}>
+      <View style={styles.tricolorBar}>
+        <View style={[styles.tricolorSeg, { backgroundColor: colors.primary }]} />
+        <View style={[styles.tricolorSeg, { backgroundColor: '#14B8B0' }]} />
+        <View style={[styles.tricolorSeg, { backgroundColor: colors.accent }]} />
+      </View>
       <Photo item={item} style={styles.featPhoto} size="lg" />
       <View style={[styles.badge, styles.badgeLeft]}>
+        <Ionicons name="sparkles" size={12} color={colors.accent} />
         <Text style={styles.ruleText}>Mayor ahorro de hoy</Text>
       </View>
       {save ? (
@@ -207,52 +235,64 @@ export const ZONE_W = 168;
 const SAVE_GREEN = '#2E7D4F';
 const ACCENT_SOFT = '#FFF1E3';
 const ACCENT_INK = '#8F4300';
-export const TILE_W = 212;
+export const TILE_W = 216;
 export const TILE_GAP = 12;
 
 const styles = StyleSheet.create({
-  tile: { backgroundColor: colors.surface, borderRadius: 20, shadowColor: colors.ink, shadowOpacity: 0.07, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  tileOn: { borderWidth: 2.5, borderColor: colors.ink, margin: -2.5 },
-  tileClip: { borderRadius: 20, overflow: 'hidden' },
-  pressed: { transform: [{ scale: 0.97 }], opacity: 0.95 },
-  tilePhoto: { height: 116, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  badge: { position: 'absolute', top: 8, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 3 },
-  badgeLeft: { left: 8, backgroundColor: 'rgba(255,255,255,0.95)' },
+  tile: { backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.line, shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+  tileOn: { borderWidth: 2, borderColor: colors.ink, shadowOpacity: 0.14, shadowRadius: 14, elevation: 4 },
+  tileClip: { borderRadius: 19, overflow: 'hidden' },
+  tricolorBar: { flexDirection: 'row', height: 4, width: '100%' },
+  tricolorSeg: { flex: 1, height: '100%' },
+  pressed: { transform: [{ scale: 0.975 }], opacity: 0.95 },
+  tilePhotoWrap: { position: 'relative' },
+  tilePhoto: { height: 114, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  badge: { position: 'absolute', top: 12, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4 },
+  badgeLeft: { left: 10, backgroundColor: 'rgba(255,255,255,0.96)' },
   urgentText: { color: colors.ink },
-  tileBody: { paddingTop: 12, paddingHorizontal: 14, paddingBottom: 14, gap: 5 },
-  tileBiz: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  tileDist: { color: colors.verified },
+  tileBody: { paddingTop: 11, paddingHorizontal: 13, paddingBottom: 13, gap: 5 },
+  tileBizRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
+  tileBiz: { flex: 1, fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
+  tileDistPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: '#E3F5F3' },
+  tileDistText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.verified },
   tileTitle: { fontSize: 16.5, lineHeight: 20, minHeight: 40, fontFamily: fonts.display.bold, color: colors.ink },
-  tileClock: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  tileClockText: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
+  ticketPerfRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: -13, marginVertical: 3 },
+  notchLeft: { width: 10, height: 10, borderRadius: 5, marginLeft: -5, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line },
+  ticketDash: { flex: 1, height: 1, borderTopWidth: 1, borderStyle: 'dashed', borderColor: colors.line, marginHorizontal: 4 },
+  notchRight: { width: 10, height: 10, borderRadius: 5, marginRight: -5, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line },
+  tileClock: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: colors.selectedSoft },
+  tileClockUrgent: { backgroundColor: ACCENT_SOFT },
+  tileClockText: { flexShrink: 1, fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.muted },
+  mapActiveTag: { position: 'absolute', left: 9, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: 'rgba(14,35,70,0.88)' },
+  mapActiveTagText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#fff' },
   title: { fontSize: 14, lineHeight: 18, fontFamily: fonts.display.bold, color: colors.ink, minHeight: 18 },
   meta: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
-  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' },
-  price: { fontSize: 17, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  was: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.faint, textDecorationLine: 'line-through' },
-  save: { backgroundColor: '#E3F5F3', borderRadius: 6, paddingHorizontal: 6 },
-  saveText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#1B6B3C' },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7, flexWrap: 'wrap' },
+  price: { fontSize: 17.5, fontFamily: fonts.ui.extrabold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  was: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.faint, textDecorationLine: 'line-through', fontVariant: ['tabular-nums'] },
+  save: { backgroundColor: '#E3F5F3', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 },
+  saveText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: '#1B6B3C' },
   reasonText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
   row: { flexDirection: 'row', gap: spacing.md, padding: spacing.sm + 2, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
   rowPhoto: { width: 76, height: 76, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  rowBody: { flex: 1, minWidth: 0, justifyContent: 'center' },
+  rowBody: { flex: 1, minWidth: 0, justifyContent: 'center', gap: 2 },
   zone: { width: 168, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
   mosaic: { flexDirection: 'row', height: 64 },
   mosaicCell: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   zoneBody: { padding: spacing.sm + 2, paddingTop: spacing.sm, gap: 2 },
   here: { alignSelf: 'flex-start', marginTop: 4, backgroundColor: colors.primarySoft, borderRadius: 6, paddingHorizontal: 6 },
-  hereText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
-  saveTag: { position: 'absolute', left: 10, top: 10, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.accent },
-  saveTagText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  hereText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
+  saveTag: { position: 'absolute', left: 9, top: 9, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.accent, shadowColor: colors.ink, shadowOpacity: 0.16, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  saveTagText: { fontSize: 12.5, fontFamily: fonts.display.bold, color: colors.ink },
   rowPrice: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   priceBig: { fontSize: 22 },
-  feat: { marginHorizontal: spacing.lg, backgroundColor: colors.surface, borderRadius: 22, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
+  feat: { marginHorizontal: spacing.lg, backgroundColor: colors.surface, borderRadius: 22, borderWidth: 1, borderColor: colors.line, overflow: 'hidden', shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   featPhoto: { height: 150, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  ruleText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  bigSave: { position: 'absolute', right: 12, top: 98, width: 74, height: 74, borderRadius: 37, backgroundColor: SAVE_GREEN, borderWidth: 4, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  ruleText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  bigSave: { position: 'absolute', right: 12, top: 102, width: 74, height: 74, borderRadius: 37, backgroundColor: SAVE_GREEN, borderWidth: 4, borderColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: colors.ink, shadowOpacity: 0.18, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
   bigSaveText: { fontSize: 19, lineHeight: 22, fontFamily: fonts.display.bold, color: '#fff' },
-  bigSaveSub: { fontSize: 8.5, fontFamily: fonts.ui.extrabold, color: '#fff', letterSpacing: 0.4 },
-  featBody: { padding: spacing.md, paddingTop: spacing.sm + 2, gap: 2 },
+  bigSaveSub: { fontSize: 9, fontFamily: fonts.ui.extrabold, color: '#fff', letterSpacing: 0.4 },
+  featBody: { padding: spacing.md, paddingTop: spacing.sm + 2, gap: 3 },
   featTitle: { fontSize: 18, lineHeight: 22, fontFamily: fonts.display.bold, color: colors.ink, paddingRight: 76 },
   featFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, marginTop: 4 },
   clock: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: ACCENT_SOFT },
@@ -261,6 +301,6 @@ const styles = StyleSheet.create({
   cat: { width: 64, alignItems: 'center', gap: 5, minHeight: 44 },
   catPressed: { transform: [{ scale: 0.95 }] },
   catIcon: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: 'transparent' },
-  catText: { fontSize: 11, fontFamily: fonts.ui.bold, color: colors.ink },
+  catText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.ink },
   catTextOn: { fontFamily: fonts.ui.extrabold },
 });

@@ -26,7 +26,6 @@ const HERE_INK = '#0A6E6A';
 export function LocationStrip({ text, moving, onAction }: Props) {
   const reduce = useReduceMotion();
   const [shown, setShown] = useState(text);
-  const [prev, setPrev] = useState<StripText | null>(null);
   const [p] = useState(() => new Animated.Value(1));
   const lastSaid = useRef<number | null>(null);
 
@@ -40,20 +39,15 @@ export function LocationStrip({ text, moving, onAction }: Props) {
         AccessibilityInfo.announceForAccessibility(text.a11y);
       }
       if (reduce) return;
-      setPrev(shown);
       p.setValue(0);
-      Animated.timing(p, { toValue: 1, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(() => setPrev(null));
+      Animated.timing(p, { toValue: 1, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
     }, SETTLE_MS);
     return () => clearTimeout(timer);
   }, [text, moving, shown, reduce, p]);
 
   const enter = {
-    opacity: p,
-    transform: [{ translateY: p.interpolate({ inputRange: [0, 1], outputRange: [SHIFT, 0] }) }],
-  };
-  const leave = {
-    opacity: p.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
-    transform: [{ translateY: p.interpolate({ inputRange: [0, 1], outputRange: [0, -SHIFT] }) }],
+    opacity: p.interpolate({ inputRange: [0, 1], outputRange: [0.25, 1] }),
+    transform: [{ translateY: p.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) }],
   };
   // El botón de la derecha sigue a lo que se ve (la distancia cambia con el nombre, no antes).
   const current = moving ? shown : text;
@@ -73,17 +67,16 @@ export function LocationStrip({ text, moving, onAction }: Props) {
   return (
     <View style={[styles.strip, moving && styles.moving]}>
       <View style={styles.pin}>
-        <Ionicons name="location" size={17} color={colors.primary} />
+        <Ionicons name="location" size={16} color={colors.primary} />
       </View>
       <View style={styles.texts} accessible accessibilityRole="text" accessibilityLabel={shown.a11y}>
-        {prev ? <Animated.View style={[styles.prev, leave]}>{label(prev)}</Animated.View> : null}
-        <Animated.View style={prev ? enter : null}>{label(shown)}</Animated.View>
+        <Animated.View style={enter}>{label(shown)}</Animated.View>
       </View>
       {current.action === 'here' ? (
-        <View style={styles.here} accessible accessibilityLabel="Estás aquí">
-          <Ionicons name="navigate" size={13} color={HERE_INK} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Estás aquí. Toca para centrar" onPress={onAction} style={styles.here}>
+          <Ionicons name="navigate" size={12} color={HERE_INK} />
           <Text style={styles.hereText}>Aquí</Text>
-        </View>
+        </Pressable>
       ) : current.action === 'none' ? null : (
         <Pressable
           accessibilityRole="button"
@@ -105,23 +98,24 @@ const styles = StyleSheet.create({
   strip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    minHeight: 52,
+    gap: 9,
+    minHeight: 46,
     paddingVertical: 4,
     paddingLeft: spacing.sm,
-    paddingRight: 4,
-    borderRadius: radius.md,
+    paddingRight: 6,
+    borderRadius: radius.pill,
     backgroundColor: 'rgba(255,255,255,0.97)',
+    borderWidth: 1,
+    borderColor: colors.line,
     ...shadow,
   },
-  moving: { opacity: 0.72 },
-  pin: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  moving: { opacity: 0.78 },
+  pin: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   texts: { flex: 1, minWidth: 0, overflow: 'hidden', justifyContent: 'center' },
-  prev: { position: 'absolute', left: 0, right: 0, top: 0 },
-  lead: { fontSize: 11, fontFamily: fonts.ui.bold, color: colors.muted },
-  title: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink },
-  city: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted },
-  here: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44, paddingHorizontal: spacing.md },
+  lead: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  title: { fontSize: 14.5, fontFamily: fonts.display.bold, color: colors.ink },
+  city: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  here: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 34, paddingHorizontal: 11, borderRadius: radius.pill, backgroundColor: '#E3F5F3' },
   hereText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: HERE_INK },
   action: {
     flexDirection: 'row',
@@ -129,9 +123,9 @@ const styles = StyleSheet.create({
     gap: 5,
     flexShrink: 1,
     maxWidth: '48%',
-    minHeight: 44,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.sm,
+    minHeight: 36,
+    paddingHorizontal: 12,
+    borderRadius: radius.pill,
     backgroundColor: colors.primarySoft,
   },
   pressed: { opacity: 0.7 },

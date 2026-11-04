@@ -194,6 +194,7 @@ export default function MapScreen() {
   const [search, setSearch] = useState(() => (typeof entry.q === 'string' ? entry.q.slice(0, 80) : ''));
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [radiusKm, setRadiusKm] = useState<number | null>(null);
+  const [walkOpen, setWalkOpen] = useState(false);
   const [openNow, setOpenNow] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [locating, setLocating] = useState(false);
@@ -1283,33 +1284,10 @@ export default function MapScreen() {
               <Ionicons name="chevron-back" size={22} color={colors.ink} />
             </Pressable>
             <View style={{ flex: 1 }}>
-              <SearchBar value={search} onChangeText={setSearch} onOpenFilters={openFilters} filterCount={activeFilterCount} />
+              <SearchBar value={search} onChangeText={setSearch} onOpenFilters={openFilters} filterCount={activeFilterCount} compact />
             </View>
           </View>
 
-          {tall || selectedEntity || searching || !userCoords ? null : (
-            <View style={styles.walkRow} accessibilityLabel="Hasta dónde caminar">
-              <Ionicons name="walk-outline" size={16} color={colors.ink} />
-              {WALK_LIMITS.map((w) => {
-                const on = radiusKm === w.km;
-                return (
-                  <Pressable
-                    key={w.min}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: on }}
-                    accessibilityLabel={`Hasta ${w.min} minutos a pie`}
-                    onPress={() => {
-                      setRadiusKm(on ? null : w.km);
-                      if (!on) focusRadius(userCoords, w.km);
-                    }}
-                    style={[styles.walkChip, on && styles.walkChipOn]}
-                  >
-                    <Text style={styles.walkText}>{w.min} min</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
           {tall || selectedEntity ? null : searching ? (
             <ContextRow
               chips={contextRow}
@@ -1324,31 +1302,92 @@ export default function MapScreen() {
               }}
             />
           ) : (
-            <GroupRow
-              groups={groups}
-              groupId={groupId}
-              categoryId={categoryId}
-              onGroup={chooseGroup}
-              onCategory={(id) => {
-                setCategoryId(id);
-                setSubcategoryId(undefined);
-              }}
-              onSeeAll={() => setAllCatsOpen(true)}
-              trailing={
-                selectedSubcategory || radiusLabel || openNow ? (
-                  <View style={styles.activeChips}>
-                    {selectedSubcategory ? <ActiveChip icon="pricetag-outline" label={selectedSubcategory.name} onRemove={() => setSubcategoryId(undefined)} /> : null}
-                    {radiusLabel ? <ActiveChip icon="navigate" label={radiusLabel} onRemove={() => setRadiusKm(null)} /> : null}
-                    {openNow ? <ActiveChip icon="time-outline" label="Abiertos ahora" onRemove={() => setOpenNow(false)} /> : null}
-                    {activeFilterCount >= 2 ? (
-                      <Pressable accessibilityRole="button" accessibilityLabel="Limpiar todos los filtros" onPress={clearAllFilters} hitSlop={8} style={styles.clearChip}>
-                        <Text style={styles.clearChipText}>Limpiar</Text>
+            <>
+              <GroupRow
+                groups={groups}
+                groupId={groupId}
+                categoryId={categoryId}
+                onGroup={chooseGroup}
+                onCategory={(id) => {
+                  setCategoryId(id);
+                  setSubcategoryId(undefined);
+                }}
+                onSeeAll={() => setAllCatsOpen(true)}
+                leading={
+                  userCoords ? (
+                    (() => {
+                      const activeWalk = WALK_LIMITS.find((w) => w.km === radiusKm);
+                      return (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityState={{ expanded: walkOpen, selected: Boolean(activeWalk) }}
+                          accessibilityLabel={activeWalk ? `A ${activeWalk.min} minutos a pie. Toca para cambiar` : 'Filtrar por distancia a pie'}
+                          onPress={() => setWalkOpen((v) => !v)}
+                          style={[styles.walkTrigger, Boolean(activeWalk) && styles.walkTriggerOn]}
+                        >
+                          <Ionicons name="walk-outline" size={15} color={colors.ink} />
+                          <Text style={[styles.walkTriggerText, Boolean(activeWalk) && styles.walkTriggerTextOn]}>
+                            {activeWalk ? `${activeWalk.min} min` : 'A pie'}
+                          </Text>
+                          <Ionicons name={walkOpen ? 'chevron-up' : 'chevron-down'} size={13} color={colors.ink} />
+                        </Pressable>
+                      );
+                    })()
+                  ) : null
+                }
+                trailing={
+                  selectedSubcategory || radiusLabel || openNow ? (
+                    <View style={styles.activeChips}>
+                      {selectedSubcategory ? <ActiveChip icon="pricetag-outline" label={selectedSubcategory.name} onRemove={() => setSubcategoryId(undefined)} /> : null}
+                      {radiusLabel ? <ActiveChip icon="navigate" label={radiusLabel} onRemove={() => setRadiusKm(null)} /> : null}
+                      {openNow ? <ActiveChip icon="time-outline" label="Abiertos ahora" onRemove={() => setOpenNow(false)} /> : null}
+                      {activeFilterCount >= 2 ? (
+                        <Pressable accessibilityRole="button" accessibilityLabel="Limpiar todos los filtros" onPress={clearAllFilters} hitSlop={8} style={styles.clearChip}>
+                          <Text style={styles.clearChipText}>Limpiar</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  ) : null
+                }
+              />
+              {walkOpen && userCoords ? (
+                <View style={styles.walkPopover} accessibilityLabel="Hasta dónde caminar">
+                  <Text style={styles.walkPopoverLabel}>Caminando:</Text>
+                  {WALK_LIMITS.map((w) => {
+                    const on = radiusKm === w.km;
+                    return (
+                      <Pressable
+                        key={w.min}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: on }}
+                        accessibilityLabel={`Hasta ${w.min} minutos a pie`}
+                        onPress={() => {
+                          setRadiusKm(on ? null : w.km);
+                          if (!on) focusRadius(userCoords, w.km);
+                          setWalkOpen(false);
+                        }}
+                        style={[styles.walkOpt, on && styles.walkOptOn]}
+                      >
+                        <Text style={[styles.walkOptText, on && styles.walkOptTextOn]}>{w.min} min</Text>
                       </Pressable>
-                    ) : null}
-                  </View>
-                ) : null
-              }
-            />
+                    );
+                  })}
+                  {radiusKm !== null ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Sin límite a pie"
+                      onPress={() => {
+                        setRadiusKm(null);
+                        setWalkOpen(false);
+                      }}
+                      style={styles.walkClearOpt}
+                    >
+                      <Text style={styles.walkClearOptText}>Todo</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
+            </>
           )}
           {mapLoading && !tall && !selectedEntity ? <LoadingChip /> : null}
           </Animated.View>
@@ -1643,8 +1682,8 @@ const styles = StyleSheet.create({
   backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
   screen: { flex: 1, backgroundColor: colors.bg },
   // Buscador y chips flotan sobre el mapa: el mapa ocupa toda la pantalla.
-  topBar: { position: 'absolute', top: 0, left: 0, right: 0, gap: spacing.sm, paddingHorizontal: spacing.md },
-  topRows: { gap: spacing.sm },
+  topBar: { position: 'absolute', top: 0, left: 0, right: 0, gap: 6, paddingHorizontal: spacing.md },
+  topRows: { gap: 6 },
   content: { flex: 1, position: 'relative' },
   mapWrap: { flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#EEF2F7' },
   map: { flex: 1 },
@@ -1652,10 +1691,18 @@ const styles = StyleSheet.create({
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   filterScroll: { flexGrow: 0, flexShrink: 0 },
   filterScrollRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingRight: spacing.md },
-  walkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.xs, paddingHorizontal: spacing.sm },
-  walkChip: { minHeight: 36, minWidth: 44, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
-  walkChipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
-  walkText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  walkTrigger: { height: 38, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 13, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.surface, ...shadow },
+  walkTriggerOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
+  walkTriggerText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  walkTriggerTextOn: { color: colors.selected },
+  walkPopover: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: 'rgba(14,35,70,0.96)', ...shadow },
+  walkPopoverLabel: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: '#CBD5E1', marginRight: 2 },
+  walkOpt: { minHeight: 30, paddingHorizontal: 11, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  walkOptOn: { backgroundColor: colors.selectedSoft },
+  walkOptText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  walkOptTextOn: { color: colors.ink },
+  walkClearOpt: { minHeight: 30, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
+  walkClearOptText: { fontSize: 12, fontFamily: fonts.ui.bold, color: '#CBD5E1' },
   chipActive: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
   chipText: { fontSize: 14, fontWeight: '600', fontFamily: fonts.ui.semibold, color: colors.ink },
   chipTextActive: { color: colors.selected },

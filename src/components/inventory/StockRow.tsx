@@ -7,11 +7,11 @@ import { Button } from '@/components/Button';
 import { Chip } from '@/components/ledger/parts';
 import { fmtQty, itemLine, missingIngredients, MODE_LABEL } from '@/lib/inventory';
 import { formatPesos, newClientId } from '@/lib/ledger';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 
 const LEVELS: { level: StockLevel; label: string; color: string }[] = [
   { level: 'ok', label: 'Hay', color: colors.success },
-  { level: 'low', label: 'Queda poco', color: '#D98E04' },
+  { level: 'low', label: 'Queda poco', color: colors.warning },
   { level: 'out', label: 'Se acabó', color: colors.danger },
 ];
 
@@ -32,7 +32,7 @@ export function StockRow({ entityId, item, onChanged, onError, onEdit, onRetire 
   const usedIn = item.used_in ?? [];
   const missing = missingIngredients(item);
   const blocked = missing.out.length > 0;
-  const dot = blocked ? colors.danger : item.status === 'out' ? colors.danger : item.status === 'low' ? '#D98E04' : item.status === 'ok' ? colors.success : colors.line;
+  const dot = blocked ? colors.danger : item.status === 'out' ? colors.danger : item.status === 'low' ? colors.warning : item.status === 'ok' ? colors.success : colors.line;
 
   const level = useMutation({
     mutationFn: (l: StockLevel) => ledgerApi.setLevel(entityId, item.ref, newClientId(), l),
@@ -65,20 +65,21 @@ export function StockRow({ entityId, item, onChanged, onError, onEdit, onRetire 
       </Pressable>
 
       {light ? (
-        <View style={styles.levels}>
+        <View style={styles.levels} accessibilityRole="radiogroup">
           {LEVELS.map((l) => {
             const on = item.status === l.level;
             return (
               <Pressable
                 key={l.level}
-                accessibilityRole="button"
-                accessibilityState={{ selected: on }}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: on }}
                 accessibilityLabel={`${item.name}: ${l.label}`}
                 disabled={level.isPending}
                 onPress={() => level.mutate(l.level)}
-                style={[styles.level, { borderColor: l.color }, on && { backgroundColor: l.color }]}
+                style={[styles.level, on && styles.levelOn]}
               >
-                <Text style={[styles.levelText, { color: on ? '#fff' : l.color }]}>{l.label}</Text>
+                <View style={[styles.levelDot, { backgroundColor: l.color }]} />
+                <Text style={[styles.levelText, on && styles.levelTextOn]}>{l.label}</Text>
               </Pressable>
             );
           })}
@@ -132,7 +133,6 @@ export function StockRow({ entityId, item, onChanged, onError, onEdit, onRetire 
   );
 }
 
-/** Cantidad exacta: contar («tengo 12») o restar lo que se dañó, venció o se perdió (con motivo, para saber cuánto pierdes). */
 function ExactControls({ entityId, item, onChanged, onError }: { entityId: string; item: InventoryItem; onChanged: () => void; onError: () => void }) {
   const [counting, setCounting] = useState(item.status === 'unknown');
   const [text, setText] = useState(item.counted ? fmtQty(item.qty) : '');
@@ -216,20 +216,43 @@ const styles = StyleSheet.create({
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },
   link: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.primary, paddingVertical: spacing.xs },
   sectionTitle: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
-  row: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, gap: spacing.sm },
+  row: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.hairline, padding: spacing.md, gap: spacing.sm, ...softShadow },
   rowHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 44 },
   dot: { width: 12, height: 12, borderRadius: 6 },
-  name: { fontSize: 15.5, fontFamily: fonts.ui.bold, color: colors.ink },
+  name: { fontSize: 15.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   warn: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.danger },
-  warnSoft: { fontSize: 13, fontFamily: fonts.ui.bold, color: '#B87400' },
+  warnSoft: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.warning },
   meta: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
-  levels: { flexDirection: 'row', gap: spacing.sm },
-  level: { flex: 1, minHeight: 48, borderWidth: 2, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  levelText: { fontSize: 14, fontFamily: fonts.ui.bold, textAlign: 'center' },
+  levels: {
+    flexDirection: 'row',
+    gap: 6,
+    padding: 4,
+    borderRadius: radius.md,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  level: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: radius.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 6,
+  },
+  levelOn: {
+    backgroundColor: colors.surface,
+    ...softShadow,
+  },
+  levelDot: { width: 8, height: 8, borderRadius: 4 },
+  levelText: { fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.muted, textAlign: 'center' },
+  levelTextOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
   more: { gap: spacing.sm, paddingTop: spacing.xs, borderTopWidth: 1, borderTopColor: colors.line },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   exactRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
-  exactQty: { fontSize: 28, fontFamily: fonts.display.bold, color: colors.ink },
+  exactQty: { fontSize: 28, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
   countBox: { gap: spacing.sm },
   countRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   countInput: { flex: 1, minHeight: 48, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 18, fontFamily: fonts.ui.bold, color: colors.ink, backgroundColor: colors.bg, textAlign: 'center' },

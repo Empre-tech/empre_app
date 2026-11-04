@@ -138,6 +138,9 @@ export const agendaApi = {
     request<AppointmentService>(`/api/entities/${entityId}/agenda/services`, { method: 'POST', body: input }),
   deleteService: (entityId: string, serviceId: string) =>
     request<void>(`/api/entities/${entityId}/agenda/services/${serviceId}`, { method: 'DELETE' }),
+  /** Cita que el dueño acordó por fuera de Empre: entra confirmada, sin cuenta de cliente. */
+  addOwnerAppointment: (entityId: string, input: { starts_at: string; customer_name: string; service_id?: string }) =>
+    request<Appointment>(`/api/entities/${entityId}/agenda/appointments`, { method: 'POST', body: input }),
   block: (entityId: string, startsAt: string, endsAt: string, force = false) =>
     request<Appointment>(`/api/entities/${entityId}/agenda/blocks`, {
       method: 'POST',

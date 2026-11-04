@@ -2,9 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { agendaApi, type Appointment } from '@/api/agenda';
+import { agendaApi, type Appointment, type AppointmentService } from '@/api/agenda';
 import { entitiesApi } from '@/api/endpoints';
 import { Button } from '@/components/Button';
 import {
@@ -14,11 +14,14 @@ import {
   formatDay,
   formatDuration,
   formatRemaining,
-  monthShort,
   nextDays,
   STATUS_COLOR,
   STATUS_LABEL,
-  weekdayShort, dayEndIso, dayStartIso } from '@/lib/agendaFormat';
+  weekdayShort,
+  clockShort,
+  dayEndIso,
+  dayStartIso,
+} from '@/lib/agendaFormat';
 import { FEATURES } from '@/config';
 import { newClientId } from '@/lib/ledger';
 import { useNow } from '@/lib/useNow';
@@ -44,11 +47,13 @@ export default function BusinessAgendaScreen() {
   const [day, setDay] = useState(() => dayKey(days[0]));
   const [blockOpen, setBlockOpen] = useState(false);
   const [blockStart, setBlockStart] = useState<string | null>(null);
+  const [sheetInitialMode, setSheetInitialMode] = useState<'add' | 'block'>('block');
   const [reqsOpen, setReqsOpen] = useState(false);
   const now = useNow(60_000);
 
   const entity = useQuery({ queryKey: ['entity', id], queryFn: () => entitiesApi.get(id), enabled: Boolean(id) }).data;
   const settings = useQuery({ queryKey: ['agenda-settings', id], queryFn: () => agendaApi.settings(id), enabled: Boolean(id) });
+  const servicesQuery = useQuery({ queryKey: ['agenda-services', id], queryFn: () => agendaApi.services(id), enabled: Boolean(id) && settings.data?.enabled === true });
   const agenda = useQuery({
     queryKey: ['agenda', id, 'range'],
     queryFn: () => agendaApi.agenda(id, dayStartIso(dayKey(days[0])), dayEndIso(dayKey(days[days.length - 1]))),
@@ -123,8 +128,8 @@ export default function BusinessAgendaScreen() {
   return (
     <View style={styles.screen}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" accessibilityLabel="Volver">
-          <Ionicons name="chevron-back" size={26} color={colors.ink} />
+        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Volver" style={styles.back}>
+          <Ionicons name="chevron-back" size={20} color={colors.ink} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Agenda</Text>
@@ -139,6 +144,7 @@ export default function BusinessAgendaScreen() {
           hitSlop={10}
           accessibilityRole="button"
           accessibilityLabel="Ajustes de agenda"
+          style={styles.iconBtn}
         >
           <Ionicons name="settings-outline" size={24} color={colors.ink} />
         </Pressable>
@@ -177,9 +183,8 @@ export default function BusinessAgendaScreen() {
                 >
                   <Text style={[styles.dayWeek, active && styles.onText]}>{weekdayShort(d)}</Text>
                   <Text style={[styles.dayNum, active && styles.onText]}>{dayNumber(d)}</Text>
-                  <Text style={[styles.dayMonth, active && styles.onText]}>{monthShort(d)}</Text>
                   <View style={styles.dayDots}>
-                    {marks.appts ? <View style={[styles.dayDot, { backgroundColor: colors.ink }]} /> : null}
+                    {marks.appts ? <View style={[styles.dayDot, { backgroundColor: active ? '#fff' : colors.ink }]} /> : null}
                     {marks.reqs ? <View style={[styles.dayDot, { backgroundColor: colors.warning }]} /> : null}
                   </View>
                 </Pressable>
@@ -195,17 +200,20 @@ export default function BusinessAgendaScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.pendingTitle}>Por responder</Text>
-                  <Text style={styles.reqMeta} numberOfLines={1}>
+                  <Text style={styles.pendingSub} numberOfLines={1}>
                     {pendingSub}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.ink} />
+                <Text style={styles.pendingSee}>Ver ›</Text>
               </Pressable>
             ) : null}
 
-            <Text style={styles.section}>
-              {formatDay(dayStartIso(day))} · {confirmedToday} {confirmedToday === 1 ? 'cita' : 'citas'}
-            </Text>
+            <View style={styles.dayHead}>
+              <Text style={styles.dayTitle}>{formatDay(dayStartIso(day))}</Text>
+              <Text style={styles.dayCount}>
+                {confirmedToday} {confirmedToday === 1 ? 'cita' : 'citas'}
+              </Text>
+            </View>
             {agenda.isLoading ? (
               <ActivityIndicator color={colors.primary} />
             ) : rows.length === 0 ? (
@@ -216,50 +224,49 @@ export default function BusinessAgendaScreen() {
             ) : (
               rows.map((r) => (
                 <View key={r.key} style={styles.lineRow}>
-                  <Text style={styles.lineTime}>{formatClock(r.at)}</Text>
+                  <Text style={styles.lineTime}>{clockShort(r.at)}</Text>
                   <View style={{ flex: 1 }}>
                     {r.kind === 'free' ? (
                       <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel={`Libre a las ${formatClock(r.at)}. Bloquear esta hora`}
+                        accessibilityLabel={`Libre a las ${formatClock(r.at)}. Agregar cita o bloquear esta hora`}
                         onPress={() => {
                           setBlockStart(r.at);
+                          setSheetInitialMode('add');
                           setBlockOpen(true);
                         }}
                         style={styles.freeRow}
                       >
-                        <Text style={styles.freeText}>Libre · toca para bloquear</Text>
+                        <Text style={styles.freeText}>Libre · toca para agregar o bloquear</Text>
                       </Pressable>
                     ) : r.kind === 'block' ? (
                       <Pressable onPress={() => askUnblock(r.a)} style={styles.blockRow} accessibilityRole="button">
-                        <Ionicons name="lock-closed-outline" size={18} color={colors.muted} />
-                        <Text style={styles.blockText}>Bloqueado hasta {formatClock(r.a.ends_at)}</Text>
+                        <Text style={styles.blockText}>Bloqueado hasta {clockShort(r.a.ends_at)}</Text>
                         <Text style={styles.blockUndo}>Quitar</Text>
                       </Pressable>
                     ) : r.kind === 'asked' ? (
                       <Pressable accessibilityRole="button" onPress={() => setReqsOpen(true)} style={styles.askedRow}>
                         <Text style={styles.askedTitle}>Pedida por {r.a.customer?.name ?? 'un cliente'}</Text>
-                        <Text style={styles.reqMeta}>Por responder · toca para verla</Text>
+                        <Text style={styles.askedSub}>Por responder · toca para verla</Text>
                       </Pressable>
                     ) : (
                       <View style={styles.apptRow}>
-                        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/appointment/[id]', params: { id: r.a.id } })}>
-                          <View style={styles.apptHead}>
-                            <Text style={styles.apptTime} numberOfLines={1}>
-                              {r.a.customer?.name ?? 'Cliente'}
-                            </Text>
-                            <Text style={[styles.apptStatus, { color: STATUS_COLOR[r.a.status] }]}>{STATUS_LABEL[r.a.status]}</Text>
-                          </View>
-                          <Text style={styles.reqMeta} numberOfLines={1}>
-                            {[r.a.service?.name, `hasta ${formatClock(r.a.ends_at)}`].filter(Boolean).join(' · ')}
+                        <View style={[styles.apptBar, { backgroundColor: r.a.status === 'completed' ? '#14B8B0' : colors.line }]} />
+                        <Pressable accessibilityRole="button" style={styles.apptMain} onPress={() => router.push({ pathname: '/appointment/[id]', params: { id: r.a.id } })}>
+                          <Text style={styles.apptTime} numberOfLines={1}>
+                            {r.a.customer?.name ?? r.a.customer_note ?? 'Cliente'}
                           </Text>
+                          <Text style={styles.apptSub} numberOfLines={2}>
+                            {[r.a.service?.name, formatDuration(Math.round((Date.parse(r.a.ends_at) - Date.parse(r.a.starts_at)) / 60000))].filter(Boolean).join(' · ')}
+                          </Text>
+                          <Text style={[styles.apptStatus, { color: STATUS_COLOR[r.a.status] }]}>{STATUS_LABEL[r.a.status]}</Text>
                           {r.a.out_of_hours ? <Text style={styles.outOfHours}>Fuera de tu horario actual</Text> : null}
                         </Pressable>
                         {r.a.status === 'confirmed' ? (
                           <View style={styles.apptActions}>
                             {FEATURES.ledger ? (
-                              <Pressable accessibilityRole="button" accessibilityLabel={`Atender a ${r.a.customer?.name ?? 'el cliente'}: abrir su cuenta`} onPress={() => attend(r.a)} style={styles.attend}>
-                                <Text style={styles.attendText}>Atender</Text>
+                              <Pressable accessibilityRole="button" accessibilityLabel={`Llegó ${r.a.customer?.name ?? 'el cliente'}: abrir su cuenta`} onPress={() => attend(r.a)} style={styles.attend}>
+                                <Text style={styles.attendText}>Llegó</Text>
                               </Pressable>
                             ) : null}
                             {Date.parse(r.a.ends_at) < now ? (
@@ -328,19 +335,31 @@ export default function BusinessAgendaScreen() {
               variant="secondary"
               onPress={() => {
                 setBlockStart(null);
+                setSheetInitialMode('block');
                 setBlockOpen(true);
               }}
             />
           </View>
 
-          <BlockSheet
-            key={blockStart ?? day}
+          <SlotActionSheet
+            key={`${blockStart ?? day}-${sheetInitialMode}`}
             visible={blockOpen}
             day={day}
             initialStart={blockStart}
+            initialMode={sheetInitialMode}
             stepMin={settings.data?.slot_minutes ?? 30}
+            services={(servicesQuery.data ?? []).filter((s) => s.active)}
             onClose={() => setBlockOpen(false)}
-            onCreate={async (startIso, minutes) => {
+            onAddAppointment={async (startIso, serviceId, customerName) => {
+              try {
+                await agendaApi.addOwnerAppointment(id, { starts_at: startIso, service_id: serviceId, customer_name: customerName.trim() });
+                setBlockOpen(false);
+                reload();
+              } catch (error) {
+                Alert.alert('No se pudo agendar', error instanceof Error ? error.message : 'Intenta de nuevo');
+              }
+            }}
+            onCreateBlock={async (startIso, minutes) => {
               const endIso = new Date(Date.parse(startIso) + minutes * 60_000).toISOString();
               try {
                 await agendaApi.block(id, startIso, endIso, false);
@@ -374,63 +393,126 @@ export default function BusinessAgendaScreen() {
   );
 }
 
-function BlockSheet({
+function SlotActionSheet({
   visible,
   day,
   initialStart,
+  initialMode,
   stepMin,
+  services,
   onClose,
-  onCreate,
+  onAddAppointment,
+  onCreateBlock,
 }: {
   visible: boolean;
   day: string;
   initialStart: string | null;
+  initialMode: 'add' | 'block';
   stepMin: number;
+  services: AppointmentService[];
   onClose: () => void;
-  onCreate: (startIso: string, minutes: number) => Promise<void>;
+  onAddAppointment: (startIso: string, serviceId: string | undefined, customerName: string) => Promise<void>;
+  onCreateBlock: (startIso: string, minutes: number) => Promise<void>;
 }) {
   const insets = useSafeAreaInsets();
+  const [mode, setMode] = useState<'add' | 'block'>(initialMode);
   const [start, setStart] = useState<string | null>(initialStart);
   const [minutes, setMinutes] = useState(60);
+  const [serviceId, setServiceId] = useState<string | undefined>(services[0]?.id);
+  const [customerName, setCustomerName] = useState('');
   const [busy, setBusy] = useState(false);
   const options = useMemo(() => timeOptions(day, stepMin), [day, stepMin]);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Cerrar" />
-      <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
-        <View style={styles.handle} />
-        <Text style={styles.sheetTitle}>Bloquear horas · {formatDay(dayStartIso(day))}</Text>
-        <Text style={styles.sheetSub}>Desde</Text>
-        <ScrollView style={{ maxHeight: 190 }}>
-          <View style={styles.chips}>
-            {options.map((iso) => (
-              <Pressable key={iso} onPress={() => setStart(iso)} style={[styles.chip, start === iso && styles.chipOn]}>
-                <Text style={[styles.chipText, start === iso && styles.onText]}>{formatClock(iso)}</Text>
-              </Pressable>
-            ))}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Cerrar" />
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
+          <View style={styles.handle} />
+          <View style={styles.segment} accessibilityRole="tablist">
+            {(['add', 'block'] as const).map((m) => {
+              const on = mode === m;
+              return (
+                <Pressable key={m} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => setMode(m)} style={[styles.segmentItem, on && styles.segmentOn]}>
+                  <Text style={[styles.segmentText, on && styles.segmentTextOn]}>{m === 'add' ? 'Agregar cita' : 'Bloquear horas'}</Text>
+                </Pressable>
+              );
+            })}
           </View>
-        </ScrollView>
-        <Text style={styles.sheetSub}>Duración</Text>
-        <View style={styles.chips}>
-          {BLOCK_DURATIONS.map((m) => (
-            <Pressable key={m} onPress={() => setMinutes(m)} style={[styles.chip, minutes === m && styles.chipOn]}>
-              <Text style={[styles.chipText, minutes === m && styles.onText]}>{formatDuration(m)}</Text>
-            </Pressable>
-          ))}
+          <Text style={styles.sheetTitle}>
+            {mode === 'add' ? 'Anótale una cita a un cliente' : 'Bloquear horas'} · {formatDay(dayStartIso(day))}
+          </Text>
+          <Text style={styles.sheetSub}>Hora</Text>
+          <ScrollView style={{ maxHeight: 150 }}>
+            <View style={styles.chips}>
+              {options.map((iso) => (
+                <Pressable key={iso} onPress={() => setStart(iso)} style={[styles.chip, start === iso && styles.chipOn]}>
+                  <Text style={[styles.chipText, start === iso && styles.onText]}>{formatClock(iso)}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
+
+          {mode === 'add' ? (
+            <>
+              {services.length > 0 ? (
+                <>
+                  <Text style={styles.sheetSub}>Servicio</Text>
+                  <View style={styles.chips}>
+                    {services.map((s) => (
+                      <Pressable key={s.id} onPress={() => setServiceId(s.id)} style={[styles.chip, serviceId === s.id && styles.chipOn]}>
+                        <Text style={[styles.chipText, serviceId === s.id && styles.onText]}>{s.name}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              ) : null}
+              <Text style={styles.sheetSub}>¿Para quién es?</Text>
+              <TextInput
+                value={customerName}
+                onChangeText={setCustomerName}
+                placeholder="Nombre del cliente (ej. Andrés)"
+                placeholderTextColor={colors.muted}
+                accessibilityLabel="Nombre del cliente"
+                style={styles.input}
+              />
+              <Button
+                title="Guardar cita"
+                disabled={!start || !customerName.trim()}
+                loading={busy}
+                onPress={() => {
+                  if (!start || !customerName.trim()) return;
+                  setBusy(true);
+                  void onAddAppointment(start, serviceId, customerName).finally(() => setBusy(false));
+                }}
+                style={{ marginTop: spacing.md }}
+              />
+            </>
+          ) : (
+            <>
+              <Text style={styles.sheetSub}>Duración</Text>
+              <View style={styles.chips}>
+                {BLOCK_DURATIONS.map((m) => (
+                  <Pressable key={m} onPress={() => setMinutes(m)} style={[styles.chip, minutes === m && styles.chipOn]}>
+                    <Text style={[styles.chipText, minutes === m && styles.onText]}>{formatDuration(m)}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Button
+                title="Bloquear"
+                disabled={!start}
+                loading={busy}
+                onPress={() => {
+                  if (!start) return;
+                  setBusy(true);
+                  void onCreateBlock(start, minutes).finally(() => setBusy(false));
+                }}
+                style={{ marginTop: spacing.lg }}
+              />
+            </>
+          )}
         </View>
-        <Button
-          title="Bloquear"
-          disabled={!start}
-          loading={busy}
-          onPress={() => {
-            if (!start) return;
-            setBusy(true);
-            void onCreate(start, minutes).finally(() => setBusy(false));
-          }}
-          style={{ marginTop: spacing.lg }}
-        />
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -438,56 +520,40 @@ function BlockSheet({
 const styles = StyleSheet.create({
   dayDots: { flexDirection: 'row', gap: 3, height: 6, marginTop: 3 },
   dayDot: { width: 6, height: 6, borderRadius: 3 },
-  pendingBar: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 60, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.warning },
+  pendingBar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.accentSoft },
   pendingCount: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.warning },
-  pendingCountText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  pendingTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  pendingCountText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  pendingTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
   lineRow: { flexDirection: 'row', gap: spacing.sm },
   lineTime: { width: 66, paddingTop: 12, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   freeRow: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line },
-  freeText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
-  askedRow: { minHeight: 44, justifyContent: 'center', padding: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.warning },
-  askedTitle: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  freeText: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.faint },
+  askedRow: { minHeight: 48, justifyContent: 'center', gap: 1, paddingVertical: 6, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.warning, backgroundColor: colors.accentSoft },
+  askedTitle: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
   apptHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
-  apptActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
-  altBtn: { minHeight: 44, paddingHorizontal: spacing.md, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line },
-  altText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  attend: { minHeight: 40, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  attendText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  apptActions: { alignItems: 'center', gap: 6 },
+  altBtn: { minHeight: 36, justifyContent: 'center' },
+  altText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  attend: { minHeight: 44, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  attendText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   screen: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
-  },
-  headerTitle: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
-  headerSub: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingBottom: 6, backgroundColor: colors.bg },
+  back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  iconBtn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 20, lineHeight: 24, fontFamily: fonts.display.bold, color: colors.ink },
+  headerSub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.faint },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.sm },
   emptyTitle: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
   emptyText: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
-  daysBar: { flexGrow: 0, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.line },
-  daysRow: { flexDirection: 'row', gap: spacing.sm, padding: spacing.md },
-  dayChip: {
-    width: 56,
-    minHeight: 72,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-  },
-  dayChipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
-  dayWeek: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.muted, textTransform: 'uppercase' },
+  daysBar: { flexGrow: 0 },
+  daysRow: { flexDirection: 'row', gap: 8, paddingTop: 6, paddingHorizontal: 16, paddingBottom: 10 },
+  dayChip: { width: 52, minHeight: 70, gap: 2, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
+  dayChipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  dayWeek: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.ink },
   dayNum: { fontSize: 18, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  dayMonth: { fontSize: 11, fontFamily: fonts.ui.medium, color: colors.muted },
-  onText: { color: colors.selected },
-  content: { padding: spacing.lg, gap: spacing.sm },
+
+  onText: { color: '#fff' },
+  content: { paddingTop: 0, paddingHorizontal: 16, gap: 10 },
   section: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted, marginTop: spacing.sm },
   requestCard: {
     backgroundColor: colors.surface,
@@ -503,29 +569,46 @@ const styles = StyleSheet.create({
   reqActions: { flexDirection: 'row', gap: spacing.sm },
   freeDay: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line },
   freeDayText: { flex: 1, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted },
-  apptRow: { padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
-  apptTime: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  apptStatus: { fontSize: 12.5, fontFamily: fonts.ui.bold },
+  apptRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingLeft: 14, paddingRight: 12, borderRadius: 16, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+  apptBar: { width: 4, alignSelf: 'stretch', borderRadius: 2 },
+  apptMain: { flex: 1, minWidth: 0, gap: 2 },
+  apptSub: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.faint },
+  askedSub: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
+  dayHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, paddingTop: 4 },
+  dayTitle: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  dayCount: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.faint },
+  pendingSub: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.accentInk },
+  pendingSee: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
+  apptTime: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  apptStatus: { fontSize: 12.5, fontFamily: fonts.ui.extrabold },
   outOfHours: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.warning },
-  blockRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    minHeight: 52,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.line,
-  },
-  blockText: { flex: 1, fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.muted },
+  blockRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.selectedSoft },
+  blockText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.muted },
   blockUndo: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.primary },
   fabWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, backgroundColor: colors.bg },
   backdrop: { flex: 1, backgroundColor: 'rgba(22,35,58,0.45)' },
   sheet: { backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line, marginBottom: spacing.md },
+  segment: { flexDirection: 'row', padding: 4, marginBottom: spacing.sm, borderRadius: radius.md, backgroundColor: colors.selectedSoft },
+  segmentItem: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
+  segmentOn: { backgroundColor: colors.surface },
+  segmentText: { fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  segmentTextOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
   sheetTitle: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
   sheetSub: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted, marginTop: spacing.md, marginBottom: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: { minHeight: 42, paddingHorizontal: spacing.md, borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
+  chip: { minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   chipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
   chipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
+  input: {
+    minHeight: 46,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    backgroundColor: colors.bg,
+    fontSize: 15,
+    fontFamily: fonts.ui.semibold,
+    color: colors.ink,
+  },
 });

@@ -70,7 +70,7 @@ export default function DeclineScreen() {
       </View>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]} keyboardShouldPersistTaps="handled">
         <View style={styles.summary}>
-          <Text style={styles.summaryName}>{appt.customer?.name ?? 'Cliente'}</Text>
+          <Text style={styles.summaryName}>{appt.customer?.name ?? (appt.customer_note?.trim() || 'Cliente')}</Text>
           <Text style={styles.summaryWhen}>
             {formatWhen(appt.starts_at)}
             {appt.service ? ` · ${appt.service.name}` : ''}

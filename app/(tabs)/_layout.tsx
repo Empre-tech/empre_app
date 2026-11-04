@@ -1,20 +1,42 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useInboxSummary } from '@/chat/useInboxSummary';
 import { badgeText, messagesA11y } from '@/lib/inbox';
+import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-/** Ícono de pestaña: la activa va en tinta sobre una pastilla gris clara; las demás, en gris sin pastilla. */
-function tabIcon(name: IconName) {
-  return ({ focused }: { focused: boolean }) => (
-    <View style={[styles.pill, focused && styles.pillOn]}>
+function TabPillIcon({ name, focused }: { name: IconName; focused: boolean }) {
+  const reduce = useReduceMotion();
+  const scale = useRef(new Animated.Value(focused ? 1 : 0.94)).current;
+
+  useEffect(() => {
+    if (reduce) {
+      scale.setValue(1);
+      return;
+    }
+    Animated.spring(scale, {
+      toValue: focused ? 1 : 0.94,
+      friction: 6,
+      tension: 160,
+      useNativeDriver: true,
+    }).start();
+  }, [focused, reduce, scale]);
+
+  return (
+    <Animated.View style={[styles.pill, focused && styles.pillOn, { transform: [{ scale }] }]}>
       <Ionicons name={focused ? (name.replace('-outline', '') as IconName) : name} color={focused ? colors.ink : colors.faint} size={20} />
-    </View>
+    </Animated.View>
   );
+}
+
+/** Ícono de pestaña: la activa va en tinta sobre una pastilla gris clara con micro-resorte; las demás, en gris sin pastilla. */
+function tabIcon(name: IconName) {
+  return ({ focused }: { focused: boolean }) => <TabPillIcon name={name} focused={focused} />;
 }
 
 export default function TabsLayout() {
@@ -50,7 +72,6 @@ export default function TabsLayout() {
         options={{
           title: 'Perfil',
           tabBarIcon: tabIcon('person-outline'),
-          // Un punto (sin número) si algún negocio tiene solicitudes por revisar; el número va en el perfil.
           tabBarBadge: inbox.requests > 0 ? '' : undefined,
           tabBarBadgeStyle: styles.dot,
           tabBarAccessibilityLabel: inbox.requests > 0 ? `Perfil, ${inbox.requests} solicitudes por revisar` : 'Perfil',
@@ -63,8 +84,8 @@ export default function TabsLayout() {
 const styles = StyleSheet.create({
   bar: { paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.hairline, backgroundColor: colors.surface, elevation: 0, shadowOpacity: 0 },
   item: { paddingVertical: 0 },
-  pill: { width: 56, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  pill: { width: 58, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   pillOn: { backgroundColor: colors.selectedSoft },
-  badge: { backgroundColor: colors.danger, fontFamily: fonts.ui.extrabold, fontSize: 11 },
+  badge: { backgroundColor: colors.danger, fontFamily: fonts.ui.extrabold, fontSize: 12 },
   dot: { backgroundColor: colors.danger, minWidth: 10, maxHeight: 10, borderRadius: 5, top: 2 },
 });

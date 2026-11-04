@@ -44,7 +44,7 @@ export default function AnalyticsScreen() {
 
   return (
     <View style={styles.screen}>
-      <SubScreenHeader title="Análisis del negocio" />
+      <SubScreenHeader subtitle="Empre Finance" product="finance" title="Análisis del negocio" />
       <View style={styles.top}>
         <Pressable accessibilityRole="button" accessibilityLabel={`Fechas: ${rangeTitle(range)}. Cambiar`} onPress={() => setSheet(true)} style={styles.rangeBtn}>
           <Ionicons name="calendar-outline" size={18} color={colors.primaryDark} />

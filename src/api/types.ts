@@ -630,3 +630,5 @@ export interface DiscoverSection {
   title: string;
   items: DiscoverItem[];
 }
+
+export type Entity = EntityDetail;

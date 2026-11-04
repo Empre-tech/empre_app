@@ -4,11 +4,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { DiscoveryItem } from '@/api/types';
 import { formatDistance } from '@/lib/format';
 import { resolveImageUrl } from '@/lib/image';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 
 export type WithDistance = DiscoveryItem & { distanceKm: number | null };
 
-/** Una tarjeta del carrusel de Destacados: miniatura cuadrada + nombre, distancia y rating. */
+/** Una tarjeta del carrusel de Destacados: superficie blanca elevada, pastilla de estado con punto vivo, distancia y rating. */
 export function FeaturedCard({ entity, onPress }: { entity: WithDistance; onPress: () => void }) {
   const src = resolveImageUrl(entity.profile_url);
   const distance = formatFeaturedDistance(entity.distanceKm);
@@ -29,7 +29,7 @@ export function FeaturedCard({ entity, onPress }: { entity: WithDistance; onPres
           <Ionicons
             name={(entity.category_icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap}
             size={22}
-            color={colors.primary}
+            color={colors.ink}
           />
         </View>
         <View style={styles.compactInfo}>
@@ -41,7 +41,7 @@ export function FeaturedCard({ entity, onPress }: { entity: WithDistance; onPres
           </Text>
           {hasRating ? (
             <View style={styles.rating}>
-              <Ionicons name="star" size={11} color={colors.accent} />
+              <Ionicons name="star" size={12} color={colors.accent} />
               <Text style={styles.ratingText}>{entity.avg_rating.toFixed(1)}</Text>
             </View>
           ) : null}
@@ -60,7 +60,8 @@ export function FeaturedCard({ entity, onPress }: { entity: WithDistance; onPres
       <View>
         <Image accessible={false} source={{ uri: src }} style={styles.image} contentFit="cover" transition={150} />
         {statusLabel ? (
-          <View style={[styles.statusBadge, entity.is_open_now ? styles.statusOpen : styles.statusClosed]}>
+          <View style={styles.statusBadge}>
+            <View style={[styles.statusDot, entity.is_open_now ? styles.dotOpen : styles.dotClosed]} />
             <Text style={styles.statusText}>{statusLabel}</Text>
           </View>
         ) : null}
@@ -70,10 +71,12 @@ export function FeaturedCard({ entity, onPress }: { entity: WithDistance; onPres
           {entity.name}
         </Text>
         <View style={styles.metaRow}>
-          <Text style={styles.distance}>{distance ?? entity.category_name}</Text>
+          <Text style={styles.distance} numberOfLines={1}>
+            {distance ?? entity.category_name}
+          </Text>
           {hasRating ? (
             <View style={styles.rating}>
-              <Ionicons name="star" size={11} color={colors.accent} />
+              <Ionicons name="star" size={12} color={colors.accent} />
               <Text style={styles.ratingText}>{entity.avg_rating.toFixed(1)}</Text>
             </View>
           ) : null}
@@ -89,36 +92,57 @@ export function formatFeaturedDistance(km: number | null): string | null {
 }
 
 const styles = StyleSheet.create({
-  item: { width: 144, borderRadius: radius.md, overflow: 'hidden', backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line },
-  image: { width: '100%', height: 88, backgroundColor: colors.primarySoft },
-  statusBadge: { position: 'absolute', top: 6, left: 6, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.sm },
-  statusOpen: { backgroundColor: 'rgba(22, 163, 74, 0.92)' },
-  statusClosed: { backgroundColor: 'rgba(107, 114, 128, 0.92)' },
-  statusText: { fontSize: 10, fontFamily: fonts.ui.bold, color: '#fff' },
+  item: {
+    width: 156,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    ...softShadow,
+  },
+  image: { width: '100%', height: 90, backgroundColor: colors.selectedSoft },
+  statusBadge: {
+    position: 'absolute',
+    top: 7,
+    left: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(14, 35, 70, 0.82)',
+  },
+  statusDot: { width: 7, height: 7, borderRadius: 3.5 },
+  dotOpen: { backgroundColor: '#2DD4BF' },
+  dotClosed: { backgroundColor: '#94A3B8' },
+  statusText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },
   itemCompact: {
-    width: 144,
+    width: 156,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     padding: spacing.sm,
     borderRadius: radius.md,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.hairline,
+    ...softShadow,
   },
   compactIconWrap: {
-    width: 40,
-    height: 40,
+    width: 42,
+    height: 42,
     borderRadius: radius.sm,
-    backgroundColor: colors.primarySoft,
+    backgroundColor: colors.selectedSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   compactInfo: { flex: 1, gap: 2 },
-  info: { padding: spacing.sm, gap: 4 },
-  name: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink },
-  metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  distance: { fontSize: 11, fontFamily: fonts.ui.medium, color: colors.muted, flexShrink: 1 },
+  info: { padding: 10, gap: 4 },
+  name: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
+  distance: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted, flexShrink: 1 },
   rating: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  ratingText: { fontSize: 11, fontFamily: fonts.ui.bold, color: colors.ink },
+  ratingText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

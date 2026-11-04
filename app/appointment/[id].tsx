@@ -129,7 +129,7 @@ export default function AppointmentScreen() {
   }
 
   const durationMin = Math.round((Date.parse(appt.ends_at) - Date.parse(appt.starts_at)) / 60_000);
-  const other = isBusiness ? appt.customer?.name ?? 'Cliente' : appt.entity?.name ?? 'Negocio';
+  const other = isBusiness ? appt.customer?.name ?? (appt.customer_note?.trim() || 'Cliente') : appt.entity?.name ?? 'Negocio';
   const ended = Date.parse(appt.ends_at) <= now;
   const myAnswer = isBusiness ? appt.business_attended : appt.customer_attended;
   const askOutcome = appt.status === 'confirmed' && ended && myAnswer === undefined;

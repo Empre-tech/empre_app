@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState, useMemo } from 'react';
@@ -12,6 +11,7 @@ import { AmountField, Chip, MethodChips } from '@/components/ledger/parts';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { formatPesos, newClientId, type PayMethod, METHOD_LABEL } from '@/lib/ledger';
 import { queueParty, queuePayment } from '@/ledger/ledgerStore';
+import { initials } from '@/lib/text';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 type Tone = 'amable' | 'directo';
@@ -74,7 +74,7 @@ export default function DebtsScreen() {
 
   return (
     <View style={styles.screen}>
-      <SubScreenHeader title={isCustomer ? 'Te deben' : 'Debes'} />
+      <SubScreenHeader title={isCustomer ? 'Te deben' : 'Debes'} subtitle="Empre Finance · Pendientes" />
       <View style={styles.tabs}>
         <Chip label="Te deben" selected={isCustomer} onPress={() => setKind('customer')} />
         <Chip label="Debes" selected={!isCustomer} onPress={() => setKind('supplier')} />
@@ -88,13 +88,18 @@ export default function DebtsScreen() {
         <FlatList
           data={rows}
           keyExtractor={(p) => p.id}
-          contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm, paddingBottom: insets.bottom + 96 }}
+          contentContainerStyle={{ paddingTop: 12, paddingHorizontal: 16, paddingBottom: insets.bottom + 24 }}
           ListHeaderComponent={
             rows.length > 0 ? (
-              <View style={styles.totalCard}>
-                <Text style={styles.totalLabel}>{isCustomer ? 'Te deben en total' : 'Debes en total'}</Text>
-                <Text style={styles.totalValue}>{formatPesos(total)}</Text>
-                <Text style={styles.totalLabel}>{rows.length === 1 ? (isCustomer ? '1 persona' : '1 proveedor') : `${rows.length} ${isCustomer ? 'personas' : 'proveedores'}`} · la más antigua primero</Text>
+              <View style={styles.listHead}>
+                <View style={styles.totalCard}>
+                  <View style={{ gap: 4 }}>
+                    <Text style={styles.eyebrow}>EN TOTAL</Text>
+                    <Text style={styles.totalValue}>{formatPesos(total)}</Text>
+                  </View>
+                  <Text style={styles.totalCount}>{rows.length === 1 ? (isCustomer ? '1 persona' : '1 proveedor') : `${rows.length} ${isCustomer ? 'personas' : 'proveedores'}`}</Text>
+                </View>
+                <Text style={styles.eyebrow}>LA MÁS ANTIGUA PRIMERO</Text>
               </View>
             ) : null
           }
@@ -105,22 +110,24 @@ export default function DebtsScreen() {
               body={isCustomer ? 'Cuando vendas «a fiado», el cliente aparece aquí con lo que debe.' : 'Cuando registres un gasto «a crédito», el proveedor aparece aquí.'}
             />
           }
-          renderItem={({ item }) => {
+          renderItem={({ item, index }) => {
             const days = daysSince(item.oldest_at);
             return (
-              <View style={styles.debtCard}>
+              <View style={[styles.debtCard, index === 0 && styles.debtFirst, index === rows.length - 1 && styles.debtLast, index > 0 && styles.debtLine]}>
                 <View style={styles.row2}>
                   <View style={styles.rowIcon}>
-                    <Ionicons name={isCustomer ? 'person-outline' : 'storefront-outline'} size={20} color={colors.ink} />
+                    <Text style={styles.rowIni}>{initials(item.name)}</Text>
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={styles.rowName} numberOfLines={1}>
                       {item.name}
                     </Text>
-                    {days !== null ? <Text style={[styles.rowHint, days > 7 && { color: colors.warning }]}>{days === 0 ? 'desde hoy' : `hace ${days} ${days === 1 ? 'día' : 'días'}`}</Text> : null}
-                    {reminded.includes(item.id) ? <Text style={styles.rowHint}>Le recordaste hoy por WhatsApp</Text> : null}
+                    {reminded.includes(item.id) ? <Text style={styles.rowReminded}>Le recordaste hoy por WhatsApp</Text> : null}
                   </View>
-                  <Text style={styles.rowAmount}>{formatPesos(item.balance)}</Text>
+                  <View style={styles.rowRight}>
+                    <Text style={styles.rowAmount}>{formatPesos(item.balance)}</Text>
+                    {days !== null ? <Text style={[styles.rowHint, days > 7 && { color: colors.warning }]}>{days === 0 ? 'desde hoy' : `hace ${days} ${days === 1 ? 'día' : 'días'}`}</Text> : null}
+                  </View>
                 </View>
                 <View style={styles.debtActions}>
                   {isCustomer ? (
@@ -129,7 +136,7 @@ export default function DebtsScreen() {
                     </Pressable>
                   ) : null}
                   <Pressable accessibilityRole="button" accessibilityLabel={isCustomer ? `${item.name} ya me pagó` : `Pagarle a ${item.name}`} onPress={() => setPaying(item)} style={[styles.debtBtn, styles.debtBtnMain]}>
-                    <Text style={styles.debtBtnText}>{isCustomer ? 'Ya me pagó' : 'Ya le pagué'}</Text>
+                    <Text style={[styles.debtBtnText, { color: '#fff' }]}>{isCustomer ? 'Ya me pagó' : 'Ya le pagué'}</Text>
                   </Pressable>
                 </View>
               </View>
@@ -269,24 +276,32 @@ function AddPartySheet({ visible, kind, onClose, onSave }: { visible: boolean; k
 }
 
 const styles = StyleSheet.create({
-  debtCard: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  listHead: { gap: 14, paddingBottom: 14 },
+  eyebrow: { fontSize: 11, letterSpacing: 1.1, fontFamily: fonts.ui.extrabold, color: colors.faint },
+  debtCard: { gap: 10, paddingVertical: 12, paddingHorizontal: 14, backgroundColor: colors.surface },
+  debtFirst: { borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+  debtLast: { borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
+  debtLine: { borderTopWidth: 1, borderTopColor: colors.selectedSoft },
   row2: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   debtActions: { flexDirection: 'row', gap: spacing.sm },
-  debtBtn: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line },
-  debtBtnMain: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
-  debtBtnText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  debtBtn: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
+  debtBtnMain: { backgroundColor: colors.primary, borderColor: colors.primary },
+  debtBtnText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   flash: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink, backgroundColor: colors.verifiedSoft },
   tabsInline: { flexDirection: 'row', gap: spacing.sm },
   msg: { minHeight: 110, paddingTop: spacing.sm, textAlignVertical: 'top' },
   screen: { flex: 1, backgroundColor: colors.bg },
-  tabs: { flexDirection: 'row', gap: spacing.sm, padding: spacing.lg, paddingBottom: 0 },
-  totalCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.sm },
-  totalLabel: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
-  totalValue: { fontSize: 32, fontFamily: fonts.display.bold, color: colors.ink },
+  tabs: { flexDirection: 'row', gap: spacing.sm, paddingTop: 8, paddingHorizontal: 16 },
+  totalCard: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', padding: 16, borderRadius: 20, backgroundColor: colors.surface },
+  totalCount: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.muted },
+  totalValue: { fontSize: 34, lineHeight: 36, fontFamily: fonts.display.bold, color: colors.ink },
   rowIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.selectedSoft, alignItems: 'center', justifyContent: 'center' },
-  rowName: { fontSize: 15.5, fontFamily: fonts.ui.bold, color: colors.ink },
-  rowHint: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
-  rowAmount: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink},
+  rowIni: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  rowName: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  rowReminded: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.verified },
+  rowRight: { alignItems: 'flex-end', gap: 2 },
+  rowHint: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.faint },
+  rowAmount: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: colors.ink },
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
   backdrop: { flex: 1, backgroundColor: 'rgba(22,35,58,0.45)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.bg, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.lg, gap: spacing.md },

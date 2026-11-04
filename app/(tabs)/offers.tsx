@@ -15,6 +15,7 @@ import { Button } from '@/components/Button';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { ZoneButton, ZoneList } from '@/components/ZoneButton';
 import { UpdatingBar } from '@/components/explore/LoadingMotion';
+import { useMarkerTracking } from '@/components/explore/useMarkerTracking';
 import { Reveal } from '@/components/offers/MarketMotion';
 import { FeaturedOffer, OfferRow, OfferTile, TILE_GAP, TILE_W, ZONE_W, ZoneCard } from '@/components/offers/OfferTiles';
 import { SkeletonBlock } from '@/components/Skeleton';
@@ -28,6 +29,7 @@ import {
   endText,
   flattenPages,
   pesos,
+  priceView,
   listTitle,
   nearEnd,
   showZones,
@@ -319,9 +321,17 @@ export default function OffersScreen() {
           </View>
         ) : null}
 
-        <Text style={styles.hero} accessibilityRole="header">
-          {home ? zoneTitle : 'Todas las ofertas'}
-        </Text>
+        <View style={styles.heroRow}>
+          <Text style={styles.hero} accessibilityRole="header">
+            {home ? zoneTitle : 'Todas las ofertas'}
+          </Text>
+          {home && railItems.length > 0 ? (
+            <View style={styles.livePill}>
+              <View style={styles.liveDot} />
+              <Text style={styles.livePillText}>{railItems.length === 1 ? '1 activa' : `${railItems.length} activas`}</Text>
+            </View>
+          ) : null}
+        </View>
 
         {home && mapCenter && ordered.length ? (
           <View style={styles.mapCard}>
@@ -338,18 +348,11 @@ export default function OffersScreen() {
             >
               {ordered.map((o) => {
                 const on = o.id === ordered[0].id;
-                return (
-                  <Marker key={`${o.id}|${on}`} coordinate={{ latitude: o.latitude!, longitude: o.longitude! }} accessibilityLabel={`${o.entity_name}: ${o.title}${on ? ', elegida' : ''}`} onPress={() => setPin(o.id)} tracksViewChanges={false}>
-                    <View style={[styles.pinRing, on && styles.pinRingOn]}>
-                      <View style={[styles.pin, on && styles.pinOn]}>
-                        <Ionicons name={displayIcon(o.category_icon) as keyof typeof Ionicons.glyphMap} size={17} color={colors.ink} />
-                      </View>
-                    </View>
-                  </Marker>
-                );
+                return <OfferMapPin key={o.id} item={o} selected={on} onPress={() => setPin(o.id)} />;
               })}
             </MapView>
             <View style={styles.mapZone} pointerEvents="none">
+              <View style={styles.mapZoneDot} />
               <Text style={styles.mapZoneText} numberOfLines={1}>
                 {zoneLabel}
               </Text>
@@ -364,7 +367,7 @@ export default function OffersScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats} accessibilityLabel="Categorías">
           <Chip label="Todas" active={!catId} onPress={() => setCatId(undefined)} />
           {(categories.data ?? []).map((c) => (
-            <Chip key={c.id} label={c.name} active={catId === c.id} onPress={() => setCatId(catId === c.id ? undefined : c.id)} />
+            <Chip key={c.id} label={c.name} icon={c.icon} active={catId === c.id} onPress={() => setCatId(catId === c.id ? undefined : c.id)} />
           ))}
         </ScrollView>
 
@@ -381,7 +384,7 @@ export default function OffersScreen() {
           <View style={styles.sec}>
             <View style={styles.railHead}>
               <Text style={styles.shTitle} accessibilityRole="header">
-                {ordered.length && zoneLabel ? `En ${zoneLabel}, ahora` : city ? `En ${city}, ahora` : 'Ahora'}
+                {ordered.length && zoneLabel ? (zoneLabel === 'Cerca de ti' ? 'Cerca de ti, ahora' : `En ${zoneLabel}, ahora`) : city ? `En ${city}, ahora` : 'Ahora'}
               </Text>
               <Pressable accessibilityRole="link" onPress={() => openAll(false)} style={styles.seeAll}>
                 <Text style={styles.seeAllText}>Ver todas</Text>
@@ -588,7 +591,42 @@ export default function OffersScreen() {
   );
 }
 
-function Chip({ label, active, onPress, soft }: { label: string; active: boolean; onPress: () => void; soft?: boolean }) {
+/**
+ * Pin de oferta en el mini-mapa con rastreo reactivo (`useMarkerTracking`) para evitar que Android
+ * congele un círculo gigante vacío en el primer fotograma. Muestra icono + ahorro en cápsula.
+ */
+function OfferMapPin({ item, selected, onPress }: { item: MarketItem; selected: boolean; onPress: () => void }) {
+  const save = priceView(item).save;
+  const look = `${item.id}|${selected ? 'on' : 'off'}|${save ?? ''}`;
+  const { tracking, onLayout, markerRef } = useMarkerTracking(look);
+
+  return (
+    <Marker
+      ref={markerRef}
+      coordinate={{ latitude: item.latitude!, longitude: item.longitude! }}
+      accessibilityLabel={`${item.entity_name}: ${item.title}${selected ? ', elegida' : ''}`}
+      onPress={onPress}
+      tracksViewChanges={tracking}
+      zIndex={selected ? 10 : 1}
+    >
+      <View onLayout={onLayout} collapsable={false} style={styles.pinWrap}>
+        <View style={[styles.pinPill, selected && styles.pinPillOn]}>
+          <View style={[styles.pinIconBubble, selected && styles.pinIconBubbleOn]}>
+            <Ionicons name={displayIcon(item.category_icon) as keyof typeof Ionicons.glyphMap} size={13} color={selected ? colors.ink : '#8F4300'} />
+          </View>
+          {save ? (
+            <Text style={[styles.pinSaveText, selected && styles.pinSaveTextOn]} numberOfLines={1}>
+              {save}
+            </Text>
+          ) : null}
+        </View>
+        <View style={[styles.pinTip, selected && styles.pinTipOn]} />
+      </View>
+    </Marker>
+  );
+}
+
+function Chip({ label, icon, active, onPress, soft }: { label: string; icon?: string; active: boolean; onPress: () => void; soft?: boolean }) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -596,6 +634,8 @@ function Chip({ label, active, onPress, soft }: { label: string; active: boolean
       onPress={onPress}
       style={({ pressed }) => [styles.chip, active && (soft ? styles.chipSoftOn : styles.chipOn), pressed && styles.chipPressed]}
     >
+      {active && !soft ? <View style={styles.chipActiveDot} /> : null}
+      {icon && !active ? <Ionicons name={displayIcon(icon) as keyof typeof Ionicons.glyphMap} size={15} color={colors.muted} /> : null}
       <Text style={[styles.chipText, active && (soft ? styles.chipSoftText : styles.chipOnText)]} numberOfLines={1}>
         {label}
       </Text>
@@ -620,19 +660,29 @@ const styles = StyleSheet.create({
   body: { gap: 16, paddingBottom: 24 },
   wash: { position: 'absolute', left: 0, right: 0, top: 0 },
   top: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingTop: 16 },
-  round: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  round: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   roundDot: { position: 'absolute', top: 9, right: 9, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.brand, borderWidth: 2, borderColor: colors.surface },
   zoneWrap: { marginHorizontal: 20, marginTop: -8 },
-  hero: { paddingHorizontal: 20, fontSize: 30, lineHeight: 33, letterSpacing: -0.3, fontFamily: fonts.display.bold, color: colors.ink },
-  mapCard: { height: 200, marginHorizontal: 20, borderRadius: 24, overflow: 'hidden', backgroundColor: colors.selectedSoft },
-  mapBtn: { position: 'absolute', right: 10, top: 10, minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+  heroRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, paddingHorizontal: 20 },
+  hero: { flex: 1, fontSize: 28, lineHeight: 32, letterSpacing: -0.3, fontFamily: fonts.display.bold, color: colors.ink },
+  livePill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: '#FFF1E3' },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
+  livePillText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#8F4300' },
+  mapCard: { height: 200, marginHorizontal: 20, borderRadius: 24, overflow: 'hidden', backgroundColor: colors.selectedSoft, borderWidth: 1, borderColor: colors.line },
+  mapBtn: { position: 'absolute', right: 10, top: 10, minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, shadowColor: colors.ink, shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
   mapBtnText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  mapZone: { position: 'absolute', left: 12, bottom: 12, maxWidth: '70%', paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+  mapZone: { position: 'absolute', left: 12, bottom: 12, maxWidth: '70%', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+  mapZoneDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.verified },
   mapZoneText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.verified },
-  pinRing: { padding: 3, borderRadius: 999, backgroundColor: colors.accent },
-  pinRingOn: { padding: 3, backgroundColor: colors.brand },
-  pin: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.surface },
-  pinOn: { width: 46, height: 46, borderRadius: 23, borderWidth: 3, borderColor: colors.accent },
+  pinWrap: { alignItems: 'center', paddingBottom: 4 },
+  pinPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingLeft: 4, paddingRight: 9, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.accent, shadowColor: colors.ink, shadowOpacity: 0.18, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
+  pinPillOn: { backgroundColor: colors.ink, borderColor: '#fff', shadowOpacity: 0.28, elevation: 5 },
+  pinIconBubble: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF1E3' },
+  pinIconBubbleOn: { backgroundColor: colors.accent },
+  pinSaveText: { fontSize: 12, fontFamily: fonts.display.bold, color: colors.ink },
+  pinSaveTextOn: { color: '#fff' },
+  pinTip: { width: 8, height: 8, marginTop: -4, backgroundColor: colors.accent, transform: [{ rotate: '45deg' }] },
+  pinTipOn: { backgroundColor: colors.ink },
   searchWrap: { paddingHorizontal: 20 },
   search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 52, paddingHorizontal: spacing.lg, borderRadius: 26, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, ...softShadow },
   searchInput: { flex: 1, fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink, paddingVertical: 0 },
@@ -642,10 +692,11 @@ const styles = StyleSheet.create({
   miniBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   cats: { gap: 8, paddingHorizontal: 20, paddingTop: 2, paddingBottom: 4 },
   terms: { gap: 6, paddingHorizontal: 20, paddingBottom: spacing.sm },
-  chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
-  chipSoftOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
+  chip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, justifyContent: 'center' },
+  chipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected, borderWidth: 1.5 },
+  chipSoftOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected, borderWidth: 1.5 },
   chipPressed: { transform: [{ scale: 0.97 }] },
+  chipActiveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
   chipText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   chipOnText: { color: colors.selected },
   chipSoftText: { color: colors.selected },
@@ -663,11 +714,11 @@ const styles = StyleSheet.create({
   rail: { flexDirection: 'row', gap: TILE_GAP, paddingHorizontal: 20, paddingTop: 3, paddingBottom: 12 },
   planCard: { width: 272, gap: 12, padding: 18, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.hairline, ...softShadow },
   planTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  planTag: { flexShrink: 1, fontSize: 11, letterSpacing: 1.1, fontFamily: fonts.ui.extrabold, color: colors.faint },
+  planTag: { flexShrink: 1, fontSize: 12, letterSpacing: 0.9, fontFamily: fonts.ui.extrabold, color: colors.faint },
   planLevel: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.verified },
   planTitle: { fontSize: 22, lineHeight: 24, fontFamily: fonts.display.bold, color: colors.ink },
   planStops: { flexDirection: 'row', alignItems: 'flex-start' },
-  planLine: { position: 'absolute', left: 20, right: 20, top: 15, borderTopWidth: 1.5, borderTopColor: colors.line },
+  planLine: { position: 'absolute', left: 20, right: 20, top: 15, borderTopWidth: 1.5, borderStyle: 'dashed', borderTopColor: colors.line },
   planStop: { flex: 1, minWidth: 0, alignItems: 'center', gap: 5 },
   planDot: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.accent },
   planTime: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.ink },

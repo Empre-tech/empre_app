@@ -8,19 +8,20 @@ import { ledgerApi, type CashMoveInput } from '@/api/ledger';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { AmountField, Chip } from '@/components/ledger/parts';
+import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { queueCashClose, queueCashMove, queueVoid, useLedgerOutbox } from '@/ledger/ledgerStore';
 import { cashReasonLabel, CASH_REASONS, formatPesos, newClientId, type CashDirection } from '@/lib/ledger';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const BILLS: { value: number; label: string; bg: string; fg: string }[] = [
-  { value: 100000, label: '$100.000', bg: '#DDD3EC', fg: '#3D2A6B' },
-  { value: 50000, label: '$50.000', bg: '#E8D3B5', fg: '#5A3D17' },
-  { value: 20000, label: '$20.000', bg: '#F2C9A8', fg: '#6B3410' },
-  { value: 10000, label: '$10.000', bg: '#E8B9C9', fg: '#6B1E3A' },
-  { value: 5000, label: '$5.000', bg: '#D9C9A8', fg: '#5A4517' },
-  { value: 2000, label: '$2.000', bg: '#C9D9E8', fg: '#1B3A73' },
-  { value: 1000, label: '$1.000', bg: '#D5E3C9', fg: '#2F4F1B' },
+  { value: 100000, label: '$100.000', bg: colors.selectedSoft, fg: colors.ink },
+  { value: 50000, label: '$50.000', bg: colors.selectedSoft, fg: colors.ink },
+  { value: 20000, label: '$20.000', bg: colors.selectedSoft, fg: colors.ink },
+  { value: 10000, label: '$10.000', bg: colors.selectedSoft, fg: colors.ink },
+  { value: 5000, label: '$5.000', bg: colors.selectedSoft, fg: colors.ink },
+  { value: 2000, label: '$2.000', bg: colors.selectedSoft, fg: colors.ink },
+  { value: 1000, label: '$1.000', bg: colors.selectedSoft, fg: colors.ink },
 ];
 const STEPS = ['Lo que debería haber', 'Contar', 'Resultado'];
 const QUICK_AMOUNTS = [20000, 50000, 100000];
@@ -139,24 +140,30 @@ export default function CashScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <SubScreenHeader title={step === 4 ? 'Día cerrado' : 'Cerrar la caja'} />
+      <SubScreenHeader title={step === 4 ? 'Día cerrado' : 'Cerrar la caja'} subtitle="Empre Finance · Hoy" />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {step < 4 ? (
           <View style={{ gap: spacing.xs }} accessibilityLabel={`Paso ${step} de 3: ${STEPS[step - 1]}`} accessible>
             <View style={styles.steps}>
-            {STEPS.map((name, i) => {
-              const n = i + 1;
-              return (
-                <View key={name} style={[styles.step, i < 2 && { flex: 1 }]}>
-                  <View style={[styles.stepDot, n === step && styles.stepDotNow, n < step && styles.stepDotPast]}>
-                    {n < step ? <Ionicons name="checkmark" size={14} color="#fff" /> : <Text style={[styles.stepNum, n === step && { color: '#fff' }]}>{n}</Text>}
+              {STEPS.map((name, i) => {
+                const n = i + 1;
+                return (
+                  <View key={name} style={[styles.step, i < 2 && { flex: 1 }]}>
+                    <View style={[styles.stepDot, n === step && styles.stepDotNow, n < step && styles.stepDotPast]}>
+                      {n < step ? <Ionicons name="checkmark" size={14} color="#fff" /> : <Text style={[styles.stepNum, n === step && { color: '#fff' }]}>{n}</Text>}
+                    </View>
+                    {i < 2 ? <View style={[styles.stepBar, n < step && { backgroundColor: colors.verified }]} /> : null}
                   </View>
-                  {i < 2 ? <View style={[styles.stepBar, n < step && { backgroundColor: colors.verified }]} /> : null}
-                </View>
-              );
-            })}
+                );
+              })}
             </View>
-            <Text style={styles.stepName}>{STEPS[step - 1]}</Text>
+            <View style={styles.stepNames}>
+              {STEPS.map((name, i) => (
+                <Text key={name} style={[styles.stepName, i + 1 !== step && styles.stepNameOff]}>
+                  {name}
+                </Text>
+              ))}
+            </View>
           </View>
         ) : null}
 
@@ -169,7 +176,7 @@ export default function CashScreen() {
               </View>
             ) : null}
             <View style={styles.card}>
-              <Text style={styles.eyebrow}>En efectivo deberías tener</Text>
+              <Text style={styles.eyebrowCaps}>EN EFECTIVO DEBERÍAS TENER</Text>
               <Text style={styles.hero} accessibilityLiveRegion="polite">{formatPesos(expected)}</Text>
               {baseKnown ? (
                 <CalcRow title="Base con la que abriste" sub={data.carried ? 'Lo que dejaste, más lo de los días sin cerrar' : 'Lo que dejaste en el último cierre'} value={formatPesos(data.base)} />
@@ -187,14 +194,19 @@ export default function CashScreen() {
               {moves.map((m) => (
                 <CalcRow key={m.id} title={`${m.direction === 'in' ? 'Metiste' : 'Sacaste'}: ${cashReasonLabel(m.reason).toLowerCase()}`} sub={`No es venta ni gasto · ${clock(m.at)}`} value={signed(m.direction === 'in' ? m.amount : -m.amount)} onPress={() => askVoid(m)} />
               ))}
+              <Pressable accessibilityRole="button" onPress={() => openMove()} style={({ pressed }) => [styles.moveLink, pressed && { opacity: 0.85 }]}>
+                <Ionicons name="swap-horizontal" size={18} color={colors.ink} />
+                <Text style={styles.moveLinkText}>Saqué o metí plata</Text>
+              </Pressable>
+              <Text style={styles.note}>Transferencias y tarjeta no van en la caja: ya están en tu cuenta. Sacar o meter plata cambia lo que debería haber, no lo que te quedó.</Text>
             </View>
             {unsent > 0 ? <Text style={styles.warn}>Tienes {plural(unsent, 'registro', 'registros')} sin enviar. Cuando salgan, esta cuenta puede cambiar.</Text> : null}
-            <Pressable accessibilityRole="button" onPress={() => openMove()} style={({ pressed }) => [styles.moveLink, pressed && { opacity: 0.85 }]}>
-              <Ionicons name="swap-vertical" size={19} color={colors.ink} />
-              <Text style={styles.moveLinkText}>Saqué o metí plata</Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-            </Pressable>
-            <Text style={styles.note}>Transferencias y tarjeta no van en la caja: ya están en tu cuenta. Sacar o meter plata cambia lo que debería haber, no lo que te quedó.</Text>
+            {!data.close ? (
+              <View style={styles.firstTime}>
+                <EmpreSymbol product="finance" size={26} />
+                <Text style={styles.firstTimeText}>En el siguiente paso cuentas billete por billete y Empre suma por ti. Toma un minuto.</Text>
+              </View>
+            ) : null}
           </>
         ) : null}
 
@@ -206,7 +218,7 @@ export default function CashScreen() {
                 const n = counts[b.value] ?? 0;
                 return (
                   <View key={b.value} style={[styles.billRow, i > 0 && styles.line]}>
-                    <View style={[styles.bill, { backgroundColor: b.bg }]}>
+                    <View style={[styles.bill, { backgroundColor: b.bg, borderWidth: 1, borderColor: colors.line }]}>
                       <Text style={[styles.billText, { color: b.fg }]}>{b.label}</Text>
                     </View>
                     <Text style={styles.billSum} numberOfLines={1}>{n ? formatPesos(n * b.value) : ''}</Text>
@@ -390,8 +402,13 @@ const styles = StyleSheet.create({
   stepNum: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
   stepName: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   stepBar: { flex: 1, minWidth: 10, height: 2, borderRadius: 1, backgroundColor: colors.line },
-  card: { gap: spacing.sm, padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  card: { gap: spacing.sm, padding: 16, borderRadius: 20, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
   eyebrow: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted },
+  eyebrowCaps: { fontSize: 11, letterSpacing: 1.1, fontFamily: fonts.ui.extrabold, color: colors.faint },
+  stepNames: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  stepNameOff: { fontFamily: fonts.ui.bold, color: colors.muted },
+  firstTime: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 16, backgroundColor: colors.ink },
+  firstTimeText: { flex: 1, fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.bold, color: '#fff' },
   hero: { fontSize: 34, fontFamily: fonts.display.bold, color: colors.ink },
   openingBox: { gap: 4, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.selectedSoft },
   calcRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingTop: spacing.sm },
@@ -401,8 +418,8 @@ const styles = StyleSheet.create({
   calcValue: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   notice: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.verifiedSoft },
   noticeText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.ink },
-  moveLink: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 52, paddingHorizontal: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
-  moveLinkText: { flex: 1, fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  moveLink: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.line },
+  moveLinkText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   note: { fontSize: 13, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.muted },
   warn: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.warning },
   billRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: spacing.sm },

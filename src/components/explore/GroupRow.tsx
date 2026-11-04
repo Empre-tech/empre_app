@@ -11,7 +11,7 @@ interface Props {
   onGroup: (id: GroupId | undefined) => void;
   onCategory: (id: string | undefined) => void;
   onSeeAll: () => void;
-  /** Lo que va antes de los grupos en la primera fila (la cápsula de la zona). */
+  /** Lo que va antes de los grupos en la primera fila (la cápsula de la zona o caminata). */
   leading?: React.ReactNode;
   /** Filtros que no son de categoría (subcategoría, distancia, abiertos), tras los grupos. */
   trailing?: React.ReactNode;
@@ -85,14 +85,14 @@ const styles = StyleSheet.create({
   wrap: { gap: 6 },
   scroll: { flexGrow: 0, flexShrink: 0 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingRight: spacing.md },
-  pill: { height: 36, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 13, borderRadius: radius.pill, backgroundColor: colors.surface, ...shadow },
-  pillOn: { backgroundColor: colors.ink, paddingRight: 8 },
+  pill: { height: 38, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.96)', borderWidth: 1, borderColor: colors.line, ...shadow },
+  pillOn: { backgroundColor: colors.ink, borderColor: colors.ink, paddingRight: 10 },
   pillText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  pillTextOn: { color: colors.selected },
-  x: { fontSize: 18, lineHeight: 20, fontFamily: fonts.ui.extrabold, color: colors.selected },
-  small: { height: 32, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.92)' },
-  smallOn: { backgroundColor: colors.selectedSoft },
+  pillTextOn: { color: '#fff' },
+  x: { fontSize: 17, lineHeight: 19, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  small: { height: 34, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.94)', borderWidth: 1, borderColor: colors.line },
+  smallOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
   smallText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
-  smallTextOn: { color: colors.selected },
+  smallTextOn: { color: colors.selected, fontFamily: fonts.ui.extrabold },
   dot: { width: 9, height: 9, borderRadius: 5 },
 });
