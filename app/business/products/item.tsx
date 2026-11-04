@@ -643,8 +643,8 @@ export default function ItemScreen() {
               </View>
               {margin ? (
                 <View style={[styles.margin, margin.amount < 0 ? styles.marginBad : styles.marginOk]}>
-                  <Ionicons name={margin.amount < 0 ? 'alert-circle-outline' : 'trending-up'} size={18} color={margin.amount < 0 ? '#B3261E' : '#1D6B3D'} />
-                  <Text style={[styles.marginText, { color: margin.amount < 0 ? '#B3261E' : '#1D6B3D' }]}>
+                  <Ionicons name={margin.amount < 0 ? 'alert-circle-outline' : 'trending-up'} size={18} color={margin.amount < 0 ? '#B3261E' : '#0A6E6A'} />
+                  <Text style={[styles.marginText, { color: margin.amount < 0 ? '#B3261E' : '#0A6E6A' }]}>
                     {margin.amount < 0
                       ? `Pierdes ${formatPesos(-margin.amount)} en cada uno. ¿Revisas el precio?`
                       : margin.amount === 0
@@ -825,19 +825,19 @@ const styles = StyleSheet.create({
   meta: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
   metaSmall: { fontSize: 12, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.muted },
   placeholder: { fontSize: 15, fontFamily: fonts.ui.medium, color: colors.muted },
-  segment: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: '#E8EEF6' },
+  segment: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: '#EEF2F7' },
   segBtn: { flex: 1, minHeight: 52, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   segOn: { backgroundColor: colors.surface, elevation: 1, shadowColor: colors.ink, shadowOpacity: 0.12, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } },
   segLabel: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  segHint: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: '#55657C' },
+  segHint: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: '#4C5C74' },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   money: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 50, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.lg, paddingHorizontal: spacing.md, backgroundColor: colors.surface },
   moneySign: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: colors.muted },
   moneyInput: { flex: 1, fontSize: 16, fontFamily: fonts.ui.extrabold, color: colors.ink, paddingVertical: 0 },
-  miniSeg: { flexDirection: 'row', padding: 3, borderRadius: radius.md, backgroundColor: '#E8EEF6' },
+  miniSeg: { flexDirection: 'row', padding: 3, borderRadius: radius.md, backgroundColor: '#EEF2F7' },
   miniBtn: { minHeight: 44, paddingHorizontal: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   miniOn: { backgroundColor: colors.surface },
-  miniText: { fontSize: 13, fontFamily: fonts.ui.bold, color: '#55657C' },
+  miniText: { fontSize: 13, fontFamily: fonts.ui.bold, color: '#4C5C74' },
   miniTextOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
   select: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 52, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.lg, paddingHorizontal: spacing.md },
   sectionPill: { minHeight: 30, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.primarySoft, justifyContent: 'center' },
@@ -850,15 +850,15 @@ const styles = StyleSheet.create({
   previewName: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   previewPrice: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   margin: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md },
-  marginOk: { backgroundColor: '#E7F5EC' },
-  marginBad: { backgroundColor: '#FDE8E8' },
+  marginOk: { backgroundColor: '#E3F5F3' },
+  marginBad: { backgroundColor: '#FDECEC' },
   marginText: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.extrabold },
   divider: { height: 1, backgroundColor: '#EEF2F7' },
   trackRow: { flexDirection: 'row', gap: 6 },
   trackBtn: { flex: 1, minHeight: 56, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', padding: 6 },
   trackOn: { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft },
   trackLabel: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  trackHint: { fontSize: 11, fontFamily: fonts.ui.bold, color: '#55657C' },
+  trackHint: { fontSize: 11, fontFamily: fonts.ui.bold, color: '#4C5C74' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   stepBtn: { width: 52, height: 52, borderRadius: 14, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
   count: { fontSize: 30, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center', minWidth: 120, paddingVertical: 0 },

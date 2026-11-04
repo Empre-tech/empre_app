@@ -557,9 +557,9 @@ export default function ProductsScreen() {
 }
 
 const PILL: Record<PillTone, { bg: string; fg: string }> = {
-  ok: { bg: '#E5F5EC', fg: '#1D6B3D' },
+  ok: { bg: '#E3F5F3', fg: '#0A6E6A' },
   low: { bg: colors.accentSoft, fg: colors.accentInk },
-  out: { bg: '#FDE8E8', fg: '#B3261E' },
+  out: { bg: '#FDECEC', fg: '#B3261E' },
   neutral: { bg: '#EEF2F7', fg: colors.ink },
   muted: { bg: 'transparent', fg: colors.muted },
   service: { bg: '#F1F4F9', fg: colors.muted },

@@ -13,7 +13,7 @@ import { newClientId } from '@/lib/ledger';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const LEVELS: { level: StockLevel; label: string; color: string; ink: string }[] = [
-  { level: 'ok', label: 'Hay suficiente', color: colors.success, ink: '#1D6B3D' },
+  { level: 'ok', label: 'Hay suficiente', color: colors.success, ink: '#0A6E6A' },
   { level: 'low', label: 'Queda poco', color: colors.accent, ink: colors.accentInk },
   { level: 'out', label: 'Se acabó', color: colors.danger, ink: '#B3261E' },
 ];

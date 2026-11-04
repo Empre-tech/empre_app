@@ -63,7 +63,7 @@ export function OfferTicket({ offer, cta, notchColor = colors.bg, showPrice = tr
     formatSlotsFree(offer.slots_left, offer.total_slots);
 
   const topBg = off ? styles.topOff : hot ? styles.topHot : warn ? styles.topWarn : styles.topCalm;
-  const ringColor = off ? '#9AA7B5' : hot ? colors.ink : warn ? colors.accentDark : colors.primary;
+  const ringColor = off ? '#8796AB' : hot ? colors.ink : warn ? colors.accentDark : colors.primary;
   const ringTrack = hot ? 'rgba(22, 35, 58, 0.2)' : colors.line;
   const kind = hot ? 'Última llamada' : offerTypeLabel(offer.type);
 
@@ -73,7 +73,7 @@ export function OfferTicket({ offer, cta, notchColor = colors.bg, showPrice = tr
         <View style={[styles.top, topBg]}>
           <View style={styles.main}>
             <View style={styles.kindRow}>
-              <Ionicons name="flash" size={12} color={off ? '#9AA7B5' : hot ? colors.ink : colors.accent} />
+              <Ionicons name="flash" size={12} color={off ? '#8796AB' : hot ? colors.ink : colors.accent} />
               <Text style={[styles.kind, hot && styles.kindHot, off && styles.kindOff]}>{kind}</Text>
             </View>
             <Text style={[styles.title, off && styles.titleOff]} numberOfLines={2}>

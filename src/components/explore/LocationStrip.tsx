@@ -16,7 +16,7 @@ interface Props {
 
 const SHIFT = 18;
 /** Verde oscuro para texto sobre blanco (el verde de estado da 3,3:1). */
-const HERE_INK = '#1D6B3D';
+const HERE_INK = '#0A6E6A';
 
 /**
  * Franja de arriba de Explorar: «Estás en Comuna 4 · Santa Marta» o «Explorando Mamatoco · Santa Marta» con

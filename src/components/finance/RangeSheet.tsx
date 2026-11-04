@@ -110,7 +110,7 @@ function RangeBody({ visible, value, onApply, onClose }: Props) {
                   onPress={() => setDraft((c) => pickDay(c, d))}
                   style={[styles.day, edge && styles.dayOn]}
                 >
-                  <Text style={[styles.dayText, edge && { color: '#fff' }, off && { color: '#B9C6D8' }, d === today && !edge && { color: colors.primary }]}>{Number(d.slice(8))}</Text>
+                  <Text style={[styles.dayText, edge && { color: '#fff' }, off && { color: '#D5DEEA' }, d === today && !edge && { color: colors.primary }]}>{Number(d.slice(8))}</Text>
                 </Pressable>
               </View>
             );
@@ -159,9 +159,9 @@ const styles = StyleSheet.create({
   dayText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
   hint: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
   label: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
-  seg: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: '#E8EEF6' },
+  seg: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: '#EEF2F7' },
   segBtn: { flex: 1, minHeight: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   segOn: { backgroundColor: colors.surface },
-  segText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#55657C', textAlign: 'center' },
+  segText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#4C5C74', textAlign: 'center' },
   segTextOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

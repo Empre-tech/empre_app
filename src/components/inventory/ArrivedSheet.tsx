@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
   meta: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
   label: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  good: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#1D6B3D' },
+  good: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#0A6E6A' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   stepBtn: { width: 52, height: 52, borderRadius: 14, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
   count: { fontSize: 30, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center', minWidth: 120, paddingVertical: 0 },

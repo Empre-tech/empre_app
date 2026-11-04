@@ -76,7 +76,7 @@ function Row({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   hero: { alignItems: 'center', gap: spacing.xs, paddingTop: spacing.md },
   // 94 con el borde de 9 incluido: el círculo verde mide 76.
-  check: { width: 94, height: 94, borderRadius: 47, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center', borderWidth: 9, borderColor: '#E3F4EA' },
+  check: { width: 94, height: 94, borderRadius: 47, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center', borderWidth: 9, borderColor: '#E3F5F3' },
   heroTitle: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.ink, marginTop: spacing.sm },
   heroText: { fontSize: 13.5, fontFamily: fonts.ui.medium, color: colors.muted },
   receipt: { backgroundColor: colors.surface, borderRadius: radius.lg, paddingHorizontal: spacing.lg },
@@ -87,6 +87,6 @@ const styles = StyleSheet.create({
   calloutText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.ink },
   bold: { fontFamily: fonts.ui.extrabold },
   thanks: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.verifiedSoft, borderRadius: radius.md, padding: spacing.md },
-  thanksText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.bold, color: '#075E62' },
+  thanksText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.bold, color: '#0A6E6A' },
   message: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger, textAlign: 'center' },
 });

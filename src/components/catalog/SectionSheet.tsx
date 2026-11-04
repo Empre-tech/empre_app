@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
   label: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.muted, letterSpacing: 0.5, textTransform: 'uppercase', marginTop: spacing.xs },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 50, borderBottomWidth: 1, borderBottomColor: '#EEF2F7' },
-  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#B9C6D8', alignItems: 'center', justifyContent: 'center' },
+  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#D5DEEA', alignItems: 'center', justifyContent: 'center' },
   radioOn: { borderColor: colors.primary },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
   name: { flex: 1, fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },

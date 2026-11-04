@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   tile: { width: '48.5%', backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
   tileImg: { aspectRatio: 1, backgroundColor: colors.bg },
   tileIcon: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  outBadge: { position: 'absolute', left: 8, top: 8, paddingHorizontal: 8, height: 22, borderRadius: 11, backgroundColor: '#FDE8E8', justifyContent: 'center' },
+  outBadge: { position: 'absolute', left: 8, top: 8, paddingHorizontal: 8, height: 22, borderRadius: 11, backgroundColor: '#FDECEC', justifyContent: 'center' },
   outBadgeText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#B3261E' },
   countBadge: { position: 'absolute', right: 8, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, height: 22, borderRadius: 11, backgroundColor: 'rgba(22,35,58,0.72)' },
   countText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#fff' },

@@ -159,7 +159,7 @@ export default function AlertsScreen() {
   );
 }
 
-const TONE = { out: { dot: colors.danger, fg: '#B3261E' }, low: { dot: colors.accent, fg: colors.accentInk }, muted: { dot: '#B9C6D8', fg: '#55657C' } };
+const TONE = { out: { dot: colors.danger, fg: '#B3261E' }, low: { dot: colors.accent, fg: colors.accentInk }, muted: { dot: '#D5DEEA', fg: '#4C5C74' } };
 
 function GroupHead({ title, tone }: { title: string; tone: keyof typeof TONE }) {
   return (
@@ -214,7 +214,7 @@ function Group({
                 <View style={styles.users}>
                   <Text style={styles.usersLabel}>{tone === 'out' ? 'Afecta a' : 'Lo usan'}</Text>
                   {users.slice(0, 6).map((u) => (
-                    <View key={u.ref} style={[styles.chip, { backgroundColor: tone === 'out' ? '#FDE8E8' : colors.accentSoft }]}>
+                    <View key={u.ref} style={[styles.chip, { backgroundColor: tone === 'out' ? '#FDECEC' : colors.accentSoft }]}>
                       <Text style={[styles.chipText, { color: tone === 'out' ? '#B3261E' : colors.accentInk }]}>{u.name}</Text>
                     </View>
                   ))}
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
   tabs: { flexDirection: 'row', padding: 4, borderRadius: 12, backgroundColor: '#EEF2F7' },
   tab: { flex: 1, minHeight: 42, borderRadius: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   tabOn: { backgroundColor: colors.surface },
-  tabText: { fontSize: 14, fontFamily: fonts.ui.bold, color: '#55657C' },
+  tabText: { fontSize: 14, fontFamily: fonts.ui.bold, color: '#4C5C74' },
   tabTextOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
   badge: { minWidth: 22, height: 22, paddingHorizontal: 6, borderRadius: 11, backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },

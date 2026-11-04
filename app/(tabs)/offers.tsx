@@ -451,7 +451,7 @@ const styles = StyleSheet.create({
   terms: { gap: 6, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
   chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-  chipSoftOn: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+  chipSoftOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
   chipPressed: { transform: [{ scale: 0.97 }] },
   chipText: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink },
   chipOnText: { color: '#fff' },

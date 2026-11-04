@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
   offerText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   note: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
   composer: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.sm, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
-  input: { flex: 1, height: 50, borderRadius: 25, backgroundColor: '#F3F3F3', paddingHorizontal: 18, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
+  input: { flex: 1, height: 50, borderRadius: 25, backgroundColor: '#EEF2F7', paddingHorizontal: 18, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
   send: { width: 50, height: 50, borderRadius: 25, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   sendOn: { backgroundColor: colors.ink },
 });

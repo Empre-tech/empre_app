@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
   stars: { flexDirection: 'row' },
   when: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   stamp: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: colors.verifiedSoft },
-  stampText: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: '#075E62' },
+  stampText: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: '#0A6E6A' },
   comment: { fontSize: 13, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.ink },
   none: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   more: { minHeight: 44, justifyContent: 'center' },

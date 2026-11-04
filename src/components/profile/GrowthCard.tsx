@@ -123,7 +123,7 @@ export function GrowthCard({ entityId, onGo }: { entityId: string; onGo: (target
   );
 }
 
-const GREEN = '#2E9E5B';
+const GREEN = '#14B8B0';
 const GREEN_INK = '#1B6B3C';
 
 const styles = StyleSheet.create({
@@ -149,6 +149,6 @@ const styles = StyleSheet.create({
   goText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
   pressed: { transform: [{ scale: 0.97 }] },
   note: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted, marginTop: spacing.sm },
-  done: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: '#E5F5EC' },
+  done: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: '#E3F5F3' },
   doneText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.bold, color: GREEN_INK },
 });

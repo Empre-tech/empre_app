@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
   priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4, flexWrap: 'wrap' },
   price: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
   was: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted, textDecorationLine: 'line-through' },
-  save: { backgroundColor: '#E5F5EC', borderRadius: 6, paddingHorizontal: 6 },
+  save: { backgroundColor: '#E3F5F3', borderRadius: 6, paddingHorizontal: 6 },
   saveText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#1B6B3C' },
   reason: { alignSelf: 'flex-start', marginTop: 6, backgroundColor: colors.primarySoft, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, maxWidth: '100%' },
   reasonText: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.primaryDark },

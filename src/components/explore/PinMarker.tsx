@@ -50,12 +50,12 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
   const hasOffer = entity.has_active_offer;
   const showRayo = hasOffer && (entity.active_offer?.type === 'HORAS' || entity.active_offer?.type === 'DIA');
   const borderColor = selected ? colors.primary : hasOffer ? colors.accent : '#ffffff';
-  const statusColor = open ? '#2E9E5B' : '#9AA7B5';
+  const statusColor = open ? '#14B8B0' : '#8796AB';
   const coordinate = { latitude: entity.latitude, longitude: entity.longitude };
 
   if (emphasis) {
     const closed = entity.has_hours && !entity.is_open_now;
-    const ring = selected ? colors.primary : closed ? '#9AA7B5' : hasOffer ? colors.accent : emphasis === 'big' ? colors.primary : '#ffffff';
+    const ring = selected ? colors.primary : closed ? '#8796AB' : hasOffer ? colors.accent : emphasis === 'big' ? colors.primary : '#ffffff';
     const faded = closed ? styles.closedFade : null;
     return (
       <Marker

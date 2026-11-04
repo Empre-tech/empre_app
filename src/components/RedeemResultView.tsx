@@ -102,7 +102,7 @@ export function RedeemResultView({ result, offline, onNext, onRetry }: Props) {
   const ok = look.tone === 'ok';
   const toneStyle = TONES[look.tone];
   const textColor = ok ? '#fff' : colors.ink;
-  const mutedColor = ok ? 'rgba(255,255,255,0.92)' : '#4A5A70';
+  const mutedColor = ok ? 'rgba(255,255,255,0.92)' : '#4C5C74';
 
   return (
     <View
@@ -227,7 +227,7 @@ const TONES: Record<Tone, { bg: ViewStyle; icon: ViewStyle; glyph: string }> = {
   ok: { bg: { backgroundColor: OK_GREEN }, icon: { backgroundColor: 'rgba(255,255,255,0.22)' }, glyph: '#fff' },
   bad: { bg: { backgroundColor: '#FBEDED' }, icon: { backgroundColor: '#F6CFCF' }, glyph: colors.danger },
   warn: { bg: { backgroundColor: colors.accentSoft }, icon: { backgroundColor: '#FAD9B8' }, glyph: colors.accentInk },
-  grey: { bg: { backgroundColor: '#EDF1F6' }, icon: { backgroundColor: '#D7DFEA' }, glyph: '#4A5A70' },
+  grey: { bg: { backgroundColor: '#EEF2F7' }, icon: { backgroundColor: '#D7DFEA' }, glyph: '#4C5C74' },
 };
 
 const styles = StyleSheet.create({
