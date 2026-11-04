@@ -38,6 +38,9 @@ export interface Sale {
   occurred_at: string;
   total: number;
   method: PayMethod;
+  /** La parte que no se pagó con method. Con «credit» es lo que quedó en «Te deben». */
+  method2?: PayMethod;
+  amount2?: number;
   party_id?: string;
   party?: Party;
   source: 'manual' | 'voice' | 'appointment' | 'offer_claim';
@@ -77,6 +80,9 @@ export interface SaleInput {
   occurred_at?: string;
   total?: number;
   method: PayMethod;
+  /** Dos formas de pago: lo que no fue con method. Con «credit», el resto queda en «Te deben» y pide party_id. */
+  method2?: PayMethod;
+  amount2?: number;
   party_id?: string;
   note?: string;
   lines?: { item_id?: string; name: string; qty: number; unit_price?: number }[];

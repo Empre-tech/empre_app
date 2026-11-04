@@ -42,6 +42,15 @@ export const METHOD_LABEL: Record<PayMethod, string> = {
   credit: 'Fiado',
 };
 
+/** Cómo se pagó una venta, en una línea. */
+export function salePayText(s: { total: number; method: PayMethod; method2?: PayMethod; amount2?: number; partyName?: string }): string {
+  if (!s.method2 || !s.amount2) return `${METHOD_LABEL[s.method]}${s.method === 'credit' && s.partyName ? ` · ${s.partyName}` : ''}`;
+  const first = s.total - s.amount2;
+  const low = (m: PayMethod) => METHOD_LABEL[m].toLowerCase();
+  if (s.method2 === 'credit') return `Abonó ${formatPesos(first)} en ${low(s.method)} · ${s.partyName ?? 'Quedó'} debe ${formatPesos(s.amount2)}`;
+  return `${formatPesos(first)} ${low(s.method)} + ${formatPesos(s.amount2)} ${low(s.method2)}`;
+}
+
 export type CashDirection = 'in' | 'out';
 
 /** Para qué se saca o se mete plata de la caja. «Le pagué a alguien» no está: eso es un gasto. */

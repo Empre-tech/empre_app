@@ -12,7 +12,8 @@ import { Chip, Stat } from '@/components/ledger/parts';
 import { VoiceSheet } from '@/components/ledger/VoiceSheet';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { addDays, compareText, deltaLabel, presetRange, rangeTitle, todayCO, type DateRange, type Preset } from '@/lib/finance';
-import { categoryLabel, formatPesos, METHOD_LABEL, pendingTotals } from '@/lib/ledger';
+import { categoryLabel, formatPesos, METHOD_LABEL, pendingTotals, salePayText } from '@/lib/ledger';
+import { useParkedSales } from '@/ledger/parkedSales';
 import { discardLedgerItem, flushLedger, queueVoid, retryLedgerItem, useLedgerOutbox } from '@/ledger/ledgerStore';
 import { FEATURES } from '@/config';
 import { colors, fonts, radius, spacing } from '@/theme';
@@ -60,8 +61,7 @@ function timeOf(iso: string, withDay = false): string {
 
 function saleMovement(s: Sale): Movement {
   const what = s.lines?.length ? s.lines.map((l) => (l.qty === 1 ? l.name : `${l.qty} × ${l.name}`)).join(', ') : s.note || 'Venta';
-  const who = s.method === 'credit' && s.party ? ` · ${s.party.name}` : '';
-  return { key: `s${s.id}`, kind: 'sale', id: s.id, at: s.occurred_at, amount: s.total, title: what, sub: `${METHOD_LABEL[s.method]}${who}${s.source === 'voice' ? ' · por voz' : ''}`, voided: s.status === 'voided', pending: false };
+  return { key: `s${s.id}`, kind: 'sale', id: s.id, at: s.occurred_at, amount: s.total, title: what, sub: `${salePayText({ ...s, partyName: s.party?.name })}${s.source === 'voice' ? ' · por voz' : ''}`, voided: s.status === 'voided', pending: false };
 }
 
 function expenseMovement(e: Expense): Movement {
@@ -84,6 +84,7 @@ export default function LedgerHome() {
   const pendingAll = pendingTotals(outbox.items, entityId);
   const pending = includesToday ? pendingAll : { sales: 0, expenses: 0 };
 
+  const parked = useParkedSales(entityId);
   const summary = useQuery({
     queryKey: ['ledger', entityId, 'analytics', range.from, range.to, range.compare],
     queryFn: () => ledgerApi.analytics(entityId, { from: range.from, to: range.to, compare: range.compare }),
@@ -121,8 +122,8 @@ export default function LedgerHome() {
       .filter((x) => includesToday && x.entityId === entityId && x.status === 'pending' && (x.kind === 'sale' || x.kind === 'expense'))
       .filter((x) => !sent.some((m) => m.id === x.id))
       .map((x) => {
-        const p = x.payload as { total?: number; amount?: number; note?: string; method: Sale['method']; category?: string };
-        return { key: `q${x.id}`, kind: x.kind as 'sale' | 'expense', id: x.id, at: new Date(x.createdAt).toISOString(), amount: Number(p.total ?? p.amount ?? 0), title: p.note || (x.kind === 'sale' ? 'Venta' : categoryLabel(p.category ?? 'otro')), sub: METHOD_LABEL[p.method] ?? '', voided: false, pending: true };
+        const p = x.payload as { total?: number; amount?: number; note?: string; method: Sale['method']; method2?: Sale['method']; amount2?: number; category?: string };
+        return { key: `q${x.id}`, kind: x.kind as 'sale' | 'expense', id: x.id, at: new Date(x.createdAt).toISOString(), amount: Number(p.total ?? p.amount ?? 0), title: p.note || (x.kind === 'sale' ? 'Venta' : categoryLabel(p.category ?? 'otro')), sub: salePayText({ total: Number(p.total ?? p.amount ?? 0), method: p.method, method2: p.method2, amount2: p.amount2 }) ?? '', voided: false, pending: true };
       });
     return [...queued, ...sent].sort((a, b) => b.at.localeCompare(a.at));
   }, [sales.data, expenses.data, outbox.items, entityId, includesToday]);
@@ -206,6 +207,19 @@ export default function LedgerHome() {
           <ActionButton icon="add-circle" label="Vender" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId } })} tone="primary" />
           <ActionButton icon="remove-circle" label="Gastar" onPress={() => router.push({ pathname: '/business/ledger/expense/[id]', params: { id: entityId } })} tone="accent" />
         </View>
+
+        {parked.length > 0 ? (
+          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId } })} style={({ pressed }) => [styles.linkCard, pressed && { opacity: 0.85 }]}>
+            <View style={styles.linkIcon}>
+              <Ionicons name="time-outline" size={19} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.linkTitle}>{parked.length === 1 ? '1 venta en espera' : `${parked.length} ventas en espera`}</Text>
+              <Text style={styles.linkMeta}>No cuentan en la caja hasta que las cobres</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+          </Pressable>
+        ) : null}
 
         <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/ledger/cash/[id]', params: { id: entityId } })} style={({ pressed }) => [styles.linkCard, pressed && { opacity: 0.85 }]}>
           <View style={styles.linkIcon}>
