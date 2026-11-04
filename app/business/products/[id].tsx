@@ -355,6 +355,40 @@ export default function ProductsScreen() {
             {browsing && !current && sectionBlocks.length > 0 ? (
               <View style={{ gap: spacing.sm }}>
                 <Text style={styles.blockTitle}>Tus secciones · {sectionBlocks.length}</Text>
+                {sectionBlocks.length <= 6 ? (
+                  // Hasta 6 secciones: una tarjeta con foto por sección; con más, la lista de abajo.
+                  <View style={styles.secGrid}>
+                    {sectionBlocks.map((b) => {
+                      const sum = sectionSummary(b.items);
+                      const cover = b.items.map((i) => coverOf.get(i.item_id ?? i.ref)).find(Boolean);
+                      return (
+                        <Pressable
+                          key={b.title}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${b.title}: ${b.items.length}. ${sum.text}. Abrir`}
+                          onPress={() => openOne(b.title)}
+                          style={({ pressed }) => [styles.secTile, pressed && { opacity: 0.85 }]}
+                        >
+                          {cover ? (
+                            <Image accessible={false} source={{ uri: mediaUrl(cover) }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                          ) : (
+                            <View style={styles.secTileIcon}>
+                              <Ionicons name={safeIcon(sellIcons.get(b.title), 'pricetag-outline')} size={30} color="rgba(255,255,255,0.55)" />
+                            </View>
+                          )}
+                          <View style={styles.secTileShade}>
+                            <Text style={styles.secTileName} numberOfLines={1}>
+                              {b.title}
+                            </Text>
+                            <Text style={styles.secTileSum} numberOfLines={1}>
+                              {b.items.length} · {sum.text}
+                            </Text>
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ) : (
                 <View style={styles.card}>
                   {sectionBlocks.map((b, n) => {
                     const sum = sectionSummary(b.items);
@@ -382,6 +416,7 @@ export default function ProductsScreen() {
                     );
                   })}
                 </View>
+                )}
                 <Text style={[styles.meta, { textAlign: 'center' }]}>Toca una sección para ver sus productos</Text>
               </View>
             ) : null}
@@ -739,6 +774,12 @@ const styles = StyleSheet.create({
   thumbIcon: { backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
   photoNudge: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
   photoNudgeText: { flex: 1, fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  secGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  secTile: { flexBasis: '48%', flexGrow: 1, height: 132, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: '#4C5C74', justifyContent: 'flex-end' },
+  secTileIcon: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', paddingBottom: 36 },
+  secTileShade: { paddingHorizontal: spacing.md, paddingVertical: 10, backgroundColor: 'rgba(11,26,54,0.72)' },
+  secTileName: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  secTileSum: { fontSize: 12, fontFamily: fonts.ui.semibold, color: '#fff' },
   secRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 64, paddingHorizontal: spacing.md },
   secCount: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   secCountText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.primary },
