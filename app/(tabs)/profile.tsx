@@ -186,13 +186,13 @@ export default function ProfileScreen() {
 
       <Pressable
         accessibilityRole="button"
-        onPress={() => router.push('/claims')}
+        onPress={() => router.push('/salidas')}
         style={({ pressed }) => [styles.adminCard, pressed && { opacity: 0.85 }]}
       >
         <View style={styles.adminCardIcon}>
           <Ionicons name="qr-code-outline" size={19} color={colors.primary} />
         </View>
-        <Text style={styles.adminCardText}>Mis reclamos</Text>
+        <Text style={styles.adminCardText}>Mis salidas</Text>
         <Ionicons name="chevron-forward" size={18} color={colors.muted} />
       </Pressable>
 
