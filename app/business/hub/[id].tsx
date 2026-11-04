@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi, paymentsApi } from '@/api/endpoints';
 import { novedadesApi } from '@/api/novedades';
+import { EmpreSymbol, type EmpreProduct } from '@/components/EmpreSymbol';
 import { Avatar } from '@/components/Avatar';
 import { EmptyState } from '@/components/EmptyState';
 import { GrowthCard } from '@/components/profile/GrowthCard';
@@ -82,16 +83,16 @@ export default function BusinessHubScreen() {
 
         <GrowthCard entityId={entityId} onGo={(t) => (t === 'catalog' ? products() : t === 'offer' ? offers() : t === 'photos' ? photos() : edit())} />
 
-        <Group title="Tu negocio">
+        <Group title="Lo que ven tus clientes">
           <Tile icon="create-outline" title="Datos del negocio" sub="Nombre, descripción, horario, ubicación y contacto" onPress={edit} />
           <Tile icon="cube-outline" title={FEATURES.ledger && copy.kind !== 'service' ? `${copy.noun} e inventario` : copy.noun} sub={FEATURES.ledger && copy.kind !== 'service' ? 'Lo que vendes, su precio y cuántos te quedan' : 'Lo que ofreces y su precio'} onPress={products} />
           <Tile icon="images-outline" title="Fotos y videos" sub={`${b.photos?.length ?? 0} publicadas · súbelas y edítalas aquí`} onPress={photos} />
-          <Tile icon="flash-outline" title="Ofertas" sub="Publica y administra tus promociones" onPress={offers} />
+          <Tile symbol="offers" icon="flash-outline" title="Empre Offers" sub="Publica y administra tus ofertas" onPress={offers} />
         </Group>
 
         {FEATURES.ledger || FEATURES.agenda ? (
-          <Group title="Día a día">
-            {FEATURES.ledger ? <Tile icon="wallet-outline" title="Ventas y gastos" sub="Cómo va el día, fiados y costos" onPress={go({ pathname: '/business/ledger/[id]', params: { id: entityId } })} /> : null}
+          <Group title="Solo para ti">
+            {FEATURES.ledger ? <Tile symbol="finance" icon="wallet-outline" title="Empre Finance" sub="Cómo va el día, fiados y costos" onPress={go({ pathname: '/business/ledger/[id]', params: { id: entityId } })} /> : null}
             {FEATURES.ledger && FEATURES.tabs ? (
               <Tile
                 icon={b.business_profile === 'food' ? 'restaurant-outline' : 'receipt-outline'}
@@ -100,7 +101,7 @@ export default function BusinessHubScreen() {
                 onPress={go({ pathname: '/business/ledger/tabs/[id]', params: { id: entityId } })}
               />
             ) : null}
-            {FEATURES.agenda ? <Tile icon="calendar-outline" title="Agenda de citas" sub="Solicitudes y reservas" onPress={go({ pathname: '/business/agenda/[id]', params: { id: entityId } })} /> : null}
+            {FEATURES.agenda ? <Tile symbol="agenda" icon="calendar-outline" title="Empre Agenda" sub="Solicitudes y reservas" onPress={go({ pathname: '/business/agenda/[id]', params: { id: entityId } })} /> : null}
             <Tile icon="scan-outline" title="Escanear canje" sub="Valida el código de un cliente" onPress={go('/business/scan')} />
           </Group>
         ) : null}
@@ -123,11 +124,11 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function Tile({ icon, title, sub, onPress, dot }: { icon: keyof typeof Ionicons.glyphMap; title: string; sub: string; onPress: () => void; dot?: boolean }) {
+function Tile({ symbol, icon, title, sub, onPress, dot }: { symbol?: EmpreProduct; icon: keyof typeof Ionicons.glyphMap; title: string; sub: string; onPress: () => void; dot?: boolean }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`${title}. ${sub}`} onPress={onPress} style={({ pressed }) => [styles.tile, pressed && { opacity: 0.85 }]}>
       <View style={styles.tileIcon}>
-        <Ionicons name={icon} size={22} color={colors.primary} />
+        {symbol ? <EmpreSymbol product={symbol} size={30} /> : <Ionicons name={icon} size={22} color={colors.ink} />}
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.tileTitle}>{title}</Text>
@@ -149,7 +150,7 @@ const styles = StyleSheet.create({
   trialTitle: { fontSize: 14, fontFamily: fonts.display.bold, color: colors.ink },
   groupTitle: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
   tile: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 64, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
-  tileIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  tileIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.selectedSoft, alignItems: 'center', justifyContent: 'center' },
   tileTitle: { fontSize: 15.5, fontFamily: fonts.ui.bold, color: colors.ink },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
 });
