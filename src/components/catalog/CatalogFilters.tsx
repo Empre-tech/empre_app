@@ -64,7 +64,7 @@ export function CatalogFilters({ sections, total, section, onSection, audiences 
 const styles = StyleSheet.create({
   row: { gap: 6 },
   chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  chipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
   chipEmpty: { opacity: 0.5 },
   chipText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   chipTextOn: { color: colors.selected },

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { sectionLabel, type SectionId } from '@/lib/profileLayout';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { colors, fonts, spacing } from '@/theme';
 
 interface Props {
   sections: SectionId[];
@@ -54,9 +54,9 @@ const styles = StyleSheet.create({
   bar: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.line, marginTop: spacing.md, paddingLeft: spacing.sm },
   back: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line },
   scroll: { flex: 1 },
-  row: { gap: 6, paddingHorizontal: spacing.sm, paddingVertical: spacing.sm },
-  chip: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-  text: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  textOn: { color: '#fff' },
+  row: { gap: 2, paddingHorizontal: spacing.sm },
+  chip: { minHeight: 44, paddingHorizontal: 12, borderBottomWidth: 3, borderBottomColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
+  chipOn: { borderBottomColor: colors.brand },
+  text: { fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  textOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

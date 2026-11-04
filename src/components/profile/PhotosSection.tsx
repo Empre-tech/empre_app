@@ -92,7 +92,7 @@ export function PhotosSection({ photos, color, isOwner, onOpenPhoto, onAll, onNe
 
   return (
     <View style={styles.section}>
-      <SectionHeader title="Fotos" count={photos.length > 0 ? String(photos.length) : null} link={photos.length > 0 ? 'Ver todas' : null} onLink={onAll} />
+      <SectionHeader title="Su trabajo" count={photos.length > 0 ? String(photos.length) : null} link={photos.length > 0 ? 'Ver todas' : null} onLink={onAll} />
       <View style={styles.block}>
         <View onLayout={(e) => setW(e.nativeEvent.layout.width)}>
           {size > 0 && mosaic ? (

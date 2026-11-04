@@ -14,15 +14,17 @@ interface Props {
   /** Color de la categoría del negocio, para el fondo del ícono. */
   color?: string | null;
   onOpen: (item: ServiceItem) => void;
+  /** Siempre en tarjetas, aunque falten fotos (el perfil): sin foto, el ícono de su sección. */
+  cards?: boolean;
 }
 
 /**
  * Los productos que ve el cliente. Si al menos la mitad de lo que se muestra tiene foto, van en tarjetas de dos
  * columnas (la portada grande); si no, en lista con una miniatura. Sin foto, el ícono de su sección.
  */
-export function CatalogItems({ items, iconOf, color, onOpen }: Props) {
+export function CatalogItems({ items, iconOf, color, onOpen, cards }: Props) {
   if (items.length === 0) return null;
-  if (prefersCards(items)) {
+  if (cards || prefersCards(items)) {
     return (
       <View style={styles.grid}>
         {items.map((item) => (
@@ -104,7 +106,10 @@ function CatalogCard({ item, icon, color, onPress }: { item: ServiceItem; icon: 
         <Text style={styles.tileName} numberOfLines={2}>
           {item.name}
         </Text>
-        <Text style={price ? styles.tilePrice : styles.consult}>{price ?? 'Consultar'}</Text>
+        <Text style={price ? styles.tilePrice : styles.consult} numberOfLines={1}>
+          {item.duration_min ? `${item.duration_min} min · ` : ''}
+          {price ?? 'Consultar'}
+        </Text>
       </View>
     </Pressable>
   );
@@ -124,7 +129,7 @@ const styles = StyleSheet.create({
   consult: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: spacing.sm },
   tile: { width: '48.5%', backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
-  tileImg: { aspectRatio: 1, backgroundColor: colors.bg },
+  tileImg: { aspectRatio: 4 / 3, backgroundColor: colors.bg },
   tileIcon: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   outBadge: { position: 'absolute', left: 8, top: 8, paddingHorizontal: 8, height: 22, borderRadius: 11, backgroundColor: '#FDECEC', justifyContent: 'center' },
   outBadgeText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#B3261E' },

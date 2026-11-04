@@ -30,7 +30,7 @@ export function ReviewsSection({ summary, reviews, mine, isOwner, loading, onWri
 
   return (
     <View style={styles.section}>
-      <SectionHeader title="Reseñas" count={summary.count > 0 ? String(summary.count) : null} link={summary.count > 0 ? 'Ver todas' : null} onLink={onAll} />
+      <SectionHeader title="Lo que dicen" count={summary.count > 0 ? String(summary.count) : null} link={summary.count > 0 ? 'Ver todas' : null} onLink={onAll} />
       <View style={styles.card}>
         {mode === 'empty' && !mine ? (
           <View style={styles.empty}>

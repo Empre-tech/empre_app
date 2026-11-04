@@ -171,7 +171,7 @@ export default function ProductScreen() {
                       onPress={() => setSelected(o.id)}
                       style={[styles.option, on && styles.optionOn, o.sold_out && styles.optionOut]}
                     >
-                      <Text style={[styles.optionText, on && { color: '#fff' }, o.sold_out && styles.optionTextOut]}>{o.variant_label ?? o.name}</Text>
+                      <Text style={[styles.optionText, o.sold_out && styles.optionTextOut]}>{o.variant_label ?? o.name}</Text>
                     </Pressable>
                   );
                 })}
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   option: { minWidth: 48, minHeight: 42, paddingHorizontal: 12, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
-  optionOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  optionOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
   optionOut: { backgroundColor: colors.bg, borderColor: colors.bg },
   optionText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   optionTextOut: { color: '#9AA8BA', textDecorationLine: 'line-through' },

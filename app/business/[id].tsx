@@ -41,12 +41,14 @@ import { AskSheet } from '@/components/profile/AskSheet';
 import { CatalogSection } from '@/components/profile/CatalogSection';
 import { OffersFicha } from '@/components/profile/OffersFicha';
 import { PhotosSection } from '@/components/profile/PhotosSection';
-import { ProfileHero, type HeroFact } from '@/components/profile/ProfileHero';
+import { LatestStrip } from '@/components/profile/LatestStrip';
+import { ProfileHero } from '@/components/profile/ProfileHero';
 import { QuickIndex } from '@/components/profile/QuickIndex';
 import { SectionHeader } from '@/components/profile/SectionHeader';
 import { Recommendations } from '@/components/profile/Recommendations';
 import { ReviewsSection } from '@/components/profile/ReviewsSection';
 import { StatusChips } from '@/components/profile/StatusChips';
+import MapView, { Marker } from 'react-native-maps';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { hasLocation } from '@/lib/geo';
 import { formatRelativeTime } from '@/lib/format';
@@ -391,6 +393,7 @@ export default function BusinessScreen() {
   const opening = openingFromHours(business.hours, new Date(nowMs), Boolean(business.is_open_now));
   const statusInfo = statusLine({ has_hours: hasHours, is_open_now: Boolean(business.is_open_now), ...opening });
   const cover = coverSource(business.banner_url, photos[0]);
+  const heroSlides = photos.map((ph, index) => ({ url: ph.url, index, video: ph.content_type?.startsWith('video/') })).filter((s) => !s.video).slice(0, 6);
   const openState: boolean | null = hasHours ? Boolean(business.is_open_now) : null;
   // El catálogo se llama según el negocio (Carta, Servicios, Productos…) y su precio más bajo va en el vistazo.
   const copy = catalogCopy(business.category?.name, business.business_profile);
@@ -449,74 +452,88 @@ export default function BusinessScreen() {
   const openPhotos = () => router.push({ pathname: '/business/photos/[id]', params: { id: business.id } });
   const openReviews = () => router.push({ pathname: '/business/reviews/[id]', params: { id: business.id } });
 
-  // «Información» (3.28): cuándo y cómo llegar. El estado («abierto hasta…») ya está arriba en el vistazo; aquí va el
-  // detalle, con «Llegar» y «Llamar» junto a cada dato, y «Sobre el negocio» al final.
+  // «Cómo es ir»: lo que la gente pregunta antes de ir, solo con lo que el negocio ha dicho.
+  const visit: { key: string; label: string; value: string; icon: keyof typeof Ionicons.glyphMap; onPress?: () => void; a11y?: string }[] = [
+    ...(bizStatus.data?.availability ? [{ key: 'now', label: 'Ahora', value: bizStatus.data.availability, icon: 'pulse-outline' as const }] : []),
+    ...(statusInfo ? [{ key: 'hours', label: 'Horario', value: statusInfo.text, icon: 'time-outline' as const, onPress: hasHours ? () => setShowHours((v) => !v) : undefined, a11y: showHours ? 'Ocultar el horario de la semana' : 'Ver el horario de la semana' }] : []),
+    ...(serviceMode ? [{ key: 'mode', label: 'Cómo atiende', value: serviceMode, icon: 'storefront-outline' as const }] : []),
+    ...(contact ? [{ key: 'phone', label: 'Teléfono', value: contact, icon: 'call-outline' as const, onPress: canCall ? onCall : undefined, a11y: `Llamar al ${contact}` }] : []),
+  ];
   const infoBlock = (
     <View style={styles.infoSection}>
-      <SectionHeader title="Información" />
-      <View style={styles.card}>
-        {statusInfo ? <InfoRow icon="time-outline" text={statusInfo.text} /> : null}
-        {hasHours ? (
-          <View>
-            <Pressable accessibilityRole="button" accessibilityState={{ expanded: showHours }} onPress={() => setShowHours((v) => !v)} style={styles.hoursToggle}>
-              <Text style={styles.linkText}>{showHours ? 'Ocultar horario' : 'Ver horario de la semana'}</Text>
-              <Ionicons name={showHours ? 'chevron-up' : 'chevron-down'} size={16} color={colors.primary} />
+      <SectionHeader title="Cómo es ir" />
+      {visit.length ? (
+        <View style={styles.visitGrid}>
+          {visit.map((v) => (
+            <Pressable key={v.key} accessibilityRole={v.onPress ? 'button' : undefined} accessibilityLabel={v.onPress ? v.a11y : `${v.label}: ${v.value}`} disabled={!v.onPress} onPress={v.onPress} style={({ pressed }) => [styles.visitTile, pressed && { opacity: 0.85 }]}>
+              <Ionicons name={v.icon} size={18} color={colors.ink} />
+              <Text style={styles.visitLabel}>{v.label}</Text>
+              <Text style={styles.visitValue}>{v.value}</Text>
             </Pressable>
-            {showHours ? (
-              <View style={styles.hoursTable}>
-                {[...(business.hours ?? [])]
-                  .sort((a, b) => a.weekday - b.weekday)
-                  .map((h) => (
-                    <View key={h.weekday} style={styles.hoursTableRow}>
-                      <Text style={styles.hoursTableDay}>{WEEKDAY_LABELS[h.weekday]}</Text>
-                      <Text style={styles.hoursTableTime}>{formatHourRow(h)}</Text>
-                    </View>
-                  ))}
+          ))}
+        </View>
+      ) : null}
+      {showHours ? (
+        <View style={[styles.card, styles.hoursTable]}>
+          {[...(business.hours ?? [])]
+            .sort((a, b) => a.weekday - b.weekday)
+            .map((h) => (
+              <View key={h.weekday} style={styles.hoursTableRow}>
+                <Text style={styles.hoursTableDay}>{WEEKDAY_LABELS[h.weekday]}</Text>
+                <Text style={styles.hoursTableTime}>{formatHourRow(h)}</Text>
               </View>
-            ) : null}
-          </View>
-        ) : null}
-        {location ? (
-          <View style={styles.infoLine}>
-            <View style={styles.grow}>
-              <InfoRow icon="location-outline" text={location} />
-            </View>
-            {hasLocation(business) ? (
-              <Pressable accessibilityRole="button" accessibilityLabel="Cómo llegar" onPress={onDirections} style={styles.inlineAction}>
-                <Text style={styles.linkText}>Llegar</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
-        {contact ? (
-          <View style={styles.infoLine}>
-            <View style={styles.grow}>
-              <InfoRow icon="call-outline" text={contact} />
-            </View>
-            {canCall ? (
-              <Pressable accessibilityRole="button" accessibilityLabel={`Llamar al ${contact}`} onPress={onCall} style={styles.inlineAction}>
-                <Text style={styles.linkText}>Llamar</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
-        {serviceMode ? <InfoRow icon="storefront-outline" text={serviceMode} /> : null}
-        {business.description ? (
-          <View style={styles.about}>
-            <Text style={styles.aboutLabel}>Sobre el negocio</Text>
-            <Text style={styles.aboutText} numberOfLines={descriptionExpanded ? undefined : 3}>
-              {business.description}
-            </Text>
-            {descriptionTruncatable ? (
-              <Pressable accessibilityRole="button" onPress={() => setDescriptionExpanded((v) => !v)} style={styles.readMoreHit}>
-                <Text style={styles.readMore}>{descriptionExpanded ? 'Ver menos' : 'Ver más'}</Text>
-              </Pressable>
-            ) : null}
-          </View>
+            ))}
+        </View>
+      ) : null}
+      {!isOwner ? <AskEmpreCard data={askData} onAsk={setAskStart} /> : null}
+    </View>
+  );
+  const aboutBlock = business.description ? (
+    <View style={styles.infoSection}>
+      <SectionHeader title="Quiénes somos" />
+      <View style={styles.card}>
+        <Text style={styles.aboutText} numberOfLines={descriptionExpanded ? undefined : 3}>
+          {business.description}
+        </Text>
+        {descriptionTruncatable ? (
+          <Pressable accessibilityRole="button" onPress={() => setDescriptionExpanded((v) => !v)} style={styles.readMoreHit}>
+            <Text style={styles.readMore}>{descriptionExpanded ? 'Leer menos' : 'Leer más'}</Text>
+          </Pressable>
         ) : null}
       </View>
     </View>
-  );
+  ) : null;
+  const whereBlock = location ? (
+    <View style={styles.infoSection}>
+      <SectionHeader title="Dónde está" />
+      <View style={[styles.card, { padding: 0, overflow: 'hidden' }]}>
+        {hasLocation(business) ? (
+          <View style={styles.miniMap} pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants">
+            <MapView
+              style={StyleSheet.absoluteFill}
+              liteMode
+              scrollEnabled={false}
+              zoomEnabled={false}
+              rotateEnabled={false}
+              pitchEnabled={false}
+              toolbarEnabled={false}
+              initialRegion={{ latitude: business.latitude, longitude: business.longitude, latitudeDelta: 0.004, longitudeDelta: 0.004 }}
+            >
+              <Marker coordinate={{ latitude: business.latitude, longitude: business.longitude }} />
+            </MapView>
+          </View>
+        ) : null}
+        <View style={styles.whereRow}>
+          <Text style={styles.whereText}>{location}</Text>
+          {hasLocation(business) ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Cómo llegar" onPress={onDirections} style={styles.whereGo}>
+              <Text style={styles.whereGoText}>Llegar</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+    </View>
+  ) : null;
 
   const block = (id: BlockId): React.ReactNode => {
     switch (id) {
@@ -524,7 +541,6 @@ export default function BusinessScreen() {
         return (
           <View key={id} onLayout={mark('offers')}>
             <OffersFicha entityId={business.id} isOwner={isOwner} preview initialOfferId={offerParam} />
-            {!isOwner ? <AskEmpreCard data={askData} onAsk={setAskStart} /> : null}
           </View>
         );
       case 'services':
@@ -576,6 +592,21 @@ export default function BusinessScreen() {
             />
           </View>
         );
+      case 'about':
+        return aboutBlock ? <View key={id}>{aboutBlock}</View> : null;
+      case 'where':
+        return whereBlock ? <View key={id}>{whereBlock}</View> : null;
+      case 'latest':
+        return (
+          <View key={id}>
+            <LatestStrip
+              photos={photos}
+              offers={activeOffers.data ?? []}
+              reviews={reviews.data?.data ?? []}
+              onPress={(item) => goTo(item.kind === 'post' ? 'photos' : item.kind === 'offer' ? 'offers' : 'reviews')}
+            />
+          </View>
+        );
       case 'recs':
         return (
           <View key={id} onLayout={(e) => (recsY.current = e.nativeEvent.layout.y)}>
@@ -606,26 +637,10 @@ export default function BusinessScreen() {
     ownerTabs || showIndex ? (
       <View style={styles.sticky} onLayout={(e) => (indexY.current = e.nativeEvent.layout.y)}>
         {ownerTabs}
-        {showIndex ? <QuickIndex sections={secs} active={activeSection} onGo={goTo} catalogNoun={copy.noun} /> : null}
+        {showIndex ? <QuickIndex sections={secs} active={secs.includes(activeSection) ? activeSection : secs[0]} onGo={goTo} catalogNoun={copy.noun} /> : null}
       </View>
     ) : null;
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)'));
-  // Los datos clave bajo la portada (lienzo C1): cuándo, cómo atiende y dónde. Tocar uno baja a «Información».
-  const toInfo = secs.includes('info') ? () => goTo('info') : undefined;
-  const heroFacts: HeroFact[] = [
-    ...(statusInfo ? [{ icon: 'time-outline' as const, main: statusInfo.tone === 'open' ? 'Abierto' : 'Cerrado', sub: statusInfo.text.replace(/^(Abierto|Cerrado)\s*·?\s*/i, '') || undefined, onPress: toInfo, label: statusInfo.text }] : []),
-    ...(serviceMode
-      ? [
-          business.service_mode === 'both'
-            ? { icon: 'bicycle-outline' as const, main: 'Domicilio', sub: 'y en el local', onPress: toInfo, label: serviceMode }
-            : business.service_mode === 'delivery'
-              ? { icon: 'bicycle-outline' as const, main: 'A domicilio', sub: 'sin local', onPress: toInfo, label: serviceMode }
-              : { icon: 'storefront-outline' as const, main: 'En el local', onPress: toInfo, label: serviceMode },
-        ]
-      : []),
-    ...(location ? [{ icon: 'location-outline' as const, main: business.address || location, sub: business.address ? business.city || undefined : undefined, onPress: hasLocation(business) ? onDirections : toInfo, label: `Dirección: ${location}` }] : []),
-  ];
-
   const barSpace = isOwner ? 0 : ACTION_BAR_HEIGHT + insets.bottom;
 
   return (
@@ -644,7 +659,9 @@ export default function BusinessScreen() {
             color={business.category?.color}
             icon={business.category?.icon}
             profileUrl={business.profile_url}
+            tagline={business.tagline}
             cover={cover}
+            slides={heroSlides}
             photosCount={photos.length}
             rating={rating}
             status={statusInfo}
@@ -652,9 +669,10 @@ export default function BusinessScreen() {
             verified={Boolean(business.is_verified)}
             topInset={insets.top}
             onAllPhotos={openPhotos}
-            onOpenCover={cover.kind === 'photo' || cover.kind === 'video' ? () => openViewer(0) : undefined}
+            onOpenSlide={openViewer}
+            onReviews={secs.includes('reviews') ? () => goTo('reviews') : undefined}
+            follow={isOwner ? undefined : { on: isFavorite, busy: favoriting, onToggle: () => void toggleFavorite() }}
             onNearby={openState === false && !isOwner ? () => scrollRef.current?.scrollTo({ y: Math.max(0, bodyY.current + recsY.current - 70), animated: true }) : undefined}
-            facts={heroFacts}
           >
             <StatusChips entityId={business.id} hasHours={hasHours} isOpen={Boolean(business.is_open_now)} extrasOnly />
           </ProfileHero>
@@ -672,16 +690,13 @@ export default function BusinessScreen() {
           name={business.name}
           bottomInset={insets.bottom}
           onMessage={onMessage}
-          onDirections={hasLocation(business) ? onDirections : undefined}
           onCall={canCall ? onCall : undefined}
-          isFavorite={isFavorite}
-          favoriting={favoriting}
-          onToggleFavorite={() => void toggleFavorite()}
+          onBook={FEATURES.agenda && agendaSummary.data?.enabled ? () => askHandlers.onSeeSlots() : undefined}
         />
       ) : null}
       {indexStuck && showIndex ? (
         <View style={[styles.floatIndex, { paddingTop: insets.top }]}>
-          <QuickIndex sections={secs} active={activeSection} onGo={goTo} catalogNoun={copy.noun} onBack={goBack} />
+          <QuickIndex sections={secs} active={secs.includes(activeSection) ? activeSection : secs[0]} onGo={goTo} catalogNoun={copy.noun} onBack={goBack} />
         </View>
       ) : (
         back
@@ -845,15 +860,6 @@ function ViewerVideoSlide({ uri, active }: { uri: string; active: boolean }) {
   );
 }
 
-function InfoRow({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
-  return (
-    <View style={styles.infoRow}>
-      <Ionicons name={icon} size={18} color={colors.muted} />
-      <Text style={styles.infoText}>{text}</Text>
-    </View>
-  );
-}
-
 /** Selector de calificación (1 a 5 estrellas) para el formulario de reseña. */
 function StarPicker({ value, onChange }: { value: number; onChange: (rating: number) => void }) {
   return (
@@ -868,6 +874,15 @@ function StarPicker({ value, onChange }: { value: number; onChange: (rating: num
 }
 
 const styles = StyleSheet.create({
+  visitGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  visitTile: { flexBasis: '47%', flexGrow: 1, gap: 4, padding: spacing.md, minHeight: 92, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  visitLabel: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
+  visitValue: { fontSize: 14, lineHeight: 19, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  miniMap: { height: 140, backgroundColor: colors.selectedSoft },
+  whereRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
+  whereText: { flex: 1, fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.ink },
+  whereGo: { minHeight: 44, paddingHorizontal: spacing.lg, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
+  whereGoText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   screen: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, backgroundColor: colors.bg, padding: spacing.xl },
   muted: { color: colors.muted },
@@ -889,20 +904,14 @@ const styles = StyleSheet.create({
   sticky: { backgroundColor: colors.bg },
   floatIndex: { position: 'absolute', left: 0, right: 0, top: 0, backgroundColor: colors.bg },
   infoSection: { gap: spacing.xs },
-  grow: { flex: 1, minWidth: 0 },
-  about: { gap: 4, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line },
-  aboutLabel: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
   aboutText: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.ink },
-  infoLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  inlineAction: { minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'flex-end' },
-  linkText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primary },
   bodyList: { paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.md },
   previewBar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, marginHorizontal: spacing.md, marginTop: spacing.md, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line },
   previewText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink },
   previewLink: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primary },
   ownerTabs: { flexDirection: 'row', gap: 6, paddingHorizontal: spacing.md, paddingTop: spacing.md },
   ownerTab: { flex: 1, minHeight: 44, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  ownerTabOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  ownerTabOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
   ownerTabText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   ownerTabTextOn: { color: colors.selected },
   infoActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },

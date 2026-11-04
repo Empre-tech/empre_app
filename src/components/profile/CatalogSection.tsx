@@ -7,10 +7,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { catalogApi } from '@/api/catalog';
 import { CatalogFilters } from '@/components/catalog/CatalogFilters';
 import { CatalogItems } from '@/components/catalog/CatalogItems';
-import { FigureTile } from '@/components/figures/Figure';
 import {
   audienceChips,
-  CATALOG_PREVIEW,
   catalogCount,
   freshnessNote,
   itemsInSection,
@@ -26,6 +24,9 @@ import { displayIcon } from '@/lib/mapView';
 import { useNow } from '@/lib/useNow';
 import { colors, fonts, radius, spacing } from '@/theme';
 import { SectionHeader } from './SectionHeader';
+
+/** Cuántos se ven en el perfil: dos filas parejas de tarjetas. */
+const PROFILE_PREVIEW = 4;
 
 interface Props {
   entityId: string;
@@ -77,9 +78,7 @@ export function CatalogSection({ entityId, isOwner, copy, color, icon, onAll }: 
     );
   }
 
-  // «Qué encuentras aquí» (lienzo C1): con 2 secciones o más, cada una es un mosaico con su figura; tocarlo filtra.
-  const grid = chips.length >= 2;
-  const shown = list.slice(0, CATALOG_PREVIEW);
+  const shown = list.slice(0, PROFILE_PREVIEW);
   const note = freshnessNote(items, now);
   const more = list.length > shown.length;
   const audLabel = audiences.find((a) => a.key === audience)?.label.toLocaleLowerCase('es');
@@ -92,33 +91,11 @@ export function CatalogSection({ entityId, isOwner, copy, color, icon, onAll }: 
       <SectionHeader
         title={copy.noun}
         count={catalogCount(copy, items.length)}
-        link={items.length > CATALOG_PREVIEW ? (copy.noun === 'Carta' ? 'Ver la carta' : 'Ver todos') : isOwner ? 'Editar' : null}
-        onLink={items.length > CATALOG_PREVIEW ? () => onAll() : edit}
+        link={items.length > PROFILE_PREVIEW ? (copy.noun === 'Carta' ? 'Ver la carta' : 'Ver todos') : isOwner ? 'Editar' : null}
+        onLink={items.length > PROFILE_PREVIEW ? () => onAll() : edit}
       />
-      {grid ? (
-        <View style={styles.grid} accessibilityRole="tablist">
-          {chips.slice(0, 6).map((c) => {
-            const on = c.section === current;
-            return (
-              <Pressable
-                key={c.section}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: on }}
-                accessibilityLabel={`${c.section}, ${c.count}`}
-                onPress={() => setSection(on ? '' : c.section)}
-                style={({ pressed }) => [styles.cell, pressed && { opacity: 0.75 }]}
-              >
-                <FigureTile name={c.section} fallbackIcon={icons.get(c.section)} size={44} style={[styles.tile, on && styles.tileOn, c.count === 0 && { opacity: 0.45 }]} />
-                <Text style={[styles.cellText, on && styles.cellTextOn]} numberOfLines={1}>
-                  {c.section} <Text style={styles.cellCount}>{c.count}</Text>
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      ) : null}
       <CatalogFilters
-        sections={grid && chips.length <= 6 ? [] : chips}
+        sections={chips.length >= 2 ? chips : []}
         total={forAudience.length}
         section={current}
         onSection={setSection}
@@ -127,7 +104,7 @@ export function CatalogSection({ entityId, isOwner, copy, color, icon, onAll }: 
         onAudience={setAudience}
       />
       {shown.length > 0 ? (
-        <CatalogItems items={shown} iconOf={iconOf} color={color} onOpen={open} />
+        <CatalogItems items={shown} iconOf={iconOf} color={color} onOpen={open} cards />
       ) : (
         <Text style={styles.note}>Nada por aquí con este filtro.</Text>
       )}
@@ -137,20 +114,13 @@ export function CatalogSection({ entityId, isOwner, copy, color, icon, onAll }: 
           <Ionicons name="chevron-forward" size={16} color={colors.ink} />
         </Pressable>
       ) : null}
-      <Text style={styles.note}>{[note, 'toca uno para ver más'].filter(Boolean).join(' · ')}</Text>
+      {note ? <Text style={styles.note}>{note}</Text> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   section: { gap: spacing.sm },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  cell: { width: '31.8%', alignItems: 'center', gap: 4 },
-  tile: { width: '100%', height: 84, borderWidth: 2, borderColor: 'transparent' },
-  tileOn: { borderColor: colors.primary },
-  cellText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink, maxWidth: '100%' },
-  cellTextOn: { textDecorationLine: 'underline' },
-  cellCount: { fontFamily: fonts.ui.bold, color: colors.muted },
   moreBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 46, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   moreText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   note: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },

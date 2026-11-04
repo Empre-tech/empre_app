@@ -119,8 +119,8 @@ export function sections(i: SectionInput): SectionId[] {
   if (i.offers > 0 || i.isOwner) out.push('offers');
   if (i.hasServices) out.push('services');
   if (i.photos > 0 || i.isOwner) out.push('photos');
-  if (i.reviews === undefined || i.reviews > 0 || i.isOwner) out.push('reviews');
   out.push('info');
+  if (i.reviews === undefined || i.reviews > 0 || i.isOwner) out.push('reviews');
   return out;
 }
 
@@ -129,14 +129,14 @@ export function showQuickIndex(list: SectionId[]): boolean {
   return list.length >= 2;
 }
 
-export const SECTION_LABEL: Record<SectionId, string> = { offers: 'Ofertas', services: 'Servicios', photos: 'Fotos', reviews: 'Reseñas', info: 'Info' };
+export const SECTION_LABEL: Record<SectionId, string> = { offers: 'Ofertas', services: 'Servicios', photos: 'Fotos', reviews: 'Reseñas', info: 'Cómo es ir' };
 
 /** El nombre del chip: el catálogo se llama según el negocio («Carta», «Productos»…). */
 export function sectionLabel(id: SectionId, catalogNoun?: string): string {
   return id === 'services' && catalogNoun ? catalogNoun : SECTION_LABEL[id];
 }
 
-export type BlockId = 'offers' | 'services' | 'photos' | 'reviews' | 'info' | 'recs';
+export type BlockId = 'offers' | 'services' | 'photos' | 'reviews' | 'info' | 'recs' | 'about' | 'where' | 'latest';
 
 /**
  * El orden para decidir (3.28, `perfil_integrado.html`): ofertas (como estaban), qué ofrece y a qué precio (catálogo),
@@ -144,7 +144,7 @@ export type BlockId = 'offers' | 'services' | 'photos' | 'reviews' | 'info' | 'r
  * (información). Al final las recomendaciones, también cuando está cerrado. El dueño no ve recomendaciones.
  */
 export function blockOrder(i: { isOwner: boolean }): BlockId[] {
-  const out: BlockId[] = ['offers', 'services', 'photos', 'reviews', 'info'];
+  const out: BlockId[] = ['offers', 'services', 'photos', 'info', 'about', 'reviews', 'where', 'latest'];
   if (!i.isOwner) out.push('recs');
   return out;
 }
