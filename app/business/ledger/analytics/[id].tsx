@@ -156,6 +156,51 @@ function ProfitBars({ series, bucket }: { series: Analytics['series']; bucket: A
   );
 }
 
+const BAND = 0.08;
+
+/** Las ventas frente al periodo anterior y, por días, frente a lo normal de cada día de la semana. */
+function SalesTrend({ a }: { a: Analytics }) {
+  const [width, setWidth] = useState(0);
+  const cur = a.series.map((p) => p.sales);
+  const prev = a.previous_series ?? [];
+  const normal = a.normal?.length === cur.length ? a.normal : null;
+  if (cur.length < 2) return null;
+  const H = 130;
+  const top = Math.max(1, ...cur, ...prev, ...(normal ?? []).map((v) => v * (1 + BAND))) * 1.08;
+  const X = (i: number, n: number) => 5 + (i / Math.max(1, n - 1)) * Math.max(1, width - 10);
+  const Y = (v: number) => H - 6 - (v / top) * (H - 12);
+  const line = (arr: number[]) => arr.map((v, i) => `${i ? 'L' : 'M'}${X(i, arr.length).toFixed(1)} ${Y(v).toFixed(1)}`).join(' ');
+  const band = normal
+    ? `${normal.map((v, i) => `${i ? 'L' : 'M'}${X(i, normal.length).toFixed(1)} ${Y(v * (1 + BAND)).toFixed(1)}`).join(' ')} ${[...normal].reverse().map((v, i) => `L${X(normal.length - 1 - i, normal.length).toFixed(1)} ${Y(v * (1 - BAND)).toFixed(1)}`).join(' ')} Z`
+    : null;
+  const offs = normal ? cur.map((v, i) => (normal[i] > 0 ? Math.round(((v - normal[i]) / normal[i]) * 100) : 0)) : [];
+  const hi = offs.length ? offs.indexOf(Math.max(...offs)) : -1;
+  const lo = offs.length ? offs.indexOf(Math.min(...offs)) : -1;
+  const parts: string[] = [];
+  if (hi >= 0 && offs[hi] > BAND * 100) parts.push(`${dayLong(a.series[hi].start)}: ${offs[hi]} % más de lo normal`);
+  if (lo >= 0 && offs[lo] < -BAND * 100) parts.push(`${dayLong(a.series[lo].start)}: ${-offs[lo]} % menos`);
+  return (
+    <Card title="¿Cómo van las ventas?">
+      <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} accessibilityRole="image" accessibilityLabel={`Ventas: ${formatPesos(a.current.sales_total)}. Periodo anterior: ${formatPesos(a.previous.sales_total)}.`} style={{ height: H }}>
+        {width > 0 ? (
+          <Svg width={width} height={H}>
+            {band ? <Path d={band} fill={colors.selectedSoft} /> : null}
+            {prev.length > 1 ? <Path d={line(prev)} fill="none" stroke="#8796AB" strokeWidth={1.6} strokeDasharray="4 5" /> : null}
+            <Path d={line(cur)} fill="none" stroke={SALES_COLOR} strokeWidth={2.6} strokeLinejoin="round" strokeLinecap="round" />
+            {cur.length <= 31 ? cur.map((v, i) => <Circle key={i} cx={X(i, cur.length)} cy={Y(v)} r={3.5} fill={i === lo && offs[lo] < -BAND * 100 ? colors.warning : i === hi && offs[hi] > BAND * 100 ? colors.ink : SALES_COLOR} />) : null}
+          </Svg>
+        ) : null}
+      </View>
+      <View style={styles.trendLegend}>
+        <Text style={styles.meta}>— Este periodo</Text>
+        {prev.length > 1 ? <Text style={styles.meta}>- - El anterior</Text> : null}
+        {band ? <Text style={styles.meta}>▒ Lo normal</Text> : null}
+      </View>
+      {parts.length ? <Text style={styles.heroLine}>{parts.join(' · ')}</Text> : null}
+    </Card>
+  );
+}
+
 /** Cómo pagaron: una pila de tarjetas; la que se toca pasa al frente y abajo se ve su plata. */
 function PayStack({ parts }: { parts: { key: string; label: string; icon: keyof typeof Ionicons.glyphMap; value: number; bg: string }[] }) {
   const total = Math.max(1, parts.reduce((s, x) => s + x.value, 0));
@@ -251,6 +296,8 @@ function Summary({ a, entityId }: { a: Analytics; entityId: string }) {
           <Kpi label="Ticket promedio" value={formatPesos(c.avg_ticket)} delta={deltaLabel(c.avg_ticket, p.avg_ticket)} />
         </View>
       </View>
+
+      <SalesTrend a={a} />
 
       <View style={styles.pair}>
         {a.receivable > 0 ? (
@@ -524,6 +571,7 @@ const styles = StyleSheet.create({
   spendBar: { flexDirection: 'row', gap: 3, height: 22, marginVertical: spacing.sm },
   spendRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 22 },
   spendName: { flex: 1, minWidth: 0, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
+  trendLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   bestLine: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   payCard: { position: 'absolute', height: 96, flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line },
   payName: { flex: 1, fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },

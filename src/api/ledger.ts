@@ -206,6 +206,10 @@ export interface Analytics {
   previous: PeriodTotals;
   bucket: 'day' | 'week' | 'month';
   series: { start: string; sales: number; expenses: number }[];
+  /** Las ventas del periodo con que se compara, barra por barra. */
+  previous_series?: number[];
+  /** Por día: lo que se suele vender ese día de la semana. No viene sin historia suficiente. */
+  normal?: number[];
   /** heat[día][franja]: lunes = 0; mañana, mediodía, tarde, noche. */
   heat: number[][];
   products: ProductStat[];
