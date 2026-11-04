@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError } from '@/api/client';
@@ -9,6 +9,7 @@ import { Button } from '@/components/Button';
 import { AmountField, Chip, MethodChips, PartyPicker } from '@/components/ledger/parts';
 import { categoryLabel, formatPesos } from '@/lib/ledger';
 import { speechAvailable, startDictation } from '@/ledger/speech';
+import { liveParse } from '@/lib/voiceLive';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const TYPE_LABEL: Record<VoiceAction['type'], string> = { sale: 'Venta', expense: 'Gasto', payment: 'Abono', stock: 'Inventario', tab_add: 'A la cuenta', tab_pay: 'Cobrar cuenta' };
@@ -87,6 +88,11 @@ export function VoiceSheet({
   const [done, setDone] = useState(false);
   const stopRef = useRef<(() => void) | null>(null);
   const canSpeak = speechAvailable();
+  const [tipsOpen, setTipsOpen] = useState(false);
+  const [savedList, setSavedList] = useState<VoiceAction[]>([]);
+  const items = useQuery({ queryKey: ['ledger', entityId, 'items'], queryFn: () => ledgerApi.items(entityId), enabled: visible && Boolean(entityId), staleTime: 60_000 });
+  // Lo que va entendiendo mientras hablas: reglas sobre tu catálogo, al instante. Lo que se registra lo revisas después.
+  const live = useMemo(() => liveParse(text, (items.data ?? []).map((i) => ({ name: i.name, price: i.price }))), [text, items.data]);
 
   useEffect(() => {
     if (visible) {
@@ -150,8 +156,8 @@ export function VoiceSheet({
     try {
       await ledgerApi.voiceConfirm(entityId, result.draft_id, actions);
       void qc.invalidateQueries({ queryKey: ['ledger', entityId] });
+      setSavedList(actions);
       setDone(true);
-      setTimeout(onClose, 1100);
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -176,11 +182,42 @@ export function VoiceSheet({
               <View style={styles.doneIcon}>
                 <Ionicons name="checkmark" size={32} color="#fff" />
               </View>
-              <Text style={styles.title}>Registrado</Text>
+              <Text style={styles.title} accessibilityLiveRegion="polite">
+                Registrado en Empre Finance
+              </Text>
+              <View style={styles.destList}>
+                {savedList.map((a) => (
+                  <View key={a.client_id} style={styles.destRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.destTitle}>{destinationOf(a)}</Text>
+                      <Text style={styles.hint} numberOfLines={1}>
+                        {a.note || a.party_name || a.item_name || TYPE_LABEL[a.type]}
+                      </Text>
+                    </View>
+                    {a.amount > 0 ? <Text style={styles.destTitle}>{formatPesos(a.amount)}</Text> : null}
+                  </View>
+                ))}
+              </View>
+              <View style={{ alignSelf: 'stretch' }}>
+                <Button title="Listo" onPress={onClose} />
+              </View>
             </View>
           ) : !result || actions.length === 0 ? (
             <>
-              <Text style={styles.title}>Dicta lo que pasó</Text>
+              <View style={styles.headRow}>
+                <Text style={styles.title}>Dicta lo que pasó</Text>
+                <Pressable accessibilityRole="button" accessibilityState={{ expanded: tipsOpen }} onPress={() => setTipsOpen((v) => !v)} style={styles.tipsBtn}>
+                  <Text style={styles.tipsLink}>Cómo dictar</Text>
+                </Pressable>
+              </View>
+              {tipsOpen ? (
+                <View style={styles.tips}>
+                  <Text style={styles.hint}>1. Di qué vendiste y cuántos, con el nombre de tu catálogo.</Text>
+                  <Text style={styles.hint}>2. Di cómo te pagaron: efectivo, Nequi, tarjeta o «fiado a Julián».</Text>
+                  <Text style={styles.hint}>3. Si te equivocas, sigue: «dos cortes, no, tres cortes».</Text>
+                  <Text style={styles.hint}>4. Para un gasto, empieza por «gasté»: «gasté doce mil en gas».</Text>
+                </View>
+              ) : null}
               <Text style={styles.hint}>Por ejemplo: «vendí dos empanadas por seis mil, le fié veinte mil a Don Jorge, y se acabó el jugo».</Text>
               <TextInput
                 value={text}
@@ -204,6 +241,39 @@ export function VoiceSheet({
                 </View>
               </View>
               {listening ? <Text style={styles.listening}>Escuchando…</Text> : null}
+              {live.words.length ? (
+                <View style={styles.live} accessibilityLiveRegion="polite">
+                  <Text style={styles.liveWords}>
+                    {live.words.map((w, i) => (
+                      <Text key={i} style={w.known ? styles.liveKnown : undefined}>
+                        {`${w.text} `}
+                      </Text>
+                    ))}
+                  </Text>
+                  <Text style={styles.liveLabel}>LO QUE VOY ENTENDIENDO</Text>
+                  {live.expense ? (
+                    <View style={styles.liveRow}>
+                      <Text style={styles.liveText}>Gasto{live.expense.what ? ` · ${live.expense.what}` : ''}</Text>
+                      {live.expense.amount ? <Text style={styles.liveText}>{formatPesos(live.expense.amount)}</Text> : null}
+                    </View>
+                  ) : null}
+                  {live.lines.map((l) => (
+                    <View key={l.name} style={styles.liveRow}>
+                      <Text style={styles.liveText} numberOfLines={1}>
+                        {l.qty} × {l.name}
+                        {l.fixed ? ' · corregido' : ''}
+                      </Text>
+                      {l.price ? <Text style={styles.liveText}>{formatPesos(l.price * l.qty)}</Text> : null}
+                    </View>
+                  ))}
+                  {!live.expense && live.lines.length === 0 ? <Text style={styles.hint}>Aún nada de tu catálogo. Toca Interpretar y lo revisamos.</Text> : null}
+                  {live.method || live.total > 0 ? (
+                    <Text style={styles.liveFoot}>
+                      {[live.method ? `${live.method}${live.fiadoTo ? ` a ${live.fiadoTo}` : ''}` : null, live.total > 0 ? `Total ${formatPesos(live.total)}` : null].filter(Boolean).join(' · ')}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
             </>
           ) : (
             <>
@@ -227,6 +297,15 @@ export function VoiceSheet({
       </KeyboardAvoidingView>
     </Modal>
   );
+}
+
+/** A dónde fue cada cosa dictada. */
+function destinationOf(a: VoiceAction): string {
+  if (a.type === 'expense') return 'Gastos';
+  if (a.type === 'payment') return 'Abonos';
+  if (a.type === 'stock') return 'Inventario';
+  if (a.type === 'tab_add' || a.type === 'tab_pay') return 'Cuentas abiertas';
+  return a.method === 'credit' ? 'Te deben' : 'Ventas de hoy';
 }
 
 const PARTY_WARN = /¿A quién|¿Quién|¿A qué proveedor|Hay varios|No encontré/;
@@ -408,6 +487,20 @@ function ActionCard({ entityId, action: a, problem, onChange, onRemove }: { enti
 }
 
 const styles = StyleSheet.create({
+  headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  tipsBtn: { minHeight: 44, justifyContent: 'center' },
+  tipsLink: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink, textDecorationLine: 'underline' },
+  tips: { gap: 4, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.selectedSoft },
+  live: { gap: 6, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  liveWords: { fontSize: 15, lineHeight: 22, fontFamily: fonts.ui.medium, color: colors.muted },
+  liveKnown: { fontFamily: fonts.ui.extrabold, color: colors.ink },
+  liveLabel: { marginTop: 2, fontSize: 11, letterSpacing: 0.8, fontFamily: fonts.ui.extrabold, color: colors.muted },
+  liveRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
+  liveText: { flexShrink: 1, fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
+  liveFoot: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  destList: { alignSelf: 'stretch', gap: spacing.sm },
+  destRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs, borderTopWidth: 1, borderTopColor: colors.line },
+  destTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   backdrop: { flex: 1, backgroundColor: 'rgba(22,35,58,0.45)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.bg, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.lg, gap: spacing.md },
   title: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
