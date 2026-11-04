@@ -107,7 +107,7 @@ export function BusinessSheet({ entity, isMine, qrOfferId, onClose, onDirections
           </Pressable>
         </View>
 
-        <Pressable accessibilityRole="button" accessibilityLabel={`${entity.name}. ${sub}. ${rating.text}. Entrar al negocio`} onPress={() => onProfile()} style={styles.identity}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${entity.name}. ${sub}.${entity.review_count == null ? '' : ` ${rating.text}.`} Entrar al negocio`} onPress={() => onProfile()} style={styles.identity}>
           <View style={[styles.photo, { backgroundColor: cat.fg }]}>
             {photo ? (
               <Image accessible={false} source={{ uri: photo }} style={styles.photoImage} contentFit="cover" />
@@ -121,7 +121,7 @@ export function BusinessSheet({ entity, isMine, qrOfferId, onClose, onDirections
           <Text style={styles.sub} numberOfLines={1}>
             {sub}
           </Text>
-          <Text style={[styles.rating, !rating.hasScore && styles.ratingMuted]}>{rating.text}</Text>
+          {entity.review_count == null ? null : <Text style={[styles.rating, !rating.hasScore && styles.ratingMuted]}>{rating.text}</Text>}
         </Pressable>
 
         {quote ? (

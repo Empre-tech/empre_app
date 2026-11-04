@@ -5,6 +5,8 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollVie
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { askApi, type AskFilters, type AskResponse } from '@/api/ask';
 import { Avatar } from '@/components/Avatar';
+import { BusinessCardModal } from '@/components/explore/BusinessCardModal';
+import type { WithDistance } from '@/components/explore/FeaturedCard';
 import { Figure } from '@/components/figures/Figure';
 import { speechAvailable, startDictation } from '@/ledger/speech';
 import { filterChips, howFar, QUICK_ASKS, suggestionAction } from '@/lib/askChips';
@@ -33,6 +35,7 @@ export default function AskScreen() {
   const coords = useCoords();
   const params = useLocalSearchParams<{ q?: string; voice?: string }>();
   const [text, setText] = useState('');
+  const [card, setCard] = useState<AskResponse['businesses'][number] | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [listening, setListening] = useState(false);
   const stopRef = useRef<(() => void) | null>(null);
@@ -161,13 +164,23 @@ export default function AskScreen() {
                 <Text style={styles.emText}>Buscando cerca de ti…</Text>
               </View>
             ) : (
-              <Answer answer={t.answer} active={t.id === last?.id} onOpen={(id) => router.push({ pathname: '/business/[id]', params: { id, src: 'ask' } })}
+              <Answer answer={t.answer} active={t.id === last?.id} onOpen={setCard}
                 onItem={(entityId, itemId) => router.push({ pathname: '/business/product', params: { entityId, itemId } })}
                 onSuggestion={(s) => onSuggestion(s, t.answer!)} onRemove={toggle} />
             )}
           </View>
         ))}
       </ScrollView>
+
+      <BusinessCardModal
+        entity={
+          card
+            ? ({ ...card, distance_meters: card.distance_km * 1000, distanceKm: card.distance_km } as unknown as WithDistance)
+            : null
+        }
+        onClose={() => setCard(null)}
+        origin="ask"
+      />
 
       <View style={[styles.composer, { paddingBottom: insets.bottom + spacing.sm }]}>
         <TextInput
@@ -204,7 +217,7 @@ function Answer({
 }: {
   answer: AskResponse;
   active: boolean;
-  onOpen: (id: string) => void;
+  onOpen: (b: AskResponse['businesses'][number]) => void;
   onItem: (entityId: string, itemId: string) => void;
   onSuggestion: (label: string) => void;
   onRemove: (key: keyof AskFilters) => void;
@@ -219,7 +232,7 @@ function Answer({
         <View style={styles.chips}>
           {chips.map((c) => (
             <Pressable key={c.key} accessibilityRole="button" accessibilityLabel={`Quitar ${c.label}`} onPress={() => onRemove(c.key)} style={[styles.chip, styles.chipOn]}>
-              <Text style={[styles.chipText, { color: '#fff' }]}>{c.label} ×</Text>
+              <Text style={[styles.chipText, { color: colors.selected }]}>{c.label} ×</Text>
             </Pressable>
           ))}
         </View>
@@ -227,7 +240,7 @@ function Answer({
       {answer.businesses.length ? (
         <View style={styles.card}>
           {answer.businesses.slice(0, 6).map((b, i) => (
-            <Pressable key={b.id} accessibilityRole="button" onPress={() => onOpen(b.id)} style={[styles.row, i > 0 && styles.rowLine]}>
+            <Pressable key={b.id} accessibilityRole="button" onPress={() => onOpen(b)} style={[styles.row, i > 0 && styles.rowLine]}>
               <Avatar uri={b.profile_url} name={b.name} size={52} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.rowName} numberOfLines={1}>
@@ -288,7 +301,7 @@ const styles = StyleSheet.create({
   emText: { fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink, lineHeight: 21 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line, justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
   chipText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   card: { borderRadius: 20, backgroundColor: colors.surface, paddingHorizontal: spacing.md, ...cardShadow },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md },

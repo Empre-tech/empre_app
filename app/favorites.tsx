@@ -1,3 +1,5 @@
+import { BusinessCardModal } from '@/components/explore/BusinessCardModal';
+import type { WithDistance } from '@/components/explore/FeaturedCard';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -15,6 +17,7 @@ import { categoryColor } from '@/lib/categoryColor';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 export default function FavoritesScreen() {
+  const [card, setCard] = useState<EntityMap | null>(null);
   const { status } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -69,10 +72,11 @@ export default function FavoritesScreen() {
           contentContainerStyle={styles.list}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           renderItem={({ item }) => (
-            <FavoriteRow entity={item} onPress={() => router.push({ pathname: '/business/[id]', params: { id: item.id } })} />
+            <FavoriteRow entity={item} onPress={() => setCard(item)} />
           )}
         />
       )}
+      <BusinessCardModal entity={card ? ({ ...card, distanceKm: null, has_active_offer: false, distance_meters: 0 } as unknown as WithDistance) : null} onClose={() => setCard(null)} origin="favorites" />
     </View>
   );
 }
