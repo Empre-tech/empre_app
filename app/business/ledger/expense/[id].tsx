@@ -139,10 +139,8 @@ export default function NewExpenseScreen() {
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <SubScreenHeader title="Nuevo gasto" />
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-        <AmountField value={amount} onChange={setAmount} autoFocus />
-
         <View style={{ gap: spacing.sm }}>
-          <Text style={styles.label}>¿En qué fue?</Text>
+          <Text style={styles.label}>1 · ¿En qué fue?</Text>
           <View style={styles.wrap}>
             {EXPENSE_CATEGORIES.map((c) => (
               <Chip key={c.key} label={c.label} selected={category === c.key} onPress={() => setCategory(c.key)} />
@@ -191,7 +189,12 @@ export default function NewExpenseScreen() {
         ) : null}
 
         <View style={{ gap: spacing.sm }}>
-          <Text style={styles.label}>¿Cómo se pagó?</Text>
+          <Text style={styles.label}>2 · Cuánto</Text>
+          <AmountField value={amount} onChange={setAmount} />
+        </View>
+
+        <View style={{ gap: spacing.sm }}>
+          <Text style={styles.label}>3 · Cómo se pagó</Text>
           <MethodChips value={method} onChange={setMethod} expense />
         </View>
 

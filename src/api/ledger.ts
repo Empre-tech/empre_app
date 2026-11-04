@@ -21,6 +21,8 @@ export interface Party {
 export interface PartyBalance extends Party {
   /** Cliente: lo que debe. Proveedor: lo que le debemos. */
   balance: number;
+  /** Desde cuándo está pendiente. */
+  oldest_at?: string;
 }
 
 export interface SaleLine {

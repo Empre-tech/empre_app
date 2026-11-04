@@ -201,11 +201,17 @@ export default function NewSaleScreen() {
             {toast}
           </Text>
         ) : null}
-        <AmountField value={total} onChange={(n) => setManual(n)} autoFocus />
+        <View style={styles.stepsBar} accessible accessibilityLabel="Pasos: qué, cuánto, cómo se pagó y comprobante">
+          {['Qué', 'Cuánto', 'Cómo se pagó', 'Comprobante'].map((s, i) => (
+            <Text key={s} style={[styles.stepWord, ((i === 0 && lines.length > 0) || (i === 1 && total > 0) || (i === 2 && total > 0 && !waiting)) && styles.stepWordOn]}>
+              {s}
+            </Text>
+          ))}
+        </View>
 
         {sellable.length > 0 ? (
           <View style={{ gap: spacing.sm }}>
-            <Text style={styles.label}>Toca lo que vendiste</Text>
+            <Text style={styles.label}>1 · Toca lo que vendiste</Text>
             <View style={styles.wrap}>
               {sellable.map((i) => (
                 <Chip key={i.id} label={`${(qty[i.id] ?? 0) > 0 ? `${qty[i.id]} × ` : ''}${i.name} · ${formatPesos(i.price ?? 0)}`} selected={(qty[i.id] ?? 0) > 0} onPress={() => bump(i, 1)} />
@@ -229,7 +235,12 @@ export default function NewSaleScreen() {
         ) : null}
 
         <View style={{ gap: spacing.sm }}>
-          <Text style={styles.label}>¿Cómo pagó?</Text>
+          <Text style={styles.label}>{sellable.length > 0 ? '2 · Cuánto' : '1 · Cuánto'}</Text>
+          <AmountField key={sellable.length > 0 ? 'c' : 'n'} value={total} onChange={(n) => setManual(n)} autoFocus={!items.isLoading && sellable.length === 0} />
+        </View>
+
+        <View style={{ gap: spacing.sm }}>
+          <Text style={styles.label}>{sellable.length > 0 ? '3 · Cómo se pagó' : '2 · Cómo se pagó'}</Text>
           <View style={styles.segment}>
             {HOWS.map((h) => {
               const on = how === h.key;
@@ -335,6 +346,9 @@ export default function NewSaleScreen() {
 }
 
 const styles = StyleSheet.create({
+  stepsBar: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  stepWord: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
+  stepWordOn: { color: colors.verified, fontFamily: fonts.ui.extrabold },
   screen: { flex: 1, backgroundColor: colors.bg },
   body: { padding: spacing.lg, gap: spacing.xl },
   label: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
