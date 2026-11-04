@@ -1,15 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { categoriesApi } from '@/api/endpoints';
 import { discoveryApi } from '@/api/offers';
-import { Avatar } from '@/components/Avatar';
+import { Image } from 'expo-image';
+import { BusinessCardModal } from '@/components/explore/BusinessCardModal';
+import type { WithDistance } from '@/components/explore/FeaturedCard';
 import { FigureTile } from '@/components/figures/Figure';
 import { QUICK_ASKS } from '@/lib/askChips';
+import { categoryColor } from '@/lib/categoryColor';
 import { formatDistance } from '@/lib/format';
+import { resolveImageUrl } from '@/lib/image';
 import { useCoords } from '@/lib/useCoords';
 import { cardShadow, colors, fonts, radius, spacing } from '@/theme';
 
@@ -30,7 +34,8 @@ export default function HomeScreen() {
     queryFn: () => discoveryApi.discover({ ...(coords ? { lat: coords.latitude, long: coords.longitude } : {}), limit: 12 }),
     staleTime: 60_000,
   });
-  const openNear = useMemo(() => (open.data?.items ?? []).filter((b) => b.is_open_now).slice(0, 3), [open.data]);
+  const [card, setCard] = useState<WithDistance | null>(null);
+  const openNear = useMemo(() => (open.data?.items ?? []).filter((b) => b.is_open_now).slice(0, 6), [open.data]);
 
   const time = new Date().toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
   const ask = (q?: string, voice = false) => router.push({ pathname: '/ask', params: { ...(q ? { q } : {}), ...(voice ? { voice: '1' } : {}) } });
@@ -55,7 +60,7 @@ export default function HomeScreen() {
           <Text style={styles.searchText}>Escribe o habla…</Text>
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Buscar hablando" onPress={() => ask(undefined, true)} style={styles.mic}>
-          <Ionicons name="mic" size={20} color="#fff" />
+          <Ionicons name="mic" size={20} color={colors.ink} />
         </Pressable>
       </View>
 
@@ -96,33 +101,39 @@ export default function HomeScreen() {
               <Text style={styles.secLink}>Ver todos</Text>
             </Pressable>
           </View>
-          <View style={styles.card}>
-            {openNear.map((b, i) => (
-              <Pressable
-                key={b.id}
-                accessibilityRole="button"
-                onPress={() => router.push({ pathname: '/business/[id]', params: { id: b.id, src: 'home' } })}
-                style={[styles.row, i > 0 && styles.rowLine]}
-              >
-                <Avatar uri={b.profile_url} name={b.name} size={52} />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.rowName} numberOfLines={1}>
-                    {b.name}
-                  </Text>
-                  <Text style={styles.rowSub} numberOfLines={1}>
-                    {[b.subcategory || b.category_name, formatDistance(b.distance_meters / 1000), b.closes_at ? `hasta las ${b.closes_at}` : 'abierto']
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </Text>
-                </View>
-                {b.has_active_offer ? (
-                  <View style={styles.offer}>
-                    <Text style={styles.offerText}>Oferta</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.railIn}>
+            {openNear.map((b) => {
+              const photo = b.profile_url ? resolveImageUrl(b.profile_url) : null;
+              const sub = [b.subcategory || b.category_name, formatDistance(b.distance_meters / 1000)].filter(Boolean).join(' · ');
+              return (
+                <Pressable
+                  key={b.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${b.name}. ${sub}. ${b.closes_at ? `Hasta las ${b.closes_at}` : 'Abierto'}${b.has_active_offer ? '. Tiene oferta' : ''}`}
+                  onPress={() => setCard({ ...b, distanceKm: b.distance_meters / 1000 })}
+                  style={({ pressed }) => [styles.nearCard, pressed && styles.pressed]}
+                >
+                  <View style={[styles.nearPhoto, { backgroundColor: categoryColor(b.category_color).fg }]}>
+                    {photo ? <Image accessible={false} source={{ uri: photo }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Ionicons name={(b.category_icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap} size={30} color="#fff" />}
+                    {b.has_active_offer ? (
+                      <View style={styles.offer}>
+                        <Text style={styles.offerText}>Oferta</Text>
+                      </View>
+                    ) : null}
                   </View>
-                ) : null}
-              </Pressable>
-            ))}
-          </View>
+                  <View style={styles.nearBody}>
+                    <Text style={styles.rowName} numberOfLines={1}>
+                      {b.name}
+                    </Text>
+                    <Text style={styles.rowSub} numberOfLines={1}>
+                      {sub}
+                    </Text>
+                    <Text style={styles.nearUntil}>{b.closes_at ? `Hasta las ${b.closes_at}` : 'Abierto'}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         </>
       ) : null}
 
@@ -134,6 +145,7 @@ export default function HomeScreen() {
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.muted} />
       </Pressable>
+      <BusinessCardModal entity={card} onClose={() => setCard(null)} origin="home" />
     </ScrollView>
   );
 }
@@ -160,7 +172,7 @@ const styles = StyleSheet.create({
   },
   searchTap: { flex: 1, height: '100%', justifyContent: 'center' },
   searchText: { fontSize: 16, fontFamily: fonts.ui.bold, color: colors.muted },
-  mic: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  mic: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.selectedSoft, alignItems: 'center', justifyContent: 'center' },
   quick: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.lg },
   quickChip: { minHeight: 44, paddingHorizontal: 16, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line, justifyContent: 'center' },
   quickText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
@@ -172,12 +184,15 @@ const styles = StyleSheet.create({
   cell: { width: '31.5%', alignItems: 'center', gap: 6 },
   tile: { width: '100%', aspectRatio: 1.15 },
   cellText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink, textAlign: 'center' },
-  card: { borderRadius: 20, backgroundColor: colors.surface, paddingHorizontal: spacing.md, ...cardShadow },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md },
-  rowLine: { borderTopWidth: 1, borderTopColor: colors.line },
-  rowName: { fontSize: 15.5, fontFamily: fonts.display.bold, color: colors.ink },
+  rail: { marginHorizontal: -spacing.lg },
+  railIn: { gap: 10, paddingHorizontal: spacing.lg, paddingVertical: 2 },
+  nearCard: { width: 156, borderRadius: radius.md + 2, overflow: 'hidden', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  nearPhoto: { height: 104, alignItems: 'center', justifyContent: 'center' },
+  nearBody: { padding: 10, gap: 2 },
+  nearUntil: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.verified },
+  rowName: { fontSize: 14, fontFamily: fonts.display.bold, color: colors.ink },
   rowSub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted, marginTop: 2 },
-  offer: { paddingHorizontal: 9, height: 24, borderRadius: 12, backgroundColor: colors.accent, justifyContent: 'center' },
+  offer: { position: 'absolute', left: 8, top: 8, paddingHorizontal: 9, height: 24, borderRadius: 12, backgroundColor: colors.accent, justifyContent: 'center' },
   offerText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   mapCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.xl, padding: spacing.lg, borderRadius: 20, backgroundColor: colors.surface, ...cardShadow },
   mapTitle: { fontSize: 15.5, fontFamily: fonts.display.bold, color: colors.ink },

@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Button } from '@/components/Button';
 import { categoryColor } from '@/lib/categoryColor';
 import { formatDistance } from '@/lib/format';
 import { resolveImageUrl } from '@/lib/image';
@@ -11,7 +10,7 @@ import { statusLine, swipeEnters, walkText } from '@/lib/placeCard';
 import { featuredRating } from '@/lib/reviewSnippet';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { colors, fonts, radius, shadow, spacing } from '@/theme';
+import { colors, fonts, radius, spacing } from '@/theme';
 import type { WithDistance } from './FeaturedCard';
 
 interface Props {
@@ -21,6 +20,8 @@ interface Props {
   qrOfferId: string | null;
   onClose: () => void;
   onDirections: () => void;
+  /** Abre el chat con el negocio. */
+  onMessage?: () => void;
   /** Abre el perfil; con una oferta, la ficha del perfil se abre en ella. */
   onProfile: (offerId?: string) => void;
   onScan?: () => void;
@@ -32,17 +33,16 @@ interface Props {
 }
 
 /**
- * Lo que se ve al tocar un negocio en el mapa (maqueta `ficha_negocio_mapa.html`, forma A con el deslizar de B):
- * foto, nombre, categoría con distancia y minutos a pie; nota (desde 3 reseñas) y estado con hora; una frase de
- * reseña; la franja naranja de la oferta (si tiene); y el cierre «¿Quieres saber más?» con «Entrar al negocio» y
- * «Cómo llegar». Ni cantidades de ofertas ni precios. La cabecera, la franja y deslizar la ficha hacia arriba
- * también abren el perfil.
+ * La tarjeta del negocio al tocarlo en el mapa (lienzo «Empre», página 8): estado arriba, foto grande, nombre,
+ * categoría con distancia y nota; una frase de reseña; la franja de la oferta (si tiene); «Escribir» y «Cómo llegar»;
+ * y debajo asoma la franja roja con la acción principal. Ni cantidades de ofertas ni precios. La foto, el nombre y
+ * deslizar la tarjeta hacia arriba también abren el perfil.
  */
-export function BusinessSheet({ entity, isMine, qrOfferId, onClose, onDirections, onProfile, onScan, onPublishOffer, review, onHeight }: Props) {
+export function BusinessSheet({ entity, isMine, qrOfferId, onClose, onDirections, onMessage, onProfile, onScan, onPublishOffer, review, onHeight }: Props) {
   const distance = formatDistance(entity.distanceKm);
   const walk = walkText(entity.distanceKm);
-  const sub = [entity.subcategory || entity.category_name, distance, walk].filter(Boolean).join(' · ');
   const rating = featuredRating(entity.avg_rating, entity.review_count);
+  const sub = [entity.subcategory || entity.category_name, distance, walk].filter(Boolean).join(' · ');
   const status = statusLine(entity);
   const cat = categoryColor(entity.category_color);
   const photo = entity.profile_url ? resolveImageUrl(entity.profile_url) : null;
@@ -96,88 +96,86 @@ export function BusinessSheet({ entity, isMine, qrOfferId, onClose, onDirections
       {...pan.panHandlers}
       style={[styles.sheet, { opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }] }]}
     >
-      <View style={styles.grab}>
-        <View style={styles.handle} />
-      </View>
-      <View style={styles.head}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${entity.name}. ${sub}. Entrar al negocio`}
-          onPress={() => onProfile()}
-          style={styles.headTap}
-        >
+      <View style={styles.card}>
+        <View style={styles.statusRow}>
+          {status ? <View style={[styles.statusDot, { backgroundColor: status.tone === 'open' ? colors.verified : colors.warning }]} /> : null}
+          <Text style={styles.statusText} numberOfLines={1}>
+            {status?.text ?? ''}
+          </Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} hitSlop={4} style={styles.close}>
+            <Ionicons name="close" size={18} color={colors.ink} />
+          </Pressable>
+        </View>
+
+        <Pressable accessibilityRole="button" accessibilityLabel={`${entity.name}. ${sub}. ${rating.text}. Entrar al negocio`} onPress={() => onProfile()} style={styles.identity}>
           <View style={[styles.photo, { backgroundColor: cat.fg }]}>
             {photo ? (
               <Image accessible={false} source={{ uri: photo }} style={styles.photoImage} contentFit="cover" />
             ) : (
-              <Ionicons name={(entity.category_icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap} size={26} color="#fff" />
+              <Ionicons name={(entity.category_icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap} size={44} color="#fff" />
             )}
           </View>
-          <View style={styles.headText}>
-            <Text style={styles.name} numberOfLines={1}>
-              {entity.name}
-            </Text>
-            <Text style={styles.sub} numberOfLines={1}>
-              {sub}
-            </Text>
-          </View>
+          <Text style={styles.name} numberOfLines={1}>
+            {entity.name}
+          </Text>
+          <Text style={styles.sub} numberOfLines={1}>
+            {sub}
+          </Text>
+          <Text style={[styles.rating, !rating.hasScore && styles.ratingMuted]}>{rating.text}</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} hitSlop={4} style={styles.close}>
-          <Ionicons name="close" size={18} color={colors.ink} />
-        </Pressable>
-      </View>
 
-      <View style={styles.facts}>
-        <View style={[styles.fact, rating.hasScore && styles.factRating]}>
-          <Text style={[styles.factText, rating.hasScore ? styles.factRatingText : styles.factMuted]}>{rating.text}</Text>
-        </View>
-        {status ? (
-          <View style={[styles.fact, status.tone === 'open' ? styles.factOpen : styles.factClosed]}>
-            <Text style={[styles.factText, status.tone === 'open' ? styles.factOpenText : styles.factClosedText]}>{status.text}</Text>
+        {quote ? (
+          <View style={styles.review} accessible accessibilityLabel={review ? `Reseña: ${review.quote}. ${review.byline}` : quote}>
+            <Text style={styles.quote} numberOfLines={2}>
+              {review ? review.quote : quote}
+            </Text>
           </View>
         ) : null}
-      </View>
 
-      {quote ? (
-        <View style={styles.review} accessible accessibilityLabel={review ? `Reseña: ${review.quote}. ${review.byline}` : quote}>
-          <Text style={styles.quote} numberOfLines={2}>
-            {review ? review.quote : quote}
-          </Text>
-          {review ? (
-            <Text style={styles.byline} numberOfLines={1}>
-              {review.byline}
-            </Text>
-          ) : null}
+        {qrOfferId ? (
+          <Strip kind="mine" title="Tu QR está activo" line="Toca para verlo en el perfil" onPress={() => onProfile(qrOfferId)} />
+        ) : live ? (
+          <Strip
+            kind={hot ? 'hot' : 'calm'}
+            title={isMine ? `Tu oferta: ${live.title}` : live.title}
+            line={timeLeftLabel(msLeft)}
+            fraction={Math.min(1, Math.max(0, msLeft / Math.max(1, new Date(live.ends_at).getTime() - new Date(live.starts_at).getTime())))}
+            onPress={() => onProfile(live.id)}
+          />
+        ) : null}
+
+        <View style={styles.actions}>
+          {isMine ? (
+            onScan ? <SoftButton icon="qr-code-outline" label="Escanear canje" onPress={onScan} /> : null
+          ) : (
+            <>
+              {onMessage ? <SoftButton icon="chatbubble-outline" label="Escribir" onPress={onMessage} /> : null}
+              <SoftButton icon="navigate-outline" label="Cómo llegar" onPress={onDirections} />
+            </>
+          )}
         </View>
-      ) : null}
-
-      {qrOfferId ? (
-        <Strip kind="mine" title="Tu QR está activo" line="Toca para verlo en el perfil" onPress={() => onProfile(qrOfferId)} />
-      ) : live ? (
-        <Strip
-          kind={hot ? 'hot' : 'calm'}
-          title={isMine ? `Tu oferta: ${live.title}` : live.title}
-          line={timeLeftLabel(msLeft)}
-          fraction={Math.min(1, Math.max(0, msLeft / Math.max(1, new Date(live.ends_at).getTime() - new Date(live.starts_at).getTime())))}
-          onPress={() => onProfile(live.id)}
-        />
-      ) : null}
-
-      {isMine ? null : <Text style={styles.more}>¿Quieres saber más? Entra al negocio.</Text>}
-      <View style={styles.actions}>
-        {isMine ? (
-          <>
-            {onPublishOffer ? <Button title="Publicar oferta" onPress={onPublishOffer} style={styles.main} /> : null}
-            {onScan ? <Button title="Escanear canje" variant="secondary" onPress={onScan} style={styles.action} /> : null}
-          </>
-        ) : (
-          <>
-            <Button title="Entrar al negocio ›" onPress={() => onProfile()} style={styles.main} />
-            <Button title="Cómo llegar" variant="secondary" onPress={onDirections} style={styles.action} />
-          </>
-        )}
       </View>
+
+      {isMine && !onPublishOffer ? null : (
+        <Pressable
+          accessibilityRole="button"
+          onPress={isMine ? onPublishOffer : () => onProfile()}
+          style={({ pressed }) => [styles.band, pressed && { backgroundColor: colors.primaryPressed }]}
+        >
+          <Text style={styles.bandText}>{isMine ? 'Publicar oferta' : 'Entrar al negocio'}</Text>
+          <Ionicons name="arrow-forward" size={17} color="#fff" />
+        </Pressable>
+      )}
     </Animated.View>
+  );
+}
+
+function SoftButton({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.soft, pressed && styles.pressed]}>
+      <Ionicons name={icon} size={16} color={colors.ink} />
+      <Text style={styles.softText}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -221,7 +219,7 @@ function Strip({ kind, title, line, fraction, onPress }: { kind: 'calm' | 'hot' 
           {line}
         </Text>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={hot ? colors.ink : mine ? '#1D6B3D' : colors.accentInk} />
+      <Ionicons name="chevron-forward" size={18} color={hot ? colors.ink : mine ? colors.verified : colors.accentInk} />
       {typeof fraction === 'number' ? (
         <View style={styles.bar}>
           <View style={[styles.barFill, hot && styles.barFillHot, { width: `${Math.round(fraction * 100)}%` }]} />
@@ -231,50 +229,42 @@ function Strip({ kind, title, line, fraction, onPress }: { kind: 'calm' | 'hot' 
   );
 }
 
+const PHOTO = 148;
+
 const styles = StyleSheet.create({
-  sheet: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
+  sheet: { position: 'absolute', left: spacing.lg, right: spacing.lg, bottom: spacing.lg },
+  card: {
+    zIndex: 1,
     backgroundColor: colors.surface,
-    borderTopLeftRadius: radius.lg + 2,
-    borderTopRightRadius: radius.lg + 2,
-    paddingTop: spacing.sm,
+    borderRadius: radius.lg + 4,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingHorizontal: spacing.lg,
     paddingBottom: spacing.lg,
     gap: spacing.md,
-    ...shadow,
+    shadowColor: colors.ink,
+    shadowOpacity: 0.2,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
   },
-  // Zona de agarre para deslizar hacia arriba: el asa visible es pequeña, la zona de toque es mayor.
-  grab: { minHeight: 24, justifyContent: 'center', marginTop: -spacing.xs },
-  handle: { width: 38, height: 5, borderRadius: 3, backgroundColor: colors.line, alignSelf: 'center' },
-  head: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg },
-  headTap: { flex: 1, minWidth: 0, minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  photo: { width: 56, height: 56, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  photoImage: { width: 56, height: 56 },
-  headText: { flex: 1, minWidth: 0 },
-  name: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
-  sub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
-  close: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
-  facts: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: spacing.lg },
-  fact: { minHeight: 28, paddingHorizontal: 10, borderRadius: radius.pill, backgroundColor: colors.bg, justifyContent: 'center' },
-  factText: { fontSize: 12, fontFamily: fonts.ui.bold },
-  factMuted: { color: colors.muted },
-  factRating: { backgroundColor: '#FFF4DC' },
-  factRatingText: { color: '#7A4B00' },
-  factOpen: { backgroundColor: '#E3F4EA' },
-  factOpenText: { color: '#1D6B3D' },
-  factClosed: { backgroundColor: '#FBE4E4' },
-  factClosedText: { color: '#8E2A2A' },
-  review: { marginHorizontal: spacing.lg, paddingLeft: 10, borderLeftWidth: 3, borderLeftColor: colors.accent, gap: 2 },
-  quote: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, fontStyle: 'italic', color: colors.ink },
-  byline: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.muted },
-  more: { paddingHorizontal: spacing.lg, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44, marginTop: spacing.xs },
+  statusDot: { width: 9, height: 9, borderRadius: 5 },
+  statusText: { flex: 1, minWidth: 0, fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted },
+  close: { width: 44, height: 44, marginRight: -10, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  identity: { alignItems: 'center', gap: 3 },
+  photo: { width: PHOTO, height: PHOTO, marginBottom: spacing.sm, borderRadius: radius.lg + 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  photoImage: { width: PHOTO, height: PHOTO },
+  name: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
+  sub: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted, textAlign: 'center' },
+  rating: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink, textAlign: 'center' },
+  ratingMuted: { color: colors.muted, fontFamily: fonts.ui.semibold },
+  review: { alignItems: 'center' },
+  quote: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, fontStyle: 'italic', color: colors.muted, textAlign: 'center' },
   strip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    marginHorizontal: spacing.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
     borderRadius: radius.md,
@@ -285,7 +275,7 @@ const styles = StyleSheet.create({
   },
   // Última llamada: ámbar sólido con texto en tinta (6,1:1).
   stripHot: { backgroundColor: colors.accent },
-  stripMine: { backgroundColor: '#E3F4EA', borderColor: colors.success },
+  stripMine: { backgroundColor: colors.verifiedSoft, borderColor: colors.success },
   bolt: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   boltHot: { backgroundColor: colors.ink },
   boltMine: { backgroundColor: colors.success },
@@ -293,12 +283,32 @@ const styles = StyleSheet.create({
   stripTitle: { fontSize: 14.5, fontFamily: fonts.display.bold, color: colors.ink },
   stripLine: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.accentInk },
   stripLineHot: { color: colors.ink },
-  stripLineMine: { color: '#1D6B3D' },
+  stripLineMine: { color: colors.verified },
   bar: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, backgroundColor: 'rgba(22,35,58,0.1)' },
   barFill: { height: 3, backgroundColor: colors.accentDark },
   barFillHot: { backgroundColor: colors.ink },
   pressed: { opacity: 0.85 },
-  actions: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg },
-  main: { flex: 1.4, paddingHorizontal: spacing.sm, minHeight: 46 },
-  action: { flex: 1, paddingHorizontal: spacing.sm, minHeight: 46 },
+  actions: { flexDirection: 'row', gap: spacing.sm },
+  soft: { flex: 1, minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  softText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  // La franja asoma por debajo de la tarjeta: es la acción principal.
+  band: {
+    marginTop: -18,
+    marginHorizontal: spacing.md,
+    paddingTop: 18,
+    minHeight: 66,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    borderBottomLeftRadius: radius.lg,
+    borderBottomRightRadius: radius.lg,
+    backgroundColor: colors.primary,
+    shadowColor: colors.brand,
+    shadowOpacity: 0.32,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 6,
+  },
+  bandText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#fff' },
 });

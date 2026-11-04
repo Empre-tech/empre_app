@@ -1233,6 +1233,14 @@ export default function MapScreen() {
                 track('directions_tapped', selectedEntity.id, { origin: 'map' });
                 directionsTo(selectedEntity.latitude, selectedEntity.longitude);
               }}
+              onMessage={() => {
+                if (authStatus !== 'signedIn') {
+                  router.push('/(auth)/login');
+                  return;
+                }
+                track('contact_started', selectedEntity.id);
+                router.push({ pathname: '/chat/[entityId]', params: { entityId: selectedEntity.id, name: selectedEntity.name, avatar: selectedEntity.profile_url } });
+              }}
               onProfile={(offerId) =>
                 router.push({ pathname: '/business/[id]', params: offerId ? { id: selectedEntity.id, offer: offerId } : { id: selectedEntity.id } })
               }
@@ -1611,7 +1619,7 @@ const styles = StyleSheet.create({
   topBar: { position: 'absolute', top: 0, left: 0, right: 0, gap: spacing.sm, paddingHorizontal: spacing.md },
   topRows: { gap: spacing.sm },
   content: { flex: 1, position: 'relative' },
-  mapWrap: { flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#E8EEF6' },
+  mapWrap: { flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#EEF2F7' },
   map: { flex: 1 },
   mapStartupLoading: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
