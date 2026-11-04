@@ -67,3 +67,10 @@ export function verificationLabel(status: 'pending' | 'verified' | 'rejected'): 
       return 'En revisión';
   }
 }
+
+/** A pie, en lo que la gente piensa: «5 min a pie» hasta 20 minutos (80 m por minuto); más lejos, la distancia. */
+export function onFootOrDistance(km: number | null | undefined): string | null {
+  if (km === null || km === undefined) return null;
+  const minutes = Math.max(1, Math.ceil((km * 1000) / 80));
+  return minutes <= 20 ? `${minutes} min a pie` : formatDistance(km);
+}

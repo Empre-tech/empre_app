@@ -57,7 +57,7 @@ import { snippetLines } from '@/lib/reviewSnippet';
 import { effectiveClaimStatus } from '@/lib/claims';
 import { boxAround, EXTRAS_MAX, ZONE_FICHA_MAX, openLine, pickExtras, reasonPill, relatedFrom, SEARCH_NEAR_KM, sectionsInView, sheetHeader, snippetIdsToFetch, type SearchScope } from '@/lib/discover';
 import type { ReviewSnippetData } from '@/lib/reviewSnippet';
-import { formatDistance } from '@/lib/format';
+import { onFootOrDistance } from '@/lib/format';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { useEventCallback } from '@/lib/useEventCallback';
@@ -75,6 +75,9 @@ import { MAP_STYLE } from '@/lib/mapStyle';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
 
 /** Opciones del filtro "cerca de mí". `null` = sin límite de distancia. */
+// La distancia en lo que la gente piensa: minutos caminando, a 80 m por minuto.
+const WALK_LIMITS = [3, 5, 10].map((min) => ({ min, km: (min * 80) / 1000 }));
+
 const RADIUS_OPTIONS: { label: string; km: number | null }[] = [
   { label: 'Cualquier distancia', km: null },
   { label: 'Menos de 1 km', km: 1 },
@@ -723,7 +726,8 @@ export default function MapScreen() {
   const selectedCategory = (categories.data ?? []).find((c) => c.id === categoryId) ?? null;
   const selectedGroup = groups.find((g) => g.id === groupId) ?? null;
   const selectedSubcategory = (selectedCategory?.subcategories ?? []).find((s) => s.id === subcategoryId) ?? null;
-  const radiusLabel = radiusKm ? `< ${radiusKm} km` : null;
+  const walkPick = WALK_LIMITS.find((w) => w.km === radiusKm);
+  const radiusLabel = radiusKm ? (walkPick ? `A ${walkPick.min} min a pie` : `< ${radiusKm} km`) : null;
 
   // Fila de contexto (F12): zona, alcance y filtros activos, cada uno con su ✕.
   const contextFilters: { id: FilterId; label: string }[] = [];
@@ -809,7 +813,7 @@ export default function MapScreen() {
     color: categoryColor(e.category_color),
     icon: displayIcon(e.category_icon),
     open: e.has_hours ? e.is_open_now : null,
-    distance: formatDistance(e.distanceKm),
+    distance: onFootOrDistance(e.distanceKm),
     sub: e.subcategory || e.category_name,
     line,
     pill: e.has_active_offer && e.active_offer ? reasonPill({ kind: 'offer', ends_at: e.active_offer.ends_at }, now) : null,
@@ -832,7 +836,7 @@ export default function MapScreen() {
     icon: displayIcon(it.category_icon),
     open: it.is_open_now,
     // La distancia se calcula aquí (Descubre se guarda por área, no por tu posición).
-    distance: formatDistance(reference ? distanceKm(reference, it) : it.distance_meters > 0 ? it.distance_meters / 1000 : null),
+    distance: onFootOrDistance(reference ? distanceKm(reference, it) : it.distance_meters > 0 ? it.distance_meters / 1000 : null),
     sub: it.subcategory || it.category_name,
     line: sectionId === 'open' ? openLine(it.closes_at) : it.tagline || undefined,
     pill: reasonPill(it.reason, now),
@@ -978,7 +982,7 @@ export default function MapScreen() {
           ),
         }
       : null;
-  const youDistance = youKm !== null ? formatDistance(youKm) : null;
+  const youDistance = youKm !== null ? onFootOrDistance(youKm) : null;
   const [legendOpen, setLegendOpen] = useState(false);
 
   // Guía de la primera vez (3 pasos). Sale sola una vez; desde Perfil se puede volver a ver (?guide=1).
@@ -1078,7 +1082,7 @@ export default function MapScreen() {
       items: searching
         ? items.map((e) => ({
             ...toModel(e),
-            nearChip: closestIds.has(e.id) ? formatDistance(e.distanceKm) : null,
+            nearChip: closestIds.has(e.id) ? onFootOrDistance(e.distanceKm) : null,
             far: isFarResult(e.distanceKm === null ? null : e.distanceKm * 1000, hasNearResults),
           }))
         : [],
@@ -1283,6 +1287,29 @@ export default function MapScreen() {
             </View>
           </View>
 
+          {tall || selectedEntity || searching || !userCoords ? null : (
+            <View style={styles.walkRow} accessibilityLabel="Hasta dónde caminar">
+              <Ionicons name="walk-outline" size={16} color={colors.ink} />
+              {WALK_LIMITS.map((w) => {
+                const on = radiusKm === w.km;
+                return (
+                  <Pressable
+                    key={w.min}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    accessibilityLabel={`Hasta ${w.min} minutos a pie`}
+                    onPress={() => {
+                      setRadiusKm(on ? null : w.km);
+                      if (!on) focusRadius(userCoords, w.km);
+                    }}
+                    style={[styles.walkChip, on && styles.walkChipOn]}
+                  >
+                    <Text style={styles.walkText}>{w.min} min</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
           {tall || selectedEntity ? null : searching ? (
             <ContextRow
               chips={contextRow}
@@ -1625,6 +1652,10 @@ const styles = StyleSheet.create({
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   filterScroll: { flexGrow: 0, flexShrink: 0 },
   filterScrollRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingRight: spacing.md },
+  walkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.xs, paddingHorizontal: spacing.sm },
+  walkChip: { minHeight: 36, minWidth: 44, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
+  walkChipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
+  walkText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   chipActive: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
   chipText: { fontSize: 14, fontWeight: '600', fontFamily: fonts.ui.semibold, color: colors.ink },
   chipTextActive: { color: colors.selected },
