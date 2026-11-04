@@ -1,33 +1,29 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { askApi, type AskFilters, type AskResponse } from '@/api/ask';
+import { categoriesApi } from '@/api/endpoints';
 import { Avatar } from '@/components/Avatar';
 import { BusinessCardModal } from '@/components/explore/BusinessCardModal';
 import type { WithDistance } from '@/components/explore/FeaturedCard';
-import { Figure } from '@/components/figures/Figure';
 import { speechAvailable, startDictation } from '@/ledger/speech';
 import { filterChips, howFar, QUICK_ASKS, suggestionAction } from '@/lib/askChips';
 import { formatPesos } from '@/lib/catalog';
+import { addRecent, loadRecents, saveRecents } from '@/lib/searchRecents';
 import { useCoords } from '@/lib/useCoords';
-import { cardShadow, colors, fonts, radius, spacing } from '@/theme';
+import { colors, fonts, radius, spacing } from '@/theme';
 
 const NO_FILTERS: AskFilters = { open_now: false, with_offer: false, delivery: false, cheapest: false };
 
-interface Turn {
-  id: number;
-  question: string;
-  filters: AskFilters;
-  answer?: AskResponse;
-  error?: string;
-}
+const plain = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 /**
- * «Pregúntale a Empre» (lienzo B2–B4, B11, B12): el cliente escribe o dice lo que necesita y la respuesta son
- * negocios reales cerca, con lo que coincide de lo que venden y su precio. Las condiciones se apilan con un toque
- * (abierto, con oferta, a domicilio, lo más barato) y se quitan igual. «Verlos en el mapa» abre el mapa con la búsqueda.
+ * La búsqueda de Finder (tableros «Escribiendo» y «Resultados que entienden»). Arriba, el buscador. Sin escribir, lo
+ * reciente; escribiendo, lo que coincide. Al buscar: lo entendido como condiciones que se quitan con un toque y los
+ * negocios reales, con lo que coincide de lo que venden y su precio.
  */
 export default function AskScreen() {
   const router = useRouter();
@@ -35,47 +31,62 @@ export default function AskScreen() {
   const coords = useCoords();
   const params = useLocalSearchParams<{ q?: string; voice?: string }>();
   const [text, setText] = useState('');
+  const [editing, setEditing] = useState(true);
+  const [question, setQuestion] = useState('');
+  const [filters, setFilters] = useState<AskFilters>(NO_FILTERS);
+  const [answer, setAnswer] = useState<AskResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [card, setCard] = useState<AskResponse['businesses'][number] | null>(null);
-  const [turns, setTurns] = useState<Turn[]>([]);
+  const [recents, setRecents] = useState<string[]>([]);
   const [listening, setListening] = useState(false);
   const stopRef = useRef<(() => void) | null>(null);
-  const scroll = useRef<ScrollView>(null);
   const seq = useRef(0);
   const started = useRef(false);
 
-  const run = async (question: string, filters: AskFilters) => {
-    const q = question.trim();
-    if (!q) return;
+  const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 10 * 60_000 });
+
+  const run = async (q: string, nextFilters: AskFilters) => {
+    const clean = q.trim();
+    if (!clean) return;
     const id = ++seq.current;
-    setTurns((prev) => [...prev, { id, question: q, filters }]);
+    setText(clean);
+    setEditing(false);
+    setQuestion(clean);
+    setFilters(nextFilters);
+    setLoading(true);
+    setError(null);
+    setRecents((list) => addRecent(list, clean));
     try {
-      const answer = await askApi.ask({
-        q,
+      const res = await askApi.ask({
+        q: clean,
         ...(coords ? { lat: coords.latitude, long: coords.longitude } : {}),
-        open: filters.open_now,
-        offer: filters.with_offer,
-        delivery: filters.delivery,
-        cheap: filters.cheapest,
+        open: nextFilters.open_now,
+        offer: nextFilters.with_offer,
+        delivery: nextFilters.delivery,
+        cheap: nextFilters.cheapest,
       });
-      setTurns((prev) => prev.map((t) => (t.id === id ? { ...t, answer } : t)));
+      if (id !== seq.current) return;
+      setAnswer(res);
+      setFilters(res.filters ?? nextFilters);
     } catch {
-      setTurns((prev) => prev.map((t) => (t.id === id ? { ...t, error: 'No pudimos buscar ahora. Revisa tu conexión e inténtalo de nuevo.' } : t)));
+      if (id === seq.current) setError('No pudimos buscar ahora. Revisa tu conexión e inténtalo de nuevo.');
+    } finally {
+      if (id === seq.current) setLoading(false);
     }
-    setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 100);
   };
 
-  const last = turns[turns.length - 1];
-  const lastFilters = last?.answer?.filters ?? last?.filters ?? NO_FILTERS;
+  const toggle = (key: keyof AskFilters) => void run(question, { ...filters, [key]: !filters[key] });
 
-  const send = (q = text) => {
+  const clear = () => {
+    seq.current += 1;
     setText('');
-    void run(q, NO_FILTERS);
-  };
-
-  // Rehacer la última búsqueda con una condición más o una menos.
-  const toggle = (key: keyof AskFilters) => {
-    if (!last) return;
-    void run(last.answer?.terms || last.question, { ...lastFilters, [key]: !lastFilters[key] });
+    setQuestion('');
+    setAnswer(null);
+    setError(null);
+    setLoading(false);
+    setFilters(NO_FILTERS);
+    setEditing(true);
   };
 
   const listen = async () => {
@@ -90,7 +101,7 @@ export default function AskScreen() {
           setText(t);
           if (isFinal && t.trim()) {
             setListening(false);
-            send(t);
+            void run(t, NO_FILTERS);
           }
         },
         onEnd: () => setListening(false),
@@ -102,6 +113,7 @@ export default function AskScreen() {
   };
 
   useEffect(() => {
+    void loadRecents().then((saved) => setRecents((now) => (now.length ? now : saved)));
     if (started.current) return;
     started.current = true;
     if (typeof params.q === 'string' && params.q.trim()) void run(params.q, NO_FILTERS);
@@ -111,13 +123,19 @@ export default function AskScreen() {
 
   useEffect(() => () => stopRef.current?.(), []);
 
-  const onSuggestion = (label: string, answer: AskResponse) => {
+  const onSuggestion = (label: string, res: AskResponse) => {
     const a = suggestionAction(label);
     if (a.kind === 'filter') toggle(a.filter);
-    else if (a.kind === 'map') router.push({ pathname: '/map', params: { q: answer.terms } });
+    else if (a.kind === 'map') router.push({ pathname: '/map', params: { q: res.terms } });
     else if (a.kind === 'categories') router.push('/categories');
-    else send(a.text);
+    else void run(a.text, NO_FILTERS);
   };
+
+  const typed = plain(text.trim());
+  const showResults = !editing && (loading || Boolean(answer) || Boolean(error));
+  const catHits = typed ? (categories.data ?? []).filter((c) => plain(c.name).includes(typed)).slice(0, 5) : [];
+  const recentHits = typed ? recents.filter((r) => plain(r).includes(typed) && plain(r) !== typed).slice(0, 3) : recents;
+  const chips = filterChips(filters);
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -125,195 +143,253 @@ export default function AskScreen() {
         <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))} style={styles.round}>
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
-        <View style={styles.spark}>
-          <Ionicons name="sparkles" size={17} color={colors.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Pregúntale a Empre</Text>
-          <Text style={styles.sub}>Te contesto con negocios reales cerca</Text>
+        <View style={styles.searchBox}>
+          <Ionicons name="search" size={18} color={colors.muted} />
+          <TextInput
+            value={text}
+            onChangeText={(t) => {
+              setText(t);
+              setEditing(true);
+            }}
+            onFocus={() => setEditing(true)}
+            placeholder={listening ? 'Te escucho…' : '¿Qué necesitas?'}
+            placeholderTextColor={colors.muted}
+            style={styles.input}
+            returnKeyType="search"
+            onSubmitEditing={() => void run(text, NO_FILTERS)}
+            maxLength={200}
+            autoCorrect={false}
+            accessibilityLabel="Buscar un negocio, un servicio o lo que necesites"
+            autoFocus={params.voice !== '1' && !params.q}
+          />
+          {text ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Borrar la búsqueda" onPress={clear} hitSlop={8} style={styles.iconBtn}>
+              <Ionicons name="close-circle" size={20} color={colors.muted} />
+            </Pressable>
+          ) : (
+            <Pressable accessibilityRole="button" accessibilityLabel={listening ? 'Dejar de escuchar' : 'Buscar hablando'} onPress={() => void listen()} hitSlop={8} style={styles.iconBtn}>
+              <Ionicons name={listening ? 'stop' : 'mic'} size={20} color={listening ? colors.primary : colors.ink} />
+            </Pressable>
+          )}
         </View>
       </View>
 
-      <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={styles.thread} keyboardShouldPersistTaps="handled">
-        {turns.length === 0 ? (
-          <View style={{ gap: spacing.md }}>
-            <Text style={styles.hint}>Escribe o di lo que necesitas: «almuerzo barato cerca», «una droguería abierta», «arreglar el celular».</Text>
-            <View style={styles.chips}>
-              {QUICK_ASKS.map((q) => (
-                <Pressable key={q} accessibilityRole="button" onPress={() => send(q)} style={styles.chip}>
-                  <Text style={styles.chipText}>{q}</Text>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + spacing.xl }]} keyboardShouldPersistTaps="handled">
+        {!showResults ? (
+          <>
+            {typed ? (
+              <Pressable accessibilityRole="button" onPress={() => void run(text, NO_FILTERS)} style={({ pressed }) => [styles.searchRow, pressed && styles.pressed]}>
+                <Ionicons name="search" size={18} color={colors.ink} />
+                <Text style={styles.searchRowText} numberOfLines={1}>
+                  Buscar «{text.trim()}»
+                </Text>
+              </Pressable>
+            ) : null}
+            {catHits.length ? (
+              <View style={styles.group}>
+                <Text style={styles.eyebrow}>CATEGORÍAS</Text>
+                <View style={styles.card}>
+                  {catHits.map((c, i) => (
+                    <Pressable key={c.id} accessibilityRole="button" onPress={() => void run(c.name, NO_FILTERS)} style={({ pressed }) => [styles.simpleRow, i > 0 && styles.rowLine, pressed && styles.pressed]}>
+                      <Text style={styles.simpleText}>{c.name}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+            {recentHits.length ? (
+              <View style={styles.group}>
+                <View style={styles.groupHead}>
+                  <Text style={styles.eyebrow}>RECIENTES</Text>
+                  {!typed ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => {
+                        setRecents([]);
+                        saveRecents([]);
+                      }}
+                      hitSlop={8}
+                    >
+                      <Text style={styles.link}>Borrar</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+                <View style={styles.card}>
+                  {recentHits.map((r, i) => (
+                    <Pressable key={r} accessibilityRole="button" onPress={() => void run(r, NO_FILTERS)} style={({ pressed }) => [styles.simpleRow, i > 0 && styles.rowLine, pressed && styles.pressed]}>
+                      <Ionicons name="time-outline" size={17} color={colors.muted} />
+                      <Text style={styles.simpleText} numberOfLines={1}>
+                        {r}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+            {!typed ? (
+              <View style={styles.group}>
+                <Text style={styles.hint}>Escribe como lo dirías: «corrientazo», «motilarme». También puedes decirlo con el micrófono.</Text>
+                <View style={styles.chips}>
+                  {QUICK_ASKS.map((q) => (
+                    <Pressable key={q} accessibilityRole="button" onPress={() => void run(q, NO_FILTERS)} style={styles.chip}>
+                      <Text style={styles.chipText}>{q}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <View style={styles.group}>
+              <Text style={styles.eyebrow}>ENTENDÍ ESTO · TOCA PARA QUITAR</Text>
+              <View style={styles.chips}>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Quitar ${answer?.terms || question} y buscar otra cosa`} onPress={clear} style={[styles.chip, styles.chipOn]}>
+                  <Text style={styles.chipText}>{answer?.terms || question} ×</Text>
                 </Pressable>
-              ))}
+                {chips.map((c) => (
+                  <Pressable key={c.key} accessibilityRole="button" accessibilityLabel={`Quitar ${c.label}`} onPress={() => toggle(c.key)} style={[styles.chip, styles.chipOn]}>
+                    <Text style={styles.chipText}>{c.label} ×</Text>
+                  </Pressable>
+                ))}
+              </View>
+              {answer?.suggestions.some((s) => suggestionAction(s).kind !== 'map') ? (
+                <View style={styles.chips}>
+                  {answer.suggestions.filter((s) => suggestionAction(s).kind !== 'map').map((s) => (
+                    <Pressable key={s} accessibilityRole="button" onPress={() => onSuggestion(s, answer)} style={styles.chip}>
+                      <Text style={styles.chipText}>{s}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
             </View>
-          </View>
-        ) : null}
 
-        {turns.map((t) => (
-          <View key={t.id} style={{ gap: spacing.sm }}>
-            <View style={styles.me}>
-              <Text style={styles.meText}>{t.question}</Text>
-            </View>
-            {filterChips(t.filters).length ? <Text style={styles.with}>Con: {filterChips(t.filters).map((c) => c.label).join(', ')}</Text> : null}
-            {t.error ? (
-              <View style={styles.em}>
-                <Text style={styles.emText}>{t.error}</Text>
-              </View>
-            ) : !t.answer ? (
-              <View style={[styles.em, { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }]}>
+            {loading ? (
+              <View style={styles.loading} accessibilityLiveRegion="polite">
                 <ActivityIndicator color={colors.primary} />
-                <Text style={styles.emText}>Buscando cerca de ti…</Text>
+                <Text style={styles.hint}>Buscando cerca de ti…</Text>
               </View>
-            ) : (
-              <Answer answer={t.answer} active={t.id === last?.id} onOpen={setCard}
-                onItem={(entityId, itemId) => router.push({ pathname: '/business/product', params: { entityId, itemId } })}
-                onSuggestion={(s) => onSuggestion(s, t.answer!)} onRemove={toggle} />
-            )}
-          </View>
-        ))}
+            ) : error ? (
+              <View style={styles.group} accessibilityLiveRegion="polite">
+                <Text style={styles.hint}>{error}</Text>
+                <Pressable accessibilityRole="button" onPress={() => void run(question, filters)} style={styles.chip}>
+                  <Text style={styles.chipText}>Reintentar</Text>
+                </Pressable>
+              </View>
+            ) : answer ? (
+              <>
+                {answer.widened ? (
+                  <View style={styles.relaxed}>
+                    <Ionicons name="information-circle-outline" size={18} color={colors.ink} />
+                    <Text style={styles.relaxedText}>No había nada muy cerca, así que busqué más lejos.</Text>
+                  </View>
+                ) : null}
+                {answer.businesses.length ? (
+                  <>
+                    <Text style={styles.count} accessibilityLiveRegion="polite">
+                      {answer.businesses.length === 1 ? '1 negocio' : `${answer.businesses.length} negocios`}
+                    </Text>
+                    {answer.businesses.map((b) => (
+                      <Pressable key={b.id} accessibilityRole="button" onPress={() => setCard(b)} style={({ pressed }) => [styles.result, pressed && styles.pressed]}>
+                        <Avatar uri={b.profile_url} name={b.name} size={56} />
+                        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                          <View style={styles.nameRow}>
+                            <Text style={styles.resultName} numberOfLines={1}>
+                              {b.name}
+                            </Text>
+                            {b.has_active_offer ? (
+                              <View style={styles.offer}>
+                                <Text style={styles.offerText}>Oferta</Text>
+                              </View>
+                            ) : null}
+                          </View>
+                          <Text style={styles.resultSub} numberOfLines={1}>
+                            {[b.category_name, howFar(b.minutes, b.distance_km), b.delivery ? 'domicilio' : null].filter(Boolean).join(' · ')}
+                          </Text>
+                          {b.item ? (
+                            <Pressable accessibilityRole="link" onPress={() => router.push({ pathname: '/business/product', params: { entityId: b.id, itemId: b.item!.id } })} hitSlop={6}>
+                              <Text style={styles.why} numberOfLines={1}>
+                                {b.item.name}
+                                {b.item.price != null ? ` · ${b.item.price_from ? 'desde ' : ''}${formatPesos(b.item.price)}` : ''}
+                              </Text>
+                            </Pressable>
+                          ) : null}
+                          {b.has_hours ? (
+                            <View style={styles.statusRow}>
+                              <View style={[styles.dot, { backgroundColor: b.is_open_now ? colors.verified : '#8796AB' }]} />
+                              <Text style={styles.statusText}>{b.is_open_now ? 'Abierto' : 'Cerrado'}</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                      </Pressable>
+                    ))}
+                    <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/map', params: { q: answer.terms || question } })} style={styles.mapBtn}>
+                      <Ionicons name="map-outline" size={18} color={colors.ink} />
+                      <Text style={styles.chipText}>Verlos en el mapa</Text>
+                    </Pressable>
+                    <Text style={styles.note}>Nadie paga por salir arriba.</Text>
+                  </>
+                ) : (
+                  <View style={styles.none}>
+                    <Text style={styles.noneTitle}>Nadie cerca ofrece «{question}» todavía</Text>
+                    <Text style={styles.hint}>{answer.reply}</Text>
+                  </View>
+                )}
+              </>
+            ) : null}
+          </>
+        )}
       </ScrollView>
 
       <BusinessCardModal
-        entity={
-          card
-            ? ({ ...card, distance_meters: card.distance_km * 1000, distanceKm: card.distance_km } as unknown as WithDistance)
-            : null
-        }
+        entity={card ? ({ ...card, distance_meters: card.distance_km * 1000, distanceKm: card.distance_km } as unknown as WithDistance) : null}
         onClose={() => setCard(null)}
         origin="ask"
       />
-
-      <View style={[styles.composer, { paddingBottom: insets.bottom + spacing.sm }]}>
-        <TextInput
-          value={text}
-          onChangeText={setText}
-          placeholder={listening ? 'Te escucho…' : 'Pregunta lo que necesites…'}
-          placeholderTextColor={colors.muted}
-          style={styles.input}
-          returnKeyType="search"
-          onSubmitEditing={() => send()}
-          maxLength={200}
-          autoFocus={turns.length === 0 && params.voice !== '1' && !params.q}
-        />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={text.trim() ? 'Preguntar' : listening ? 'Dejar de escuchar' : 'Preguntar hablando'}
-          onPress={() => (text.trim() ? send() : void listen())}
-          style={[styles.send, listening && styles.sendOn]}
-        >
-          <Ionicons name={text.trim() ? 'arrow-up' : listening ? 'stop' : 'mic'} size={20} color="#fff" />
-        </Pressable>
-      </View>
     </KeyboardAvoidingView>
-  );
-}
-
-function Answer({
-  answer,
-  active,
-  onOpen,
-  onItem,
-  onSuggestion,
-  onRemove,
-}: {
-  answer: AskResponse;
-  active: boolean;
-  onOpen: (b: AskResponse['businesses'][number]) => void;
-  onItem: (entityId: string, itemId: string) => void;
-  onSuggestion: (label: string) => void;
-  onRemove: (key: keyof AskFilters) => void;
-}) {
-  const chips = filterChips(answer.filters);
-  return (
-    <View style={{ gap: spacing.sm }}>
-      <View style={styles.em}>
-        <Text style={styles.emText}>{answer.reply}</Text>
-      </View>
-      {active && chips.length ? (
-        <View style={styles.chips}>
-          {chips.map((c) => (
-            <Pressable key={c.key} accessibilityRole="button" accessibilityLabel={`Quitar ${c.label}`} onPress={() => onRemove(c.key)} style={[styles.chip, styles.chipOn]}>
-              <Text style={[styles.chipText, { color: colors.selected }]}>{c.label} ×</Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
-      {answer.businesses.length ? (
-        <View style={styles.card}>
-          {answer.businesses.slice(0, 6).map((b, i) => (
-            <Pressable key={b.id} accessibilityRole="button" onPress={() => onOpen(b)} style={[styles.row, i > 0 && styles.rowLine]}>
-              <Avatar uri={b.profile_url} name={b.name} size={52} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.rowName} numberOfLines={1}>
-                  {b.name}
-                </Text>
-                <Text style={styles.rowSub} numberOfLines={1}>
-                  {[b.category_name, howFar(b.minutes, b.distance_km), b.has_hours ? (b.is_open_now ? 'abierto' : 'cerrado') : null, b.delivery ? 'domicilio' : null]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </Text>
-                {b.item ? (
-                  <Pressable accessibilityRole="link" onPress={() => onItem(b.id, b.item!.id)} hitSlop={6}>
-                    <Text style={styles.item} numberOfLines={1}>
-                      {b.item.name}
-                      {b.item.price != null ? ` · ${b.item.price_from ? 'desde ' : ''}${formatPesos(b.item.price)}` : ''}
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
-              {b.has_active_offer ? (
-                <View style={styles.offer}>
-                  <Text style={styles.offerText}>Oferta</Text>
-                </View>
-              ) : (
-                <Figure name={b.category_name} size={34} fallbackIcon={b.category_icon} />
-              )}
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
-      {active && answer.suggestions.length ? (
-        <View style={styles.chips}>
-          {answer.suggestions.map((s) => (
-            <Pressable key={s} accessibilityRole="button" onPress={() => onSuggestion(s)} style={styles.chip}>
-              <Text style={styles.chipText}>{s}</Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
-      {active ? <Text style={styles.note}>Armado con los precios y horarios que publicaron los negocios.</Text> : null}
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
-  round: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...cardShadow },
-  spark: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
-  sub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
-  thread: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xl },
-  hint: { fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.muted, lineHeight: 22 },
-  me: { alignSelf: 'flex-end', maxWidth: '82%', backgroundColor: colors.primary, borderRadius: 20, borderBottomRightRadius: 6, paddingHorizontal: 14, paddingVertical: 11 },
-  meText: { fontSize: 15, fontFamily: fonts.ui.bold, color: '#fff' },
-  with: { alignSelf: 'flex-end', fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
-  em: { alignSelf: 'flex-start', maxWidth: '92%', backgroundColor: colors.surface, borderRadius: 20, borderBottomLeftRadius: 6, paddingHorizontal: 14, paddingVertical: 11, ...cardShadow },
-  emText: { fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink, lineHeight: 21 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.sm, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.line },
+  round: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  searchBox: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingLeft: spacing.md, paddingRight: 4, borderRadius: radius.pill, backgroundColor: colors.bg, borderWidth: 1.5, borderColor: colors.line },
+  input: { flex: 1, minWidth: 0, fontSize: 15.5, fontFamily: fonts.ui.semibold, color: colors.ink, padding: 0 },
+  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  body: { padding: spacing.lg, gap: spacing.md },
+  group: { gap: spacing.sm },
+  groupHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  eyebrow: { fontSize: 11, letterSpacing: 0.8, fontFamily: fonts.ui.extrabold, color: colors.muted },
+  link: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink, textDecorationLine: 'underline' },
+  hint: { fontSize: 13.5, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.muted },
+  pressed: { opacity: 0.8 },
+  searchRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.selectedSoft },
+  searchRowText: { flex: 1, fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  card: { borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
+  simpleRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md },
+  rowLine: { borderTopWidth: 1, borderTopColor: colors.selectedSoft },
+  simpleText: { flex: 1, fontSize: 14.5, fontFamily: fonts.ui.semibold, color: colors.ink },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line, justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
-  chipText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  card: { borderRadius: 20, backgroundColor: colors.surface, paddingHorizontal: spacing.md, ...cardShadow },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md },
-  rowLine: { borderTopWidth: 1, borderTopColor: colors.line },
-  rowName: { fontSize: 15.5, fontFamily: fonts.display.bold, color: colors.ink },
-  rowSub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted, marginTop: 2 },
-  item: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink, marginTop: 4, textDecorationLine: 'underline' },
-  offer: { paddingHorizontal: 9, height: 24, borderRadius: 12, backgroundColor: colors.accent, justifyContent: 'center' },
-  offerText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  note: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
-  composer: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.sm, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
-  input: { flex: 1, height: 50, borderRadius: 25, backgroundColor: '#EEF2F7', paddingHorizontal: 18, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
-  send: { width: 50, height: 50, borderRadius: 25, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  sendOn: { backgroundColor: colors.ink },
+  chip: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start', paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line },
+  chipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
+  chipText: { fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.ink },
+  loading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md },
+  relaxed: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.selectedSoft },
+  relaxedText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.ink },
+  count: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
+  result: { flexDirection: 'row', gap: spacing.md, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  resultName: { flexShrink: 1, fontSize: 15.5, fontFamily: fonts.display.bold, color: colors.ink },
+  resultSub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
+  why: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  statusText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
+  offer: { paddingHorizontal: 8, height: 22, borderRadius: 11, backgroundColor: colors.accent, justifyContent: 'center' },
+  offerText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  mapBtn: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line },
+  note: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
+  none: { gap: spacing.sm, padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  noneTitle: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
 });
