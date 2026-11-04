@@ -1,28 +1,30 @@
-// Identidad visual de Empre (2026-10-29, lienzo «Empre · La app completa»):
-// blanco de base, todo el texto en negro y UN color principal, el rojo
-// #F03232, solo para lo seleccionado y las acciones (pestaña activa, chip
-// elegido, botón principal, interruptores). La mandarina queda de acento para
-// ofertas e insignias y el verde para «abierto» y «verificado». Todas las
-// pantallas leen de aquí: un cambio aquí se propaga a toda la app.
+// Identidad visual de Empre (lienzo «Empre», rojo «Opción C», 2026-11-02):
+// el rojo para las acciones, tinta azul sobre gris claro para lo elegido, naranja
+// solo en ofertas e insignias y teal para «abierto», «verificado» y lo bueno.
+// Todas las pantallas leen de aquí: un cambio aquí se propaga a toda la app.
 export const colors = {
-  primary: '#F03232', // rojo: acción principal y selección (texto blanco encima, 4:1; en negrita grande pasa AA)
-  primaryDark: '#C81E1E', // rojo oscuro para texto rojo sobre blanco o sobre primarySoft (6:1)
-  primarySoft: '#FDE6E6', // fondo suave de lo seleccionado
-  accent: '#FF9500', // mandarina: ofertas e insignias (texto negro encima)
+  primary: '#D42020', // rojo: botón principal (texto blanco encima, 5,3:1)
+  primaryDark: '#B91C1C', // rojo para enlaces y texto sobre blanco o primarySoft (6,5:1)
+  primaryPressed: '#8F1515',
+  primarySoft: '#FDECEC', // fondo suave rojo
+  brand: '#F03232', // rojo de marca: logo, foco, línea de pestaña y datos de ventas
+  selected: '#0E2346', // lo elegido va en tinta...
+  selectedSoft: '#EEF2F7', // ...sobre este gris claro
+  accent: '#FF8A1F', // naranja: ofertas e insignias (texto en tinta encima)
   accentDark: '#E07F00',
-  // Mandarina oscura para TEXTO: 4,9:1 sobre blanco. El accent (2,2:1) no llega a AA como texto.
+  // Naranja oscuro para TEXTO: 4,9:1 sobre blanco. El accent no llega a AA como texto.
   accentInk: '#9A4F00',
-  accentSoft: '#FFEED6',
-  ink: '#000000', // todo el texto
-  muted: '#5C5C5C', // texto secundario (6,7:1 sobre blanco)
-  line: '#E6E6E6', // bordes y separadores
-  bg: '#FFFFFF', // fondo base: blanco
-  surface: '#FFFFFF', // tarjetas (se separan del fondo con sombra suave)
-  verified: '#0B7F5F', // verde: verificado y confianza
-  verifiedSoft: '#E3F4EC',
-  danger: '#D62828',
-  success: '#1E8A4C',
-  warning: '#B7791F', // ámbar, para "pendiente"
+  accentSoft: '#FFF1E6',
+  ink: '#0E2346', // todo el texto
+  muted: '#4C5C74', // texto secundario (7:1 sobre blanco)
+  line: '#D5DEEA', // bordes y separadores
+  bg: '#F4F7FB', // fondo de las pantallas
+  surface: '#FFFFFF', // tarjetas
+  verified: '#0A6E6A', // teal: verificado, abierto y lo bueno
+  verifiedSoft: '#E3F5F3',
+  danger: '#B3261E',
+  success: '#0A6E6A',
+  warning: '#C2410C', // se acaba pronto o va tarde
 } as const;
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
