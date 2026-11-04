@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState } from 'react';
 import { ledgerApi } from '@/api/ledger';
@@ -7,10 +7,8 @@ import type { RedeemResult } from '@/api/types';
 import { queueVoid } from '@/ledger/ledgerStore';
 import { formatPesos, METHOD_LABEL, type PayMethod } from '@/lib/ledger';
 import { formatAgo, formatCurrency, formatSlotsLeft } from '@/lib/offer';
-import { colors, fonts, radius, spacing } from '@/theme';
-
-// Verde oscuro: con texto blanco pasa AA (≈ 5,3:1); el success de la marca no.
-const OK_GREEN = '#1F7A44';
+import { EmpreSymbol } from '@/components/EmpreSymbol';
+import { colors, fonts } from '@/theme';
 
 type Tone = 'ok' | 'bad' | 'warn' | 'grey';
 
@@ -108,60 +106,61 @@ export function RedeemResultView({ result, offline, onNext, onRetry, onFinance, 
       : rejectionLook(result!);
 
   const ok = look.tone === 'ok';
-  const toneStyle = TONES[look.tone];
-  const textColor = ok ? '#fff' : colors.ink;
-  const mutedColor = ok ? 'rgba(255,255,255,0.92)' : '#4C5C74';
+  const hour = new Date().toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' }).replace(/\s*([ap])\.\s*m\.?/i, ' $1m');
 
   return (
-    <View
-      style={[styles.root, toneStyle.bg, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg }]}
-      accessibilityRole="alert"
-      accessibilityLiveRegion="assertive"
-    >
+    <View style={styles.root} accessibilityRole="alert" accessibilityLiveRegion="assertive">
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={[styles.iconWrap, toneStyle.icon]}>
-          <Ionicons name={look.icon} size={48} color={ok ? '#fff' : toneStyle.glyph} />
+        <View style={[styles.band, { paddingTop: insets.top + 22, backgroundColor: ok ? colors.verified : colors.ink }]}>
+          <View style={styles.bandTop}>
+            <Text style={styles.bandSmall}>{practice ? 'Práctica · no cuenta' : 'Canje'}</Text>
+            <Text style={styles.bandSmall}>{hour}</Text>
+          </View>
+          {ok ? (
+            <View style={styles.discOk}>
+              <EmpreSymbol product="check" size={64} />
+            </View>
+          ) : (
+            <View style={styles.discBad}>
+              <Ionicons name={look.icon} size={38} color="#fff" />
+            </View>
+          )}
+          <Text style={ok ? styles.titleOk : styles.title}>{look.title}</Text>
+          <Text style={styles.why}>{look.why}</Text>
         </View>
-        <Text style={[ok ? styles.titleOk : styles.title, { color: textColor }]}>{look.title}</Text>
-        <Text style={[styles.why, { color: mutedColor }]}>{look.why}</Text>
 
-        {result && ok ? <ValidDetails result={result} /> : null}
-        {result && ok && !practice ? <SaleReceipt key={result.claim_id} result={result} onFinance={onFinance} /> : null}
-        {result && ok && practice ? (
-          <View style={styles.sale}>
-            <Text style={styles.saleTitle}>Aquí Empre Finance registra la venta</Text>
-            <Text style={styles.saleSub}>En práctica no se registra nada ni se toca el inventario.</Text>
-          </View>
-        ) : null}
-        {result && !ok && !offline ? <RejectedFacts result={result} /> : null}
-
-        {look.hint ? (
-          <View style={styles.hint}>
-            <Ionicons name="alert-circle-outline" size={18} color={colors.ink} />
-            <Text style={styles.hintText}>{look.hint}</Text>
-          </View>
-        ) : null}
+        <View style={styles.cards}>
+          {result && ok ? <ValidDetails result={result} /> : null}
+          {result && !ok && !offline ? <RejectedFacts result={result} /> : null}
+          {look.hint ? (
+            <View style={styles.hint}>
+              <Ionicons name="alert-circle-outline" size={18} color={colors.ink} />
+              <Text style={styles.hintText}>{look.hint}</Text>
+            </View>
+          ) : null}
+          {result && ok && !practice ? <SaleReceipt key={result.claim_id} result={result} onFinance={onFinance} /> : null}
+          {result && ok && practice ? (
+            <View style={styles.sale}>
+              <Text style={styles.saleTitle}>Aquí Empre Finance registra la venta</Text>
+              <Text style={styles.saleSub}>En práctica no se registra nada ni se toca el inventario.</Text>
+            </View>
+          ) : null}
+        </View>
       </ScrollView>
 
-      <View style={styles.actions}>
+      <View style={[styles.actions, { paddingBottom: insets.bottom + 22 }]}>
         {offline ? (
           <>
-            <Pressable accessibilityRole="button" onPress={onRetry} style={[styles.btn, styles.btnPrimary]}>
-              <Text style={styles.btnPrimaryText}>Reintentar</Text>
+            <Pressable accessibilityRole="button" onPress={onRetry} style={styles.btn}>
+              <Text style={styles.btnText}>Reintentar</Text>
             </Pressable>
-            <Pressable accessibilityRole="button" onPress={onNext} style={[styles.btn, styles.btnGhost]}>
+            <Pressable accessibilityRole="button" onPress={onNext} style={styles.btnGhost}>
               <Text style={styles.btnGhostText}>Cancelar</Text>
             </Pressable>
           </>
         ) : (
-          <Pressable
-            accessibilityRole="button"
-            onPress={onNext}
-            style={[styles.btn, ok ? styles.btnLight : styles.btnDark]}
-          >
-            <Text style={[styles.btnText, { color: ok ? OK_GREEN : '#fff' }]}>
-              {ok ? (practice ? 'Listo, ya sé canjear' : 'Listo, escanear otro') : 'Escanear otro código'}
-            </Text>
+          <Pressable accessibilityRole="button" onPress={onNext} style={styles.btn}>
+            <Text style={styles.btnText}>{ok ? (practice ? 'Listo, ya sé canjear' : 'Listo, escanear otro') : 'Escanear otro código'}</Text>
           </Pressable>
         )}
       </View>
@@ -169,43 +168,38 @@ export function RedeemResultView({ result, offline, onNext, onRetry, onFinance, 
   );
 }
 
-/** Qué entregar, a quién y qué recordar antes de entregar. */
+/** Qué entregar, cuánto cobrar y a quién. */
 function ValidDetails({ result }: { result: RedeemResult }) {
   const price = formatCurrency(result.offer_price);
   const slots = typeof result.slots_left === 'number' ? formatSlotsLeft(result.slots_left) : null;
   return (
-    <>
-      <View style={styles.deliver}>
-        <Text style={styles.deliverLabel}>ENTREGA</Text>
-        <Text style={styles.deliverTitle}>{result.offer_title}</Text>
-        {price ? <Text style={styles.deliverPrice}>Cobra {price}</Text> : null}
-      </View>
-
+    <View style={styles.deliver}>
+      <Text style={styles.deliverLabel}>ENTREGA</Text>
+      <Text style={styles.deliverTitle}>{result.offer_title}</Text>
+      {price ? (
+        <View style={styles.charge}>
+          <Text style={styles.chargeLabel}>Cobra</Text>
+          <Text style={styles.chargeValue}>{price}</Text>
+        </View>
+      ) : null}
       {result.client_name ? (
         <View style={styles.client}>
           <View style={styles.clientAvatar}>
             <Text style={styles.clientInitials}>{initials(result.client_name)}</Text>
           </View>
           <View style={styles.clientText}>
-            <Text style={styles.clientLabel}>CLIENTE</Text>
             <Text style={styles.clientName}>{result.client_name}</Text>
-            <Text style={styles.clientMeta}>
-              {result.claimed_at ? `Reclamó ${formatAgo(result.claimed_at)} · ` : ''}pide su nombre
-            </Text>
+            <Text style={styles.clientMeta}>{result.claimed_at ? `Reclamó ${formatAgo(result.claimed_at)} · ` : ''}pide su nombre</Text>
           </View>
         </View>
       ) : null}
-
       {result.offer_conditions || slots ? (
-        <View style={styles.verify}>
-          <Ionicons name="alert-circle-outline" size={18} color="#fff" />
-          <Text style={styles.verifyText}>
-            {result.offer_conditions ? `Recuerda la condición: ${result.offer_conditions}. ` : ''}
-            {slots ?? ''}
-          </Text>
-        </View>
+        <Text style={styles.verifyText}>
+          {result.offer_conditions ? `Recuerda la condición: ${result.offer_conditions}. ` : ''}
+          {slots ?? ''}
+        </Text>
       ) : null}
-    </>
+    </View>
   );
 }
 
@@ -259,12 +253,19 @@ function SaleReceipt({ result, onFinance }: { result: RedeemResult; onFinance?: 
         ))}
       </View>
       {error ? <Text style={styles.saleError}>{error}</Text> : null}
-      <Text style={styles.saleTitle} accessibilityLiveRegion="polite">
-        Registrado en Empre Finance
-      </Text>
-      <Text style={styles.saleSub}>
-        {formatPesos(result.sale_total ?? 0)} · {METHOD_LABEL[method]}. No tienes que anotarlo.
-      </Text>
+      <View style={styles.saleSync}>
+        <EmpreSymbol product="offers" size={24} />
+        <View style={styles.saleLine} />
+        <EmpreSymbol product="finance" size={24} />
+        <View style={styles.saleSyncText}>
+          <Text style={styles.saleTitle} accessibilityLiveRegion="polite">
+            Empre Finance registró la venta
+          </Text>
+          <Text style={styles.saleSub}>
+            {formatPesos(result.sale_total ?? 0)} · {METHOD_LABEL[method]}. No tienes que anotarlo.
+          </Text>
+        </View>
+      </View>
       <View style={styles.saleActions}>
         {onFinance ? (
           <Pressable accessibilityRole="button" onPress={() => onFinance(entityId)} style={styles.saleLink}>
@@ -315,97 +316,55 @@ function initials(name: string): string {
     .join('');
 }
 
-/** Colores de cada tono: fondo, círculo del ícono y color del glifo. */
-const TONES: Record<Tone, { bg: ViewStyle; icon: ViewStyle; glyph: string }> = {
-  ok: { bg: { backgroundColor: OK_GREEN }, icon: { backgroundColor: 'rgba(255,255,255,0.22)' }, glyph: '#fff' },
-  bad: { bg: { backgroundColor: '#FBEDED' }, icon: { backgroundColor: '#F6CFCF' }, glyph: colors.danger },
-  warn: { bg: { backgroundColor: colors.accentSoft }, icon: { backgroundColor: '#FAD9B8' }, glyph: colors.accentInk },
-  grey: { bg: { backgroundColor: '#EEF2F7' }, icon: { backgroundColor: '#D7DFEA' }, glyph: '#4C5C74' },
-};
-
 const styles = StyleSheet.create({
-  sale: { alignSelf: 'stretch', gap: 6, backgroundColor: '#fff', borderRadius: radius.lg, padding: spacing.md },
-  saleLabel: { fontSize: 11, fontFamily: fonts.ui.bold, letterSpacing: 1, color: colors.muted },
-  saleChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: 4 },
-  saleChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line },
+  root: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10, backgroundColor: colors.bg },
+  scroll: { flexGrow: 1 },
+  band: { alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingBottom: 32 },
+  bandTop: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  bandSmall: { fontSize: 13, fontFamily: fonts.ui.bold, color: 'rgba(255,255,255,0.9)' },
+  discOk: { width: 84, height: 84, marginTop: 4, borderRadius: 42, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+  discBad: { width: 76, height: 76, marginTop: 4, borderRadius: 38, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.18)' },
+  titleOk: { fontSize: 40, lineHeight: 44, letterSpacing: 2.4, fontFamily: fonts.display.bold, color: '#fff', textAlign: 'center' },
+  title: { fontSize: 28, lineHeight: 32, fontFamily: fonts.display.bold, color: '#fff', textAlign: 'center' },
+  why: { maxWidth: 300, fontSize: 15.5, lineHeight: 22, fontFamily: fonts.ui.medium, color: 'rgba(255,255,255,0.95)', textAlign: 'center' },
+  cards: { marginTop: -16, paddingHorizontal: 20, gap: 12 },
+  deliver: { padding: 18, gap: 12, borderRadius: 20, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 22, shadowOffset: { width: 0, height: 10 }, elevation: 4 },
+  deliverLabel: { fontSize: 12, letterSpacing: 1.2, fontFamily: fonts.ui.extrabold, color: colors.faint },
+  deliverTitle: { fontSize: 22, lineHeight: 25, fontFamily: fonts.display.bold, color: colors.ink },
+  charge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.bg },
+  chargeLabel: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.muted },
+  chargeValue: { fontSize: 26, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  client: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  clientAvatar: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
+  clientInitials: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  clientText: { flex: 1, minWidth: 0 },
+  clientName: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  clientMeta: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.faint },
+  verifyText: { fontSize: 13, lineHeight: 19, fontFamily: fonts.ui.semibold, color: colors.accentInk },
+  sale: { padding: 12, gap: 8, borderRadius: 16, borderWidth: 1.5, borderColor: colors.hairline, backgroundColor: colors.surface },
+  saleLabel: { fontSize: 11, letterSpacing: 1.1, fontFamily: fonts.ui.extrabold, color: colors.faint },
+  saleChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  saleChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line },
   saleChipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
-  saleChipText: { fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.ink },
+  saleChipText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   saleError: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.danger },
-  saleTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  saleSub: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
-  saleActions: { flexDirection: 'row', gap: spacing.lg },
+  saleSync: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  saleLine: { width: 16, height: 2, borderRadius: 1, backgroundColor: colors.line },
+  saleSyncText: { flex: 1, minWidth: 0, marginLeft: 8, gap: 1 },
+  saleTitle: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  saleSub: { fontSize: 12, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.faint },
+  saleActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 16 },
   saleLink: { minHeight: 44, justifyContent: 'center' },
-  saleLinkText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink, textDecorationLine: 'underline' },
-  root: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10, paddingHorizontal: spacing.xl },
-  scroll: { alignItems: 'center', paddingTop: spacing.xl, paddingBottom: spacing.lg, gap: spacing.sm, flexGrow: 1 },
-  iconWrap: { width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.sm },
-  title: { fontSize: 26, fontFamily: fonts.display.bold, textAlign: 'center' },
-  titleOk: { fontSize: 34, fontFamily: fonts.display.bold, textAlign: 'center', letterSpacing: 0.5 },
-  why: { fontSize: 14.5, fontFamily: fonts.ui.semibold, textAlign: 'center', lineHeight: 21 },
-
-  deliver: { alignSelf: 'stretch', backgroundColor: '#fff', borderRadius: radius.lg, padding: spacing.md, marginTop: spacing.md },
-  deliverLabel: { fontSize: 11, fontFamily: fonts.ui.bold, letterSpacing: 1, color: colors.muted },
-  deliverTitle: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
-  deliverPrice: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.primaryDark },
-
-  client: {
-    alignSelf: 'stretch',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderRadius: radius.lg,
-    padding: spacing.md,
-  },
-  clientAvatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  clientInitials: { fontSize: 17, fontFamily: fonts.display.bold, color: OK_GREEN },
-  clientText: { flex: 1 },
-  clientLabel: { fontSize: 11, fontFamily: fonts.ui.bold, letterSpacing: 1, color: 'rgba(255,255,255,0.88)' },
-  clientName: { fontSize: 22, fontFamily: fonts.display.bold, color: '#fff' },
-  clientMeta: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: 'rgba(255,255,255,0.92)' },
-
-  verify: {
-    alignSelf: 'stretch',
-    flexDirection: 'row',
-    gap: spacing.sm,
-    alignItems: 'flex-start',
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderRadius: radius.md,
-    padding: spacing.md,
-  },
-  verifyText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: '#fff', lineHeight: 19 },
-
-  facts: { alignSelf: 'stretch', backgroundColor: '#fff', borderRadius: radius.lg, paddingHorizontal: spacing.md, marginTop: spacing.sm },
-  factRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.line,
-  },
-  factLabel: { fontSize: 13, fontFamily: fonts.ui.regular, color: colors.muted },
-  factValue: { flexShrink: 1, fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink, textAlign: 'right' },
-
-  hint: {
-    alignSelf: 'stretch',
-    flexDirection: 'row',
-    gap: spacing.sm,
-    alignItems: 'flex-start',
-    backgroundColor: '#fff',
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginTop: spacing.sm,
-  },
-  hintText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink, lineHeight: 19 },
-
-  actions: { gap: spacing.sm },
-  btn: { minHeight: 52, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
-  btnText: { fontSize: 16, fontFamily: fonts.ui.extrabold },
-  btnLight: { backgroundColor: '#fff' },
-  btnDark: { backgroundColor: colors.ink },
-  btnPrimary: { backgroundColor: colors.primary },
-  btnPrimaryText: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  btnGhost: { backgroundColor: colors.primarySoft },
-  btnGhostText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.primaryDark },
+  saleLinkText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
+  facts: { paddingHorizontal: 18, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 22, shadowOffset: { width: 0, height: 10 }, elevation: 4 },
+  factRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
+  factLabel: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
+  factValue: { flexShrink: 1, fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink, textAlign: 'right' },
+  hint: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 16, backgroundColor: colors.surface },
+  hintText: { flex: 1, fontSize: 13, lineHeight: 19, fontFamily: fonts.ui.semibold, color: colors.ink },
+  actions: { gap: 8, paddingTop: 12, paddingHorizontal: 20 },
+  btn: { minHeight: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.primary },
+  btnText: { fontSize: 17, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  btnGhost: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
+  btnGhostText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

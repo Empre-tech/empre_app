@@ -21,6 +21,7 @@ const INSIDE = {
   offers: 'M20 18 H33 L44 27 L33 36 H20 Z M25 25 A2.2 2.2 0 1 0 25 29.4 A2.2 2.2 0 1 0 25 25 Z',
   finance: 'M21 28.5 A1.5 1.5 0 0 1 22.5 27 H25 A1.5 1.5 0 0 1 26.5 28.5 V36 H21 Z M29.2 22.5 A1.5 1.5 0 0 1 30.7 21 H33.2 A1.5 1.5 0 0 1 34.7 22.5 V36 H29.2 Z M37.4 17.5 A1.5 1.5 0 0 1 38.9 16 H41.4 A1.5 1.5 0 0 1 42.9 17.5 V36 H37.4 Z',
   agenda: 'M20 19 H44 V37 H20 Z M25 14.5 H28 V19 H25 Z M36 14.5 H39 V19 H36 Z',
+  check: 'M22 25 L29 32 L42 18 L46 22 L29 40 L18 29 Z',
   agent: 'M20 16 H44 A3 3 0 0 1 47 19 V32 A3 3 0 0 1 44 35 H29 L23 40 V35 H20 A3 3 0 0 1 17 32 V19 A3 3 0 0 1 20 16 Z M32 19.5 L33.6 24 L38 25.5 L33.6 27 L32 31.5 L30.4 27 L26 25.5 L30.4 24 Z',
 } as const;
 
@@ -33,7 +34,7 @@ export function EmpreSymbol({ product = 'finder', size = 28 }: { product?: Empre
         <Path key={stroke} d={d} fill="none" stroke={stroke} strokeWidth={5} />
       ))}
       {product === 'finder' ? AWNING.map(([d, fill]) => <Path key={fill} d={d} fill={fill} />) : null}
-      <Path d={INSIDE[product]} fill={product === 'agent' ? '#0E2346' : '#F03232'} fillRule="evenodd" />
+      <Path d={INSIDE[product]} fill={product === 'agent' ? '#0E2346' : product === 'check' ? '#0A6E6A' : '#F03232'} fillRule="evenodd" />
     </Svg>
   );
 }

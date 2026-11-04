@@ -1,14 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View, Modal } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi, usersApi } from '@/api/endpoints';
 import type { VerificationStatus } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Avatar } from '@/components/Avatar';
-import { Button } from '@/components/Button';
+import { EmpreSymbol, type EmpreProduct } from '@/components/EmpreSymbol';
 import { initAnalytics, isAnalyticsEnabled, setAnalyticsEnabled } from '@/analytics/track';
 import { FEATURES } from '@/config';
 import { SignInPrompt } from '@/components/SignInPrompt';
@@ -20,7 +21,9 @@ import { ledgerApi } from '@/api/ledger';
 import { formatPesos } from '@/lib/ledger';
 import { todayCO } from '@/lib/finance';
 import { getPhoneFlag, setPhoneFlag } from '@/lib/phoneFlags';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { colors, fonts } from '@/theme';
+
+const version = Constants.expoConfig?.version;
 
 const STATUS_STYLE: Record<VerificationStatus, { fg: string; bg: string; icon: keyof typeof Ionicons.glyphMap }> = {
   verified: { fg: colors.verified, bg: colors.verifiedSoft, icon: 'checkmark-circle' },
@@ -100,360 +103,266 @@ export default function ProfileScreen() {
   const allSheet = (
     <Modal visible={allOpen} transparent animationType="slide" onRequestClose={() => setAllOpen(false)}>
       <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" style={styles.veil} onPress={() => setAllOpen(false)} />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.md }]}>
-        <Text style={styles.section} accessibilityRole="header">
+      <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
+        <Text style={styles.sheetTitle} accessibilityRole="header">
           Todos mis negocios · hoy
         </Text>
         {entities.map((e) => (
           <View key={e.id} style={styles.allRow}>
-            <Text style={styles.cardTitle} numberOfLines={1}>
+            <Text style={styles.rowLabel} numberOfLines={1}>
               {e.name}
             </Text>
-            <Text style={styles.cardTitle}>{formatPesos(salesOf(e.id)?.sales_total ?? 0)}</Text>
+            <Text style={styles.rowLabel}>{formatPesos(salesOf(e.id)?.sales_total ?? 0)}</Text>
           </View>
         ))}
         <View style={[styles.allRow, styles.allTotal]}>
-          <Text style={styles.cardTitle}>Total</Text>
-          <Text style={styles.cardTitle}>{formatPesos(allTotal)}</Text>
+          <Text style={styles.rowLabel}>Total</Text>
+          <Text style={styles.rowLabel}>{formatPesos(allTotal)}</Text>
         </View>
-        <Text style={styles.meta}>Solo para ver. Cada venta, gasto o canje se registra en un negocio a la vez.</Text>
+        <Text style={styles.rowSub}>Solo para ver. Cada venta, gasto o canje se registra en un negocio a la vez.</Text>
       </View>
     </Modal>
   );
   const businesses = (
-    <>
-      <View style={styles.sectionRow}>
-        <Text style={styles.section}>{hasBusiness ? `Mis negocios${entities.length > 1 ? ` · ${entities.length}` : ''}` : 'Tu negocio'}</Text>
-        <Pressable accessibilityRole="button" onPress={() => router.push('/business/new')} hitSlop={8}>
-          <Text style={styles.link}>+ Crear negocio</Text>
-        </Pressable>
+    <View style={styles.section}>
+      <View style={styles.sectionHead}>
+        <Text style={styles.eyebrow} accessibilityRole="header">
+          {`MIS NEGOCIOS${entities.length > 1 ? ` · ${entities.length}` : ''}`}
+        </Text>
+        {entities.length > 1 ? <Text style={styles.hint}>Toca uno para trabajar en él</Text> : null}
       </View>
       {mine.isLoading ? (
         <ActivityIndicator color={colors.primary} />
       ) : mine.isError ? (
         <Text style={styles.empty}>No pudimos cargar tus negocios.</Text>
-      ) : (mine.data ?? []).length === 0 ? (
-        <Text style={styles.empty}>¿Tienes un negocio? Ponlo en Empre para que te encuentren cerca.</Text>
       ) : (
-        (mine.data ?? []).map((entity) => (
-          <Pressable
-            key={entity.id}
-            accessibilityRole="button"
-            accessibilityState={{ selected: entity.id === active }}
-            accessibilityLabel={entities.length > 1 && entity.id !== active ? `${entity.name}. Toca para trabajar en él` : `${entity.name}, negocio activo. Administrar`}
-            onPress={() => (entities.length > 1 && entity.id !== active ? pick(entity.id) : router.push({ pathname: '/business/hub/[id]', params: { id: entity.id } }))}
-            style={({ pressed }) => [styles.card, entities.length > 1 && entity.id === active && styles.cardActive, pressed && { opacity: 0.85 }]}
-          >
-            <Avatar uri={entity.profile_url} name={entity.name} size={48} />
-            <View style={styles.cardInfo}>
-              <Text style={styles.cardTitle} numberOfLines={1}>
-                {entity.name}
-              </Text>
-              <Text style={styles.meta} numberOfLines={1}>
-                {entity.category_name}
-              </Text>
-            </View>
-            <View style={[styles.badge, { backgroundColor: STATUS_STYLE[entity.verification_status].bg }]}>
-              <Ionicons
-                name={STATUS_STYLE[entity.verification_status].icon}
-                size={12}
-                color={STATUS_STYLE[entity.verification_status].fg}
-              />
-              <Text style={[styles.badgeText, { color: STATUS_STYLE[entity.verification_status].fg }]}>
-                {verificationLabel(entity.verification_status)}
-              </Text>
-            </View>
-            {/* Solo lo de la agenda (3.37): solicitudes de cita por revisar, en su propia línea al pie de la tarjeta. */}
-            {(inbox.byEntity.get(entity.id)?.requests ?? 0) > 0 ? (
+        entities.map((entity) => {
+          const isActive = entity.id === active;
+          const reqs = inbox.byEntity.get(entity.id)?.requests ?? 0;
+          const st = STATUS_STYLE[entity.verification_status];
+          const today = salesOf(entity.id);
+          return (
+            <View key={entity.id} style={[styles.biz, entities.length > 1 && isActive && styles.bizOn]}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${entity.name}: ${requestsLabel(inbox.byEntity.get(entity.id)?.requests ?? 0)}. Ver agenda`}
-                onPress={() => router.push({ pathname: '/business/agenda/[id]', params: { id: entity.id } })}
-                style={({ pressed }) => [styles.reqStrip, pressed && { opacity: 0.85 }]}
+                accessibilityState={{ selected: isActive }}
+                accessibilityLabel={entities.length > 1 && !isActive ? `${entity.name}. Toca para trabajar en él` : `${entity.name}. Administrar mi negocio`}
+                onPress={() => (entities.length > 1 && !isActive ? pick(entity.id) : router.push({ pathname: '/business/hub/[id]', params: { id: entity.id } }))}
+                style={styles.bizTop}
               >
-                <Ionicons name="calendar-outline" size={16} color={colors.accentInk} />
-                <Text style={styles.reqStripText} numberOfLines={1}>
-                  {(inbox.byEntity.get(entity.id)?.requests ?? 0) === 1 ? '1 solicitud por revisar' : `${inbox.byEntity.get(entity.id)?.requests} solicitudes por revisar`}
-                </Text>
-                <Text style={styles.reqStripLink}>Ver agenda</Text>
-              </Pressable>
-            ) : null}
-            {entity.id === active ? (
-              <View style={styles.activeBlock}>
-                {entities.length > 1 ? <Text style={styles.activeTag}>ACTIVO</Text> : null}
-                {salesOf(entity.id) ? (
-                  <Text style={styles.meta}>
-                    Hoy · {salesOf(entity.id)!.sales_count === 1 ? '1 venta' : `${salesOf(entity.id)!.sales_count} ventas`} · {formatPesos(salesOf(entity.id)!.sales_total)}
-                  </Text>
-                ) : null}
-                <View style={styles.quickRow}>
-                  <QuickAction icon="scan-outline" label="Canjear" onPress={() => router.push('/business/scan')} />
-                  <QuickAction icon="add-circle-outline" label="Vender" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entity.id } })} />
-                  <QuickAction icon="calendar-outline" label="Agenda" onPress={() => router.push({ pathname: '/business/agenda/[id]', params: { id: entity.id } })} />
+                <View style={styles.bizIcon}>
+                  {entity.profile_url ? <Avatar uri={entity.profile_url} name={entity.name} size={48} /> : <Ionicons name="storefront-outline" size={22} color={colors.ink} />}
                 </View>
-              </View>
-            ) : null}
-            {/* «Mi negocio» es el centro: datos, productos e inventario, fotos, ofertas, ventas, agenda y suscripción. */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Administrar ${entity.name}`}
-              onPress={() => router.push({ pathname: '/business/hub/[id]', params: { id: entity.id } })}
-              style={({ pressed }) => [styles.ledgerStrip, pressed && { opacity: 0.85 }]}
-            >
-              <Ionicons name="storefront-outline" size={18} color={colors.primaryDark} />
-              <Text style={styles.ledgerStripText} numberOfLines={1}>
-                Administrar mi negocio
-              </Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.primaryDark} />
-            </Pressable>
-          </Pressable>
-        ))
+                <View style={styles.bizText}>
+                  <View style={styles.bizLine}>
+                    <Text style={styles.bizName} numberOfLines={1}>
+                      {entity.name}
+                    </Text>
+                    {entities.length > 1 && isActive ? <Text style={styles.activeTag}>ACTIVO</Text> : null}
+                  </View>
+                  <Text style={styles.bizCat} numberOfLines={1}>
+                    {entity.category_name}
+                  </Text>
+                </View>
+                <View style={[styles.badge, { backgroundColor: st.bg }]}>
+                  <Ionicons name={st.icon} size={12} color={st.fg} />
+                  <Text style={[styles.badgeText, { color: st.fg }]}>{verificationLabel(entity.verification_status)}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.placeholder} />
+              </Pressable>
+              {reqs > 0 ? (
+                <Pressable accessibilityRole="link" accessibilityLabel={`${entity.name}: ${requestsLabel(reqs)}. Ver agenda`} onPress={() => router.push({ pathname: '/business/agenda/[id]', params: { id: entity.id } })} style={styles.strip}>
+                  <View style={styles.stripDot} />
+                  <Text style={styles.stripText} numberOfLines={1}>
+                    Hoy · {reqs} por responder
+                  </Text>
+                  <Text style={styles.stripLink}>Ver agenda ›</Text>
+                </Pressable>
+              ) : null}
+              {isActive ? (
+                <>
+                  {today ? (
+                    <Text style={styles.todayLine}>
+                      Hoy · {today.sales_count === 1 ? '1 venta' : `${today.sales_count} ventas`} · {formatPesos(today.sales_total)}
+                    </Text>
+                  ) : null}
+                  <View style={styles.quickRow}>
+                    <QuickAction symbol="offers" icon="scan-outline" label="Canjear" onPress={() => router.push('/business/scan')} />
+                    <QuickAction symbol="finance" icon="add-circle-outline" label="Vender" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entity.id } })} />
+                    <QuickAction icon="calendar-outline" label="Agenda" onPress={() => router.push({ pathname: '/business/agenda/[id]', params: { id: entity.id } })} />
+                  </View>
+                </>
+              ) : null}
+            </View>
+          );
+        })
       )}
-    </>
+      {entities.length > 1 ? (
+        <Pressable accessibilityRole="button" onPress={() => setAllOpen(true)} style={styles.allBtn}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowLabel}>Todos mis negocios</Text>
+            <Text style={styles.rowSub}>Ventas de hoy: {formatPesos(allTotal)}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.placeholder} />
+        </Pressable>
+      ) : null}
+      <Pressable accessibilityRole="button" onPress={() => router.push('/business/new')} style={styles.createBtn}>
+        <Text style={styles.createText}>+ Crear otro negocio</Text>
+      </Pressable>
+    </View>
   );
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.lg }]}>
+    <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: insets.top + 18 }]}>
       <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Cambiar foto de perfil"
-          onPress={() => void changePhoto()}
-          style={styles.avatarButton}
-        >
-          <Avatar uri={user.profile_picture_url} name={user.name} size={72} />
-          <View style={styles.avatarBadge}>
-            {uploadingPhoto ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Ionicons name="camera" size={14} color="#fff" />
-            )}
-          </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Cambiar foto de perfil" onPress={() => void changePhoto()} style={styles.avatarButton}>
+          <Avatar uri={user.profile_picture_url} name={user.name} size={64} />
+          <View style={styles.avatarBadge}>{uploadingPhoto ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="camera" size={13} color="#fff" />}</View>
         </Pressable>
         <View style={styles.headerInfo}>
-          <Text style={styles.name}>{user.name}</Text>
-          <Text style={styles.meta}>{user.email}</Text>
-          {user.phone ? <Text style={styles.meta}>{user.phone}</Text> : null}
+          <Text style={styles.name} numberOfLines={1}>
+            {user.name}
+          </Text>
+          <Text style={styles.contact} numberOfLines={1}>
+            {user.phone || user.email}
+          </Text>
         </View>
       </View>
 
       {hasBusiness || mine.isLoading ? businesses : null}
-      {entities.length > 1 ? (
-        <Pressable accessibilityRole="button" onPress={() => setAllOpen(true)} style={({ pressed }) => [styles.allBtn, pressed && { opacity: 0.85 }]}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>Todos mis negocios</Text>
-            <Text style={styles.meta}>Ventas de hoy: {formatPesos(allTotal)}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-        </Pressable>
-      ) : null}
       {allSheet}
 
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.push('/favorites')}
-        style={({ pressed }) => [styles.adminCard, pressed && { opacity: 0.85 }]}
-      >
-        <View style={styles.adminCardIcon}>
-          <Ionicons name="heart-outline" size={19} color={colors.primary} />
+      <View style={styles.section}>
+        <Text style={styles.eyebrow} accessibilityRole="header">
+          LO TUYO
+        </Text>
+        <View style={styles.group}>
+          <MenuRow first icon="qr-code-outline" label="Mis salidas" sub="Tus QR, tus planes y lo ahorrado" onPress={() => router.push('/salidas')} />
+          {FEATURES.agenda ? <MenuRow icon="calendar-outline" label="Mis citas" sub="Las que pediste y las que vienen" onPress={() => router.push('/appointments')} /> : null}
+          <MenuRow icon="heart-outline" label="Negocios que sigo" sub="Lo que publican y sus ofertas" onPress={() => router.push('/favorites')} />
+          <MenuRow icon="shield-checkmark-outline" label="Lo que Agent sabe de ti" sub="Qué recuerda y qué nunca guarda" onPress={() => router.push('/agent/privacy')} />
         </View>
-        <Text style={styles.adminCardText}>Negocios que sigo</Text>
-        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-      </Pressable>
+      </View>
 
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.push('/agent/privacy')}
-        style={({ pressed }) => [styles.adminCard, pressed && { opacity: 0.85 }]}
-      >
-        <View style={styles.adminCardIcon}>
-          <Ionicons name="shield-checkmark-outline" size={19} color={colors.primary} />
-        </View>
-        <Text style={styles.adminCardText}>Lo que Agent sabe de ti</Text>
-        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-      </Pressable>
-
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.push('/salidas')}
-        style={({ pressed }) => [styles.adminCard, pressed && { opacity: 0.85 }]}
-      >
-        <View style={styles.adminCardIcon}>
-          <Ionicons name="qr-code-outline" size={19} color={colors.primary} />
-        </View>
-        <Text style={styles.adminCardText}>Mis salidas</Text>
-        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-      </Pressable>
-
-      {/* La guía de la primera vez de Explorar (3.23), para volver a verla. */}
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.push({ pathname: '/map', params: { guide: '1' } })}
-        style={({ pressed }) => [styles.adminCard, pressed && { opacity: 0.85 }]}
-      >
-        <View style={styles.adminCardIcon}>
-          <Ionicons name="map-outline" size={19} color={colors.primary} />
-        </View>
-        <Text style={styles.adminCardText}>Cómo usar el mapa</Text>
-        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-      </Pressable>
-
-      {FEATURES.agenda ? (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push('/appointments')}
-          style={({ pressed }) => [styles.adminCard, pressed && { opacity: 0.85 }]}
-        >
-          <View style={styles.adminCardIcon}>
-            <Ionicons name="calendar-outline" size={19} color={colors.primary} />
+      {!hasBusiness && !mine.isLoading ? (
+        <Pressable accessibilityRole="button" onPress={() => router.push('/business/new')} style={styles.invite}>
+          <Ionicons name="storefront-outline" size={22} color={colors.ink} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={styles.rowLabel}>¿Tienes un negocio?</Text>
+            <Text style={styles.rowSub}>Ponlo en el mapa de Empre. Es gratis empezar.</Text>
           </View>
-          <Text style={styles.adminCardText}>Mis citas</Text>
-          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+          <Text style={styles.inviteLink}>Crear ›</Text>
         </Pressable>
       ) : null}
 
-      <View style={styles.adminCard}>
-        <View style={styles.adminCardIcon}>
-          <Ionicons name="analytics-outline" size={19} color={colors.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.adminCardText}>Medición anónima de uso</Text>
-          <Text style={{ fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted }}>
-            Ayuda a mejorar Empre sin identificarte. Puedes apagarla.
-          </Text>
-        </View>
-        <Switch
-          value={analyticsOn}
-          onValueChange={(on) => {
-            setAnalyticsOn(on);
-            void setAnalyticsEnabled(on);
-          }}
-          accessibilityLabel="Medición anónima de uso"
-        />
-      </View>
-
-      {user.role === 'admin' && (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push('/admin')}
-          style={({ pressed }) => [styles.adminCard, pressed && { opacity: 0.85 }]}
-        >
-          <View style={styles.adminCardIcon}>
-            <Ionicons name="shield-checkmark-outline" size={19} color={colors.primary} />
+      <View style={styles.section}>
+        <Text style={styles.eyebrow} accessibilityRole="header">
+          AJUSTES
+        </Text>
+        <View style={styles.group}>
+          <View style={styles.row}>
+            <View style={styles.rowIcon}>
+              <Ionicons name="analytics-outline" size={19} color={colors.muted} />
+            </View>
+            <View style={styles.rowText}>
+              <Text style={styles.rowLabel}>Medición anónima de uso</Text>
+              <Text style={styles.rowSub}>Ayuda a mejorar Empre sin identificarte</Text>
+            </View>
+            <Switch
+              value={analyticsOn}
+              onValueChange={(on) => {
+                setAnalyticsOn(on);
+                void setAnalyticsEnabled(on);
+              }}
+              trackColor={{ true: colors.verified, false: colors.line }}
+              thumbColor="#fff"
+              accessibilityLabel="Medición anónima de uso"
+            />
           </View>
-          <Text style={styles.adminCardText}>Panel de administración</Text>
-          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-        </Pressable>
-      )}
-
-      {!hasBusiness && !mine.isLoading ? businesses : null}
-      <Button title="Cerrar sesión" variant="secondary" onPress={() => void signOut()} style={styles.logout} />
+          <MenuRow icon="map-outline" label="Cómo usar el mapa" onPress={() => router.push({ pathname: '/map', params: { guide: '1' } })} />
+          {user.role === 'admin' ? <MenuRow icon="settings-outline" label="Panel de administración" onPress={() => router.push('/admin')} /> : null}
+          <MenuRow danger icon="log-out-outline" label="Cerrar sesión" onPress={() => void signOut()} />
+        </View>
+        {version ? <Text style={styles.version}>Empre · versión {version}</Text> : null}
+      </View>
     </ScrollView>
   );
 }
 
-function QuickAction({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
+function MenuRow({ icon, label, sub, onPress, first, danger }: { icon: keyof typeof Ionicons.glyphMap; label: string; sub?: string; onPress: () => void; first?: boolean; danger?: boolean }) {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.quick, pressed && { opacity: 0.85 }]}>
-      <Ionicons name={icon} size={18} color={colors.ink} />
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.row, !first && styles.rowLine, pressed && { opacity: 0.8 }]}>
+      <View style={[styles.rowIcon, danger && { backgroundColor: colors.primarySoft }]}>
+        <Ionicons name={icon} size={19} color={danger ? colors.danger : colors.muted} />
+      </View>
+      <View style={styles.rowText}>
+        <Text style={[styles.rowLabel, danger && { color: colors.danger }]}>{label}</Text>
+        {sub ? <Text style={styles.rowSub}>{sub}</Text> : null}
+      </View>
+      {danger ? null : <Ionicons name="chevron-forward" size={18} color={colors.placeholder} />}
+    </Pressable>
+  );
+}
+
+function QuickAction({ symbol, icon, label, onPress }: { symbol?: EmpreProduct; icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.quick, pressed && { opacity: 0.8 }]}>
+      {symbol ? <EmpreSymbol product={symbol} size={30} /> : <View style={styles.quickIcon}><Ionicons name={icon} size={18} color={colors.verified} /></View>}
       <Text style={styles.quickText}>{label}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  cardActive: { borderWidth: 2, borderColor: colors.ink },
-  activeBlock: { width: '100%', gap: spacing.sm },
-  activeTag: { alignSelf: 'flex-start', fontSize: 11, letterSpacing: 0.8, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  quickRow: { flexDirection: 'row', gap: spacing.sm },
-  quick: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 2, borderRadius: radius.md, backgroundColor: colors.selectedSoft },
-  quickText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  allBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 60, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
-  veil: { flex: 1, backgroundColor: 'rgba(11,26,54,0.45)' },
-  sheet: { gap: spacing.sm, padding: spacing.lg, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, backgroundColor: colors.surface },
-  allRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, paddingVertical: spacing.sm },
-  allTotal: { borderTopWidth: 1, borderTopColor: colors.line },
-  // La franja ocupa todo el ancho y pasa a su propia línea (la tarjeta envuelve).
-  reqStrip: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.accentSoft },
-  ledgerStrip: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
-  ledgerStripText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.bold, color: colors.primaryDark },
-  reqStripText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.bold, color: colors.accentInk },
-  reqStripLink: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   screen: { flex: 1, backgroundColor: colors.bg },
-  content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
-  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, marginBottom: spacing.md },
-  headerInfo: { flex: 1, gap: 2 },
-  name: { fontSize: 24, fontFamily: fonts.display.semibold, color: colors.ink },
-  meta: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted },
-  avatarButton: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.ink,
-        shadowOpacity: 0.15,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 4 },
-      },
-      default: { elevation: 4 },
-    }),
-  },
-  avatarBadge: {
-    position: 'absolute',
-    right: -2,
-    bottom: -2,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.primary,
-    borderWidth: 2,
-    borderColor: colors.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  adminCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radius.lg,
-  },
-  adminCardIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  adminCardText: { flex: 1, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
-  sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md },
-  section: { fontSize: 18, fontWeight: '700', fontFamily: fonts.ui.bold, color: colors.ink },
-  link: { fontSize: 14, fontWeight: '700', fontFamily: fonts.ui.bold, color: colors.primary },
-  empty: { color: colors.muted, fontSize: 14, fontFamily: fonts.ui.medium },
-  card: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radius.lg,
-  },
-  cardInfo: { flex: 1, gap: 2 },
-  cardTitle: { fontSize: 16, fontWeight: '700', fontFamily: fonts.ui.bold, color: colors.ink },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    height: 24,
-    borderRadius: radius.pill,
-  },
-  badgeText: { fontSize: 12, fontFamily: fonts.ui.bold },
-  logout: { marginTop: spacing.xl },
+  content: { paddingHorizontal: 16, paddingBottom: 28, gap: 18 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  headerInfo: { flex: 1, minWidth: 0, gap: 2 },
+  name: { fontSize: 22, lineHeight: 27, fontFamily: fonts.display.bold, color: colors.ink },
+  contact: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.faint },
+  avatarButton: { width: 64, height: 64, borderRadius: 32 },
+  avatarBadge: { position: 'absolute', right: -3, bottom: -3, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.bg, backgroundColor: colors.primary },
+  section: { gap: 8 },
+  sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
+  eyebrow: { fontSize: 12, letterSpacing: 1.2, fontFamily: fonts.ui.extrabold, color: colors.faint },
+  hint: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.faint },
+  empty: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted },
+  biz: { padding: 14, gap: 12, borderRadius: 20, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+  bizOn: { borderWidth: 2, borderColor: colors.ink },
+  bizTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  bizIcon: { width: 48, height: 48, borderRadius: 12, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
+  bizText: { flex: 1, minWidth: 0, gap: 2 },
+  bizLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  bizName: { flexShrink: 1, fontSize: 17, lineHeight: 21, fontFamily: fonts.display.bold, color: colors.ink },
+  activeTag: { paddingVertical: 2, paddingHorizontal: 7, borderRadius: 999, overflow: 'hidden', backgroundColor: colors.primary, fontSize: 11, letterSpacing: 0.9, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  bizCat: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.faint },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 9, borderRadius: 999 },
+  badgeText: { fontSize: 12, fontFamily: fonts.ui.extrabold },
+  strip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.accentSoft },
+  stripDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.warning },
+  stripText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
+  stripLink: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
+  todayLine: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  quickRow: { flexDirection: 'row', gap: 8 },
+  quick: { flex: 1, minHeight: 76, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 16, borderWidth: 1.5, borderColor: colors.hairline, backgroundColor: colors.surface },
+  quickIcon: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.verifiedSoft },
+  quickText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  allBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 60, padding: 12, borderRadius: 16, backgroundColor: colors.surface },
+  createBtn: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.line },
+  createText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.muted },
+  invite: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 20, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.line },
+  inviteLink: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
+  group: { paddingVertical: 2, paddingHorizontal: 14, borderRadius: 20, backgroundColor: colors.surface },
+  row: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  rowLine: { borderTopWidth: 1, borderTopColor: colors.selectedSoft },
+  rowIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
+  rowText: { flex: 1, minWidth: 0, gap: 1 },
+  rowLabel: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  rowSub: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.faint },
+  version: { paddingTop: 6, fontSize: 12, fontFamily: fonts.ui.medium, color: colors.placeholder, textAlign: 'center' },
+  veil: { flex: 1, backgroundColor: 'rgba(14,35,70,0.38)' },
+  sheet: { gap: 8, paddingTop: 16, paddingHorizontal: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.surface },
+  sheetTitle: { fontSize: 20, lineHeight: 25, fontFamily: fonts.display.bold, color: colors.ink },
+  allRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 8 },
+  allTotal: { borderTopWidth: 1, borderTopColor: colors.line },
 });
