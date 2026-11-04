@@ -21,6 +21,11 @@ export interface MarketItem {
   distance_meters: number | null;
   reason?: string;
   trending?: boolean;
+  /** «offer» o «service» (un servicio de un negocio sin oferta). */
+  kind?: string;
+  latitude?: number;
+  longitude?: number;
+  open_now?: boolean;
 }
 
 /** Tarjeta de «Por zona» (3.39): sin conteos; `looks` son hasta 3 categorías para el mosaico. */
@@ -29,6 +34,8 @@ export interface MarketZone {
   name: string;
   distance_meters: number | null;
   here: boolean;
+  latitude?: number;
+  longitude?: number;
   looks: { color?: string; icon?: string }[];
 }
 

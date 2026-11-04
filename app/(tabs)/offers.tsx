@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import * as Location from 'expo-location';
+import MapView, { Marker } from 'react-native-maps';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
@@ -11,17 +12,15 @@ import { offersApi } from '@/api/offers';
 import { Button } from '@/components/Button';
 import { UpdatingBar } from '@/components/explore/LoadingMotion';
 import { Reveal, RollText } from '@/components/offers/MarketMotion';
-import { CategoryTile, FeaturedOffer, OfferRow, OfferTile, TILE_GAP, TILE_W, ZONE_W, ZoneCard } from '@/components/offers/OfferTiles';
+import { FeaturedOffer, OfferRow, OfferTile, TILE_GAP, TILE_W, ZONE_W, ZoneCard } from '@/components/offers/OfferTiles';
 import { SkeletonBlock } from '@/components/Skeleton';
 import { loadLastCity, saveLastCity } from '@/lib/lastCityStore';
 import {
   effectiveSort,
   endText,
   flattenPages,
-  heroTitle,
   listTitle,
   nearEnd,
-  placeLine,
   shortCategory,
   showZones,
   sortOptions,
@@ -40,11 +39,8 @@ const COMPACT_AT = 90; // px bajados para pasar a la barra compacta
 const MINI_H = 52; // alto de la barra compacta (la lista no queda debajo al saltar a una zona)
 
 /**
- * Pestaña Ofertas como vitrina de la ciudad (3.38 + 3.39, mockups ofertas_marketplace.html y ofertas_ciudad.html).
- * La ciudad la pone la ubicación (sin menú para cambiarla); sin ubicación, la última conocida. Arriba «Ofertas en
- * {ciudad}» con la zona donde estás: al moverte, el texto rueda; al bajar, se compacta en una barra. Secciones sin
- * repetir ofertas (cerca, lo más buscado, tendencia, recomendado), «Por zona» y todas las de la ciudad por tandas.
- * Nada patrocinado ni contadores. El reclamo no cambia: la tarjeta abre el perfil en la ficha de esa oferta.
+ * Inicio de Ofertas (tablero «Inicio de Ofertas»): tu zona arriba, las ofertas en el mapa con la elegida primero en la
+ * fila, categorías y, debajo, el resto de la vitrina. Nada patrocinado ni contadores.
  */
 export default function OffersScreen() {
   const router = useRouter();
@@ -64,6 +60,10 @@ export default function OffersScreen() {
   const [text, setText] = useState('');
   const [q, setQ] = useState('');
   const [compact, setCompact] = useState(false);
+  // La zona que eligió ver: mueve el mapa y la vitrina a ese lugar. Sin elegir, donde estás.
+  const [picked, setPicked] = useState<{ id: string; name: string; latitude: number; longitude: number } | null>(null);
+  const [zonesOpen, setZonesOpen] = useState(false);
+  const [pin, setPin] = useState<string | null>(null);
   const [listY, setListY] = useState(0);
 
   useEffect(() => {
@@ -105,11 +105,12 @@ export default function OffersScreen() {
 
   const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 5 * 60_000 });
   const category = catId;
-  const hasLoc = coords !== null;
+  const center = picked ?? coords;
+  const hasLoc = center !== null;
   const sortNow = effectiveSort(sort, hasLoc);
   const ready = lastCity !== null;
-  const place = coords ? { lat: coords.latitude, long: coords.longitude } : { city: lastCity || undefined };
-  const placeKey = coords ? `${coords.latitude.toFixed(3)},${coords.longitude.toFixed(3)}` : `city:${lastCity ?? ''}`;
+  const place = center ? { lat: center.latitude, long: center.longitude } : { city: lastCity || undefined };
+  const placeKey = center ? `${center.latitude.toFixed(3)},${center.longitude.toFixed(3)}` : `city:${lastCity ?? ''}`;
   const key = [placeKey, category ?? 'all', term ?? ''].join('|');
 
   const market = useQuery({
@@ -138,11 +139,11 @@ export default function OffersScreen() {
   // La ciudad que puso la ubicación queda guardada en el teléfono para cuando no haya ubicación.
   const saved = useRef('');
   useEffect(() => {
-    if (hasLoc && city && city !== saved.current && city !== lastCity) {
+    if (coords && !picked && city && city !== saved.current && city !== lastCity) {
       saved.current = city;
       void saveLastCity(city);
     }
-  }, [hasLoc, city, lastCity]);
+  }, [coords, picked, city, lastCity]);
   // El lector de pantalla se entera cuando cambias de zona o de ciudad (la primera vez no: ya lo lee el título).
   const place1 = data ? `${city}|${data.zone}` : '';
   const prevPlace = useRef('');
@@ -154,12 +155,25 @@ export default function OffersScreen() {
     prevPlace.current = place1;
   }, [place1, data?.zone, city]);
 
-  const open = useCallback((o: MarketItem) => router.push({ pathname: '/business/[id]', params: { id: o.entity_id, offer: o.id, src: 'offers' } }), [router]);
-  const sections = q ? [] : visibleSections(data);
+  const open = useCallback(
+    (o: MarketItem) =>
+      o.kind === 'service'
+        ? router.push({ pathname: '/business/[id]', params: { id: o.entity_id } })
+        : router.push({ pathname: '/offer/[id]', params: { id: o.id, entityId: o.entity_id } }),
+    [router],
+  );
+  // Las ofertas del mapa: las cercanas con ubicación; la del pin elegido va primera en la fila.
+  const onMap = useMemo(() => (data?.near ?? []).filter((o) => o.kind !== 'service' && o.latitude && o.longitude).slice(0, 12), [data?.near]);
+  const ordered = useMemo(() => {
+    const first = onMap.find((o) => o.id === pin) ?? onMap[0];
+    return first ? [first, ...onMap.filter((o) => o.id !== first.id)] : [];
+  }, [onMap, pin]);
+  const mapCenter = center ?? (ordered[0] ? { latitude: ordered[0].latitude!, longitude: ordered[0].longitude! } : null);
+  const sections = (q ? [] : visibleSections(data)).filter((s) => !(s === 'near' && ordered.length > 0));
   const zonesOn = !q && showZones(data);
   const zoneName = data?.zones.find((z) => z.id === zoneId)?.name;
-  const hero = heroTitle(city);
-  const line = placeLine(data, hasLoc);
+  const zoneLabel = picked?.name ?? (coords ? data?.zone || 'Cerca de ti' : city || 'Tu ciudad');
+  const zoneTitle = picked ? `Ofertas en ${picked.name}` : coords ? 'Ofertas a pasos de ti' : city ? `Ofertas en ${city}` : 'Ofertas';
 
   // Barra compacta: aparece al bajar (por umbral, no con cada píxel).
   const [bar] = useState(() => new Animated.Value(0));
@@ -233,16 +247,101 @@ export default function OffersScreen() {
 
       <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xl }} keyboardShouldPersistTaps="handled" onScroll={onScroll} scrollEventThrottle={64}>
         <View style={styles.top}>
-          <View style={styles.heroRow} accessible accessibilityRole="header" accessibilityLabel={hero.lead + hero.city}>
-            <Text style={[styles.hero, hero.city ? styles.heroLead : null]}>{hero.lead}</Text>
-            {hero.city ? <RollText text={hero.city} style={styles.hero} /> : null}
-          </View>
-          {line ? (
-            <View style={styles.where}>
-              <Ionicons name={hasLoc ? 'location' : 'time-outline'} size={16} color={colors.primaryDark} />
-              <RollText text={line} style={styles.whereText} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: zonesOpen }}
+            accessibilityLabel={`${picked ? 'Estás viendo' : 'Estás en'} ${zoneLabel}. Cambiar de zona`}
+            disabled={!data?.zones.length}
+            onPress={() => setZonesOpen((v) => !v)}
+            style={styles.zoneBtn}
+          >
+            <Ionicons name="location" size={18} color={colors.ink} />
+            <View style={{ flexShrink: 1 }}>
+              <Text style={styles.zoneLead}>{picked ? 'Estás viendo' : 'Estás en'}</Text>
+              <RollText text={zoneLabel} style={styles.zoneName} />
+            </View>
+            {data?.zones.length ? <Ionicons name={zonesOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} /> : null}
+          </Pressable>
+          {zonesOpen ? (
+            <View style={styles.zoneList}>
+              {coords ? (
+                <Pressable accessibilityRole="button" accessibilityState={{ selected: !picked }} onPress={() => { setPicked(null); setPin(null); setZonesOpen(false); }} style={[styles.zoneRow, !picked && styles.zoneRowOn]}>
+                  <Text style={styles.zoneRowText}>Cerca de ti</Text>
+                </Pressable>
+              ) : null}
+              {(data?.zones ?? []).map((z) => (
+                <Pressable
+                  key={z.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: picked?.id === z.id }}
+                  onPress={() => {
+                    if (z.latitude && z.longitude) setPicked({ id: z.id, name: z.name, latitude: z.latitude, longitude: z.longitude });
+                    else goToList(z.id);
+                    setPin(null);
+                    setZonesOpen(false);
+                  }}
+                  style={[styles.zoneRow, picked?.id === z.id && styles.zoneRowOn]}
+                >
+                  <Text style={styles.zoneRowText}>{z.name}</Text>
+                </Pressable>
+              ))}
             </View>
           ) : null}
+          <Text style={styles.hero} accessibilityRole="header">
+            {zoneTitle}
+          </Text>
+        </View>
+
+        {mapCenter && ordered.length ? (
+          <View style={styles.mapCard}>
+            <MapView
+              key={`${mapCenter.latitude.toFixed(3)},${mapCenter.longitude.toFixed(3)}`}
+              style={StyleSheet.absoluteFill}
+              initialRegion={{ latitude: mapCenter.latitude, longitude: mapCenter.longitude, latitudeDelta: 0.014, longitudeDelta: 0.014 }}
+              showsUserLocation={Boolean(coords) && !picked}
+              toolbarEnabled={false}
+              rotateEnabled={false}
+              pitchEnabled={false}
+            >
+              {ordered.map((o) => {
+                const on = o.id === ordered[0].id;
+                return (
+                  <Marker
+                    key={o.id}
+                    coordinate={{ latitude: o.latitude!, longitude: o.longitude! }}
+                    accessibilityLabel={`${o.entity_name}: ${o.title}`}
+                    onPress={() => setPin(o.id)}
+                    tracksViewChanges={false}
+                  >
+                    <View style={[styles.pin, on && styles.pinOn]}>
+                      <Ionicons name="pricetag" size={on ? 18 : 15} color={colors.ink} />
+                    </View>
+                  </Marker>
+                );
+              })}
+            </MapView>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/map')} style={styles.mapBtn}>
+              <Ionicons name="expand" size={14} color={colors.ink} />
+              <Text style={styles.mapBtnText}>Abrir mapa</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats} accessibilityLabel="Categorías">
+          <Chip label="Todas" active={!catId} onPress={() => setCatId(undefined)} />
+          {(categories.data ?? []).map((c) => (
+            <Chip key={c.id} label={shortCategory(c.name)} active={catId === c.id} onPress={() => setCatId(catId === c.id ? undefined : c.id)} />
+          ))}
+        </ScrollView>
+
+        {ordered.length ? (
+          <View style={styles.sec}>
+            {header(picked ? `En ${picked.name}, ahora` : 'Cerca de ti, ahora', 'Toca un pin y su oferta queda primero')}
+            {rail(ordered)}
+          </View>
+        ) : null}
+
+        <View style={styles.searchWrap}>
           <View style={styles.search}>
             <Ionicons name="search" size={18} color={colors.muted} />
             <TextInput
@@ -262,13 +361,6 @@ export default function OffersScreen() {
             ) : null}
           </View>
         </View>
-
-        {/* 3.40: las categorías con su icono y color; tocar la elegida la quita. */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats} accessibilityLabel="Categorías">
-          {(categories.data ?? []).map((c) => (
-            <CategoryTile key={c.id} name={c.name} short={shortCategory(c.name)} icon={c.icon} color={c.color} active={catId === c.id} onPress={() => setCatId(catId === c.id ? undefined : c.id)} />
-          ))}
-        </ScrollView>
 
         {!hasLoc && !q && ready ? (
           <View style={styles.loc}>
@@ -436,11 +528,20 @@ function EmptyOffers({ searching }: { searching: boolean }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   top: { backgroundColor: colors.bg, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
-  heroRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end' },
+  zoneBtn: { alignSelf: 'flex-start', minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  zoneLead: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.muted },
+  zoneName: { fontSize: 15, lineHeight: 19, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  zoneList: { marginBottom: spacing.sm, borderRadius: radius.md, overflow: 'hidden', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  zoneRow: { minHeight: 46, justifyContent: 'center', paddingHorizontal: spacing.md },
+  zoneRowOn: { backgroundColor: colors.selectedSoft },
+  zoneRowText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
+  mapCard: { height: 220, marginHorizontal: spacing.lg, marginTop: spacing.sm, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: colors.selectedSoft, borderWidth: 1, borderColor: colors.line },
+  mapBtn: { position: 'absolute', right: spacing.sm, bottom: spacing.sm, minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.surface, ...cardShadow },
+  mapBtnText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  pin: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 3, borderColor: colors.accent },
+  pinOn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.accentSoft, borderWidth: 4 },
+  searchWrap: { paddingHorizontal: spacing.lg },
   hero: { fontSize: 26, lineHeight: 32, fontFamily: fonts.display.bold, color: colors.ink },
-  heroLead: { color: colors.muted },
-  where: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32, alignSelf: 'flex-start' },
-  whereText: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.bold, color: colors.primaryDark },
   search: { marginTop: spacing.sm, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 52, paddingHorizontal: spacing.lg, borderRadius: 26, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, ...cardShadow },
   searchInput: { flex: 1, fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink, paddingVertical: 0 },
   mini: { position: 'absolute', left: 0, right: 0, zIndex: 5, height: MINI_H, flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: spacing.lg, paddingRight: spacing.xs, backgroundColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.line },
@@ -455,7 +556,7 @@ const styles = StyleSheet.create({
   chipPressed: { transform: [{ scale: 0.97 }] },
   chipText: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink },
   chipOnText: { color: colors.selected },
-  chipSoftText: { color: colors.primaryDark },
+  chipSoftText: { color: colors.selected },
   loc: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.lg, marginTop: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
   locText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
   locBtn: { minHeight: 40, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.primary, justifyContent: 'center' },
