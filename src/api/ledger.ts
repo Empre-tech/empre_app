@@ -500,6 +500,8 @@ export const ledgerApi = {
     (await request<{ sales: Sale[] | null }>(`${base(entityId)}/sales`, { query })).sales ?? [],
   createSale: (entityId: string, input: SaleInput) =>
     request<Sale>(`${base(entityId)}/sales`, { method: 'POST', body: input }),
+  setSaleMethod: (entityId: string, saleId: string, method: PayMethod) =>
+    request<Sale>(`${base(entityId)}/sales/${saleId}/method`, { method: 'PUT', body: { method } }),
   voidSale: (entityId: string, saleId: string, reason: string) =>
     request<Sale>(`${base(entityId)}/sales/${saleId}/void`, { method: 'POST', body: { reason } }),
 

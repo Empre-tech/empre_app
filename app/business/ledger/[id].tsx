@@ -33,6 +33,7 @@ const startCO = (ymd: string) => `${ymd}T00:00:00-05:00`;
 const MONEY_INSIGHTS = ['loss', 'idle', 'margin', 'tabs'];
 
 interface Movement {
+  origin?: 'manual' | 'offers' | 'agenda';
   key: string;
   kind: 'sale' | 'expense';
   id: string;
@@ -59,9 +60,17 @@ function timeOf(iso: string, withDay = false): string {
   return withDay ? `${d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })} ${t}` : t;
 }
 
+const ORIGINS: { key: 'all' | 'manual' | 'offers' | 'agenda'; label: string }[] = [
+  { key: 'all', label: 'Todo' },
+  { key: 'manual', label: 'Manual' },
+  { key: 'offers', label: 'Empre Offers' },
+  { key: 'agenda', label: 'Agenda' },
+];
+const originOf = (source: Sale['source']): 'manual' | 'offers' | 'agenda' => (source === 'offer_claim' ? 'offers' : source === 'appointment' ? 'agenda' : 'manual');
+
 function saleMovement(s: Sale): Movement {
   const what = s.lines?.length ? s.lines.map((l) => (l.qty === 1 ? l.name : `${l.qty} × ${l.name}`)).join(', ') : s.note || 'Venta';
-  return { key: `s${s.id}`, kind: 'sale', id: s.id, at: s.occurred_at, amount: s.total, title: what, sub: `${salePayText({ ...s, partyName: s.party?.name })}${s.source === 'voice' ? ' · por voz' : ''}`, voided: s.status === 'voided', pending: false };
+  return { key: `s${s.id}`, kind: 'sale', id: s.id, at: s.occurred_at, amount: s.total, title: what, origin: originOf(s.source), sub: `${originOf(s.source) === 'offers' ? 'Empre Offers · ' : originOf(s.source) === 'agenda' ? 'Agenda · ' : ''}${salePayText({ ...s, partyName: s.party?.name })}${s.source === 'voice' ? ' · por voz' : ''}`, voided: s.status === 'voided', pending: false };
 }
 
 function expenseMovement(e: Expense): Movement {
@@ -78,6 +87,7 @@ export default function LedgerHome() {
   const [range, setRange] = useState<DateRange>(() => presetRange('today', today));
   const [rangeOpen, setRangeOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [origin, setOrigin] = useState<'all' | 'manual' | 'offers' | 'agenda'>('all');
   const outbox = useLedgerOutbox();
   const includesToday = range.to >= today;
   // Lo que aún no sale del teléfono cuenta solo si el rango llega hasta hoy.
@@ -292,10 +302,17 @@ export default function LedgerHome() {
         </View>
 
         <Text style={styles.sectionTitle}>{range.preset === 'today' ? 'Movimientos de hoy' : 'Movimientos'}</Text>
+        {(sales.data ?? []).some((s) => originOf(s.source) !== 'manual') ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
+            {ORIGINS.map((o) => (
+              <Chip key={o.key} label={o.label} selected={origin === o.key} onPress={() => setOrigin(o.key)} />
+            ))}
+          </ScrollView>
+        ) : null}
         {movements.length === 0 && !sales.isLoading ? (
           <EmptyState icon="receipt-outline" title="Aún no hay movimientos" body="Registra tu primera venta con el botón «Vender» o dictándola con el micrófono." />
         ) : (
-          movements.map((m) => (
+          movements.filter((m) => origin === 'all' || (m.kind === 'sale' && (m.origin ?? 'manual') === origin)).map((m) => (
             <Pressable key={m.key} accessibilityRole="button" accessibilityLabel={`${m.kind === 'sale' ? 'Venta' : 'Gasto'} de ${formatPesos(m.amount)}, ${m.title}${m.voided ? ', anulada' : ''}. Toca para anular`} onPress={() => (m.pending ? undefined : askVoid(m))} style={styles.move}>
               <View style={[styles.moveIcon, { backgroundColor: m.kind === 'sale' ? colors.primarySoft : colors.selectedSoft }]}>
                 <Ionicons name={m.kind === 'sale' ? 'arrow-up' : 'arrow-down'} size={16} color={m.kind === 'sale' ? colors.primary : colors.ink} />

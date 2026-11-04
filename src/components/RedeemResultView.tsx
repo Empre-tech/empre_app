@@ -1,7 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useState } from 'react';
+import { ledgerApi } from '@/api/ledger';
 import type { RedeemResult } from '@/api/types';
+import { queueVoid } from '@/ledger/ledgerStore';
+import { formatPesos, METHOD_LABEL, type PayMethod } from '@/lib/ledger';
 import { formatAgo, formatCurrency, formatSlotsLeft } from '@/lib/offer';
 import { colors, fonts, radius, spacing } from '@/theme';
 
@@ -76,6 +80,8 @@ interface Props {
   offline: boolean;
   onNext: () => void;
   onRetry: () => void;
+  /** Abrir Finanzas del negocio. */
+  onFinance?: (entityId: string) => void;
 }
 
 /**
@@ -83,7 +89,7 @@ interface Props {
  * verde = entrega, rojo suave = no entregues, ámbar/gris = reintenta o
  * explica. Cada rechazo dice por qué y qué hacer.
  */
-export function RedeemResultView({ result, offline, onNext, onRetry }: Props) {
+export function RedeemResultView({ result, offline, onNext, onRetry, onFinance }: Props) {
   const insets = useSafeAreaInsets();
   if (!result && !offline) return null;
 
@@ -118,6 +124,7 @@ export function RedeemResultView({ result, offline, onNext, onRetry }: Props) {
         <Text style={[styles.why, { color: mutedColor }]}>{look.why}</Text>
 
         {result && ok ? <ValidDetails result={result} /> : null}
+        {result && ok ? <SaleReceipt key={result.claim_id} result={result} onFinance={onFinance} /> : null}
         {result && !ok && !offline ? <RejectedFacts result={result} /> : null}
 
         {look.hint ? (
@@ -194,6 +201,84 @@ function ValidDetails({ result }: { result: RedeemResult }) {
   );
 }
 
+const PAY_METHODS: PayMethod[] = ['cash', 'transfer', 'card'];
+
+/** Cómo pagó: la venta ya quedó en Empre Finance; aquí solo se ajusta el medio o se anula. */
+function SaleReceipt({ result, onFinance }: { result: RedeemResult; onFinance?: (entityId: string) => void }) {
+  const [method, setMethod] = useState<PayMethod>('cash');
+  const [voided, setVoided] = useState(false);
+  const [error, setError] = useState('');
+  const entityId = result.entity_id;
+  const saleId = result.sale_id;
+  if (!saleId || !entityId) {
+    return (
+      <View style={styles.sale}>
+        <Text style={styles.saleTitle}>No quedó en tus ventas</Text>
+        <Text style={styles.saleSub}>Esta oferta no dice cuánto cobrar en pesos. Si cobraste algo, anótalo como venta.</Text>
+        {entityId && onFinance ? (
+          <Pressable accessibilityRole="button" onPress={() => onFinance(entityId)} style={styles.saleLink}>
+            <Text style={styles.saleLinkText}>Ir a Finanzas</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
+  }
+  const pick = (next: PayMethod) => {
+    const prev = method;
+    setMethod(next);
+    setError('');
+    ledgerApi.setSaleMethod(entityId, saleId, next).catch(() => {
+      setMethod(prev);
+      setError('No pudimos cambiarlo. Revisa tu conexión e inténtalo otra vez.');
+    });
+  };
+  if (voided) {
+    return (
+      <View style={styles.sale} accessibilityLiveRegion="polite">
+        <Text style={styles.saleTitle}>Venta anulada</Text>
+        <Text style={styles.saleSub}>Salió de tus números y el inventario volvió. El canje del cliente sigue usado.</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.sale}>
+      <Text style={styles.saleLabel}>¿CÓMO TE PAGÓ?</Text>
+      <View style={styles.saleChips}>
+        {PAY_METHODS.map((m) => (
+          <Pressable key={m} accessibilityRole="button" accessibilityState={{ selected: method === m }} onPress={() => pick(m)} style={[styles.saleChip, method === m && styles.saleChipOn]}>
+            <Text style={styles.saleChipText}>{METHOD_LABEL[m]}</Text>
+          </Pressable>
+        ))}
+      </View>
+      {error ? <Text style={styles.saleError}>{error}</Text> : null}
+      <Text style={styles.saleTitle} accessibilityLiveRegion="polite">
+        Registrado en Empre Finance
+      </Text>
+      <Text style={styles.saleSub}>
+        {formatPesos(result.sale_total ?? 0)} · {METHOD_LABEL[method]}. No tienes que anotarlo.
+      </Text>
+      <View style={styles.saleActions}>
+        {onFinance ? (
+          <Pressable accessibilityRole="button" onPress={() => onFinance(entityId)} style={styles.saleLink}>
+            <Text style={styles.saleLinkText}>Ver</Text>
+          </Pressable>
+        ) : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Anular la venta de este canje"
+          onPress={() => {
+            queueVoid('sale', entityId, saleId, 'Anulada al canjear');
+            setVoided(true);
+          }}
+          style={styles.saleLink}
+        >
+          <Text style={styles.saleLinkText}>Anular</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 /** Contexto del reclamo rechazado (solo llega para reclamos del propio negocio). */
 function RejectedFacts({ result }: { result: RedeemResult }) {
   const rows: [string, string][] = [];
@@ -231,6 +316,18 @@ const TONES: Record<Tone, { bg: ViewStyle; icon: ViewStyle; glyph: string }> = {
 };
 
 const styles = StyleSheet.create({
+  sale: { alignSelf: 'stretch', gap: 6, backgroundColor: '#fff', borderRadius: radius.lg, padding: spacing.md },
+  saleLabel: { fontSize: 11, fontFamily: fonts.ui.bold, letterSpacing: 1, color: colors.muted },
+  saleChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: 4 },
+  saleChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line },
+  saleChipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
+  saleChipText: { fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.ink },
+  saleError: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.danger },
+  saleTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  saleSub: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
+  saleActions: { flexDirection: 'row', gap: spacing.lg },
+  saleLink: { minHeight: 44, justifyContent: 'center' },
+  saleLinkText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink, textDecorationLine: 'underline' },
   root: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10, paddingHorizontal: spacing.xl },
   scroll: { alignItems: 'center', paddingTop: spacing.xl, paddingBottom: spacing.lg, gap: spacing.sm, flexGrow: 1 },
   iconWrap: { width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.sm },

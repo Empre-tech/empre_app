@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ledgerApi, type ItemCost } from '@/api/ledger';
 import { Button } from '@/components/Button';
@@ -54,6 +54,7 @@ export default function NewSaleScreen() {
   const [firstCustom, setFirstCustom] = useState(false);
   const [method2, setMethod2] = useState<PayMethod>('transfer');
   const parked = useParkedSales(entityId);
+  const recent = useQuery({ queryKey: ['ledger', entityId, 'sales', 'recent'], queryFn: () => ledgerApi.sales(entityId, { limit: 10 }), enabled: Boolean(entityId), staleTime: 30_000 });
   const [showParked, setShowParked] = useState(false);
   const [toast, setToast] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -127,6 +128,20 @@ export default function NewSaleScreen() {
     if (total <= 0) return setError('Escribe cuánto fue la venta.');
     if (how === 'one' && method === 'credit' && !party) return setError('Un fiado necesita el cliente.');
     if (waiting) return setError(waiting);
+    // Evita registrar dos veces lo mismo: el canje ya dejó su venta.
+    const dup = (recent.data ?? []).find((s) => s.source === 'offer_claim' && s.status === 'active' && s.total === total && Date.now() - Date.parse(s.occurred_at) < 15 * 60_000);
+    if (dup) {
+      const mins = Math.max(1, Math.round((Date.now() - Date.parse(dup.occurred_at)) / 60_000));
+      Alert.alert('¿Es el mismo canje?', `Hace ${mins} min se registró ${formatPesos(total)} por un canje de Empre Offers. Si es esa venta, no la anotes otra vez.`, [
+        { text: 'Es el mismo, no anotar', style: 'cancel' },
+        { text: 'Es otra venta, anotarla', onPress: commit },
+      ]);
+      return;
+    }
+    commit();
+  };
+
+  const commit = () => {
     const clientId = newClientId();
     const pay = how === 'one' ? {} : { method2: how === 'part' ? ('credit' as const) : second, amount2: rest };
     queueSale(entityId, {

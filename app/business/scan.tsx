@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -23,6 +24,7 @@ export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [mode, setMode] = useState<Mode>('scan');
 
+  const router = useRouter();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<RedeemResult | null>(null);
@@ -141,7 +143,7 @@ export default function ScanScreen() {
 
       </ScrollView>
 
-      <RedeemResultView result={result} offline={offline} onNext={onNext} onRetry={onRetry} />
+      <RedeemResultView result={result} offline={offline} onNext={onNext} onRetry={onRetry} onFinance={(entityId) => router.push({ pathname: '/business/ledger/[id]', params: { id: entityId } })} />
     </View>
   );
 }

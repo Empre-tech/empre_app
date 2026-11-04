@@ -479,6 +479,10 @@ export interface RedeemResult {
   redeemed_at?: string;
   slots_left?: number;
   slots_total?: number;
+  entity_id?: string;
+  /** La venta que el canje dejó en Empre Finance. Sin ella, la oferta no dice cuánto se cobró. */
+  sale_id?: string;
+  sale_total?: number;
 }
 
 export interface OfferInput {
