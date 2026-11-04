@@ -68,33 +68,11 @@ export default function ProfileScreen() {
     }
   };
 
-  return (
-    <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.lg }]}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Cambiar foto de perfil"
-          onPress={() => void changePhoto()}
-          style={styles.avatarButton}
-        >
-          <Avatar uri={user.profile_picture_url} name={user.name} size={72} />
-          <View style={styles.avatarBadge}>
-            {uploadingPhoto ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Ionicons name="camera" size={14} color="#fff" />
-            )}
-          </View>
-        </Pressable>
-        <View style={styles.headerInfo}>
-          <Text style={styles.name}>{user.name}</Text>
-          <Text style={styles.meta}>{user.email}</Text>
-          {user.phone ? <Text style={styles.meta}>{user.phone}</Text> : null}
-        </View>
-      </View>
-
+  const hasBusiness = (mine.data ?? []).length > 0;
+  const businesses = (
+    <>
       <View style={styles.sectionRow}>
-        <Text style={styles.section}>Mis negocios</Text>
+        <Text style={styles.section}>{hasBusiness ? 'Mis negocios' : 'Tu negocio'}</Text>
         <Pressable accessibilityRole="button" onPress={() => router.push('/business/new')} hitSlop={8}>
           <Text style={styles.link}>+ Crear negocio</Text>
         </Pressable>
@@ -104,7 +82,7 @@ export default function ProfileScreen() {
       ) : mine.isError ? (
         <Text style={styles.empty}>No pudimos cargar tus negocios.</Text>
       ) : (mine.data ?? []).length === 0 ? (
-        <Text style={styles.empty}>Aún no tienes negocios registrados. Crea el primero con “+ Crear negocio”.</Text>
+        <Text style={styles.empty}>¿Tienes un negocio? Ponlo en Empre para que te encuentren cerca.</Text>
       ) : (
         (mine.data ?? []).map((entity) => (
           <Pressable
@@ -164,6 +142,36 @@ export default function ProfileScreen() {
       )}
 
       <Button title="Cerrar sesión" variant="secondary" onPress={() => void signOut()} style={styles.logout} />
+    </>
+  );
+
+  return (
+    <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.lg }]}>
+      <View style={styles.header}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Cambiar foto de perfil"
+          onPress={() => void changePhoto()}
+          style={styles.avatarButton}
+        >
+          <Avatar uri={user.profile_picture_url} name={user.name} size={72} />
+          <View style={styles.avatarBadge}>
+            {uploadingPhoto ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="camera" size={14} color="#fff" />
+            )}
+          </View>
+        </Pressable>
+        <View style={styles.headerInfo}>
+          <Text style={styles.name}>{user.name}</Text>
+          <Text style={styles.meta}>{user.email}</Text>
+          {user.phone ? <Text style={styles.meta}>{user.phone}</Text> : null}
+        </View>
+      </View>
+
+      {hasBusiness || mine.isLoading ? businesses : null}
+
       <Pressable
         accessibilityRole="button"
         onPress={() => router.push('/favorites')}
@@ -249,6 +257,7 @@ export default function ProfileScreen() {
         </Pressable>
       )}
 
+      {!hasBusiness && !mine.isLoading ? businesses : null}
     </ScrollView>
   );
 }
