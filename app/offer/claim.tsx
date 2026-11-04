@@ -10,6 +10,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { getClaimPosition } from '@/claims/claimPosition';
 import { loadSavedClaims, removeSavedClaim, saveClaim } from '@/claims/claimStore';
 import { Button } from '@/components/Button';
+import { ClaimEnvelope } from '@/components/claim/ClaimEnvelope';
 import { ClaimIntro } from '@/components/claim/ClaimIntro';
 import { ClaimQR } from '@/components/claim/ClaimQR';
 import { ClaimRedeemed } from '@/components/claim/ClaimRedeemed';
@@ -43,6 +44,7 @@ export default function ClaimScreen() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
+  const [sealed, setSealed] = useState(false);
 
   // Reclamos que se conocen: los del servidor (si hay conexión) y los guardados en el teléfono.
   const mine = useQuery({ queryKey: ['claims', 'mine'], queryFn: claimsApi.mine, enabled: signedIn, retry: false, staleTime: 15_000 });
@@ -112,6 +114,7 @@ export default function ClaimScreen() {
       void queryClient.invalidateQueries({ queryKey: ['claims', 'mine'] });
       if (userId) setJustSaved(await saveClaim(userId, created));
       setChosenId(created.id);
+      setSealed(true);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'No pudimos reclamar la oferta');
     } finally {
@@ -185,6 +188,8 @@ export default function ClaimScreen() {
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]} showsVerticalScrollIndicator={false}>
         {authStatus === 'loading' || loadingOffer ? (
           <ActivityIndicator color={colors.primary} style={styles.spinner} />
+        ) : claim && sealed && status === 'RECLAMADO' ? (
+          <ClaimEnvelope claim={claim} onOpen={() => setSealed(false)} />
         ) : claim && status ? (
           status === 'CANJEADO' ? (
             <ClaimRedeemed claim={claim} busy={busy} message={message} onConfirm={() => void onConfirm()} />
