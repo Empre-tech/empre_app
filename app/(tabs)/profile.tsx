@@ -93,6 +93,77 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      <View style={styles.sectionRow}>
+        <Text style={styles.section}>Mis negocios</Text>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/business/new')} hitSlop={8}>
+          <Text style={styles.link}>+ Crear negocio</Text>
+        </Pressable>
+      </View>
+      {mine.isLoading ? (
+        <ActivityIndicator color={colors.primary} />
+      ) : mine.isError ? (
+        <Text style={styles.empty}>No pudimos cargar tus negocios.</Text>
+      ) : (mine.data ?? []).length === 0 ? (
+        <Text style={styles.empty}>Aún no tienes negocios registrados. Crea el primero con “+ Crear negocio”.</Text>
+      ) : (
+        (mine.data ?? []).map((entity) => (
+          <Pressable
+            key={entity.id}
+            onPress={() => router.push({ pathname: '/business/hub/[id]', params: { id: entity.id } })}
+            style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}
+          >
+            <Avatar uri={entity.profile_url} name={entity.name} size={48} />
+            <View style={styles.cardInfo}>
+              <Text style={styles.cardTitle} numberOfLines={1}>
+                {entity.name}
+              </Text>
+              <Text style={styles.meta} numberOfLines={1}>
+                {entity.category_name}
+              </Text>
+            </View>
+            <View style={[styles.badge, { backgroundColor: STATUS_STYLE[entity.verification_status].bg }]}>
+              <Ionicons
+                name={STATUS_STYLE[entity.verification_status].icon}
+                size={12}
+                color={STATUS_STYLE[entity.verification_status].fg}
+              />
+              <Text style={[styles.badgeText, { color: STATUS_STYLE[entity.verification_status].fg }]}>
+                {verificationLabel(entity.verification_status)}
+              </Text>
+            </View>
+            {/* Solo lo de la agenda (3.37): solicitudes de cita por revisar, en su propia línea al pie de la tarjeta. */}
+            {(inbox.byEntity.get(entity.id)?.requests ?? 0) > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${entity.name}: ${requestsLabel(inbox.byEntity.get(entity.id)?.requests ?? 0)}. Ver agenda`}
+                onPress={() => router.push({ pathname: '/business/agenda/[id]', params: { id: entity.id } })}
+                style={({ pressed }) => [styles.reqStrip, pressed && { opacity: 0.85 }]}
+              >
+                <Ionicons name="calendar-outline" size={16} color={colors.accentInk} />
+                <Text style={styles.reqStripText} numberOfLines={1}>
+                  {(inbox.byEntity.get(entity.id)?.requests ?? 0) === 1 ? '1 solicitud por revisar' : `${inbox.byEntity.get(entity.id)?.requests} solicitudes por revisar`}
+                </Text>
+                <Text style={styles.reqStripLink}>Ver agenda</Text>
+              </Pressable>
+            ) : null}
+            {/* «Mi negocio» es el centro: datos, productos e inventario, fotos, ofertas, ventas, agenda y suscripción. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Administrar ${entity.name}`}
+              onPress={() => router.push({ pathname: '/business/hub/[id]', params: { id: entity.id } })}
+              style={({ pressed }) => [styles.ledgerStrip, pressed && { opacity: 0.85 }]}
+            >
+              <Ionicons name="storefront-outline" size={18} color={colors.primaryDark} />
+              <Text style={styles.ledgerStripText} numberOfLines={1}>
+                Administrar mi negocio
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.primaryDark} />
+            </Pressable>
+          </Pressable>
+        ))
+      )}
+
+      <Button title="Cerrar sesión" variant="secondary" onPress={() => void signOut()} style={styles.logout} />
       <Pressable
         accessibilityRole="button"
         onPress={() => router.push('/favorites')}
@@ -178,77 +249,6 @@ export default function ProfileScreen() {
         </Pressable>
       )}
 
-      <View style={styles.sectionRow}>
-        <Text style={styles.section}>Mis negocios</Text>
-        <Pressable accessibilityRole="button" onPress={() => router.push('/business/new')} hitSlop={8}>
-          <Text style={styles.link}>+ Crear negocio</Text>
-        </Pressable>
-      </View>
-      {mine.isLoading ? (
-        <ActivityIndicator color={colors.primary} />
-      ) : mine.isError ? (
-        <Text style={styles.empty}>No pudimos cargar tus negocios.</Text>
-      ) : (mine.data ?? []).length === 0 ? (
-        <Text style={styles.empty}>Aún no tienes negocios registrados. Crea el primero con “+ Crear negocio”.</Text>
-      ) : (
-        (mine.data ?? []).map((entity) => (
-          <Pressable
-            key={entity.id}
-            onPress={() => router.push({ pathname: '/business/hub/[id]', params: { id: entity.id } })}
-            style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}
-          >
-            <Avatar uri={entity.profile_url} name={entity.name} size={48} />
-            <View style={styles.cardInfo}>
-              <Text style={styles.cardTitle} numberOfLines={1}>
-                {entity.name}
-              </Text>
-              <Text style={styles.meta} numberOfLines={1}>
-                {entity.category_name}
-              </Text>
-            </View>
-            <View style={[styles.badge, { backgroundColor: STATUS_STYLE[entity.verification_status].bg }]}>
-              <Ionicons
-                name={STATUS_STYLE[entity.verification_status].icon}
-                size={12}
-                color={STATUS_STYLE[entity.verification_status].fg}
-              />
-              <Text style={[styles.badgeText, { color: STATUS_STYLE[entity.verification_status].fg }]}>
-                {verificationLabel(entity.verification_status)}
-              </Text>
-            </View>
-            {/* Solo lo de la agenda (3.37): solicitudes de cita por revisar, en su propia línea al pie de la tarjeta. */}
-            {(inbox.byEntity.get(entity.id)?.requests ?? 0) > 0 ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${entity.name}: ${requestsLabel(inbox.byEntity.get(entity.id)?.requests ?? 0)}. Ver agenda`}
-                onPress={() => router.push({ pathname: '/business/agenda/[id]', params: { id: entity.id } })}
-                style={({ pressed }) => [styles.reqStrip, pressed && { opacity: 0.85 }]}
-              >
-                <Ionicons name="calendar-outline" size={16} color={colors.accentInk} />
-                <Text style={styles.reqStripText} numberOfLines={1}>
-                  {(inbox.byEntity.get(entity.id)?.requests ?? 0) === 1 ? '1 solicitud por revisar' : `${inbox.byEntity.get(entity.id)?.requests} solicitudes por revisar`}
-                </Text>
-                <Text style={styles.reqStripLink}>Ver agenda</Text>
-              </Pressable>
-            ) : null}
-            {/* «Mi negocio» es el centro: datos, productos e inventario, fotos, ofertas, ventas, agenda y suscripción. */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Administrar ${entity.name}`}
-              onPress={() => router.push({ pathname: '/business/hub/[id]', params: { id: entity.id } })}
-              style={({ pressed }) => [styles.ledgerStrip, pressed && { opacity: 0.85 }]}
-            >
-              <Ionicons name="storefront-outline" size={18} color={colors.primaryDark} />
-              <Text style={styles.ledgerStripText} numberOfLines={1}>
-                Administrar mi negocio
-              </Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.primaryDark} />
-            </Pressable>
-          </Pressable>
-        ))
-      )}
-
-      <Button title="Cerrar sesión" variant="secondary" onPress={() => void signOut()} style={styles.logout} />
     </ScrollView>
   );
 }
