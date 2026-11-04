@@ -33,6 +33,32 @@ export function planLevel(level: string): string {
   return level === 'walk' ? 'A pie' : level === 'zone' ? 'En tu barrio' : 'Por la ciudad';
 }
 
+/** «3:00 pm»: como se dice aquí, sin los «p. m.» del sistema. */
+export function planHour(iso: string | number): string {
+  return new Date(iso)
+    .toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' })
+    .replace(/\s*([ap])\.\s*m\.?/i, ' $1m')
+    .toLowerCase();
+}
+
+function dayPart(iso?: string | null): string | null {
+  if (!iso) return null;
+  const h = new Date(iso).getHours();
+  return h < 11 ? 'MAÑANA' : h < 15 ? 'MEDIODÍA' : h < 19 ? 'TARDE' : 'NOCHE';
+}
+
+/** «CENTRO · MEDIODÍA»: dónde y a qué hora. */
+export function planTag(r: Pick<MarketRoute, 'zone' | 'times'>, city?: string): string {
+  return [(r.zone || city || '').toUpperCase(), dayPart(r.times[0])].filter(Boolean).join(' · ');
+}
+
+/** «A pie · 2 cuadras»: una cuadra son unos 100 m. */
+export function planWalk(r: Pick<MarketRoute, 'level' | 'walk_meters'>): string {
+  if (r.level !== 'walk' || !r.walk_meters) return planLevel(r.level);
+  const n = Math.max(1, Math.round(r.walk_meters / 100));
+  return `A pie · ${n} ${n === 1 ? 'cuadra' : 'cuadras'}`;
+}
+
 export const planKey = (r: Pick<MarketRoute, 'stops'>) => r.stops.map((s) => s.id).join('|');
 
 /** Horas de llegada con las paradas en este orden: la primera conserva su hora y las demás van 30 min después más lo caminado. */

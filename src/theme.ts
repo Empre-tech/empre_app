@@ -25,6 +25,9 @@ export const colors = {
   danger: '#B3261E',
   success: '#0A6E6A',
   warning: '#C2410C', // se acaba pronto o va tarde
+  hairline: '#E3E9F2', // borde de las tarjetas y de la barra de abajo
+  faint: '#5B6B82', // etiquetas pequeñas y pestañas sin elegir
+  placeholder: '#8796AB', // texto de relleno del buscador
 } as const;
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
@@ -32,18 +35,14 @@ export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as cons
 export const radius = { sm: 10, md: 14, lg: 20, pill: 999 } as const;
 
 /**
- * Tipografía: la elegida es Neue Haas Grotesk (licencia comercial de Monotype).
- * Mientras no estén sus archivos en assets/fonts, toda la app usa Manrope, una
- * grotesca que sí está instalada: los títulos ya no usan Nunito (redondeada).
- * Para cambiar a Neue Haas basta con cargar sus archivos en app/_layout.tsx y
- * apuntar estos nombres a ellos. Se cargan con expo-font; hasta que cargan, RN
- * usa la fuente del sistema como respaldo automático.
+ * Tipografía, la misma del lienzo «Empre»: títulos en Nunito 900 y el resto en Manrope.
+ * Se cargan con expo-font en app/_layout.tsx; hasta que cargan, RN usa la fuente del sistema.
  */
 export const fonts = {
   display: {
-    medium: 'Manrope_600SemiBold',
-    semibold: 'Manrope_700Bold',
-    bold: 'Manrope_800ExtraBold',
+    medium: 'Nunito_700Bold',
+    semibold: 'Nunito_800ExtraBold',
+    bold: 'Nunito_900Black',
   },
   ui: {
     regular: 'Manrope_400Regular',
@@ -61,6 +60,15 @@ export const cardShadow = {
   shadowRadius: 14,
   shadowOffset: { width: 0, height: 6 },
   elevation: 3,
+} as const;
+
+/** Sombra del lienzo para tarjetas sobre el gris: 0 2px 10px, tinta al 5 %. */
+export const softShadow = {
+  shadowColor: '#0E2346',
+  shadowOpacity: 0.05,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 2 },
+  elevation: 1,
 } as const;
 
 /** Sombra suave de los controles que flotan sobre el mapa. */

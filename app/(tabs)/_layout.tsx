@@ -4,15 +4,15 @@ import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useInboxSummary } from '@/chat/useInboxSummary';
 import { badgeText, messagesA11y } from '@/lib/inbox';
-import { cardShadow, colors, fonts } from '@/theme';
+import { colors, fonts } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-/** Ícono de pestaña: la activa va en tinta sobre una pastilla gris clara; las demás, en tinta sin pastilla. */
+/** Ícono de pestaña: la activa va en tinta sobre una pastilla gris clara; las demás, en gris sin pastilla. */
 function tabIcon(name: IconName) {
   return ({ focused }: { focused: boolean }) => (
     <View style={[styles.pill, focused && styles.pillOn]}>
-      <Ionicons name={focused ? (name.replace('-outline', '') as IconName) : name} color={colors.ink} size={20} />
+      <Ionicons name={focused ? (name.replace('-outline', '') as IconName) : name} color={focused ? colors.ink : colors.faint} size={20} />
     </View>
   );
 }
@@ -26,21 +26,20 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.ink,
-        tabBarInactiveTintColor: colors.ink,
-        // Barra flotante: separada de los bordes, redondeada y con sombra, como en los mockups.
-        tabBarStyle: [styles.bar, { marginBottom: Math.max(insets.bottom, 12) }],
+        tabBarInactiveTintColor: colors.faint,
+        tabBarStyle: [styles.bar, { height: 76 + insets.bottom, paddingBottom: insets.bottom + 8 }],
         tabBarItemStyle: styles.item,
-        tabBarLabelStyle: { fontFamily: fonts.ui.bold, fontSize: 11, marginTop: 2 },
+        tabBarLabelStyle: { fontFamily: fonts.ui.extrabold, fontSize: 12, marginTop: 2 },
         sceneStyle: { backgroundColor: colors.bg },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Explorar', tabBarIcon: tabIcon('compass-outline') }} />
+      <Tabs.Screen name="index" options={{ title: 'Explorar', tabBarIcon: tabIcon('map-outline') }} />
       <Tabs.Screen name="offers" options={{ title: 'Ofertas', tabBarIcon: tabIcon('pricetag-outline') }} />
       <Tabs.Screen
         name="chats"
         options={{
           title: 'Mensajes',
-          tabBarIcon: tabIcon('chatbubbles-outline'),
+          tabBarIcon: tabIcon('chatbubble-outline'),
           tabBarBadge: badgeText(inbox.messages),
           tabBarBadgeStyle: styles.badge,
           tabBarAccessibilityLabel: messagesA11y(inbox.messages),
@@ -62,17 +61,7 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  bar: {
-    position: 'relative',
-    marginHorizontal: 12,
-    height: 68,
-    paddingTop: 8,
-    paddingBottom: 8,
-    borderRadius: 24,
-    borderTopWidth: 0,
-    backgroundColor: colors.surface,
-    ...cardShadow,
-  },
+  bar: { paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.hairline, backgroundColor: colors.surface, elevation: 0, shadowOpacity: 0 },
   item: { paddingVertical: 0 },
   pill: { width: 56, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   pillOn: { backgroundColor: colors.selectedSoft },

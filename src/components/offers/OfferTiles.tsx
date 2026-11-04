@@ -5,44 +5,26 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { categoryColor } from '@/lib/categoryColor';
 import { resolveImageUrl } from '@/lib/image';
 import { displayIcon } from '@/lib/mapView';
-import { distanceLabel, featuredA11y, featuredClock, initialOf, priceView, tileA11y, tileClock, timeBadge, zoneSubtitle, type MarketItem, type MarketZone } from '@/lib/offerMarket';
+import { photoTone } from '@/lib/photoTone';
+import { distanceLabel, featuredA11y, featuredClock, priceView, tileA11y, timeBadge, zoneSubtitle, type MarketItem, type MarketZone } from '@/lib/offerMarket';
 import { colors, fonts, radius, spacing } from '@/theme';
-import { LiveDot } from './MarketMotion';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-/**
- * Foto del negocio o, sin foto (3.40), el color de su categoría con su icono grande y tenue de fondo y la inicial del
- * negocio: dos negocios sin foto ya no se ven iguales, y la tarjeta nunca queda en blanco.
- */
+/** Foto del negocio o, sin foto, un tono de tinta del lienzo con su icono en blanco. */
 function Photo({ item, style, size }: { item: MarketItem; style: object; size: 'sm' | 'md' | 'lg' }) {
-  const cat = categoryColor(item.category_color);
   const uri = item.photo ? resolveImageUrl(item.photo) : null;
-  const icon = displayIcon(item.category_icon) as IconName;
-  const d = DIMS[size];
   return (
-    <View style={[style, { backgroundColor: cat.fg }]}>
+    <View style={[style, { backgroundColor: photoTone(item.entity_id) }]}>
       {uri ? (
         <Image accessible={false} source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" recyclingKey={uri} transition={180} />
       ) : (
-        <>
-          <View style={[styles.ghost, size === 'lg' ? styles.ghostLeft : null]} pointerEvents="none">
-            <Ionicons name={icon} size={d.ghost} color="rgba(255,255,255,0.2)" />
-          </View>
-          <View style={[styles.initial, { width: d.circle, height: d.circle, borderRadius: d.circle / 2 }]}>
-            <Text style={[styles.initialText, { fontSize: d.letter, color: cat.fg }]}>{initialOf(item.entity_name)}</Text>
-            {size !== 'sm' ? (
-              <View style={[styles.initialBadge, { backgroundColor: cat.fg }]}>
-                <Ionicons name={icon} size={11} color="#fff" />
-              </View>
-            ) : null}
-          </View>
-        </>
+        <Ionicons name={displayIcon(item.category_icon) as IconName} size={DIMS[size]} color="#fff" />
       )}
     </View>
   );
 }
-const DIMS = { sm: { ghost: 54, circle: 36, letter: 16 }, md: { ghost: 88, circle: 46, letter: 20 }, lg: { ghost: 128, circle: 58, letter: 25 } };
+const DIMS = { sm: 26, md: 34, lg: 44 };
 
 function Price({ item, big }: { item: MarketItem; big?: boolean }) {
   const p = priceView(item);
@@ -55,56 +37,49 @@ function Price({ item, big }: { item: MarketItem; big?: boolean }) {
   );
 }
 
-/** Ahorro sobre la foto (3.40): lo que hace que alguien toque la tarjeta, en grande. Solo si es real. */
-function SaveTag({ item }: { item: MarketItem }) {
-  const save = priceView(item).save;
-  return save ? (
-    <View style={styles.saveTag}>
-      <Text style={styles.saveTagText}>{save}</Text>
-    </View>
-  ) : null;
-}
-
-/** Etiqueta del tiempo: bajo una hora, reloj y minutos en naranja (se actualiza cada minuto, sin parpadear). */
-function Clock({ endsAt, now }: { endsAt: string; now: number }) {
-  const t = tileClock(endsAt, now);
-  return (
-    <View style={[styles.badge, styles.badgeRight, t.urgent ? styles.badgeUrgent : styles.badgeDark]}>
-      {t.urgent ? <Ionicons name="time-outline" size={12} color={colors.ink} /> : null}
-      <Text style={[styles.badgeText, t.urgent ? styles.urgentText : styles.darkText]}>{t.text}</Text>
-    </View>
-  );
-}
-
-/** Tarjeta de las secciones de lado: foto, tiempo que queda, título, negocio, distancia, precio y, si aplica, por qué. */
-export function OfferTile({ item, now, onPress, width = TILE_W }: { item: MarketItem; now: number; onPress: () => void; width?: number }) {
+/**
+ * La tarjeta del lienzo: foto con su ahorro, negocio y distancia, título, precio y cuánto le queda. La elegida en el
+ * mapa lleva el aro de tinta.
+ */
+export function OfferTile({ item, now, onPress, width = TILE_W, selected }: { item: MarketItem; now: number; onPress: () => void; width?: number; selected?: boolean }) {
   const dist = distanceLabel(item.distance_meters);
+  const save = priceView(item).save;
+  const clock = featuredClock(item.ends_at, now);
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={tileA11y(item, now)} onPress={onPress} style={({ pressed }) => [styles.tile, { width }, pressed && styles.pressed]}>
-      <Photo item={item} style={styles.tilePhoto} size="md" />
-      {item.trending ? (
-        <View style={[styles.badge, styles.badgeLeft]}>
-          <LiveDot />
-          <Text style={styles.hotText}>En tendencia</Text>
-        </View>
-      ) : null}
-      <Clock endsAt={item.ends_at} now={now} />
-      <SaveTag item={item} />
-      <View style={styles.tileBody}>
-        <Text style={styles.title} numberOfLines={2}>
-          {item.title}
-        </Text>
-        <Text style={styles.meta} numberOfLines={1}>
-          {[item.entity_name, dist].filter(Boolean).join(' · ')}
-        </Text>
-        <Price item={item} />
-        {item.reason ? (
-          <View style={styles.reason}>
+    <Pressable accessibilityRole="button" accessibilityLabel={tileA11y(item, now)} accessibilityState={{ selected: Boolean(selected) }} onPress={onPress} style={({ pressed }) => [styles.tile, { width }, selected && styles.tileOn, pressed && styles.pressed]}>
+      <View style={styles.tileClip}>
+        <Photo item={item} style={styles.tilePhoto} size="md" />
+        {save ? (
+          <View style={styles.saveTag}>
+            <Text style={styles.saveTagText}>{save}</Text>
+          </View>
+        ) : null}
+        <View style={styles.tileBody}>
+          <Text style={styles.tileBiz} numberOfLines={1}>
+            {item.entity_name}
+            {dist ? (
+              <>
+                {' · '}
+                <Text style={styles.tileDist}>a {dist}</Text>
+              </>
+            ) : null}
+          </Text>
+          <Text style={styles.tileTitle} numberOfLines={2}>
+            {item.title}
+          </Text>
+          <Price item={item} />
+          <View style={styles.tileClock}>
+            <Ionicons name="time-outline" size={14} color={clock.urgent ? colors.warning : colors.muted} />
+            <Text style={[styles.tileClockText, clock.urgent && { color: colors.warning }]} numberOfLines={1}>
+              {clock.text}
+            </Text>
+          </View>
+          {item.reason ? (
             <Text style={styles.reasonText} numberOfLines={1}>
               {item.reason}
             </Text>
-          </View>
-        ) : null}
+          ) : null}
+        </View>
       </View>
     </Pressable>
   );
@@ -232,32 +207,32 @@ export const ZONE_W = 168;
 const SAVE_GREEN = '#2E7D4F';
 const ACCENT_SOFT = '#FFF1E3';
 const ACCENT_INK = '#8F4300';
-export const TILE_W = 216;
-export const TILE_GAP = 10;
+export const TILE_W = 212;
+export const TILE_GAP = 12;
 
 const styles = StyleSheet.create({
-  tile: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
+  tile: { backgroundColor: colors.surface, borderRadius: 20, shadowColor: colors.ink, shadowOpacity: 0.07, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  tileOn: { borderWidth: 2.5, borderColor: colors.ink, margin: -2.5 },
+  tileClip: { borderRadius: 20, overflow: 'hidden' },
   pressed: { transform: [{ scale: 0.97 }], opacity: 0.95 },
-  tilePhoto: { height: 112, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  tilePhoto: { height: 116, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   badge: { position: 'absolute', top: 8, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 3 },
   badgeLeft: { left: 8, backgroundColor: 'rgba(255,255,255,0.95)' },
-  badgeRight: { right: 8 },
-  badgeDark: { backgroundColor: colors.ink },
-  badgeUrgent: { backgroundColor: colors.accent },
-  badgeText: { fontSize: 11, fontFamily: fonts.ui.extrabold },
-  darkText: { color: '#fff' },
   urgentText: { color: colors.ink },
-  hotText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.danger },
-  tileBody: { padding: spacing.sm + 2, paddingTop: spacing.sm, gap: 2 },
+  tileBody: { paddingTop: 12, paddingHorizontal: 14, paddingBottom: 14, gap: 5 },
+  tileBiz: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  tileDist: { color: colors.verified },
+  tileTitle: { fontSize: 16.5, lineHeight: 20, minHeight: 40, fontFamily: fonts.display.bold, color: colors.ink },
+  tileClock: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  tileClockText: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
   title: { fontSize: 14, lineHeight: 18, fontFamily: fonts.display.bold, color: colors.ink, minHeight: 18 },
   meta: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
-  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4, flexWrap: 'wrap' },
-  price: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
-  was: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted, textDecorationLine: 'line-through' },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' },
+  price: { fontSize: 17, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  was: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.faint, textDecorationLine: 'line-through' },
   save: { backgroundColor: '#E3F5F3', borderRadius: 6, paddingHorizontal: 6 },
   saveText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#1B6B3C' },
-  reason: { alignSelf: 'flex-start', marginTop: 6, backgroundColor: colors.primarySoft, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, maxWidth: '100%' },
-  reasonText: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.primaryDark },
+  reasonText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
   row: { flexDirection: 'row', gap: spacing.md, padding: spacing.sm + 2, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
   rowPhoto: { width: 76, height: 76, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   rowBody: { flex: 1, minWidth: 0, justifyContent: 'center' },
@@ -267,14 +242,8 @@ const styles = StyleSheet.create({
   zoneBody: { padding: spacing.sm + 2, paddingTop: spacing.sm, gap: 2 },
   here: { alignSelf: 'flex-start', marginTop: 4, backgroundColor: colors.primarySoft, borderRadius: 6, paddingHorizontal: 6 },
   hereText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
-  // 3.40
-  ghost: { position: 'absolute', right: -14, bottom: -22, transform: [{ rotate: '-12deg' }] },
-  ghostLeft: { right: undefined, left: -18, bottom: -34 },
-  initial: { backgroundColor: 'rgba(255,255,255,0.96)', alignItems: 'center', justifyContent: 'center' },
-  initialText: { fontFamily: fonts.display.bold },
-  initialBadge: { position: 'absolute', right: -4, bottom: -4, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
-  saveTag: { position: 'absolute', left: 8, top: 80, height: 24, justifyContent: 'center', backgroundColor: SAVE_GREEN, borderRadius: 8, paddingHorizontal: 8 },
-  saveTagText: { fontSize: 14, fontFamily: fonts.display.bold, color: '#fff' },
+  saveTag: { position: 'absolute', left: 10, top: 10, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.accent },
+  saveTagText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   rowPrice: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   priceBig: { fontSize: 22 },
   feat: { marginHorizontal: spacing.lg, backgroundColor: colors.surface, borderRadius: 22, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },

@@ -1,4 +1,4 @@
-import { Nunito_600SemiBold, Nunito_700Bold, Nunito_800ExtraBold } from '@expo-google-fonts/nunito';
+import { Nunito_600SemiBold, Nunito_700Bold, Nunito_800ExtraBold, Nunito_900Black } from '@expo-google-fonts/nunito';
 import {
   Manrope_400Regular,
   Manrope_500Medium,
@@ -68,6 +68,7 @@ export default function RootLayout() {
     Nunito_600SemiBold,
     Nunito_700Bold,
     Nunito_800ExtraBold,
+    Nunito_900Black,
   });
 
   // Medición anónima: lee (o crea) el identificador y la preferencia; no bloquea nada.
