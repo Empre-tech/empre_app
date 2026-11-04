@@ -207,6 +207,17 @@ export default function LedgerHome() {
           <ActionButton icon="remove-circle" label="Gastar" onPress={() => router.push({ pathname: '/business/ledger/expense/[id]', params: { id: entityId } })} tone="accent" />
         </View>
 
+        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/ledger/cash/[id]', params: { id: entityId } })} style={({ pressed }) => [styles.linkCard, pressed && { opacity: 0.85 }]}>
+          <View style={styles.linkIcon}>
+            <Ionicons name="cash-outline" size={19} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>Cerrar la caja</Text>
+            <Text style={styles.linkMeta}>Cuenta lo que hay y mira si cuadra</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+        </Pressable>
+
         {quick ? (
           <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/ledger/quick/[id]', params: { id: entityId } })} style={({ pressed }) => [styles.linkCard, pressed && { opacity: 0.85 }]}>
             <View style={styles.linkIcon}>

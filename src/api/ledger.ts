@@ -103,6 +103,52 @@ export interface ExpenseInput {
   lines?: PurchaseLineInput[];
 }
 
+export interface CashMoveInput {
+  client_id: string;
+  occurred_at?: string;
+  direction: 'in' | 'out';
+  amount: number;
+  reason: string;
+}
+
+export interface CashMove {
+  id: string;
+  occurred_at: string;
+  direction: 'in' | 'out';
+  amount: number;
+  reason: string;
+  status: 'active' | 'voided';
+}
+
+export interface CashCloseInput {
+  day: string;
+  /** Con cuánto abrió: solo cuando no hay un cierre anterior del que sacarlo. */
+  opening?: number;
+  counted: number;
+  base_next: number;
+}
+
+export interface CashClose {
+  day: string;
+  opening?: number;
+  counted: number;
+  expected: number;
+  base_next: number;
+}
+
+/** La cuenta de la caja de un día. */
+export interface CashDay {
+  day: string;
+  base: number;
+  base_known: boolean;
+  /** Lo que cambió la caja en los días sin cerrar; ya va sumado en base. */
+  carried: number;
+  flow: { sales: number; sales_count: number; expenses: number; expenses_count: number; debts_in: number; debts_out: number; moves_in: number; moves_out: number };
+  expected: number;
+  moves: CashMove[] | null;
+  close: CashClose | null;
+}
+
 export interface PartyInput {
   client_id: string;
   kind: PartyKind;
@@ -451,6 +497,13 @@ export const ledgerApi = {
 
   expenses: async (entityId: string, query?: { limit?: number; from?: string; to?: string; before?: string }) =>
     (await request<{ expenses: Expense[] | null }>(`${base(entityId)}/expenses`, { query })).expenses ?? [],
+  cash: (entityId: string) => request<CashDay>(`${base(entityId)}/cash`),
+  createCashMove: (entityId: string, input: CashMoveInput) =>
+    request<CashMove>(`${base(entityId)}/cash/moves`, { method: 'POST', body: input }),
+  voidCashMove: (entityId: string, moveId: string) =>
+    request<CashMove>(`${base(entityId)}/cash/moves/${moveId}/void`, { method: 'POST' }),
+  closeCash: (entityId: string, input: CashCloseInput) =>
+    request<CashClose>(`${base(entityId)}/cash/close`, { method: 'POST', body: input }),
   createExpense: (entityId: string, input: ExpenseInput) =>
     request<Expense>(`${base(entityId)}/expenses`, { method: 'POST', body: input }),
   voidExpense: (entityId: string, expenseId: string, reason: string) =>

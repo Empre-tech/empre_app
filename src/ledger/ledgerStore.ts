@@ -2,7 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import type { QueryClient } from '@tanstack/react-query';
 import { useSyncExternalStore } from 'react';
 import { ApiError } from '@/api/client';
-import { ledgerApi, type ExpenseInput, type OpenTabInput, type PartyInput, type PayTabInput, type PaymentInput, type SaleInput, type TabLineInput } from '@/api/ledger';
+import { ledgerApi, type CashCloseInput, type CashMoveInput, type ExpenseInput, type OpenTabInput, type PartyInput, type PayTabInput, type PaymentInput, type SaleInput, type TabLineInput } from '@/api/ledger';
 import {
   cancelPending, enqueue, flushOrder, isRetryable, markFailed, removeItem, restoreOutbox, retryFailed,
   type OutboxItem, type OutboxKind,
@@ -68,6 +68,9 @@ export const queueSale = (entityId: string, input: SaleInput) => push('sale', en
 export const queueExpense = (entityId: string, input: ExpenseInput) => push('expense', entityId, input.client_id, input);
 export const queueParty = (entityId: string, input: PartyInput) => push('party', entityId, input.client_id, input);
 export const queuePayment = (entityId: string, input: PaymentInput) => push('payment', entityId, input.client_id, input);
+export const queueCashMove = (entityId: string, input: CashMoveInput) => push('cash_move', entityId, input.client_id, input);
+// Cerrar otra vez el mismo día reemplaza el cierre: cada intento lleva su propio id en la cola y sale después de todo lo demás.
+export const queueCashClose = (entityId: string, input: CashCloseInput) => push('cash_close', entityId, `cashclose:${input.day}:${Date.now()}`, input);
 
 // Cuentas abiertas: cada paso se guarda en el teléfono y sale cuando hay señal (los ids los pone la app, así un
 // reenvío no duplica nada).
@@ -83,13 +86,13 @@ export const queueTabCancel = (entityId: string, tabId: string, reason: string) 
  * Deshacer / anular un registro. Si todavía no salió del teléfono, simplemente se quita de la cola; si ya salió, se
  * anula en el servidor (el id de una venta o un gasto es su client_id).
  */
-export function queueVoid(kind: 'sale' | 'expense', entityId: string, clientId: string, reason: string) {
+export function queueVoid(kind: 'sale' | 'expense' | 'cash_move', entityId: string, clientId: string, reason: string) {
   const removed = cancelPending(state.items, clientId);
   if (removed) {
     set({ items: removed });
     return;
   }
-  push(kind === 'sale' ? 'void_sale' : 'void_expense', entityId, `void:${clientId}`, { id: clientId, reason });
+  push(kind === 'sale' ? 'void_sale' : kind === 'expense' ? 'void_expense' : 'void_cash_move', entityId, `void:${clientId}`, { id: clientId, reason });
 }
 
 export function retryLedgerItem(id: string) {
@@ -127,6 +130,17 @@ async function send(item: OutboxItem): Promise<void> {
       await ledgerApi.voidExpense(id, v.id, v.reason);
       return;
     }
+    case 'cash_move':
+      await ledgerApi.createCashMove(id, p);
+      return;
+    case 'void_cash_move': {
+      const v = item.payload as { id: string };
+      await ledgerApi.voidCashMove(id, v.id);
+      return;
+    }
+    case 'cash_close':
+      await ledgerApi.closeCash(id, p);
+      return;
     case 'tab_open':
       await ledgerApi.openTab(id, p);
       return;

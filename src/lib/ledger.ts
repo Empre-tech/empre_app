@@ -42,6 +42,25 @@ export const METHOD_LABEL: Record<PayMethod, string> = {
   credit: 'Fiado',
 };
 
+export type CashDirection = 'in' | 'out';
+
+/** Para qué se saca o se mete plata de la caja. «Le pagué a alguien» no está: eso es un gasto. */
+export const CASH_REASONS: Record<CashDirection, { key: string; label: string }[]> = {
+  out: [
+    { key: 'para_mi', label: 'Para mí' },
+    { key: 'al_banco', label: 'Al banco' },
+  ],
+  in: [
+    { key: 'mas_base', label: 'Más base' },
+    { key: 'sencillo', label: 'Sencillo para cambio' },
+    { key: 'plata_mia', label: 'Plata mía al negocio' },
+  ],
+};
+
+export function cashReasonLabel(key: string): string {
+  return [...CASH_REASONS.out, ...CASH_REASONS.in].find((r) => r.key === key)?.label ?? 'Otro';
+}
+
 export const EXPENSE_CATEGORIES: { key: string; label: string }[] = [
   { key: 'mercancia', label: 'Mercancía' },
   { key: 'arriendo', label: 'Arriendo' },
@@ -77,6 +96,9 @@ export type OutboxKind =
   | 'payment'
   | 'void_sale'
   | 'void_expense'
+  | 'cash_move'
+  | 'void_cash_move'
+  | 'cash_close'
   | 'tab_open'
   | 'tab_add'
   | 'tab_remove'
@@ -124,6 +146,9 @@ const ORDER: Record<OutboxKind, number> = {
   tab_remove: 2,
   void_sale: 3,
   void_expense: 3,
+  cash_move: 1,
+  void_cash_move: 3,
+  cash_close: 4,
   tab_pay: 3,
   tab_cancel: 3,
 };
