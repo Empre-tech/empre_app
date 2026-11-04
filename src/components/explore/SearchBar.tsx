@@ -50,7 +50,7 @@ export function SearchBar({ value, onChangeText, onOpenFilters, filterCount }: P
         hitSlop={6}
         style={({ pressed }) => [styles.filterButton, active && styles.filterButtonActive, pressed && styles.pressed]}
       >
-        <Ionicons name="options-outline" size={18} color={active ? '#fff' : colors.primary} />
+        <Ionicons name="options-outline" size={18} color={active ? colors.selected : colors.primary} />
         {active ? (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>{filterCount}</Text>
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.primarySoft,
   },
-  filterButtonActive: { backgroundColor: colors.primary },
+  filterButtonActive: { backgroundColor: colors.selectedSoft },
   pressed: { opacity: 0.8 },
   badge: {
     position: 'absolute',

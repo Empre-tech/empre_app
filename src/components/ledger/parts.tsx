@@ -16,7 +16,7 @@ export function Chip({ label, selected, onPress, icon }: { label: string; select
       onPress={onPress}
       style={({ pressed }) => [styles.chip, selected && styles.chipOn, pressed && { opacity: 0.85 }]}
     >
-      {icon ? <Ionicons name={icon} size={15} color={selected ? '#fff' : colors.primary} /> : null}
+      {icon ? <Ionicons name={icon} size={15} color={colors.ink} /> : null}
       <Text style={[styles.chipText, selected && styles.chipTextOn]}>{label}</Text>
     </Pressable>
   );
@@ -154,10 +154,10 @@ export function Stat({ title, value, tone = 'ink', big = false }: { title: strin
 
 const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: colors.primarySoft },
-  chipOn: { backgroundColor: colors.primary },
-  chipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.primary },
-  chipTextOn: { color: '#fff' },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
+  chipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
+  chipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
+  chipTextOn: { color: colors.selected },
   amountBox: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.line, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   amountRow: { flexDirection: 'row', alignItems: 'center' },
   amountSign: { fontSize: 34, fontFamily: fonts.display.bold, color: colors.muted, marginRight: 6 },

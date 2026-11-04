@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   mic: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   tile: { width: '48%', minHeight: 72, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line, gap: 2 },
-  tileOn: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  tileOn: { borderColor: colors.selected, backgroundColor: colors.selectedSoft },
   tileName: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
   count: { position: 'absolute', top: 6, right: 6, minWidth: 24, height: 24, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   countText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },

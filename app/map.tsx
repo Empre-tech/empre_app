@@ -1571,7 +1571,7 @@ function FiltersModal({
                 { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center' },
               ]}
             >
-              <Ionicons name="time-outline" size={14} color={openNow ? '#fff' : colors.ink} style={{ marginRight: 4 }} />
+              <Ionicons name="time-outline" size={14} color={openNow ? colors.selected : colors.ink} style={{ marginRight: 4 }} />
               <Text style={[styles.radiusOptionText, openNow && styles.radiusOptionTextActive]}>Abiertos ahora</Text>
             </Pressable>
           </ScrollView>
@@ -1602,7 +1602,7 @@ function CategoryGridItem({
       style={styles.categoryItem}
     >
       <View style={[styles.categoryIconCircle, active && styles.categoryIconCircleActive]}>
-        <Ionicons name={icon} size={22} color={active ? '#fff' : colors.ink} />
+        <Ionicons name={icon} size={22} color={active ? colors.selected : colors.ink} />
       </View>
       <Text style={[styles.categoryItemLabel, active && styles.categoryItemLabelActive]} numberOfLines={1}>
         {label}
@@ -1625,9 +1625,9 @@ const styles = StyleSheet.create({
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   filterScroll: { flexGrow: 0, flexShrink: 0 },
   filterScrollRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingRight: spacing.md },
-  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipActive: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
   chipText: { fontSize: 14, fontWeight: '600', fontFamily: fonts.ui.semibold, color: colors.ink },
-  chipTextActive: { color: '#fff' },
+  chipTextActive: { color: colors.selected },
   activeChips: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   clearChip: { paddingHorizontal: spacing.xs, paddingVertical: 6 },
   clearChipText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.primary },
@@ -1786,7 +1786,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  categoryIconCircleActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  categoryIconCircleActive: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
   categoryItemLabel: {
     fontSize: 11,
     fontFamily: fonts.ui.medium,
@@ -1816,9 +1816,9 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     justifyContent: 'center',
   },
-  radiusOptionActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  radiusOptionActive: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
   modalOptionDisabled: { opacity: 0.4 },
   radiusOptionText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.ink },
-  radiusOptionTextActive: { fontFamily: fonts.ui.bold, color: '#fff' },
+  radiusOptionTextActive: { fontFamily: fonts.ui.bold, color: colors.selected },
   modalApply: { marginTop: spacing.md },
 });

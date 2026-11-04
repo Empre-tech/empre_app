@@ -110,7 +110,7 @@ function RangeBody({ visible, value, onApply, onClose }: Props) {
                   onPress={() => setDraft((c) => pickDay(c, d))}
                   style={[styles.day, edge && styles.dayOn]}
                 >
-                  <Text style={[styles.dayText, edge && { color: '#fff' }, off && { color: '#D5DEEA' }, d === today && !edge && { color: colors.primary }]}>{Number(d.slice(8))}</Text>
+                  <Text style={[styles.dayText, edge && { color: colors.selected }, off && { color: '#D5DEEA' }, d === today && !edge && { color: colors.primary }]}>{Number(d.slice(8))}</Text>
                 </Pressable>
               </View>
             );
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
   bandStart: { borderTopLeftRadius: 21, borderBottomLeftRadius: 21 },
   bandEnd: { borderTopRightRadius: 21, borderBottomRightRadius: 21 },
   day: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  dayOn: { backgroundColor: colors.primary },
+  dayOn: { backgroundColor: colors.selectedSoft },
   dayText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
   hint: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
   label: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },

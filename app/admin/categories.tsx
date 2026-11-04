@@ -381,7 +381,7 @@ function CategoryModal({
                   onPress={() => setIcon(opt)}
                   style={[styles.iconOption, active && styles.iconOptionActive]}
                 >
-                  <Ionicons name={opt as keyof typeof Ionicons.glyphMap} size={20} color={active ? '#fff' : colors.ink} />
+                  <Ionicons name={opt as keyof typeof Ionicons.glyphMap} size={20} color={active ? colors.selected : colors.ink} />
                 </Pressable>
               );
             })}
@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   addButtonPressed: { backgroundColor: colors.primaryDark },
-  addButtonText: { fontSize: 12, fontFamily: fonts.ui.bold, color: '#fff' },
+  addButtonText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.selected },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: spacing.xl },
   empty: { color: colors.muted, fontSize: 14, fontFamily: fonts.ui.medium, textAlign: 'center' },
   list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
@@ -525,6 +525,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconOptionActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  iconOptionActive: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },
 });

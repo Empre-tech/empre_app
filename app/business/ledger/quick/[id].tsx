@@ -92,8 +92,8 @@ export default function QuickSaleScreen() {
                 onPress={() => bump(t.id, 1)}
                 style={({ pressed }) => [styles.tile, n > 0 && styles.tileOn, pressed && { opacity: 0.85 }]}
               >
-                <Text style={[styles.tileName, n > 0 && { color: '#fff' }]} numberOfLines={2}>{t.name}</Text>
-                <Text style={[styles.tilePrice, n > 0 && { color: '#fff' }]}>{formatPesos(t.price ?? 0)}</Text>
+                <Text style={[styles.tileName, n > 0 && { color: colors.selected }]} numberOfLines={2}>{t.name}</Text>
+                <Text style={[styles.tilePrice, n > 0 && { color: colors.selected }]}>{formatPesos(t.price ?? 0)}</Text>
                 {t.out ? <Text style={styles.out}>Agotado</Text> : null}
                 {n > 0 ? (
                   <View style={styles.badge}>
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
   hint: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.muted },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   tile: { width: '48%', minHeight: 92, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.line, padding: spacing.md, justifyContent: 'space-between' },
-  tileOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  tileOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
   tileName: { fontSize: 16, fontFamily: fonts.ui.bold, color: colors.ink, paddingRight: 26 },
   tilePrice: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.muted },
   out: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.danger },

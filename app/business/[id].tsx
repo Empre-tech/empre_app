@@ -52,7 +52,7 @@ import { hasLocation } from '@/lib/geo';
 import { formatRelativeTime } from '@/lib/format';
 import { resolveImageUrl } from '@/lib/image';
 import { openingFromHours, statusLine } from '@/lib/placeCard';
-import { catalogCopy, formatPesos, lowestPrice, type ServiceItem } from '@/lib/catalog';
+import { catalogCopy, formatPesos, type ServiceItem } from '@/lib/catalog';
 import { chatItemParam } from '@/lib/chatItem';
 import { blockOrder, coverSource, sections, showQuickIndex, type BlockId, type SectionId } from '@/lib/profileLayout';
 import { featuredRating } from '@/lib/reviewSnippet';
@@ -425,7 +425,6 @@ export default function BusinessScreen() {
     },
     onAsked: (intent: Intent, answered: boolean) => track('question_asked', business.id, { intent, answered }),
   };
-  const fromPrice = lowestPrice(catalog.data ?? []);
   const secs = sections({ offers: offerCount, hasServices, photos: photos.length, isOwner, reviews: ratingSummary.count });
   const showIndex = showQuickIndex(secs);
 
@@ -658,12 +657,6 @@ export default function BusinessScreen() {
             facts={heroFacts}
           >
             <StatusChips entityId={business.id} hasHours={hasHours} isOpen={Boolean(business.is_open_now)} extrasOnly />
-            {fromPrice !== null ? (
-              <View style={styles.glanceChip}>
-                <Text style={styles.glanceText}>Desde {formatPesos(fromPrice)}</Text>
-              </View>
-            ) : null}
-
           </ProfileHero>
         {stickyChild ?? <View />}
 
@@ -895,8 +888,6 @@ const styles = StyleSheet.create({
   readMoreHit: { minHeight: 44, justifyContent: 'center' },
   sticky: { backgroundColor: colors.bg },
   floatIndex: { position: 'absolute', left: 0, right: 0, top: 0, backgroundColor: colors.bg },
-  glanceChip: { minHeight: 26, paddingHorizontal: 10, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, justifyContent: 'center' },
-  glanceText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.ink },
   infoSection: { gap: spacing.xs },
   grow: { flex: 1, minWidth: 0 },
   about: { gap: 4, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line },
@@ -913,7 +904,7 @@ const styles = StyleSheet.create({
   ownerTab: { flex: 1, minHeight: 44, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   ownerTabOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   ownerTabText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  ownerTabTextOn: { color: '#fff' },
+  ownerTabTextOn: { color: colors.selected },
   infoActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   infoPrimary: { flex: 1.3, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: radius.md, backgroundColor: colors.primary },
   infoPrimaryText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
@@ -922,9 +913,9 @@ const styles = StyleSheet.create({
   infoSecondaryText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primary },
   infoPressed: { opacity: 0.85 },
   followButton: { position: 'absolute', right: spacing.md, minWidth: 96, height: 40, paddingHorizontal: spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.94)', borderWidth: 1.5, borderColor: colors.primary },
-  followButtonOn: { backgroundColor: colors.primary },
+  followButtonOn: { backgroundColor: colors.selectedSoft },
   followText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.primary },
-  followTextOn: { color: '#fff' },
+  followTextOn: { color: colors.selected },
   followersChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.pill, backgroundColor: colors.primarySoft },
   followersText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.primaryDark },
   bannerWrap: { width: '100%', height: 160 },

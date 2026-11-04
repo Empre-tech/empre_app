@@ -64,7 +64,7 @@ export function MapLegend({ bottom, open, onToggle }: { bottom: Animated.Animate
         onPress={onToggle}
         style={({ pressed }) => [styles.info, open && styles.infoOn, pressed && styles.pressed]}
       >
-        <Ionicons name={open ? 'close' : 'information'} size={20} color={open ? '#fff' : colors.primary} />
+        <Ionicons name={open ? 'close' : 'information'} size={20} color={open ? colors.selected : colors.primary} />
       </Pressable>
     </Animated.View>
   );
@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
   dotText: { marginTop: -4, paddingHorizontal: 5, borderRadius: 6, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.88)', fontSize: 10, fontFamily: fonts.ui.extrabold, color: '#1E4FA0' },
   legendWrap: { position: 'absolute', left: spacing.md, right: 84, alignItems: 'flex-start', gap: spacing.sm },
   info: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center', ...shadow },
-  infoOn: { backgroundColor: colors.primary },
+  infoOn: { backgroundColor: colors.selectedSoft },
   bolt: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   green: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.success },
   card: { alignSelf: 'stretch', padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, gap: spacing.sm, ...shadow },

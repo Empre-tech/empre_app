@@ -67,11 +67,11 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   chipEmpty: { opacity: 0.5 },
   chipText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  chipTextOn: { color: '#fff' },
+  chipTextOn: { color: colors.selected },
   count: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
   audRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
   audLabel: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted, marginRight: 2 },
   aud: { minHeight: 34, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.primarySoft, justifyContent: 'center' },
-  audOn: { backgroundColor: colors.primary },
+  audOn: { backgroundColor: colors.selectedSoft },
   audText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
 });

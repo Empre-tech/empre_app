@@ -263,9 +263,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipActive: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
   chipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
-  chipTextActive: { color: '#fff' },
+  chipTextActive: { color: colors.selected },
   dayChip: {
     width: 58,
     minHeight: 76,

@@ -32,7 +32,7 @@ import {
 } from '@/lib/offerMarket';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { cardShadow, colors, fonts, radius, spacing } from '@/theme';
 
 type Coords = { latitude: number; longitude: number };
 
@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
   heroLead: { color: colors.muted },
   where: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32, alignSelf: 'flex-start' },
   whereText: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.bold, color: colors.primaryDark },
-  search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 44, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, marginTop: spacing.xs },
+  search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 52, paddingHorizontal: spacing.lg, borderRadius: 26, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, ...cardShadow },
   searchInput: { flex: 1, fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink, paddingVertical: 0 },
   mini: { position: 'absolute', left: 0, right: 0, zIndex: 5, height: MINI_H, flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: spacing.lg, paddingRight: spacing.xs, backgroundColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.line },
   miniCity: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink, flexShrink: 0 },
@@ -450,11 +450,11 @@ const styles = StyleSheet.create({
   cats: { gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: 4 },
   terms: { gap: 6, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  chipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
   chipSoftOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
   chipPressed: { transform: [{ scale: 0.97 }] },
   chipText: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink },
-  chipOnText: { color: '#fff' },
+  chipOnText: { color: colors.selected },
   chipSoftText: { color: colors.primaryDark },
   loc: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.lg, marginTop: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
   locText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.primaryDark },

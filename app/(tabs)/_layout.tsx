@@ -8,11 +8,11 @@ import { cardShadow, colors, fonts } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-/** Ícono de pestaña: la activa va en una pastilla roja con el ícono en blanco; las demás, en negro. */
+/** Ícono de pestaña: la activa va en tinta sobre una pastilla gris clara; las demás, en tinta sin pastilla. */
 function tabIcon(name: IconName) {
   return ({ focused }: { focused: boolean }) => (
     <View style={[styles.pill, focused && styles.pillOn]}>
-      <Ionicons name={focused ? (name.replace('-outline', '') as IconName) : name} color={focused ? '#fff' : colors.ink} size={20} />
+      <Ionicons name={focused ? (name.replace('-outline', '') as IconName) : name} color={colors.ink} size={20} />
     </View>
   );
 }
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   },
   item: { paddingVertical: 0 },
   pill: { width: 56, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  pillOn: { backgroundColor: colors.primary },
+  pillOn: { backgroundColor: colors.selectedSoft },
   badge: { backgroundColor: colors.danger, fontFamily: fonts.ui.extrabold, fontSize: 11 },
   dot: { backgroundColor: colors.danger, minWidth: 10, maxHeight: 10, borderRadius: 5, top: 2 },
 });

@@ -365,11 +365,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.surface,
   },
-  dayChipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  dayChipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
   dayWeek: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.muted, textTransform: 'uppercase' },
   dayNum: { fontSize: 18, fontFamily: fonts.ui.extrabold, color: colors.ink },
   dayMonth: { fontSize: 11, fontFamily: fonts.ui.medium, color: colors.muted },
-  onText: { color: '#fff' },
+  onText: { color: colors.selected },
   content: { padding: spacing.lg, gap: spacing.sm },
   section: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted, marginTop: spacing.sm },
   requestCard: {
@@ -420,6 +420,6 @@ const styles = StyleSheet.create({
   sheetSub: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted, marginTop: spacing.md, marginBottom: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: { minHeight: 42, paddingHorizontal: spacing.md, borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
   chipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
 });
