@@ -35,7 +35,7 @@ function ago(at: number): string {
  * se puede deshacer.
  */
 export default function NewSaleScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, fiado } = useLocalSearchParams<{ id: string; fiado?: string }>();
   const entityId = id ?? '';
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -45,7 +45,7 @@ export default function NewSaleScreen() {
 
   const [qty, setQty] = useState<Record<string, number>>({});
   const [manual, setManual] = useState<number | null>(null);
-  const [method, setMethod] = useState<PayMethod>('cash');
+  const [method, setMethod] = useState<PayMethod>(fiado === '1' ? 'credit' : 'cash');
   const [party, setParty] = useState<PartyChoice | null>(null);
   const [note, setNote] = useState('');
   const [saved, setSaved] = useState<{ clientId: string; total: number; text: string } | null>(null);

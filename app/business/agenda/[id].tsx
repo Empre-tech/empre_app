@@ -22,6 +22,7 @@ import {
 } from '@/lib/agendaFormat';
 import { FEATURES } from '@/config';
 import { newClientId } from '@/lib/ledger';
+import { useNow } from '@/lib/useNow';
 import { queueTabOpen } from '@/ledger/ledgerStore';
 import { colors, fonts, radius, spacing } from '@/theme';
 
@@ -50,12 +51,15 @@ export default function BusinessAgendaScreen() {
   const days = useMemo(() => nextDays(DAYS_AHEAD), []);
   const [day, setDay] = useState(() => dayKey(days[0]));
   const [blockOpen, setBlockOpen] = useState(false);
+  const [blockStart, setBlockStart] = useState<string | null>(null);
+  const [reqsOpen, setReqsOpen] = useState(false);
+  const now = useNow(60_000);
 
   const entity = useQuery({ queryKey: ['entity', id], queryFn: () => entitiesApi.get(id), enabled: Boolean(id) }).data;
   const settings = useQuery({ queryKey: ['agenda-settings', id], queryFn: () => agendaApi.settings(id), enabled: Boolean(id) });
   const agenda = useQuery({
-    queryKey: ['agenda', id, day],
-    queryFn: () => agendaApi.agenda(id, dayStartIso(day), dayEndIso(day)),
+    queryKey: ['agenda', id, 'range'],
+    queryFn: () => agendaApi.agenda(id, dayStartIso(dayKey(days[0])), dayEndIso(dayKey(days[days.length - 1]))),
     enabled: Boolean(id) && settings.data?.enabled === true,
     refetchInterval: 30_000,
   });
@@ -64,6 +68,40 @@ export default function BusinessAgendaScreen() {
   const pending = items.filter((a) => a.status === 'requested').sort((a, b) => Date.parse(a.expires_at ?? a.starts_at) - Date.parse(b.expires_at ?? b.starts_at));
   const today = items.filter((a) => a.status !== 'requested' && dayKey(new Date(a.starts_at)) === day);
   const confirmedToday = today.filter((a) => a.status === 'confirmed').length;
+  const slots = useQuery({ queryKey: ['agenda', id, 'slots', day], queryFn: () => agendaApi.availability(id, day), enabled: Boolean(id) && settings.data?.enabled === true, staleTime: 30_000 });
+  const askedToday = pending.filter((a) => dayKey(new Date(a.starts_at)) === day);
+  // Una hora pedida no se ofrece como libre: se respeta a quien la pidió.
+  const freeSlots = (slots.data ?? []).filter((iso) => !askedToday.some((a) => Date.parse(a.starts_at) === Date.parse(iso)));
+  const rows = [
+    ...today.map((a) => ({ at: a.starts_at, key: a.id, kind: a.kind === 'block' ? ('block' as const) : ('appt' as const), a })),
+    ...askedToday.map((a) => ({ at: a.starts_at, key: `q${a.id}`, kind: 'asked' as const, a })),
+    ...freeSlots.map((iso) => ({ at: iso, key: `f${iso}`, kind: 'free' as const, a: null })),
+  ].sort((x, y) => Date.parse(x.at) - Date.parse(y.at));
+  const countsByDay = (key: string) => {
+    const of = items.filter((a) => dayKey(new Date(a.starts_at)) === key);
+    return { appts: of.some((a) => a.status === 'confirmed' || a.status === 'completed'), reqs: of.some((a) => a.status === 'requested') };
+  };
+  const pendingSub = days
+    .map((d) => {
+      const n = pending.filter((a) => dayKey(new Date(a.starts_at)) === dayKey(d)).length;
+      return n ? `${formatDay(dayStartIso(dayKey(d))).toLowerCase()} ${n}` : null;
+    })
+    .filter(Boolean)
+    .join(' · ');
+  // Dos personas piden la misma hora o choca con una cita: se ve antes de responder.
+  const clashOf = (a: Appointment) => {
+    const start = Date.parse(a.starts_at);
+    const end = Date.parse(a.ends_at);
+    const other = items.find((b) => b.id !== a.id && b.kind !== 'block' && (b.status === 'requested' || b.status === 'confirmed') && Date.parse(b.starts_at) < end && Date.parse(b.ends_at) > start);
+    if (!other) return null;
+    return other.status === 'confirmed' ? `Choca con la cita de ${other.customer?.name ?? 'otro cliente'}` : `${other.customer?.name ?? 'Otra persona'} también pidió esta hora`;
+  };
+  const attend = (a: Appointment) => {
+    // La cuenta arranca con el servicio reservado; lo que compre se suma y, al cobrar, la cita queda atendida.
+    const tabId = newClientId();
+    queueTabOpen(id ?? '', { id: tabId, name: a.customer?.name ?? 'Cliente', appointment_id: a.id });
+    router.push({ pathname: '/business/ledger/tab', params: { entityId: id ?? '', tabId } });
+  };
 
   const reload = () => {
     void queryClient.invalidateQueries({ queryKey: ['agenda', id] });
@@ -78,6 +116,11 @@ export default function BusinessAgendaScreen() {
     },
   });
   const unblock = useMutation({ mutationFn: (blockId: string) => agendaApi.unblock(id, blockId), onSuccess: reload });
+  const noShow = useMutation({
+    mutationFn: (apptId: string) => agendaApi.outcome(apptId, false),
+    onSuccess: reload,
+    onError: (e: Error) => Alert.alert('No se pudo anotar', e.message === 'bad_state' ? 'Esta cita ya cambió.' : e.message),
+  });
 
   const askUnblock = (a: Appointment) =>
     Alert.alert('¿Quitar este bloqueo?', `${formatClock(a.starts_at)} – ${formatClock(a.ends_at)}`, [
@@ -130,11 +173,23 @@ export default function BusinessAgendaScreen() {
             {days.map((d) => {
               const key = dayKey(d);
               const active = key === day;
+              const marks = countsByDay(key);
               return (
-                <Pressable key={key} onPress={() => setDay(key)} style={[styles.dayChip, active && styles.dayChipOn]}>
+                <Pressable
+                  key={key}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={`${formatDay(dayStartIso(key))}${marks.appts ? ', con citas' : ''}${marks.reqs ? ', con solicitudes por responder' : ''}`}
+                  onPress={() => setDay(key)}
+                  style={[styles.dayChip, active && styles.dayChipOn]}
+                >
                   <Text style={[styles.dayWeek, active && styles.onText]}>{weekdayShort(d)}</Text>
                   <Text style={[styles.dayNum, active && styles.onText]}>{dayNumber(d)}</Text>
                   <Text style={[styles.dayMonth, active && styles.onText]}>{monthShort(d)}</Text>
+                  <View style={styles.dayDots}>
+                    {marks.appts ? <View style={[styles.dayDot, { backgroundColor: colors.ink }]} /> : null}
+                    {marks.reqs ? <View style={[styles.dayDot, { backgroundColor: colors.warning }]} /> : null}
+                  </View>
                 </Pressable>
               );
             })}
@@ -142,33 +197,18 @@ export default function BusinessAgendaScreen() {
 
           <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 90 }]}>
             {pending.length > 0 ? (
-              <View style={{ gap: spacing.sm }}>
-                <Text style={styles.section}>Solicitudes por responder ({pending.length})</Text>
-                {pending.map((a) => (
-                  <View key={a.id} style={styles.requestCard}>
-                    <Pressable onPress={() => router.push({ pathname: '/appointment/[id]', params: { id: a.id } })}>
-                      <Text style={styles.reqWhen}>
-                        {formatDay(a.starts_at)}, {formatClock(a.starts_at)}
-                      </Text>
-                      <Text style={styles.reqMeta}>
-                        {a.customer?.name ?? 'Cliente'}
-                        {a.service ? ` · ${a.service.name}` : ''} ·{' '}
-                        {formatDuration(Math.round((Date.parse(a.ends_at) - Date.parse(a.starts_at)) / 60000))}
-                      </Text>
-                      {a.expires_at ? <Text style={styles.reqExpiry}>Expira en {formatRemaining(a.expires_at)}</Text> : null}
-                    </Pressable>
-                    <View style={styles.reqActions}>
-                      <Button
-                        title="Rechazar"
-                        variant="secondary"
-                        onPress={() => router.push({ pathname: '/appointment/decline/[id]', params: { id: a.id } })}
-                        style={{ flex: 1, minHeight: 44 }}
-                      />
-                      <Button title="Aceptar" onPress={() => accept.mutate(a.id)} loading={accept.isPending && accept.variables === a.id} style={{ flex: 1, minHeight: 44 }} />
-                    </View>
-                  </View>
-                ))}
-              </View>
+              <Pressable accessibilityRole="button" accessibilityLabel={`${pending.length} por responder: ${pendingSub}. Ver`} onPress={() => setReqsOpen(true)} style={({ pressed }) => [styles.pendingBar, pressed && { opacity: 0.85 }]}>
+                <View style={styles.pendingCount}>
+                  <Text style={styles.pendingCountText}>{pending.length}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.pendingTitle}>Por responder</Text>
+                  <Text style={styles.reqMeta} numberOfLines={1}>
+                    {pendingSub}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.ink} />
+              </Pressable>
             ) : null}
 
             <Text style={styles.section}>
@@ -176,69 +216,136 @@ export default function BusinessAgendaScreen() {
             </Text>
             {agenda.isLoading ? (
               <ActivityIndicator color={colors.primary} />
-            ) : today.length === 0 ? (
+            ) : rows.length === 0 ? (
               <View style={styles.freeDay}>
                 <Ionicons name="checkmark-circle-outline" size={22} color={colors.success} />
-                <Text style={styles.freeDayText}>Día libre. Tus espacios están disponibles para tus clientes.</Text>
+                <Text style={styles.freeDayText}>Día libre. Tus clientes ven tus espacios y te pueden pedir cita.</Text>
               </View>
             ) : (
-              today.map((a) =>
-                a.kind === 'block' ? (
-                  <Pressable key={a.id} onPress={() => askUnblock(a)} style={styles.blockRow} accessibilityRole="button">
-                    <Ionicons name="lock-closed-outline" size={18} color={colors.muted} />
-                    <Text style={styles.blockText}>
-                      Bloqueado · {formatClock(a.starts_at)} – {formatClock(a.ends_at)}
-                    </Text>
-                    <Text style={styles.blockUndo}>Quitar</Text>
-                  </Pressable>
-                ) : (
-                  <Pressable
-                    key={a.id}
-                    onPress={() => router.push({ pathname: '/appointment/[id]', params: { id: a.id } })}
-                    style={styles.apptRow}
-                    accessibilityRole="button"
-                  >
-                    <View style={[styles.stripe, { backgroundColor: STATUS_COLOR[a.status] }]} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.apptTime}>
-                        {formatClock(a.starts_at)} – {formatClock(a.ends_at)}
-                      </Text>
-                      <Text style={styles.reqMeta} numberOfLines={1}>
-                        {a.customer?.name ?? 'Cliente'}
-                        {a.service ? ` · ${a.service.name}` : ''}
-                      </Text>
-                      {a.out_of_hours ? <Text style={styles.outOfHours}>Fuera de tu horario actual</Text> : null}
-                    </View>
-                    {FEATURES.ledger && FEATURES.tabs && a.status === 'confirmed' ? (
+              rows.map((r) => (
+                <View key={r.key} style={styles.lineRow}>
+                  <Text style={styles.lineTime}>{formatClock(r.at)}</Text>
+                  <View style={{ flex: 1 }}>
+                    {r.kind === 'free' ? (
                       <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel={`Atender a ${a.customer?.name ?? 'el cliente'}: abrir su cuenta`}
+                        accessibilityLabel={`Libre a las ${formatClock(r.at)}. Bloquear esta hora`}
                         onPress={() => {
-                          // La cuenta arranca con el servicio reservado; lo que compre mientras espera se suma.
-                          const tabId = newClientId();
-                          queueTabOpen(id ?? '', { id: tabId, name: a.customer?.name ?? 'Cliente', appointment_id: a.id });
-                          router.push({ pathname: '/business/ledger/tab', params: { entityId: id ?? '', tabId } });
+                          setBlockStart(r.at);
+                          setBlockOpen(true);
                         }}
-                        style={styles.attend}
+                        style={styles.freeRow}
                       >
-                        <Text style={styles.attendText}>Atender</Text>
+                        <Text style={styles.freeText}>Libre · toca para bloquear</Text>
+                      </Pressable>
+                    ) : r.kind === 'block' ? (
+                      <Pressable onPress={() => askUnblock(r.a)} style={styles.blockRow} accessibilityRole="button">
+                        <Ionicons name="lock-closed-outline" size={18} color={colors.muted} />
+                        <Text style={styles.blockText}>Bloqueado hasta {formatClock(r.a.ends_at)}</Text>
+                        <Text style={styles.blockUndo}>Quitar</Text>
+                      </Pressable>
+                    ) : r.kind === 'asked' ? (
+                      <Pressable accessibilityRole="button" onPress={() => setReqsOpen(true)} style={styles.askedRow}>
+                        <Text style={styles.askedTitle}>Pedida por {r.a.customer?.name ?? 'un cliente'}</Text>
+                        <Text style={styles.reqMeta}>Por responder · toca para verla</Text>
                       </Pressable>
                     ) : (
-                      <Text style={[styles.apptStatus, { color: STATUS_COLOR[a.status] }]}>{STATUS_LABEL[a.status]}</Text>
+                      <View style={styles.apptRow}>
+                        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/appointment/[id]', params: { id: r.a.id } })}>
+                          <View style={styles.apptHead}>
+                            <Text style={styles.apptTime} numberOfLines={1}>
+                              {r.a.customer?.name ?? 'Cliente'}
+                            </Text>
+                            <Text style={[styles.apptStatus, { color: STATUS_COLOR[r.a.status] }]}>{STATUS_LABEL[r.a.status]}</Text>
+                          </View>
+                          <Text style={styles.reqMeta} numberOfLines={1}>
+                            {[r.a.service?.name, `hasta ${formatClock(r.a.ends_at)}`].filter(Boolean).join(' · ')}
+                          </Text>
+                          {r.a.out_of_hours ? <Text style={styles.outOfHours}>Fuera de tu horario actual</Text> : null}
+                        </Pressable>
+                        {r.a.status === 'confirmed' ? (
+                          <View style={styles.apptActions}>
+                            {FEATURES.ledger ? (
+                              <Pressable accessibilityRole="button" accessibilityLabel={`Atender a ${r.a.customer?.name ?? 'el cliente'}: abrir su cuenta`} onPress={() => attend(r.a)} style={styles.attend}>
+                                <Text style={styles.attendText}>Atender</Text>
+                              </Pressable>
+                            ) : null}
+                            {Date.parse(r.a.ends_at) < now ? (
+                              <Pressable accessibilityRole="button" accessibilityLabel={`${r.a.customer?.name ?? 'El cliente'} no vino`} onPress={() => noShow.mutate(r.a.id)} style={styles.altBtn}>
+                                <Text style={styles.altText}>No vino</Text>
+                              </Pressable>
+                            ) : null}
+                          </View>
+                        ) : null}
+                      </View>
                     )}
-                  </Pressable>
-                ),
-              )
+                  </View>
+                </View>
+              ))
             )}
           </ScrollView>
 
+          <Modal visible={reqsOpen} transparent animationType="slide" onRequestClose={() => setReqsOpen(false)}>
+            <Pressable style={styles.backdrop} onPress={() => setReqsOpen(false)} accessibilityLabel="Cerrar" />
+            <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
+              <View style={styles.handle} />
+              <Text style={styles.sheetTitle}>Por responder</Text>
+              <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ gap: spacing.sm }}>
+                {[...pending].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at)).map((a) => {
+                  const clash = clashOf(a);
+                  return (
+                    <View key={a.id} style={styles.requestCard}>
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => {
+                          setReqsOpen(false);
+                          router.push({ pathname: '/appointment/[id]', params: { id: a.id } });
+                        }}
+                      >
+                        <Text style={styles.reqWhen}>{a.customer?.name ?? 'Cliente'}</Text>
+                        <Text style={styles.reqMeta}>
+                          {formatDay(a.starts_at)}, {formatClock(a.starts_at)}
+                          {a.service ? ` · ${a.service.name}` : ''} · {formatDuration(Math.round((Date.parse(a.ends_at) - Date.parse(a.starts_at)) / 60000))}
+                        </Text>
+                        {a.expires_at ? <Text style={styles.reqExpiry}>Expira en {formatRemaining(a.expires_at)}</Text> : null}
+                        {clash ? <Text style={styles.outOfHours}>{clash}</Text> : null}
+                      </Pressable>
+                      <View style={styles.reqActions}>
+                        <Button
+                          title="Rechazar o proponer"
+                          variant="secondary"
+                          onPress={() => {
+                            setReqsOpen(false);
+                            router.push({ pathname: '/appointment/decline/[id]', params: { id: a.id } });
+                          }}
+                          style={{ flex: 1, minHeight: 44 }}
+                        />
+                        <Button title="Aceptar" onPress={() => accept.mutate(a.id)} loading={accept.isPending && accept.variables === a.id} style={{ flex: 1, minHeight: 44 }} />
+                      </View>
+                    </View>
+                  );
+                })}
+                {pending.length === 0 ? <Text style={styles.freeDayText}>Respondiste todo. Le avisamos a cada cliente.</Text> : null}
+              </ScrollView>
+            </View>
+          </Modal>
+
           <View style={[styles.fabWrap, { paddingBottom: insets.bottom + spacing.md }]}>
-            <Button title="Bloquear horas" variant="secondary" onPress={() => setBlockOpen(true)} />
+            <Button
+              title="Bloquear horas"
+              variant="secondary"
+              onPress={() => {
+                setBlockStart(null);
+                setBlockOpen(true);
+              }}
+            />
           </View>
 
           <BlockSheet
+            key={blockStart ?? day}
             visible={blockOpen}
             day={day}
+            initialStart={blockStart}
             stepMin={settings.data?.slot_minutes ?? 30}
             onClose={() => setBlockOpen(false)}
             onCreate={async (startIso, minutes) => {
@@ -278,18 +385,20 @@ export default function BusinessAgendaScreen() {
 function BlockSheet({
   visible,
   day,
+  initialStart,
   stepMin,
   onClose,
   onCreate,
 }: {
   visible: boolean;
   day: string;
+  initialStart: string | null;
   stepMin: number;
   onClose: () => void;
   onCreate: (startIso: string, minutes: number) => Promise<void>;
 }) {
   const insets = useSafeAreaInsets();
-  const [start, setStart] = useState<string | null>(null);
+  const [start, setStart] = useState<string | null>(initialStart);
   const [minutes, setMinutes] = useState(60);
   const [busy, setBusy] = useState(false);
   const options = useMemo(() => timeOptions(day, stepMin), [day, stepMin]);
@@ -335,6 +444,22 @@ function BlockSheet({
 }
 
 const styles = StyleSheet.create({
+  dayDots: { flexDirection: 'row', gap: 3, height: 6, marginTop: 3 },
+  dayDot: { width: 6, height: 6, borderRadius: 3 },
+  pendingBar: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 60, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.warning },
+  pendingCount: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.warning },
+  pendingCountText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  pendingTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  lineRow: { flexDirection: 'row', gap: spacing.sm },
+  lineTime: { width: 66, paddingTop: 12, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  freeRow: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line },
+  freeText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
+  askedRow: { minHeight: 44, justifyContent: 'center', padding: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.warning },
+  askedTitle: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  apptHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  apptActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  altBtn: { minHeight: 44, paddingHorizontal: spacing.md, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line },
+  altText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   attend: { minHeight: 40, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   attendText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#fff' },
   screen: { flex: 1, backgroundColor: colors.bg },
@@ -386,18 +511,7 @@ const styles = StyleSheet.create({
   reqActions: { flexDirection: 'row', gap: spacing.sm },
   freeDay: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line },
   freeDayText: { flex: 1, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted },
-  apptRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    minHeight: 64,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
-  },
-  stripe: { width: 4, alignSelf: 'stretch', borderRadius: 2 },
+  apptRow: { padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   apptTime: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: colors.ink },
   apptStatus: { fontSize: 12.5, fontFamily: fonts.ui.bold },
   outOfHours: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.warning },

@@ -6,7 +6,7 @@ import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleS
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ledgerApi, type Expense, type Insight, type Sale } from '@/api/ledger';
 import { EmptyState } from '@/components/EmptyState';
-import { Delta, Sparkline } from '@/components/finance/Charts';
+import { Delta } from '@/components/finance/Charts';
 import { RangeSheet } from '@/components/finance/RangeSheet';
 import { Chip, Stat } from '@/components/ledger/parts';
 import { VoiceSheet } from '@/components/ledger/VoiceSheet';
@@ -102,7 +102,9 @@ export default function LedgerHome() {
   const quick = inventory.data?.quick_sale === true;
   // Aquí solo van los avisos que son plata; los de existencias (se acaba, sin inventario) viven en Productos e inventario.
   const moneyInsights = (insights.data ?? []).filter((i) => MONEY_INSIGHTS.includes(i.kind));
+  const stockAlerts = (insights.data ?? []).filter((i) => i.kind === 'soon' || i.kind === 'out' || i.kind === 'low');
   const goTabs = () => router.push({ pathname: '/business/ledger/tabs/[id]', params: { id: entityId } });
+  const goDebts = () => router.push({ pathname: '/business/ledger/debts/[id]', params: { id: entityId } });
 
   const sum = summary.data;
   const multiDay = range.from !== range.to;
@@ -128,6 +130,13 @@ export default function LedgerHome() {
     return [...queued, ...sent].sort((a, b) => b.at.localeCompare(a.at));
   }, [sales.data, expenses.data, outbox.items, entityId, includesToday]);
 
+  const source = sum?.current.by_source;
+  const sourceTotal = source ? source.manual + source.offers + source.agenda : 0;
+  const sourceText = source
+    ? [source.manual > 0 ? `Manual ${formatPesos(source.manual)}` : null, source.offers > 0 ? `Empre Offers ${formatPesos(source.offers)}` : null, source.agenda > 0 ? `Agenda ${formatPesos(source.agenda)}` : null].filter(Boolean).join(' · ')
+    : '';
+  const bars = (sum?.series ?? []).slice(-12);
+  const barTop = Math.max(1, ...bars.map((b) => Math.max(b.sales, b.expenses)));
   const salesTotal = (sum?.current.sales_total ?? 0) + pending.sales;
   const expensesTotal = (sum?.current.expenses_total ?? 0) + pending.expenses;
   const profit = salesTotal - expensesTotal;
@@ -152,7 +161,7 @@ export default function LedgerHome() {
 
   return (
     <View style={styles.screen}>
-      <SubScreenHeader title="Ventas y gastos" />
+      <SubScreenHeader title="Finanzas" />
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 110 }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
           {QUICK.map((p) => (
@@ -174,88 +183,69 @@ export default function LedgerHome() {
         ) : (
           <View style={styles.card}>
             {sum ? <Text style={styles.daySentence}>{daySentence(range.preset === 'today', salesTotal, profit, sum.current.sales_count)}</Text> : null}
+            <Text style={styles.heroLabel}>{profit >= 0 ? 'TE QUEDÓ' : 'PERDISTE'}</Text>
             <View style={styles.kpiTop}>
-              <View style={{ flex: 1 }}>
-                <Stat title="Vendiste" value={salesTotal} big />
-              </View>
-              {sum ? <Delta d={deltaLabel(salesTotal, sum.previous.sales_total)} /> : null}
-            </View>
-            {sum && sum.series.length > 1 && sum.current.sales_total > 0 ? <Sparkline values={sum.series.map((p) => p.sales)} /> : null}
-            {sum && sum.current.sales_count > 0 ? (
-              <Text style={styles.compare}>
-                {sum.current.sales_count} {sum.current.sales_count === 1 ? 'venta' : 'ventas'} · ticket promedio {formatPesos(sum.current.avg_ticket)}
+              <Text style={[styles.heroValue, profit < 0 && { color: colors.danger }]} accessibilityLiveRegion="polite">
+                {formatPesos(Math.abs(profit))}
               </Text>
-            ) : null}
+              {sum ? <Delta d={deltaLabel(profit, sum.previous.profit)} /> : null}
+            </View>
             <View style={styles.statRow}>
+              <View style={{ flex: 1 }}>
+                <Stat title="Vendiste" value={salesTotal} />
+                {sum ? <Delta d={deltaLabel(salesTotal, sum.previous.sales_total)} /> : null}
+              </View>
               <View style={{ flex: 1 }}>
                 <Stat title="Gastaste" value={expensesTotal} />
                 {sum ? <Delta d={deltaLabel(expensesTotal, sum.previous.expenses_total, true)} worseIsWarn /> : null}
               </View>
-              <View style={{ flex: 1 }}>
-                <Stat title={profit >= 0 ? 'Te quedó' : 'Perdiste'} value={Math.abs(profit)} tone={profit >= 0 ? 'good' : 'bad'} />
-                {sum ? <Delta d={deltaLabel(profit, sum.previous.profit)} /> : null}
-              </View>
             </View>
-            <Pressable accessibilityRole="button" onPress={goAnalytics} style={({ pressed }) => [styles.analyticsBtn, pressed && { opacity: 0.85 }]}>
-              <Ionicons name="bar-chart-outline" size={18} color={colors.primary} />
-              <Text style={styles.analyticsText}>Ver análisis del negocio</Text>
+            {source && sourceTotal > 0 ? (
+              <View style={{ gap: 6, marginTop: spacing.xs }} accessible accessibilityLabel={sourceText}>
+                <View style={styles.splitBar}>
+                  {source.manual > 0 ? <View style={{ flex: source.manual, backgroundColor: colors.ink }} /> : null}
+                  {source.offers > 0 ? <View style={{ flex: source.offers, backgroundColor: colors.accent }} /> : null}
+                  {source.agenda > 0 ? <View style={{ flex: source.agenda, backgroundColor: colors.verified }} /> : null}
+                </View>
+                <Text style={styles.compare}>{sourceText}</Text>
+              </View>
+            ) : null}
+            <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/ledger/cash/[id]', params: { id: entityId } })} style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.85 }]}>
+              <Ionicons name="cash-outline" size={18} color={colors.ink} />
+              <Text style={styles.closeText}>Cerrar caja de hoy</Text>
             </Pressable>
           </View>
         )}
 
+        <Text style={styles.zone}>REGISTRAR</Text>
         <View style={styles.actions}>
-          <ActionButton icon="add-circle" label="Vender" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId } })} tone="primary" />
-          <ActionButton icon="remove-circle" label="Gastar" onPress={() => router.push({ pathname: '/business/ledger/expense/[id]', params: { id: entityId } })} tone="accent" />
+          <ActionButton icon="add-circle" label="Venta" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId } })} tone="primary" />
+          <ActionButton icon="remove-circle" label="Gasto" onPress={() => router.push({ pathname: '/business/ledger/expense/[id]', params: { id: entityId } })} tone="accent" />
         </View>
 
-        {parked.length > 0 ? (
-          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId } })} style={({ pressed }) => [styles.linkCard, pressed && { opacity: 0.85 }]}>
-            <View style={styles.linkIcon}>
-              <Ionicons name="time-outline" size={19} color={colors.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.linkTitle}>{parked.length === 1 ? '1 venta en espera' : `${parked.length} ventas en espera`}</Text>
-              <Text style={styles.linkMeta}>No cuentan en la caja hasta que las cobres</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-          </Pressable>
-        ) : null}
+        <Text style={styles.zoneSub}>OTRAS FORMAS DE VENDER</Text>
+        <View style={styles.group}>
+          {quick ? <GroupRow icon="flash-outline" title="Modo mostrador" meta="Para cuando hay fila: un toque, una venta" onPress={() => router.push({ pathname: '/business/ledger/quick/[id]', params: { id: entityId } })} /> : null}
+          {quick && FEATURES.tabs ? <GroupRow icon="restaurant-outline" title="Mesas y cuentas" meta="El cliente va pidiendo y paga al final" onPress={goTabs} /> : null}
+          <GroupRow icon="person-outline" title="Fiado" meta="Lo paga después; queda en «Te deben»" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId, fiado: '1' } })} />
+          {parked.length > 0 ? <GroupRow icon="time-outline" title={parked.length === 1 ? '1 venta en espera' : `${parked.length} ventas en espera`} meta="No cuentan en la caja hasta que las cobres" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId } })} /> : null}
+        </View>
 
-        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/ledger/cash/[id]', params: { id: entityId } })} style={({ pressed }) => [styles.linkCard, pressed && { opacity: 0.85 }]}>
-          <View style={styles.linkIcon}>
-            <Ionicons name="cash-outline" size={19} color={colors.primary} />
+        <Text style={styles.zone}>PENDIENTES</Text>
+        {sum && (sum.receivable > 0 || sum.payable > 0) || stockAlerts.length > 0 ? (
+          <View style={styles.group}>
+            {sum && sum.receivable > 0 ? <GroupRow icon="person-outline" title="Te deben" meta="Toca para ver quién y recordarles" amount={formatPesos(sum.receivable)} onPress={goDebts} /> : null}
+            {sum && sum.payable > 0 ? <GroupRow icon="car-outline" title="Debes" meta="A tus proveedores" amount={formatPesos(sum.payable)} onPress={goDebts} /> : null}
+            {stockAlerts.slice(0, 2).map((a) => (
+              <GroupRow key={`${a.kind}-${a.ref ?? a.title}`} icon="cube-outline" title="Se acaba" meta={a.title} onPress={() => goAnalyticsTab('inventory')} />
+            ))}
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.linkTitle}>Cerrar la caja</Text>
-            <Text style={styles.linkMeta}>Cuenta lo que hay y mira si cuadra</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-        </Pressable>
-
-        {quick ? (
-          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/ledger/quick/[id]', params: { id: entityId } })} style={({ pressed }) => [styles.linkCard, pressed && { opacity: 0.85 }]}>
-            <View style={styles.linkIcon}>
-              <Ionicons name="flash-outline" size={19} color={colors.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.linkTitle}>Atención rápida</Text>
-              <Text style={styles.linkMeta}>Toca los platos del pedido y cobra en un paso</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+        ) : (
+          <Pressable accessibilityRole="button" onPress={goDebts} style={styles.allClear}>
+            <Text style={styles.compare}>Nada espera por ti. Ver fiados</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
           </Pressable>
-        ) : null}
-        {quick && FEATURES.tabs ? (
-          <Pressable accessibilityRole="button" onPress={goTabs} style={({ pressed }) => [styles.linkCard, pressed && { opacity: 0.85 }]}>
-            <View style={styles.linkIcon}>
-              <Ionicons name="restaurant-outline" size={19} color={colors.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.linkTitle}>Mesas</Text>
-              <Text style={styles.linkMeta}>Lo que va pidiendo cada mesa; se cobra al final</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-          </Pressable>
-        ) : null}
+        )}
 
         {moneyInsights.length > 0 ? (
           <View style={{ gap: spacing.sm }}>
@@ -266,49 +256,40 @@ export default function LedgerHome() {
           </View>
         ) : null}
 
-        {sum && sum.inventory.value_cost > 0 ? (
-          <Pressable accessibilityRole="button" onPress={() => goAnalyticsTab('inventory')} style={({ pressed }) => [styles.linkCard, pressed && { opacity: 0.85 }]}>
-            <View style={styles.linkIcon}>
-              <Ionicons name="cube-outline" size={19} color={colors.primary} />
+        <Text style={styles.zone}>ENTENDER</Text>
+        {bars.length > 1 ? (
+          <View style={styles.card} accessible accessibilityLabel={`Ventas y gastos de ${rangeTitle(range)}`}>
+            <View style={styles.legend}>
+              <View style={[styles.legendDot, { backgroundColor: colors.brand }]} />
+              <Text style={styles.compare}>Ventas</Text>
+              <View style={[styles.legendDot, { backgroundColor: '#8796AB' }]} />
+              <Text style={styles.compare}>Gastos</Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.linkTitle}>{formatPesos(sum.inventory.value_cost)} en mercancía</Text>
-              <Text style={styles.linkMeta}>
-                {[
-                  sum.inventory.lost_total > 0 ? `Perdiste ${formatPesos(sum.inventory.lost_total)}` : null,
-                  sum.inventory.idle_total > 0 ? `Quieta ${formatPesos(sum.inventory.idle_total)}` : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ') || 'Tu inventario en plata'}
-              </Text>
+            <View style={styles.bars}>
+              {bars.map((b) => (
+                <View key={b.start} style={styles.barCol}>
+                  <View style={styles.barPair}>
+                    <View style={[styles.bar, { height: Math.max(2, (b.sales / barTop) * 84), backgroundColor: colors.brand }]} />
+                    <View style={[styles.bar, { height: Math.max(2, (b.expenses / barTop) * 84), backgroundColor: '#8796AB' }]} />
+                  </View>
+                  <Text style={styles.barLabel}>{Number(b.start.slice(8, 10))}</Text>
+                </View>
+              ))}
             </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-          </Pressable>
+          </View>
         ) : null}
-
-        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/ledger/debts/[id]', params: { id: entityId } })} style={({ pressed }) => [styles.linkCard, pressed && { opacity: 0.85 }]}>
-          <View style={styles.linkIcon}>
-            <Ionicons name="people-outline" size={19} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.linkTitle}>Fiados</Text>
-            <Text style={styles.linkMeta}>
-              {sum ? `Te deben ${formatPesos(sum.receivable)}${sum.payable > 0 ? ` · Debes ${formatPesos(sum.payable)}` : ''}` : 'Quién te debe y a quién le debes'}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-        </Pressable>
-
-        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/ledger/costs/[id]', params: { id: entityId } })} style={({ pressed }) => [styles.linkCard, pressed && { opacity: 0.85 }]}>
-          <View style={styles.linkIcon}>
-            <Ionicons name="pricetags-outline" size={19} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.linkTitle}>Costo de tus productos</Text>
-            <Text style={styles.linkMeta}>Para saber cuánto ganas en cada venta</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-        </Pressable>
+        <View style={styles.group}>
+          <GroupRow icon="bar-chart-outline" title="Ver análisis del negocio" meta="Márgenes, productos y días que más venden" onPress={goAnalytics} />
+          {sum && sum.inventory.value_cost > 0 ? (
+            <GroupRow
+              icon="cube-outline"
+              title={`${formatPesos(sum.inventory.value_cost)} en mercancía`}
+              meta={[sum.inventory.lost_total > 0 ? `Perdiste ${formatPesos(sum.inventory.lost_total)}` : null, sum.inventory.idle_total > 0 ? `Quieta ${formatPesos(sum.inventory.idle_total)}` : null].filter(Boolean).join(' · ') || 'Tu inventario en plata'}
+              onPress={() => goAnalyticsTab('inventory')}
+            />
+          ) : null}
+          <GroupRow icon="pricetags-outline" title="Costo de tus productos" meta="Para saber cuánto ganas en cada venta" onPress={() => router.push({ pathname: '/business/ledger/costs/[id]', params: { id: entityId } })} />
+        </View>
 
         <Text style={styles.sectionTitle}>{range.preset === 'today' ? 'Movimientos de hoy' : 'Movimientos'}</Text>
         {movements.length === 0 && !sales.isLoading ? (
@@ -316,8 +297,8 @@ export default function LedgerHome() {
         ) : (
           movements.map((m) => (
             <Pressable key={m.key} accessibilityRole="button" accessibilityLabel={`${m.kind === 'sale' ? 'Venta' : 'Gasto'} de ${formatPesos(m.amount)}, ${m.title}${m.voided ? ', anulada' : ''}. Toca para anular`} onPress={() => (m.pending ? undefined : askVoid(m))} style={styles.move}>
-              <View style={[styles.moveIcon, { backgroundColor: m.kind === 'sale' ? colors.primarySoft : colors.accentSoft }]}>
-                <Ionicons name={m.kind === 'sale' ? 'arrow-up' : 'arrow-down'} size={16} color={m.kind === 'sale' ? colors.primary : colors.accentInk} />
+              <View style={[styles.moveIcon, { backgroundColor: m.kind === 'sale' ? colors.primarySoft : colors.selectedSoft }]}>
+                <Ionicons name={m.kind === 'sale' ? 'arrow-up' : 'arrow-down'} size={16} color={m.kind === 'sale' ? colors.primary : colors.ink} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.moveTitle, m.voided && styles.struck]} numberOfLines={1}>
@@ -329,7 +310,7 @@ export default function LedgerHome() {
                   {m.voided ? ' · anulada' : ''}
                 </Text>
               </View>
-              <Text style={[styles.moveAmount, m.voided && styles.struck, m.kind === 'expense' && { color: colors.accentInk }]}>
+              <Text style={[styles.moveAmount, m.voided && styles.struck, m.kind === 'expense' && { color: colors.muted }]}>
                 {m.kind === 'expense' ? '−' : ''}
                 {formatPesos(m.amount)}
               </Text>
@@ -368,8 +349,23 @@ function InsightCard({ insight, onPress }: { insight: Insight; onPress: () => vo
 function ActionButton({ icon, label, onPress, tone }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; tone: 'primary' | 'accent' }) {
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.action, tone === 'primary' ? styles.actionPrimary : styles.actionAccent, pressed && { opacity: 0.88 }]}>
-      <Ionicons name={icon} size={26} color="#fff" />
-      <Text style={styles.actionText}>{label}</Text>
+      <Ionicons name={icon} size={26} color={tone === 'primary' ? '#fff' : colors.ink} />
+      <Text style={[styles.actionText, tone !== 'primary' && { color: colors.ink }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function GroupRow({ icon, title, meta, amount, onPress }: { icon: keyof typeof Ionicons.glyphMap; title: string; meta: string; amount?: string; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={[title, amount, meta].filter(Boolean).join('. ')} onPress={onPress} style={({ pressed }) => [styles.groupRow, pressed && { opacity: 0.85 }]}>
+      <View style={styles.groupIcon}>
+        <Ionicons name={icon} size={18} color={colors.ink} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.linkTitle}>{title}</Text>
+        <Text style={styles.linkMeta}>{meta}</Text>
+      </View>
+      {amount ? <Text style={styles.groupAmount}>{amount}</Text> : <Ionicons name="chevron-forward" size={18} color={colors.muted} />}
     </Pressable>
   );
 }
@@ -408,6 +404,25 @@ function OutboxBanner({ entityId }: { entityId: string }) {
 }
 
 const styles = StyleSheet.create({
+  heroLabel: { fontSize: 11.5, letterSpacing: 0.8, fontFamily: fonts.ui.extrabold, color: colors.muted },
+  heroValue: { flex: 1, fontSize: 36, lineHeight: 42, fontFamily: fonts.display.bold, color: colors.ink },
+  splitBar: { flexDirection: 'row', height: 8, gap: 2, borderRadius: 4, overflow: 'hidden' },
+  closeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, minHeight: 46, marginTop: spacing.xs, borderRadius: radius.md, backgroundColor: colors.selectedSoft },
+  closeText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  zone: { marginTop: spacing.sm, fontSize: 12, letterSpacing: 1, fontFamily: fonts.ui.extrabold, color: colors.muted },
+  zoneSub: { fontSize: 11, letterSpacing: 0.8, fontFamily: fonts.ui.bold, color: colors.muted },
+  group: { borderRadius: radius.md, overflow: 'hidden', gap: 1, backgroundColor: colors.line, borderWidth: 1, borderColor: colors.line },
+  groupRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 62, padding: spacing.md, backgroundColor: colors.surface },
+  groupIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.selectedSoft, alignItems: 'center', justifyContent: 'center' },
+  groupAmount: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  allClear: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface },
+  legend: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendDot: { width: 9, height: 9, borderRadius: 3, marginLeft: 4 },
+  bars: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 108 },
+  barCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
+  barPair: { flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
+  bar: { width: 7, borderRadius: 3 },
+  barLabel: { fontSize: 11, fontFamily: fonts.ui.semibold, color: colors.muted },
   screen: { flex: 1, backgroundColor: colors.bg },
   body: { padding: spacing.lg, gap: spacing.md },
   tabs: { flexDirection: 'row', gap: spacing.sm },
@@ -424,7 +439,7 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: spacing.md },
   action: { flex: 1, minHeight: 72, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: spacing.sm },
   actionPrimary: { backgroundColor: colors.primary },
-  actionAccent: { backgroundColor: colors.accent },
+  actionAccent: { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line },
   actionText: { fontSize: 18, fontFamily: fonts.display.bold, color: '#fff' },
   linkCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md },
   linkIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },

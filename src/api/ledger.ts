@@ -209,6 +209,8 @@ export interface PeriodTotals {
   profit: number;
   avg_ticket: number;
   by_method: { cash: number; transfer: number; card: number; credit: number };
+  /** De dónde vinieron las ventas. Un backend viejo no lo manda. */
+  by_source?: { manual: number; offers: number; agenda: number };
   expenses_by_category: Record<string, number>;
   gross_margin: number;
   margin_coverage_pct: number;
