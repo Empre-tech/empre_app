@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -68,8 +69,9 @@ export default function OfferResultScreen() {
             ) : null}
           </View>
 
-          <View style={styles.idea} accessibilityRole="text">
-            <Text style={styles.ideaText}>💡 {nextTimeIdea(s, summary)}</Text>
+          <View style={[styles.idea, { flexDirection: 'row', alignItems: 'flex-start', gap: 8 }]} accessibilityRole="text">
+            <Ionicons name="bulb-outline" size={18} color={colors.ink} />
+            <Text style={[styles.ideaText, { flex: 1 }]}>{nextTimeIdea(s, summary)}</Text>
           </View>
 
           <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/offers/new', params: { entityId, from: s.offer_id } })} style={styles.primary}>
