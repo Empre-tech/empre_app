@@ -8,6 +8,7 @@ import { ledgerApi, type InventoryItem, type ItemCost } from '@/api/ledger';
 import { Button } from '@/components/Button';
 import { DoneMark, FlowHeader, Pop, useFlowBack, useFlowStep } from '@/components/ledger/Flow';
 import { AmountField, Chip, LedgerReceipt, PartyPicker, type PartyChoice } from '@/components/ledger/parts';
+import { PayDeck } from '@/components/ledger/PayDeck';
 import { formatPesos, METHOD_LABEL, newClientId, salePayText, type PayMethod } from '@/lib/ledger';
 import { queueSale, queueVoid } from '@/ledger/ledgerStore';
 import { parkSale, removeParkedSale, useParkedSales, type ParkedSale } from '@/ledger/parkedSales';
@@ -22,7 +23,6 @@ const HOWS: { key: How; label: string }[] = [
 ];
 const OTHER_METHODS: PayMethod[] = ['cash', 'transfer', 'card'];
 const PAY_ALL: PayMethod[] = ['cash', 'transfer', 'card', 'credit'];
-const PAY_ICON: Record<PayMethod, keyof typeof Ionicons.glyphMap> = { cash: 'cash-outline', transfer: 'phone-portrait-outline', card: 'card-outline', credit: 'person-outline' };
 const PANES = ['what', 'pay', 'done'] as const;
 
 function ago(at: number): string {
@@ -52,7 +52,7 @@ function itemSupplyNote(meta?: InventoryItem): { text: string; warn: boolean } {
 /**
  * Registrar una venta, un paso por pantalla y cada uno entra con movimiento:
  * 1 · Qué vendiste: tocas lo que se llevó y abajo sube lo que llevas, con «Seguir».
- * 2 · Cómo te pagaron: el total en grande, las cantidades y las formas de pago.
+ * 2 · Cómo te pagaron: un mazo donde cada forma de pago es una carta distinta, con el monto, y lo vendido debajo.
  * 3 · Listo: el visto, el comprobante, «Nueva venta» o volver.
  */
 export default function NewSaleScreen() {
@@ -104,6 +104,7 @@ export default function NewSaleScreen() {
   const [method, setMethod] = useState<PayMethod>(fiado === '1' ? 'credit' : 'cash');
   const [party, setParty] = useState<PartyChoice | null>(null);
   const [note, setNote] = useState('');
+  const [editAmount, setEditAmount] = useState(false);
   const [saved, setSaved] = useState<{ clientId: string; total: number; text: string; voided: boolean } | null>(null);
   const [how, setHow] = useState<How>('one');
   const [first, setFirst] = useState<number | null>(null);
@@ -127,7 +128,9 @@ export default function NewSaleScreen() {
   const firstOptions = [10000, 20000, half].filter((v, i, a) => v > 0 && v < total && a.indexOf(v) === i).slice(0, 3);
   const low = METHOD_LABEL[method].toLowerCase();
   const waiting =
-    how === 'split' || how === 'part'
+    how === 'one' && method === 'credit' && !party
+      ? '¿A quién le fías?'
+      : how === 'split' || how === 'part'
       ? paid === null
         ? how === 'split'
           ? `Elige cuánto en ${low}`
@@ -269,15 +272,8 @@ export default function NewSaleScreen() {
     setSaved({ clientId, total, text: salePayText({ total, method, ...pay, partyName: party?.name }), voided: false });
   };
 
-  const primaryTitle = saved
-    ? 'Nueva venta'
-    : total <= 0
-      ? sellable.length > 0
-        ? 'Toca lo que vendiste'
-        : 'Escribe cuánto fue la venta'
-      : waiting ?? (how === 'part' ? `Cobrar ${formatPesos(paid ?? 0)} · ${formatPesos(rest)} a Te deben` : `Cobrar ${formatPesos(total)}`);
-
   const primaryDisabled = !saved && (total <= 0 || Boolean(waiting));
+  const payText = total <= 0 ? 'Escribe cuánto fue' : waiting ?? (how === 'one' && method === 'credit' ? `Fiarle ${formatPesos(total)} a ${party?.name ?? ''}` : how === 'part' ? `Cobrar ${formatPesos(paid ?? 0)}` : `Cobrar ${formatPesos(total)}`);
 
   const goPay = () => {
     setError(null);
@@ -323,49 +319,20 @@ export default function NewSaleScreen() {
           </ScrollView>
         ) : shown === 'pay' ? (
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-            <View style={styles.bill}>
-              <Text style={styles.billLabel}>Vas a cobrar</Text>
-              <Pop value={total}>
-                <Text style={styles.billTotal}>{formatPesos(total)}</Text>
-              </Pop>
-              {lines.map((i, idx) => {
-                const q = qty[i.id] ?? 0;
-                return (
-                  <View key={i.id} style={[styles.lineRow, idx === 0 ? styles.lineFirst : styles.lineRowSep]}>
-                    <View style={styles.lineLeft}>
-                      <Text style={styles.lineName} numberOfLines={1}>
-                        {i.name}
-                      </Text>
-                      <Text style={styles.lineUnit}>{formatPesos((i.price ?? 0) * q)}</Text>
-                    </View>
-                    <Pressable accessibilityRole="button" accessibilityLabel={`Quitar uno de ${i.name}`} onPress={() => bump(i, -1)} style={styles.qtyCircleBtn}>
-                      <Ionicons name="remove" size={18} color={colors.ink} />
-                    </Pressable>
-                    <Text style={styles.lineQty}>{q}</Text>
-                    <Pressable accessibilityRole="button" accessibilityLabel={`Agregar uno de ${i.name}`} onPress={() => bump(i, 1)} style={styles.qtyCircleBtn}>
-                      <Ionicons name="add" size={18} color={colors.ink} />
-                    </Pressable>
-                  </View>
-                );
-              })}
-              {lines.length === 0 ? <AmountField value={total} onChange={(n) => setManual(n)} /> : null}
-            </View>
-
             <View style={styles.section}>
               <Text style={styles.sectionTitle} accessibilityRole="header">
                 ¿Cómo te pagaron?
               </Text>
-              <View style={styles.methods}>
-                {(how === 'one' ? PAY_ALL : OTHER_METHODS).map((m) => {
-                  const on = method === m;
-                  return (
-                    <Pressable key={m} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setMethod(m)} style={[styles.method, on && styles.methodOn]}>
-                      <Ionicons name={PAY_ICON[m]} size={24} color={colors.ink} />
-                      <Text style={styles.methodText}>{m === 'credit' ? 'Fiado' : METHOD_LABEL[m]}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+              <PayDeck
+                methods={how === 'one' ? PAY_ALL : OTHER_METHODS}
+                value={method}
+                onChange={setMethod}
+                amount={how === 'one' || paid === null ? total : paid}
+                note={how === 'split' && paid !== null ? `El resto, ${formatPesos(rest)}, con otra forma` : how === 'part' && paid !== null ? `Queda debiendo ${formatPesos(rest)}` : undefined}
+                party={party?.name}
+                onEdit={lines.length === 0 && how === 'one' ? () => setEditAmount((v) => !v) : undefined}
+              />
+              {lines.length === 0 && editAmount ? <AmountField value={total} onChange={(n) => setManual(n)} autoFocus /> : null}
               <View style={styles.segment}>
                 {HOWS.map((h) => {
                   const on = how === h.key;
@@ -410,6 +377,34 @@ export default function NewSaleScreen() {
                 </View>
               ) : null}
             </View>
+
+            {lines.length > 0 ? (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Lo que vendiste</Text>
+                <View style={styles.bill}>
+                  {lines.map((i, idx) => {
+                    const q = qty[i.id] ?? 0;
+                    return (
+                      <View key={i.id} style={[styles.lineRow, idx > 0 && styles.lineRowSep]}>
+                        <View style={styles.lineLeft}>
+                          <Text style={styles.lineName} numberOfLines={1}>
+                            {i.name}
+                          </Text>
+                          <Text style={styles.lineUnit}>{formatPesos((i.price ?? 0) * q)}</Text>
+                        </View>
+                        <Pressable accessibilityRole="button" accessibilityLabel={`Quitar uno de ${i.name}`} onPress={() => bump(i, -1)} style={styles.qtyCircleBtn}>
+                          <Ionicons name="remove" size={18} color={colors.ink} />
+                        </Pressable>
+                        <Text style={styles.lineQty}>{q}</Text>
+                        <Pressable accessibilityRole="button" accessibilityLabel={`Agregar uno de ${i.name}`} onPress={() => bump(i, 1)} style={styles.qtyCircleBtn}>
+                          <Ionicons name="add" size={18} color={colors.ink} />
+                        </Pressable>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
 
             {how === 'one' && method === 'credit' ? (
               <View style={styles.section}>
@@ -512,8 +507,8 @@ export default function NewSaleScreen() {
         </View>
       ) : pane === 'pay' ? (
         <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
-          <Pressable accessibilityRole="button" accessibilityLabel={primaryTitle} accessibilityState={{ disabled: primaryDisabled }} disabled={primaryDisabled} onPress={save} style={[styles.primaryBtn, primaryDisabled && styles.primaryBtnDisabled]}>
-            <Text style={[styles.primaryBtnText, primaryDisabled && styles.primaryBtnTextDisabled]}>{waiting ?? (how === 'part' ? `Cobrar ${formatPesos(paid ?? 0)}` : `Cobrar ${formatPesos(total)}`)}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={payText} accessibilityState={{ disabled: primaryDisabled }} disabled={primaryDisabled} onPress={save} style={[styles.primaryBtn, primaryDisabled && styles.primaryBtnDisabled]}>
+            <Text style={[styles.primaryBtnText, primaryDisabled && styles.primaryBtnTextDisabled]}>{payText}</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={park} style={styles.secondaryBtn}>
             <Text style={styles.secondaryBtnText}>Guardar para después</Text>
@@ -599,21 +594,14 @@ const styles = StyleSheet.create({
   tileQtyBadgeText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.surface },
   otherBtn: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
   otherBtnText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  bill: { gap: 2, padding: 16, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
-  billLabel: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  billTotal: { alignSelf: 'flex-start', fontSize: 40, lineHeight: 46, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  bill: { paddingVertical: 4, paddingHorizontal: 14, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
   lineRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
-  lineFirst: { marginTop: 8, borderTopWidth: 1, borderTopColor: colors.selectedSoft },
   lineRowSep: { borderTopWidth: 1, borderTopColor: colors.selectedSoft },
   lineLeft: { flex: 1, minWidth: 0, gap: 1 },
   lineName: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   lineUnit: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   qtyCircleBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.selectedSoft },
   lineQty: { minWidth: 24, textAlign: 'center', fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  methods: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  method: { width: '48.5%', minHeight: 76, alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
-  methodOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
-  methodText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   segment: { flexDirection: 'row', gap: 2, padding: 4, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
   segmentItem: { flex: 1, minHeight: 44, paddingHorizontal: 2, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
