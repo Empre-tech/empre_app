@@ -11,8 +11,8 @@ import { EmptyState } from '@/components/EmptyState';
 import { HBars, HeatGrid } from '@/components/finance/Charts';
 import { FinanceGroup, FinanceHead, FinanceRow, FinanceSection, FinanceTitle, ShareRow } from '@/components/finance/parts';
 import { RangeSheet } from '@/components/finance/RangeSheet';
-import { bestSlot, bucketLabel, dayLong, deltaWords, lowMargin, marginPct, presetRange, rangeFromParams, rangeTitle, rankProducts, todayCO, topMismatch, type DateRange } from '@/lib/finance';
-import { categoryLabel, formatPesos, METHOD_LABEL, pendingTotals } from '@/lib/ledger';
+import { bestSlot, bucketLabel, dayLong, deltaWords, leftOf, lowMargin, marginPct, presetRange, rangeFromParams, rangeTitle, rankProducts, todayCO, topMismatch, type DateRange } from '@/lib/finance';
+import { categoryLabel, formatPesos, METHOD_LABEL, pendingCredit, pendingTotals } from '@/lib/ledger';
 import { useLedgerOutbox } from '@/ledger/ledgerStore';
 import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 
@@ -104,14 +104,14 @@ function Period({ label, on, onPress }: { label: string; on: boolean; onPress: (
 /** Lo que quedó en cada parte del periodo: una barra por parte; tocarla dice cuánto. */
 function ProfitBars({ series, bucket }: { series: Analytics['series']; bucket: Analytics['bucket'] }) {
   const [sel, setSel] = useState<number | null>(null);
-  const left = series.map((p) => p.sales - p.expenses);
+  const left = series.map((p) => p.left ?? p.sales - p.expenses);
   const max = Math.max(1, ...left.map(Math.abs));
   const every = series.length > 16 ? Math.ceil(series.length / 8) : 1;
   const bestI = left.indexOf(Math.max(...left));
   const nameOf = (start: string) => (bucket === 'month' ? bucketLabel('month', start, 0) : bucket === 'week' ? `semana del ${dayLong(start)}` : dayLong(start));
   const p = sel !== null ? series[sel] : null;
-  const line = p
-    ? `${nameOf(p.start)}: ${p.sales - p.expenses >= 0 ? 'te quedaron' : 'perdiste'} ${formatPesos(Math.abs(p.sales - p.expenses))}`
+  const line = sel !== null && p
+    ? `${nameOf(p.start)}: ${left[sel] >= 0 ? `te quedaron ${formatPesos(left[sel])}` : `salieron ${formatPesos(-left[sel])} más de lo que entró`}`
     : series.length > 1 && left[bestI] > 0
       ? `Lo mejor: ${nameOf(series[bestI].start)}, te quedaron ${formatPesos(left[bestI])}`
       : null;
@@ -122,7 +122,7 @@ function ProfitBars({ series, bucket }: { series: Analytics['series']; bucket: A
           const v = left[i];
           const strong = sel === i || (sel === null && i === bestI);
           return (
-            <Pressable key={pt.start} accessibilityRole="button" accessibilityState={{ selected: sel === i }} accessibilityLabel={`${nameOf(pt.start)}: ${v >= 0 ? 'te quedaron' : 'perdiste'} ${formatPesos(Math.abs(v))}`} onPress={() => setSel(sel === i ? null : i)} style={styles.pSlot}>
+            <Pressable key={pt.start} accessibilityRole="button" accessibilityState={{ selected: sel === i }} accessibilityLabel={`${nameOf(pt.start)}: ${v >= 0 ? `te quedaron ${formatPesos(v)}` : `salieron ${formatPesos(-v)} más de lo que entró`}`} onPress={() => setSel(sel === i ? null : i)} style={styles.pSlot}>
               <View style={[styles.pBar, { height: `${Math.max(8, (Math.abs(v) / max) * 100)}%`, backgroundColor: v < 0 ? colors.warning : strong ? colors.ink : '#B6C1D1' }]} />
             </Pressable>
           );
@@ -212,10 +212,10 @@ function Summary({ a, entityId, range, firstDays, onDetail }: { a: Analytics; en
   const pending = range.to >= todayCO() ? pendingTotals(outbox.items, entityId) : { sales: 0, expenses: 0 };
   const sold = c.sales_total + pending.sales;
   const spent = c.expenses_total + pending.expenses;
-  const profit = sold - spent;
+  const profit = leftOf(c) + (range.to >= todayCO() ? pending.sales - pendingCredit(outbox.items, entityId) - pending.expenses : 0);
   const m = marginPct(c);
   const best = bestSlot(a.heat);
-  const delta = deltaWords(profit, p.profit);
+  const delta = deltaWords(profit, leftOf(p));
   const cats = Object.entries(c.expenses_by_category).sort(([, x], [, y]) => y - x);
   const source = c.by_source;
   const sourceTotal = source ? source.manual + source.offers + source.agenda : 0;
@@ -232,7 +232,7 @@ function Summary({ a, entityId, range, firstDays, onDetail }: { a: Analytics; en
 
   // Qué hacer: hasta tres cosas, primero lo que trae plata y luego lo que hace confiables los números.
   const todo: { key: string; icon: keyof typeof Ionicons.glyphMap; title: string; sub: string; alert?: boolean; onPress: () => void }[] = [
-    ...(a.receivable > 0 ? [{ key: 'cobra', icon: 'person-outline' as const, title: 'Cobra lo que te deben', sub: `${formatPesos(a.receivable)}. Lo fiado cuenta en «Te quedó» aunque no haya entrado`, alert: true, onPress: goDebts }] : []),
+    ...(a.receivable > 0 ? [{ key: 'cobra', icon: 'person-outline' as const, title: 'Cobra lo que te deben', sub: `${formatPesos(a.receivable)}. Cuenta en «Te quedó» cuando te paguen`, alert: true, onPress: goDebts }] : []),
     ...(low ? [{ key: 'precio', icon: 'pricetag-outline' as const, title: `Revisa el precio de ${low.name}`, sub: (low.profit ?? 0) < 0 ? `Perdiste ${formatPesos(-(low.profit ?? 0))} con este producto` : `Te deja ${Math.round(low.margin_pct ?? 0)} % en cada venta`, onPress: () => onDetail('products') }] : []),
     ...(a.uncosted_count > 0 ? [{ key: 'costo', icon: 'create-outline' as const, title: a.uncosted_count === 1 ? 'Ponle costo a 1 producto' : `Ponles costo a ${a.uncosted_count} productos`, sub: `Sin costo, su ganancia no se cuenta (${sold > 0 ? Math.round((a.uncosted_revenue / sold) * 100) : 0} % de tus ventas)`, onPress: goCosts }] : []),
     ...(inv.idle_total > 0 ? [{ key: 'quieta', icon: 'hourglass-outline' as const, title: `Mueve ${formatPesos(inv.idle_total)} quietos`, sub: 'No se venden hace más de 4 semanas', onPress: () => onDetail('inventory') }] : []),
@@ -247,7 +247,7 @@ function Summary({ a, entityId, range, firstDays, onDetail }: { a: Analytics; en
         <View style={styles.mainTop}>
           <View style={styles.heroTop}>
             <View style={{ flexShrink: 1 }}>
-              <Text style={styles.kpiLabel}>{profit >= 0 ? (firstDays ? `Te quedó en ${a.series.filter((x) => x.sales > 0).length === 1 ? '1 día' : `${a.series.filter((x) => x.sales > 0).length} días`}` : 'Te quedó') : 'Perdiste'}</Text>
+              <Text style={styles.kpiLabel}>{profit >= 0 ? (firstDays ? `Te quedó en ${a.series.filter((x) => x.sales > 0).length === 1 ? '1 día' : `${a.series.filter((x) => x.sales > 0).length} días`}` : 'Te quedó') : 'Salió más de lo que entró'}</Text>
               <Text style={[styles.heroValue, profit < 0 && { color: colors.warning }]} numberOfLines={1} adjustsFontSizeToFit accessibilityLiveRegion="polite">
                 {formatPesos(Math.abs(profit))}
               </Text>

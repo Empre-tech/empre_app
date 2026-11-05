@@ -209,6 +209,9 @@ export interface PeriodTotals {
   sales_count: number;
   expenses_total: number;
   profit: number;
+  /** «Te quedó»: lo que entró menos los gastos, sin lo fiado. Un backend viejo no lo manda. */
+  left?: number;
+  debts_collected?: number;
   avg_ticket: number;
   by_method: { cash: number; transfer: number; card: number; credit: number };
   /** De dónde vinieron las ventas. Un backend viejo no lo manda. */
@@ -261,7 +264,7 @@ export interface Analytics {
   current: PeriodTotals;
   previous: PeriodTotals;
   bucket: 'day' | 'week' | 'month';
-  series: { start: string; sales: number; expenses: number }[];
+  series: { start: string; sales: number; expenses: number; left?: number }[];
   /** Las ventas del periodo con que se compara, barra por barra. */
   previous_series?: number[];
   /** Por día: lo que se suele vender ese día de la semana. No viene sin historia suficiente. */

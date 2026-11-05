@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   amountField, cancelPending, changeText, enqueue, flushOrder, formatPesos, isRetryable, markFailed, newClientId,
-  parseAmountInput, pendingTotals, restoreOutbox, retryFailed,
+  parseAmountInput, pendingCredit,
+  pendingTotals, restoreOutbox, retryFailed,
 } from './ledger.ts';
 
 test('formatPesos', () => {
@@ -73,4 +74,17 @@ test('restoreOutbox descarta basura', () => {
   assert.deepEqual(restoreOutbox(null), []);
   const ok = { id: 'a', entityId: 'e', kind: 'sale', payload: {}, createdAt: 1, status: 'pending' };
   assert.deepEqual(restoreOutbox([ok, { id: 1 }, null, { ...ok, kind: 'raro' }]), [ok]);
+});
+
+test('pendingCredit cuenta solo la parte fiada de lo que no se ha enviado', () => {
+  const item = (id: string, payload: Record<string, unknown>, extra = {}) => ({ id, entityId: 'e', kind: 'sale', payload, status: 'pending', createdAt: 1, attempts: 0, ...extra }) as never;
+  const list = [
+    item('a', { total: 100, method: 'credit' }),
+    item('b', { total: 50, method: 'cash', method2: 'credit', amount2: 20 }),
+    item('c', { total: 40, method: 'credit', method2: 'cash', amount2: 10 }),
+    item('d', { total: 70, method: 'cash' }),
+    item('f', { total: 9, method: 'credit' }, { status: 'failed' }),
+    item('o', { total: 9, method: 'credit' }, { entityId: 'otro' }),
+  ];
+  assert.equal(pendingCredit(list, 'e'), 150);
 });

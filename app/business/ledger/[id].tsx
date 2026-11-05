@@ -11,7 +11,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { FinanceGroup, FinanceHead, FinanceRow, FinanceSection, FinanceTitle } from '@/components/finance/parts';
 import { VoiceSheet } from '@/components/ledger/VoiceSheet';
 import { addDays, atHour, dayReadings, deltaWords, hourBars, hourCO, hourLabel, presetRange, showHours, todayCO, todayTitle, type DaySale } from '@/lib/finance';
-import { categoryLabel, formatPesos, METHOD_LABEL, pendingTotals, salePayText } from '@/lib/ledger';
+import { categoryLabel, formatPesos, METHOD_LABEL, pendingCredit, pendingTotals, salePayText } from '@/lib/ledger';
 import { useParkedSales } from '@/ledger/parkedSales';
 import { discardLedgerItem, flushLedger, queueVoid, retryLedgerItem, useLedgerOutbox } from '@/ledger/ledgerStore';
 import { FEATURES } from '@/config';
@@ -139,13 +139,7 @@ export default function LedgerHome() {
 
   const salesTotal = (sum?.current.sales_total ?? 0) + pending.sales;
   const expensesTotal = (sum?.current.expenses_total ?? 0) + pending.expenses;
-  const pendingCredit = queued.reduce((a, x) => {
-    if (x.kind !== 'sale') return a;
-    const p = x.payload as { total?: number; method?: string; method2?: string; amount2?: number };
-    const second = Number(p.amount2 ?? 0);
-    return a + (p.method === 'credit' ? Number(p.total ?? 0) - (p.method2 ? second : 0) : 0) + (p.method2 === 'credit' ? second : 0);
-  }, 0);
-  const fiado = (sum?.current.by_method.credit ?? 0) + pendingCredit;
+  const fiado = (sum?.current.by_method.credit ?? 0) + pendingCredit(outbox.items, entityId);
   const entered = salesTotal - fiado;
   const count = daySales.length;
 

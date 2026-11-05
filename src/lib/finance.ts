@@ -320,3 +320,8 @@ export function deltaWords(cur: number, prev: number, what = 'el anterior'): str
   if (p === 0) return `Igual que ${what}`;
   return `${Math.abs(p)} % ${p > 0 ? 'más' : 'menos'} que ${what}`;
 }
+
+/** «Te quedó»: lo que entró menos los gastos. Si el backend aún no lo manda, lo saca sin lo fiado (sin contar abonos). */
+export function leftOf(t: { left?: number; sales_total: number; expenses_total: number; by_method: { credit: number } }): number {
+  return t.left ?? t.sales_total - t.by_method.credit - t.expenses_total;
+}

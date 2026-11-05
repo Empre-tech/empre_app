@@ -211,3 +211,16 @@ export function restoreOutbox(raw: unknown): OutboxItem[] {
       !!x && typeof x.id === 'string' && typeof x.entityId === 'string' && typeof x.kind === 'string' && x.kind in ORDER && typeof x.payload === 'object',
   );
 }
+
+/** Lo fiado en las ventas que aún no salen del teléfono. */
+export function pendingCredit(list: OutboxItem[], entityId: string): number {
+  let out = 0;
+  for (const x of list) {
+    if (x.entityId !== entityId || x.status === 'failed' || x.kind !== 'sale') continue;
+    const p = x.payload as { total?: number; method?: string; method2?: string; amount2?: number };
+    const second = p.method2 ? Number(p.amount2 ?? 0) : 0;
+    if (p.method === 'credit') out += Number(p.total ?? 0) - second;
+    if (p.method2 === 'credit') out += second;
+  }
+  return out;
+}

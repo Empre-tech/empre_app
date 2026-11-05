@@ -7,6 +7,7 @@ import {
   deltaWords,
   hourBars,
   hourCO,
+  leftOf,
   hourLabel,
   showHours,
   todayTitle,
@@ -180,4 +181,11 @@ test('todayTitle y deltaWords', () => {
   assert.equal(deltaWords(90, 100, 'la anterior'), '10 % menos que la anterior');
   assert.equal(deltaWords(100, 100), 'Igual que el anterior');
   assert.equal(deltaWords(100, 0), null);
+});
+
+test('leftOf usa el dato del servidor y, sin él, quita lo fiado', () => {
+  const t = { sales_total: 100, expenses_total: 25, by_method: { credit: 30 } };
+  assert.equal(leftOf(t), 45);
+  assert.equal(leftOf({ ...t, left: 55 }), 55);
+  assert.equal(leftOf({ ...t, left: 0 }), 0);
 });
