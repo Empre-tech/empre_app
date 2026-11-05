@@ -4,36 +4,39 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Line, Path } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
+import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi, type Analytics, type InvLine, type ProductStat } from '@/api/ledger';
 import { EmptyState } from '@/components/EmptyState';
-import { Delta, HBars, HeatGrid, SALES_COLOR } from '@/components/finance/Charts';
+import { HBars, HeatGrid } from '@/components/finance/Charts';
+import { FinanceGroup, FinanceHead, FinanceRow, FinanceSection, FinanceTitle, ShareRow } from '@/components/finance/parts';
 import { RangeSheet } from '@/components/finance/RangeSheet';
-import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
-import { bestSlot, bucketLabel, compareText, dayLong, deltaLabel, lowMargin, marginPct, rangeFromParams, rangeTitle, rankProducts, topMismatch, type DateRange } from '@/lib/finance';
-import { categoryLabel, formatPesos, METHOD_LABEL } from '@/lib/ledger';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { bestSlot, bucketLabel, dayLong, deltaWords, lowMargin, marginPct, presetRange, rangeFromParams, rangeTitle, rankProducts, todayCO, topMismatch, type DateRange } from '@/lib/finance';
+import { categoryLabel, formatPesos, METHOD_LABEL, pendingTotals } from '@/lib/ledger';
+import { useLedgerOutbox } from '@/ledger/ledgerStore';
+import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 
-type Tab = 'summary' | 'products' | 'inventory';
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'summary', label: 'Resumen' },
-  { key: 'products', label: 'Productos' },
-  { key: 'inventory', label: 'Inventario' },
-];
+type Detail = 'products' | 'inventory' | null;
+const DETAIL_TITLE = { products: 'Lo que vendes', inventory: 'Tu mercancía' } as const;
+/** Días con ventas que hacen falta para dejar de hablar de «primeros días». */
+const FIRST_DAYS = 7;
+/** Ventas que hacen falta para que «cuándo vendes más» signifique algo. */
+const MIN_FOR_HEAT = 10;
 
 /**
- * Análisis del negocio: un rango libre de fechas comparado con otro. El Resumen va por bloques (lienzo «Empre», página
- * 13): lo que quedó con sus barras, margen, ventas, lo que te deben, los gastos, cuándo se vende y cómo pagan. Luego la
- * ganancia por producto y el inventario en plata.
+ * Análisis del negocio: un lapso de tiempo comparado con otro. Responde en orden: cómo te fue, qué hacer, qué te deja
+ * plata y, después, los detalles. Lo del día vive en Hoy.
  */
 export default function AnalyticsScreen() {
   const params = useLocalSearchParams<{ id: string; from?: string; to?: string; compare?: string; preset?: string; tab?: string }>();
   const entityId = params.id ?? '';
+  const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [range, setRange] = useState<DateRange>(() => rangeFromParams(params));
-  const [tab, setTab] = useState<Tab>(params.tab === 'products' || params.tab === 'inventory' ? params.tab : 'summary');
+  const [range, setRange] = useState<DateRange>(() => (params.from ? rangeFromParams(params) : presetRange('7d', todayCO())));
   const [sheet, setSheet] = useState(false);
+  const detail: Detail = params.tab === 'products' || params.tab === 'inventory' ? params.tab : null;
 
+  const entity = useQuery({ queryKey: ['entity', entityId], queryFn: () => entitiesApi.get(entityId), enabled: Boolean(entityId), staleTime: 60_000 });
   const q = useQuery({
     queryKey: ['ledger', entityId, 'analytics', range.from, range.to, range.compare],
     queryFn: () => ledgerApi.analytics(entityId, { from: range.from, to: range.to, compare: range.compare }),
@@ -41,42 +44,47 @@ export default function AnalyticsScreen() {
     staleTime: 30_000,
   });
   const a = q.data;
+  const firstDays = !detail && range.preset === '7d' && Boolean(a) && a!.previous.sales_count === 0 && a!.series.filter((p) => p.sales > 0).length < FIRST_DAYS;
+  const pick = (p: '7d' | 'month') => setRange(presetRange(p, todayCO()));
+  const openDetail = (tab: 'products' | 'inventory') => router.push({ pathname: '/business/ledger/analytics/[id]', params: { id: entityId, from: range.from, to: range.to, compare: range.compare, preset: range.preset, tab } });
 
   return (
     <View style={styles.screen}>
-      <SubScreenHeader subtitle="Empre Finance" product="finance" title="Análisis del negocio" />
-      <View style={styles.top}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Fechas: ${rangeTitle(range)}. Cambiar`} onPress={() => setSheet(true)} style={styles.rangeBtn}>
-          <Ionicons name="calendar-outline" size={18} color={colors.primaryDark} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.rangeTitle}>{rangeTitle(range)}</Text>
-            {a ? <Text style={styles.meta}>{compareText(a)}</Text> : null}
-          </View>
-          <Text style={styles.link}>Cambiar</Text>
-        </Pressable>
-        <View style={styles.tabs} accessibilityRole="tablist">
-          {TABS.map((t) => (
-            <Pressable key={t.key} accessibilityRole="tab" accessibilityState={{ selected: tab === t.key }} onPress={() => setTab(t.key)} style={[styles.tab, tab === t.key && styles.tabOn]}>
-              <Text style={[styles.tabText, tab === t.key && styles.tabTextOn]}>{t.label}</Text>
-            </Pressable>
-          ))}
+      <ScrollView contentContainerStyle={[styles.body, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + spacing.xxl }]} refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => void q.refetch()} />}>
+        <View style={styles.top}>
+          <FinanceHead lead="Análisis de" name={entity.data?.name} />
+          <FinanceTitle>{detail ? DETAIL_TITLE[detail] : 'Cómo te ha ido'}</FinanceTitle>
+          {firstDays && a ? (
+            <View style={styles.firstBar}>
+              <Text style={styles.firstText}>Tus primeros días</Text>
+              <Text style={styles.meta}>
+                {a.series.filter((p) => p.sales > 0).length} de {FIRST_DAYS}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.periods} accessibilityRole="tablist">
+              <Period label="Semana" on={range.preset === '7d'} onPress={() => pick('7d')} />
+              <Period label="Mes" on={range.preset === 'month'} onPress={() => pick('month')} />
+              <Period label="Fechas" on={range.preset !== '7d' && range.preset !== 'month'} onPress={() => setSheet(true)} />
+            </View>
+          )}
+          {range.preset !== '7d' && range.preset !== 'month' ? <Text style={styles.meta}>{rangeTitle(range)}</Text> : null}
         </View>
-      </View>
 
-      <ScrollView
-        contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: insets.bottom + spacing.xxl }}
-        refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => void q.refetch()} />}
-      >
         {q.isLoading ? (
           <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
         ) : q.isError || !a ? (
           <EmptyState icon="cloud-offline-outline" title="No pudimos cargar el análisis" body="Revisa tu conexión e inténtalo de nuevo." action={{ title: 'Reintentar', onPress: () => void q.refetch() }} />
-        ) : tab === 'summary' ? (
-          <Summary a={a} entityId={entityId} />
-        ) : tab === 'products' ? (
-          <Products a={a} entityId={entityId} />
+        ) : detail === 'products' ? (
+          <View style={styles.detail}>
+            <Products a={a} entityId={entityId} />
+          </View>
+        ) : detail === 'inventory' ? (
+          <View style={styles.detail}>
+            <Inventory a={a} entityId={entityId} />
+          </View>
         ) : (
-          <Inventory a={a} entityId={entityId} />
+          <Summary a={a} entityId={entityId} range={range} firstDays={firstDays} onDetail={openDetail} />
         )}
       </ScrollView>
 
@@ -85,43 +93,25 @@ export default function AnalyticsScreen() {
   );
 }
 
-function Kpi({ label, value, delta, worseUp }: { label: string; value: string; delta: ReturnType<typeof deltaLabel>; worseUp?: boolean }) {
+function Period({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
   return (
-    <View style={styles.tile}>
-      <Text style={styles.kpiLabel}>{label}</Text>
-      <Text style={styles.kpiValue} numberOfLines={1} adjustsFontSizeToFit>
-        {value}
-      </Text>
-      <Delta d={delta} worseIsWarn={worseUp} />
-    </View>
+    <Pressable accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={onPress} style={[styles.period, on && styles.periodOn]}>
+      <Text style={styles.periodText}>{label}</Text>
+    </Pressable>
   );
 }
 
-/** El margen en un medidor: se lee sin mirar el número. */
-function MarginGauge({ pct }: { pct: number }) {
-  const v = Math.max(0, Math.min(100, pct));
-  const angle = ((v / 100) * 180 - 180) * (Math.PI / 180);
-  return (
-    <Svg width={132} height={74} viewBox="0 0 132 74" accessibilityRole="image" accessibilityLabel={`Margen de ${pct} por ciento`}>
-      <Path d="M 10 68 A 56 56 0 0 1 122 68" fill="none" stroke={colors.selectedSoft} strokeWidth={10} strokeLinecap="round" />
-      {v > 0 ? <Path d={`M 10 68 A 56 56 0 ${v > 50 ? 1 : 0} 1 ${66 + 56 * Math.cos(angle)} ${68 + 56 * Math.sin(angle)}`} fill="none" stroke={colors.ink} strokeWidth={10} strokeLinecap="round" /> : null}
-      <Line x1={66} y1={68} x2={66 + 42 * Math.cos(angle)} y2={68 + 42 * Math.sin(angle)} stroke={colors.ink} strokeWidth={2.5} strokeLinecap="round" />
-      <Circle cx={66} cy={68} r={4.5} fill={colors.ink} />
-    </Svg>
-  );
-}
-
-/** Lo que quedó en cada día (o semana, o mes): una barra por parte; tocarla dice qué pasó. */
+/** Lo que quedó en cada parte del periodo: una barra por parte; tocarla dice cuánto. */
 function ProfitBars({ series, bucket }: { series: Analytics['series']; bucket: Analytics['bucket'] }) {
   const [sel, setSel] = useState<number | null>(null);
   const left = series.map((p) => p.sales - p.expenses);
   const max = Math.max(1, ...left.map(Math.abs));
   const every = series.length > 16 ? Math.ceil(series.length / 8) : 1;
   const bestI = left.indexOf(Math.max(...left));
-  const nameOf = (start: string) => (bucket === 'month' ? bucketLabel('month', start, 0) : bucket === 'week' ? `Semana del ${dayLong(start)}` : dayLong(start));
+  const nameOf = (start: string) => (bucket === 'month' ? bucketLabel('month', start, 0) : bucket === 'week' ? `semana del ${dayLong(start)}` : dayLong(start));
   const p = sel !== null ? series[sel] : null;
   const line = p
-    ? `${nameOf(p.start)}: vendiste ${formatPesos(p.sales)} y ${p.sales - p.expenses >= 0 ? 'te quedaron' : 'perdiste'} ${formatPesos(Math.abs(p.sales - p.expenses))}`
+    ? `${nameOf(p.start)}: ${p.sales - p.expenses >= 0 ? 'te quedaron' : 'perdiste'} ${formatPesos(Math.abs(p.sales - p.expenses))}`
     : series.length > 1 && left[bestI] > 0
       ? `Lo mejor: ${nameOf(series[bestI].start)}, te quedaron ${formatPesos(left[bestI])}`
       : null;
@@ -130,16 +120,10 @@ function ProfitBars({ series, bucket }: { series: Analytics['series']; bucket: A
       <View style={styles.pBars}>
         {series.map((pt, i) => {
           const v = left[i];
+          const strong = sel === i || (sel === null && i === bestI);
           return (
-            <Pressable
-              key={pt.start}
-              accessibilityRole="button"
-              accessibilityState={{ selected: sel === i }}
-              accessibilityLabel={`${nameOf(pt.start)}: ${v >= 0 ? 'te quedaron' : 'perdiste'} ${formatPesos(Math.abs(v))}`}
-              onPress={() => setSel(sel === i ? null : i)}
-              style={styles.pSlot}
-            >
-              <View style={[styles.pBar, { height: `${Math.max(8, (Math.abs(v) / max) * 100)}%`, backgroundColor: v < 0 ? colors.warning : SALES_COLOR, opacity: sel === null ? 0.45 + (Math.abs(v) / max) * 0.55 : sel === i ? 1 : 0.3 }]} />
+            <Pressable key={pt.start} accessibilityRole="button" accessibilityState={{ selected: sel === i }} accessibilityLabel={`${nameOf(pt.start)}: ${v >= 0 ? 'te quedaron' : 'perdiste'} ${formatPesos(Math.abs(v))}`} onPress={() => setSel(sel === i ? null : i)} style={styles.pSlot}>
+              <View style={[styles.pBar, { height: `${Math.max(8, (Math.abs(v) / max) * 100)}%`, backgroundColor: v < 0 ? colors.warning : strong ? colors.ink : '#B6C1D1' }]} />
             </Pressable>
           );
         })}
@@ -156,86 +140,53 @@ function ProfitBars({ series, bucket }: { series: Analytics['series']; bucket: A
   );
 }
 
-const BAND = 0.08;
-
-/** Las ventas frente al periodo anterior y, por días, frente a lo normal de cada día de la semana. */
+/** Las ventas frente al periodo anterior; en una frase, el día que más se salió de lo normal. */
 function SalesTrend({ a }: { a: Analytics }) {
   const [width, setWidth] = useState(0);
   const cur = a.series.map((p) => p.sales);
   const prev = a.previous_series ?? [];
   const normal = a.normal?.length === cur.length ? a.normal : null;
   if (cur.length < 2) return null;
-  const H = 130;
-  const top = Math.max(1, ...cur, ...prev, ...(normal ?? []).map((v) => v * (1 + BAND))) * 1.08;
-  const X = (i: number, n: number) => 5 + (i / Math.max(1, n - 1)) * Math.max(1, width - 10);
+  const H = 96;
+  const top = Math.max(1, ...cur, ...prev) * 1.08;
+  const X = (i: number, n: number) => 4 + (i / Math.max(1, n - 1)) * Math.max(1, width - 8);
   const Y = (v: number) => H - 6 - (v / top) * (H - 12);
   const line = (arr: number[]) => arr.map((v, i) => `${i ? 'L' : 'M'}${X(i, arr.length).toFixed(1)} ${Y(v).toFixed(1)}`).join(' ');
-  const band = normal
-    ? `${normal.map((v, i) => `${i ? 'L' : 'M'}${X(i, normal.length).toFixed(1)} ${Y(v * (1 + BAND)).toFixed(1)}`).join(' ')} ${[...normal].reverse().map((v, i) => `L${X(normal.length - 1 - i, normal.length).toFixed(1)} ${Y(v * (1 - BAND)).toFixed(1)}`).join(' ')} Z`
-    : null;
   const offs = normal ? cur.map((v, i) => (normal[i] > 0 ? Math.round(((v - normal[i]) / normal[i]) * 100) : 0)) : [];
   const hi = offs.length ? offs.indexOf(Math.max(...offs)) : -1;
   const lo = offs.length ? offs.indexOf(Math.min(...offs)) : -1;
   const parts: string[] = [];
-  if (hi >= 0 && offs[hi] > BAND * 100) parts.push(`${dayLong(a.series[hi].start)}: ${offs[hi]} % más de lo normal`);
-  if (lo >= 0 && offs[lo] < -BAND * 100) parts.push(`${dayLong(a.series[lo].start)}: ${-offs[lo]} % menos`);
+  if (hi >= 0 && offs[hi] > 8) parts.push(`${dayLong(a.series[hi].start)}: ${offs[hi]} % más de lo normal`);
+  if (lo >= 0 && offs[lo] < -8) parts.push(`${dayLong(a.series[lo].start)}: ${-offs[lo]} % menos`);
   return (
-    <Card title="¿Cómo van las ventas?">
-      <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} accessibilityRole="image" accessibilityLabel={`Ventas: ${formatPesos(a.current.sales_total)}. Periodo anterior: ${formatPesos(a.previous.sales_total)}.`} style={{ height: H }}>
-        {width > 0 ? (
-          <Svg width={width} height={H}>
-            {band ? <Path d={band} fill={colors.selectedSoft} /> : null}
-            {prev.length > 1 ? <Path d={line(prev)} fill="none" stroke="#8796AB" strokeWidth={1.6} strokeDasharray="4 5" /> : null}
-            <Path d={line(cur)} fill="none" stroke={SALES_COLOR} strokeWidth={2.6} strokeLinejoin="round" strokeLinecap="round" />
-            {cur.length <= 31 ? cur.map((v, i) => <Circle key={i} cx={X(i, cur.length)} cy={Y(v)} r={3.5} fill={i === lo && offs[lo] < -BAND * 100 ? colors.warning : i === hi && offs[hi] > BAND * 100 ? colors.ink : SALES_COLOR} />) : null}
-          </Svg>
-        ) : null}
+    <FinanceSection title="Cómo van las ventas">
+      <View style={styles.card}>
+        <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} accessibilityRole="image" accessibilityLabel={`Ventas: ${formatPesos(a.current.sales_total)}. Periodo anterior: ${formatPesos(a.previous.sales_total)}.`} style={{ height: H }}>
+          {width > 0 ? (
+            <Svg width={width} height={H}>
+              {prev.length > 1 ? <Path d={line(prev)} fill="none" stroke={colors.placeholder} strokeWidth={1.6} strokeDasharray="4 5" /> : null}
+              <Path d={line(cur)} fill="none" stroke={colors.ink} strokeWidth={2.6} strokeLinejoin="round" strokeLinecap="round" />
+            </Svg>
+          ) : null}
+        </View>
+        <View style={styles.trendLegend}>
+          <Text style={styles.meta}>— Este periodo</Text>
+          {prev.length > 1 ? <Text style={styles.meta}>- - El anterior</Text> : null}
+        </View>
+        {parts.length ? <Text style={styles.cardTitle}>{parts.join(' · ')}</Text> : null}
       </View>
-      <View style={styles.trendLegend}>
-        <Text style={styles.meta}>— Este periodo</Text>
-        {prev.length > 1 ? <Text style={styles.meta}>- - El anterior</Text> : null}
-        {band ? <Text style={styles.meta}>▒ Lo normal</Text> : null}
-      </View>
-      {parts.length ? <Text style={styles.heroLine}>{parts.join(' · ')}</Text> : null}
-    </Card>
+    </FinanceSection>
   );
 }
 
-/** Cómo pagaron: una pila de tarjetas; la que se toca pasa al frente y abajo se ve su plata. */
-function PayStack({ parts }: { parts: { key: string; label: string; icon: keyof typeof Ionicons.glyphMap; value: number; bg: string }[] }) {
-  const total = Math.max(1, parts.reduce((s, x) => s + x.value, 0));
-  const shown = parts.filter((x) => x.value > 0);
-  const biggest = shown.reduce((a, c) => (c.value > a.value ? c : a), shown[0]);
-  const [front, setFront] = useState(biggest?.key);
-  if (!biggest) return null;
-  const order = [...shown.filter((x) => x.key !== front), shown.find((x) => x.key === front) ?? biggest];
-  const cur = order[order.length - 1];
+function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
-    <View>
-      <View style={{ height: order.length * 40 + 20 }}>
-        {order.map((x, pos) => {
-          const back = order.length - 1 - pos;
-          const pct = Math.round((x.value / total) * 100);
-          return (
-            <Pressable
-              key={x.key}
-              accessibilityRole="button"
-              accessibilityState={{ selected: back === 0 }}
-              accessibilityLabel={`${x.label}: ${pct} por ciento, ${formatPesos(x.value)}`}
-              onPress={() => setFront(x.key)}
-              style={[styles.payCard, { top: pos * 40, left: back * 8, right: back * 8, backgroundColor: x.bg }]}
-            >
-              <Ionicons name={x.icon} size={18} color={colors.ink} />
-              <Text style={styles.payName}>{x.label}</Text>
-              <Text style={styles.payPct}>{pct} %</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      <View style={styles.payFoot}>
-        <Text style={styles.heroLine}>{cur.label}</Text>
-        <Text style={styles.payAmt}>{formatPesos(cur.value)}</Text>
-      </View>
+    <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
+      <Text style={styles.kpiLabel}>{label}</Text>
+      <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
+        {value}
+      </Text>
+      {note ? <Text style={styles.meta}>{note}</Text> : null}
     </View>
   );
 }
@@ -252,117 +203,161 @@ function Card({ title, children, right }: { title: string; children: ReactNode; 
   );
 }
 
-function Summary({ a, entityId }: { a: Analytics; entityId: string }) {
+function Summary({ a, entityId, range, firstDays, onDetail }: { a: Analytics; entityId: string; range: DateRange; firstDays: boolean; onDetail: (t: 'products' | 'inventory') => void }) {
   const router = useRouter();
+  const outbox = useLedgerOutbox();
   const c = a.current;
   const p = a.previous;
+  // Lo que aún no sale del teléfono cuenta igual que en Hoy, si el rango llega hasta hoy.
+  const pending = range.to >= todayCO() ? pendingTotals(outbox.items, entityId) : { sales: 0, expenses: 0 };
+  const sold = c.sales_total + pending.sales;
+  const spent = c.expenses_total + pending.expenses;
+  const profit = sold - spent;
   const m = marginPct(c);
-  const pm = marginPct(p);
   const best = bestSlot(a.heat);
-  const cats = Object.entries(c.expenses_by_category)
-    .sort(([, x], [, y]) => y - x)
-    .map(([k, v]) => ({ key: k, value: v, d: deltaLabel(v, p.expenses_by_category[k] ?? 0, true) }));
-  const noData = c.sales_count === 0 && c.expenses_total === 0;
-  const SHADES = [colors.ink, '#5B6B82', '#8796AB', colors.line];
+  const delta = deltaWords(profit, p.profit);
+  const cats = Object.entries(c.expenses_by_category).sort(([, x], [, y]) => y - x);
+  const source = c.by_source;
+  const sourceTotal = source ? source.manual + source.offers + source.agenda : 0;
+  const pays = ([['cash', METHOD_LABEL.cash], ['transfer', METHOD_LABEL.transfer], ['card', METHOD_LABEL.card], ['credit', 'Fiado']] as const).map(([k, label]) => ({ label, value: c.by_method[k] })).filter((x) => x.value > 0);
+  const payTotal = pays.reduce((s, x) => s + x.value, 0);
+  const ranked = rankProducts(a.products, 'profit');
+  const hasCosts = a.products.some((x) => x.profit !== null);
+  const topList = (hasCosts ? ranked.filter((x) => x.profit !== null) : rankProducts(a.products, 'revenue')).slice(0, 3);
+  const topMax = Math.max(1, ...topList.map((x) => (hasCosts ? x.profit ?? 0 : x.revenue)));
+  const low = lowMargin(a.products)[0];
+  const inv = a.inventory;
+  const goDebts = () => router.push({ pathname: '/business/ledger/debts/[id]', params: { id: entityId } });
+  const goCosts = () => router.push({ pathname: '/business/ledger/costs/[id]', params: { id: entityId } });
 
-  if (noData) {
-    return <EmptyState icon="bar-chart-outline" title="Sin movimientos en estas fechas" body="Registra ventas y gastos y aquí verás tus gráficos. Prueba otras fechas." />;
+  // Qué hacer: hasta tres cosas, primero lo que trae plata y luego lo que hace confiables los números.
+  const todo: { key: string; icon: keyof typeof Ionicons.glyphMap; title: string; sub: string; alert?: boolean; onPress: () => void }[] = [
+    ...(a.receivable > 0 ? [{ key: 'cobra', icon: 'person-outline' as const, title: 'Cobra lo que te deben', sub: `${formatPesos(a.receivable)}. Lo fiado cuenta en «Te quedó» aunque no haya entrado`, alert: true, onPress: goDebts }] : []),
+    ...(low ? [{ key: 'precio', icon: 'pricetag-outline' as const, title: `Revisa el precio de ${low.name}`, sub: (low.profit ?? 0) < 0 ? `Perdiste ${formatPesos(-(low.profit ?? 0))} con este producto` : `Te deja ${Math.round(low.margin_pct ?? 0)} % en cada venta`, onPress: () => onDetail('products') }] : []),
+    ...(a.uncosted_count > 0 ? [{ key: 'costo', icon: 'create-outline' as const, title: a.uncosted_count === 1 ? 'Ponle costo a 1 producto' : `Ponles costo a ${a.uncosted_count} productos`, sub: `Sin costo, su ganancia no se cuenta (${sold > 0 ? Math.round((a.uncosted_revenue / sold) * 100) : 0} % de tus ventas)`, onPress: goCosts }] : []),
+    ...(inv.idle_total > 0 ? [{ key: 'quieta', icon: 'hourglass-outline' as const, title: `Mueve ${formatPesos(inv.idle_total)} quietos`, sub: 'No se venden hace más de 4 semanas', onPress: () => onDetail('inventory') }] : []),
+  ].slice(0, 3);
+
+  if (c.sales_count === 0 && c.expenses_total === 0 && pending.sales === 0 && pending.expenses === 0) {
+    return <EmptyState icon="bar-chart-outline" title="Sin movimientos en estas fechas" body="Registra ventas y gastos y aquí verás cómo te va. Prueba otras fechas." />;
   }
   return (
     <>
-      <View style={styles.hero}>
-        <View style={styles.heroTop}>
-          <Text style={styles.kpiLabel}>{c.profit >= 0 ? 'Te quedó' : 'Perdiste'}</Text>
-          <Delta d={deltaLabel(c.profit, p.profit)} />
-        </View>
-        <Text style={[styles.heroValue, c.profit < 0 && { color: colors.warning }]} numberOfLines={1} adjustsFontSizeToFit>
-          {formatPesos(Math.abs(c.profit))}
-        </Text>
-        <ProfitBars series={a.series} bucket={a.bucket} />
-      </View>
-
-      <View style={styles.pair}>
-        {m !== null ? (
-          <View style={[styles.tile, { alignItems: 'center' }]}>
-            <Text style={[styles.kpiLabel, { alignSelf: 'flex-start' }]}>Margen</Text>
-            <MarginGauge pct={m} />
-            <Text style={styles.kpiValue}>{m} %</Text>
-            {pm !== null && pm !== m ? <Delta d={{ text: `${m > pm ? '▲' : '▼'} ${Math.abs(m - pm)} puntos`, tone: m > pm ? 'good' : 'bad' }} /> : null}
-            {c.margin_coverage_pct < 100 ? <Text style={styles.meta}>{c.margin_coverage_pct} % con costo</Text> : null}
+      <View style={styles.main}>
+        <View style={styles.mainTop}>
+          <View style={styles.heroTop}>
+            <View style={{ flexShrink: 1 }}>
+              <Text style={styles.kpiLabel}>{profit >= 0 ? (firstDays ? `Te quedó en ${a.series.filter((x) => x.sales > 0).length === 1 ? '1 día' : `${a.series.filter((x) => x.sales > 0).length} días`}` : 'Te quedó') : 'Perdiste'}</Text>
+              <Text style={[styles.heroValue, profit < 0 && { color: colors.warning }]} numberOfLines={1} adjustsFontSizeToFit accessibilityLiveRegion="polite">
+                {formatPesos(Math.abs(profit))}
+              </Text>
+            </View>
+            {delta ? <Text style={styles.delta}>{delta}</Text> : null}
           </View>
-        ) : null}
-        <View style={{ flex: 1, gap: spacing.sm }}>
-          <Kpi label="Vendiste" value={formatPesos(c.sales_total)} delta={deltaLabel(c.sales_total, p.sales_total)} />
-          <Kpi label="Ticket promedio" value={formatPesos(c.avg_ticket)} delta={deltaLabel(c.avg_ticket, p.avg_ticket)} />
+          <ProfitBars series={a.series} bucket={a.bucket} />
         </View>
-      </View>
-
-      <SalesTrend a={a} />
-
-      <View style={styles.pair}>
-        {a.receivable > 0 ? (
-          <View style={styles.oweTile}>
-            <Text style={styles.oweLabel}>Te deben</Text>
-            <Text style={styles.oweValue} numberOfLines={1} adjustsFontSizeToFit>
-              {formatPesos(a.receivable)}
+        <View style={styles.mainFoot}>
+          <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+            <Text style={styles.footHead} numberOfLines={1} adjustsFontSizeToFit>
+              Vendiste {formatPesos(sold)}
             </Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Ver quién te debe y recordarle" onPress={() => router.push({ pathname: '/business/ledger/debts/[id]', params: { id: entityId } })} style={styles.oweBtn}>
-              <Text style={styles.oweBtnText}>Recordarles</Text>
-            </Pressable>
+            <Text style={styles.meta} numberOfLines={1}>
+              Gastaste {formatPesos(spent)}
+            </Text>
           </View>
-        ) : (
-          <Kpi label="Ventas" value={`${c.sales_count}${a.days > 1 ? ` · ${(c.sales_count / a.days).toFixed(1).replace('.', ',')}/día` : ''}`} delta={deltaLabel(c.sales_count, p.sales_count)} />
-        )}
-        <View style={styles.tile}>
-          <Text style={styles.kpiLabel}>Gastaste</Text>
-          <Text style={styles.kpiValue} numberOfLines={1} adjustsFontSizeToFit>
-            {formatPesos(c.expenses_total)}
-          </Text>
-          <Delta d={deltaLabel(c.expenses_total, p.expenses_total, true)} worseIsWarn />
-          {cats.length > 0 ? (
-            <>
-              <View style={styles.spendBar}>
-                {cats.slice(0, 4).map((x, i) => (
-                  <View key={x.key} style={{ flex: x.value, borderRadius: 5, backgroundColor: SHADES[i] }} />
-                ))}
-              </View>
-              {cats.slice(0, 4).map((x, i) => (
-                <View key={x.key} style={styles.spendRow}>
-                  <View style={[styles.dot, { width: 8, height: 8, backgroundColor: SHADES[i] }]} />
-                  <Text style={styles.spendName} numberOfLines={1}>
-                    {categoryLabel(x.key)}
-                  </Text>
-                  <Delta d={x.d} worseIsWarn />
-                </View>
-              ))}
-            </>
+          {a.receivable > 0 ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={`Cobrar ${formatPesos(a.receivable)} que te deben`} onPress={goDebts} style={styles.btnRed}>
+              <Text style={styles.btnRedText} numberOfLines={1}>
+                Cobrar {formatPesos(a.receivable)}
+              </Text>
+            </Pressable>
           ) : null}
         </View>
       </View>
 
-      {a.receivable > 0 ? (
-        <Kpi label="Ventas" value={`${c.sales_count}${a.days > 1 ? ` · ${(c.sales_count / a.days).toFixed(1).replace('.', ',')}/día` : ''}`} delta={deltaLabel(c.sales_count, p.sales_count)} />
+      {todo.length > 0 ? (
+        <FinanceSection title="Qué hacer">
+          <FinanceGroup>
+            {todo.map(({ key, ...t }, i) => (
+              <FinanceRow key={key} first={i === 0} {...t} />
+            ))}
+          </FinanceGroup>
+        </FinanceSection>
       ) : null}
 
-      {c.sales_count > 0 ? (
-        <Card title="¿Cuándo vendes más?">
-          {best ? <Text style={styles.bestLine}>Tu mejor momento: {best}</Text> : null}
-          <HeatGrid heat={a.heat} />
-        </Card>
+      {topList.length > 0 ? (
+        <FinanceSection title={hasCosts ? 'Lo que más te deja' : 'Lo que más vendes'} link={a.products.length > 3 || low ? 'Ver todos' : undefined} onLink={() => onDetail('products')}>
+          <FinanceGroup>
+            {topList.map((x, i) => (
+              <View key={x.ref}>
+                <ShareRow first={i === 0} label={x.name} value={formatPesos(hasCosts ? x.profit ?? 0 : x.revenue)} share={((hasCosts ? x.profit ?? 0 : x.revenue) / topMax) * 100} />
+                <Text style={[styles.meta, { marginTop: -6, paddingBottom: 8 }]}>{hasCosts ? `Vendiste ${formatPesos(x.revenue)} · te deja ${Math.round(x.margin_pct ?? 0)} %` : `${String(Math.round(x.qty * 10) / 10).replace('.', ',')} und`}</Text>
+              </View>
+            ))}
+          </FinanceGroup>
+        </FinanceSection>
       ) : null}
 
-      {c.sales_total > 0 ? (
-        <Card title="¿Cómo te pagaron?">
-          <PayStack
-            parts={[
-              { key: 'card', label: METHOD_LABEL.card, icon: 'card-outline', value: c.by_method.card, bg: '#D5DEEA' },
-              { key: 'credit', label: 'Fiado', icon: 'person-outline', value: c.by_method.credit, bg: colors.accentSoft },
-              { key: 'transfer', label: METHOD_LABEL.transfer, icon: 'phone-portrait-outline', value: c.by_method.transfer, bg: colors.selectedSoft },
-              { key: 'cash', label: METHOD_LABEL.cash, icon: 'cash-outline', value: c.by_method.cash, bg: colors.verifiedSoft },
-            ]}
-          />
-        </Card>
-      ) : null}
+      {!firstDays ? (
+        <>
+          <View style={[styles.card, styles.stats]}>
+            {m !== null ? <Stat label="Margen" value={`${m} %`} note={c.margin_coverage_pct < 100 ? `${c.margin_coverage_pct} % con costo` : undefined} /> : null}
+            <Stat label="Por venta" value={formatPesos(c.avg_ticket)} />
+            <Stat label="Ventas" value={`${c.sales_count}`} />
+          </View>
+          <SalesTrend a={a} />
+          {c.sales_count >= MIN_FOR_HEAT ? (
+            <FinanceSection title="Cuándo vendes más">
+              <View style={styles.card}>
+                {best ? <Text style={styles.cardTitle}>Tu mejor momento: {best}</Text> : null}
+                <HeatGrid heat={a.heat} />
+              </View>
+            </FinanceSection>
+          ) : null}
+          {source && sourceTotal > 0 ? (
+            <FinanceSection title="De dónde vinieron">
+              <FinanceGroup>
+                <ShareRow first label="Manual" value={formatPesos(source.manual)} share={(source.manual / sourceTotal) * 100} />
+                <ShareRow label="Empre Offers" value={formatPesos(source.offers)} share={(source.offers / sourceTotal) * 100} color={colors.accent} />
+                <ShareRow label="Agenda" value={formatPesos(source.agenda)} share={(source.agenda / sourceTotal) * 100} />
+              </FinanceGroup>
+            </FinanceSection>
+          ) : null}
+          {cats.length > 0 ? (
+            <FinanceSection title="En qué gastaste">
+              <FinanceGroup>
+                {cats.slice(0, 4).map(([k, v], i) => (
+                  <ShareRow key={k} first={i === 0} label={categoryLabel(k)} value={formatPesos(v)} share={(v / cats[0][1]) * 100} />
+                ))}
+              </FinanceGroup>
+            </FinanceSection>
+          ) : null}
+          {pays.length > 0 ? (
+            <FinanceSection title="Cómo te pagaron">
+              <FinanceGroup>
+                {pays.map((x, i) => (
+                  <ShareRow key={x.label} first={i === 0} label={x.label} value={formatPesos(x.value)} share={(x.value / payTotal) * 100} />
+                ))}
+              </FinanceGroup>
+            </FinanceSection>
+          ) : null}
+          {inv.value_cost > 0 ? (
+            <FinanceSection title="Tu mercancía" link="Ver inventario" onLink={() => onDetail('inventory')}>
+              <FinanceGroup>
+                <FinanceRow first icon="cube-outline" title={`${formatPesos(inv.value_cost)} en mercancía`} sub={inv.value_price > inv.value_cost ? `Si lo vendes todo, ganarías ${formatPesos(inv.value_price - inv.value_cost)}` : `Con ${inv.valued} de ${inv.products} productos`} onPress={() => onDetail('inventory')} />
+                {inv.lost_total > 0 ? <FinanceRow icon="alert-circle-outline" title={`Perdiste ${formatPesos(inv.lost_total)}`} sub="Se dañó, venció o se perdió en estas fechas" onPress={() => onDetail('inventory')} /> : null}
+              </FinanceGroup>
+            </FinanceSection>
+          ) : null}
+        </>
+      ) : (
+        <FinanceSection title="Lo que viene">
+          <FinanceGroup>
+            <FinanceRow first icon="bar-chart-outline" title="Cómo van tus ventas" sub={`Faltan ${Math.max(1, FIRST_DAYS - a.series.filter((x) => x.sales > 0).length)} días con ventas para comparar`} />
+            <FinanceRow icon="time-outline" title="Cuándo vendes más" sub="Con más ventas lo sabrás" />
+          </FinanceGroup>
+        </FinanceSection>
+      )}
     </>
   );
 }
@@ -396,9 +391,9 @@ function Products({ a, entityId }: { a: Analytics; entityId: string }) {
       </View>
 
       {mismatch ? (
-        <View style={[styles.callout, { backgroundColor: colors.accentSoft }]}>
-          <Ionicons name="alert-circle-outline" size={18} color={colors.accentInk} />
-          <Text style={[styles.calloutText, { color: colors.accentInk }]}>{mismatch}</Text>
+        <View style={styles.callout}>
+          <Ionicons name="alert-circle-outline" size={18} color={colors.ink} />
+          <Text style={styles.calloutText}>{mismatch}</Text>
         </View>
       ) : null}
 
@@ -421,7 +416,7 @@ function Products({ a, entityId }: { a: Analytics; entityId: string }) {
               <Text style={[styles.lineName, { flex: 1 }]} numberOfLines={1}>
                 {p.name}
               </Text>
-              <Text style={[styles.lineTag, { color: (p.profit ?? 0) < 0 ? '#B3261E' : colors.accentInk }]}>
+              <Text style={[styles.lineTag, { color: (p.profit ?? 0) < 0 ? colors.danger : colors.ink }]}>
                 {(p.profit ?? 0) < 0 ? `Perdiste ${formatPesos(-(p.profit ?? 0))}` : `Te deja ${Math.round(p.margin_pct ?? 0)} %`}
               </Text>
             </View>
@@ -446,7 +441,6 @@ function Products({ a, entityId }: { a: Analytics; entityId: string }) {
 
 function ProductRow({ p, rank, by, max }: { p: ProductStat; rank: number; by: 'revenue' | 'profit'; max: number }) {
   const main = by === 'profit' ? p.profit : p.revenue;
-  const good = p.margin_pct !== null && p.margin_pct >= 15;
   return (
     <View style={[styles.pRow, rank > 1 && styles.pLine]}>
       <View style={styles.pHead}>
@@ -454,18 +448,18 @@ function ProductRow({ p, rank, by, max }: { p: ProductStat; rank: number; by: 'r
         <Text style={[styles.lineName, { flex: 1 }]} numberOfLines={1}>
           {p.name}
         </Text>
-        <Text style={[styles.lineName, by === 'profit' && { color: (p.profit ?? 0) < 0 ? '#B3261E' : '#0A6E6A' }]}>{main === null ? 'Sin costo' : formatPesos(main)}</Text>
+        <Text style={[styles.lineName, by === 'profit' && (p.profit ?? 0) < 0 && { color: colors.danger }]}>{main === null ? 'Sin costo' : formatPesos(main)}</Text>
       </View>
       <View style={[styles.track, { marginLeft: 30 }]}>
-        <View style={[styles.fill, { width: `${Math.max(0, ((main ?? 0) / max) * 100)}%`, backgroundColor: by === 'profit' ? colors.success : colors.primary }]} />
+        <View style={[styles.fill, { width: `${Math.max(0, ((main ?? 0) / max) * 100)}%`, backgroundColor: colors.ink }]} />
       </View>
       <View style={[styles.pHead, { marginLeft: 30 }]}>
         <Text style={[styles.meta, { flex: 1 }]}>
           {by === 'profit' ? `Vendiste ${formatPesos(p.revenue)}` : p.profit !== null ? `Te dejó ${formatPesos(p.profit)}` : 'Sin costo'} · {String(Math.round(p.qty * 10) / 10).replace('.', ',')} und
         </Text>
         {p.margin_pct !== null ? (
-          <View style={[styles.pill, { backgroundColor: good ? '#E3F5F3' : colors.accentSoft }]}>
-            <Text style={[styles.pillText, { color: good ? '#0A6E6A' : colors.accentInk }]}>{Math.round(p.margin_pct)} %</Text>
+          <View style={[styles.pill, { backgroundColor: colors.selectedSoft }]}>
+            <Text style={[styles.pillText, { color: colors.ink }]}>{Math.round(p.margin_pct)} %</Text>
           </View>
         ) : null}
       </View>
@@ -479,11 +473,11 @@ function Lines({ rows, empty, onPress }: { rows: InvLine[]; empty: string; onPre
     <>
       {rows.map((r) => (
         <Pressable key={`${r.ref}${r.text}`} accessibilityRole={onPress ? 'button' : undefined} disabled={!onPress} onPress={() => onPress?.(r)} style={styles.line}>
-          {r.tone !== 'muted' ? <View style={[styles.dot, { backgroundColor: r.tone === 'out' ? colors.danger : colors.accent }]} /> : null}
+          {r.tone !== 'muted' ? <View style={[styles.dot, { backgroundColor: colors.brand }]} /> : null}
           <Text style={[styles.lineName, { flex: 1 }]} numberOfLines={1}>
             {r.name}
           </Text>
-          <Text style={[styles.lineTag, { color: r.tone === 'out' ? '#B3261E' : r.tone === 'low' ? colors.accentInk : colors.muted }]}>{r.text}</Text>
+          <Text style={[styles.lineTag, { color: r.tone === 'muted' ? colors.muted : colors.ink }]}>{r.text}</Text>
           {r.value != null ? <Text style={styles.lineValue}>{formatPesos(r.value)}</Text> : null}
         </Pressable>
       ))}
@@ -502,7 +496,7 @@ function Inventory({ a, entityId }: { a: Analytics; entityId: string }) {
         <Text style={styles.kpiLabel}>Plata en mercancía hoy</Text>
         <Text style={styles.big}>{formatPesos(inv.value_cost)}</Text>
         {inv.value_price > inv.value_cost ? (
-          <Text style={[styles.meta, { color: '#0A6E6A', fontFamily: fonts.ui.bold }]}>
+          <Text style={[styles.meta, { color: colors.ink, fontFamily: fonts.ui.bold }]}>
             Si lo vendes todo: {formatPesos(inv.value_price)} · ganarías {formatPesos(inv.value_price - inv.value_cost)}
           </Text>
         ) : null}
@@ -516,14 +510,14 @@ function Inventory({ a, entityId }: { a: Analytics; entityId: string }) {
         </Text>
       </View>
 
-      <Card title="Compra pronto" right={inv.soon_count > 0 ? <Text style={[styles.lineTag, { color: '#B3261E' }]}>{inv.soon_count === 1 ? '1 se acaba' : `${inv.soon_count} se acaban`}</Text> : null}>
+      <Card title="Compra pronto" right={inv.soon_count > 0 ? <Text style={[styles.lineTag, { color: colors.ink }]}>{inv.soon_count === 1 ? '1 se acaba' : `${inv.soon_count} se acaban`}</Text> : null}>
         <Lines rows={inv.soon} empty="Nada se está acabando. Bien." onPress={goList} />
         <Pressable accessibilityRole="button" onPress={goList} style={styles.outlineBtn}>
           <Text style={styles.link}>Ver todo en el inventario</Text>
         </Pressable>
       </Card>
 
-      <Card title="Lo que perdiste" right={inv.lost_total > 0 ? <Text style={[styles.lineName, { color: '#B3261E' }]}>{formatPesos(inv.lost_total)}</Text> : null}>
+      <Card title="Lo que perdiste" right={inv.lost_total > 0 ? <Text style={styles.lineName}>{formatPesos(inv.lost_total)}</Text> : null}>
         <Text style={styles.meta}>Se dañó, venció o se perdió en estas fechas.</Text>
         <Lines rows={inv.lost} empty="No registraste pérdidas en estas fechas." />
       </Card>
@@ -532,8 +526,8 @@ function Inventory({ a, entityId }: { a: Analytics; entityId: string }) {
         <Text style={styles.meta}>Lo que no se vende hace más de 4 semanas. Una oferta puede moverlo.</Text>
         <Lines rows={inv.idle} empty="Todo lo que cuentas se está moviendo." onPress={goItem} />
         {inv.idle.length > 0 ? (
-          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/offers/new', params: { entityId } })} style={[styles.outlineBtn, { backgroundColor: colors.accentSoft, borderColor: colors.accentSoft }]}>
-            <Text style={[styles.link, { color: colors.accentInk }]}>Crear una oferta</Text>
+          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/business/offers/new', params: { entityId } })} style={styles.outlineBtn}>
+            <Text style={styles.link}>Crear una oferta</Text>
           </Pressable>
         ) : null}
       </Card>
@@ -543,60 +537,52 @@ function Inventory({ a, entityId }: { a: Analytics; entityId: string }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  top: { backgroundColor: colors.surface, paddingHorizontal: spacing.lg, gap: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.line },
-  rangeBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 52, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line },
-  rangeTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  tabs: { flexDirection: 'row' },
-  tab: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 3, borderBottomColor: 'transparent' },
-  tabOn: { borderBottomColor: colors.brand },
-  tabText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.muted },
-  tabTextOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
-  meta: { fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
-  link: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
-  hero: { gap: spacing.sm, padding: spacing.lg, borderRadius: radius.lg + 2, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
-  heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  heroValue: { fontSize: 34, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
-  heroLine: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted },
-  pBars: { height: 104, flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
-  pSlot: { flex: 1, height: 104, justifyContent: 'flex-end' },
-  pBar: { borderRadius: 5 },
-  pLabel: { flex: 1, textAlign: 'center', fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  pair: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.sm },
-  tile: { flex: 1, minWidth: 0, gap: 2, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
-  oweTile: { flex: 1, minWidth: 0, gap: 4, padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.primary },
-  oweLabel: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  oweValue: { fontSize: 28, fontFamily: fonts.display.bold, color: '#fff', fontVariant: ['tabular-nums'] },
-  oweBtn: { marginTop: 'auto', minHeight: 46, borderRadius: radius.md, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  oweBtnText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  spendBar: { flexDirection: 'row', gap: 3, height: 22, marginVertical: spacing.sm },
-  spendRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 22 },
-  spendName: { flex: 1, minWidth: 0, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
+  body: { paddingHorizontal: 20, gap: 24 },
+  top: { gap: 14 },
+  detail: { gap: spacing.md },
+  periods: { minHeight: 52, flexDirection: 'row', gap: 4, padding: 4, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
+  period: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  periodOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
+  periodText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  firstBar: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
+  firstText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  meta: { fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.muted },
+  link: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  main: { borderRadius: 20, overflow: 'hidden', backgroundColor: colors.surface, ...softShadow },
+  mainTop: { gap: 8, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.selectedSoft },
+  mainFoot: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingLeft: 16, paddingRight: 12 },
+  footHead: { fontSize: 16, lineHeight: 20, fontFamily: fonts.display.bold, color: colors.ink },
+  btnRed: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primary },
+  btnRedText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  heroTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+  heroValue: { fontSize: 34, lineHeight: 38, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  delta: { flexShrink: 1, paddingTop: 4, textAlign: 'right', fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  heroLine: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  pBars: { height: 54, flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
+  pSlot: { flex: 1, height: 54, justifyContent: 'flex-end' },
+  pBar: { borderRadius: 4 },
+  pLabel: { flex: 1, textAlign: 'center', fontSize: 12, fontFamily: fonts.ui.bold, color: colors.faint },
+  stats: { flexDirection: 'row', gap: 12 },
+  statValue: { fontSize: 19, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
   trendLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  bestLine: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  payCard: { position: 'absolute', height: 96, flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line },
-  payName: { flex: 1, fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  payPct: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink, fontVariant: ['tabular-nums'] },
-  payFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 52, marginHorizontal: -spacing.md, marginBottom: -spacing.md, paddingHorizontal: spacing.md, borderTopWidth: 1, borderTopColor: colors.line, borderBottomLeftRadius: radius.lg, borderBottomRightRadius: radius.lg, backgroundColor: colors.surface },
-  payAmt: { fontSize: 21, fontFamily: fonts.ui.extrabold, color: colors.ink, fontVariant: ['tabular-nums'] },
-  kpiLabel: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
-  kpiValue: { fontSize: 21, fontFamily: fonts.ui.extrabold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  kpiLabel: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   big: { fontSize: 30, fontFamily: fonts.display.bold, color: colors.ink },
-  card: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  card: { gap: spacing.sm, padding: 14, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
   cardHead: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
-  cardTitle: { flex: 1, fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  callout: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
-  calloutText: { flexShrink: 1, fontSize: 13, lineHeight: 19, fontFamily: fonts.ui.bold, color: colors.primaryDark },
-  seg: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: colors.selectedSoft },
-  segBtn: { flex: 1, minHeight: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  segOn: { backgroundColor: colors.surface },
-  segText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.muted },
-  segTextOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
+  cardTitle: { flex: 1, fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  callout: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.selectedSoft },
+  calloutText: { flexShrink: 1, fontSize: 13, lineHeight: 19, fontFamily: fonts.ui.bold, color: colors.ink },
+  seg: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
+  segBtn: { flex: 1, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  segOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
+  segText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  segTextOn: { color: colors.ink },
   pRow: { gap: 6, padding: spacing.md },
   pLine: { borderTopWidth: 1, borderTopColor: colors.selectedSoft },
   pHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   rank: { width: 22, fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.muted },
-  track: { height: 8, borderRadius: 4, backgroundColor: colors.bg },
-  fill: { height: 8, borderRadius: 4 },
+  track: { height: 6, borderRadius: 3, backgroundColor: colors.selectedSoft },
+  fill: { height: 6, borderRadius: 3 },
   pill: { minHeight: 24, paddingHorizontal: 8, borderRadius: radius.pill, justifyContent: 'center' },
   pillText: { fontSize: 12, fontFamily: fonts.ui.extrabold },
   more: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderTopWidth: 1, borderTopColor: colors.selectedSoft },
@@ -604,8 +590,8 @@ const styles = StyleSheet.create({
   lineName: { fontSize: 14.5, fontFamily: fonts.ui.bold, color: colors.ink },
   lineTag: { fontSize: 12.5, fontFamily: fonts.ui.extrabold },
   lineValue: { minWidth: 76, textAlign: 'right', fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  dot: { width: 10, height: 10, borderRadius: 5 },
-  outlineBtn: { minHeight: 44, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', marginTop: spacing.xs },
-  smallBtn: { minHeight: 40, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.primary, justifyContent: 'center' },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  outlineBtn: { minHeight: 44, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', marginTop: spacing.xs },
+  smallBtn: { minHeight: 44, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primary, justifyContent: 'center' },
   smallBtnText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#fff' },
 });

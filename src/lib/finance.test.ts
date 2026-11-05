@@ -2,6 +2,15 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   addDays,
+  atHour,
+  dayReadings,
+  deltaWords,
+  hourBars,
+  hourCO,
+  hourLabel,
+  showHours,
+  todayTitle,
+  type DaySale,
   bestSlot,
   bucketLabel,
   compareText,
@@ -115,4 +124,60 @@ test('margen, parámetros y comparación', () => {
   assert.deepEqual(rangeFromParams({ from: '2026-10-05', to: '2026-10-18', compare: 'year' }, '2026-10-27'), { from: '2026-10-05', to: '2026-10-18', compare: 'year', preset: 'custom' });
   assert.equal(rangeFromParams({ from: 'x' }, '2026-10-27').preset, 'month');
   assert.equal(compareText({ compare_from: '2026-09-01', compare_to: '2026-09-27' }, '2026-10-27'), 'comparado con 1 – 27 sep');
+});
+
+const sale = (hhmm: string, amount: number, name: string, qty = 1): DaySale => ({ at: `2026-11-04T${hhmm}:00-05:00`, amount, items: [{ name, qty }] });
+
+test('hourCO lee la hora de Colombia', () => {
+  assert.equal(hourCO('2026-11-04T16:30:00Z'), 11);
+  assert.equal(hourCO('2026-11-04T23:30:00-05:00'), 23);
+});
+
+test('hourLabel y atHour', () => {
+  assert.equal(hourLabel(9), '9 am');
+  assert.equal(hourLabel(12), '12 m');
+  assert.equal(hourLabel(14), '2 pm');
+  assert.equal(atHour(13), 'la 1 pm');
+  assert.equal(atHour(14), 'las 2 pm');
+});
+
+test('hourBars usa el horario y deja caber lo que queda por fuera', () => {
+  const bars = hourBars([sale('07:10', 5000, 'Tinto'), sale('11:00', 30000, 'Corte'), sale('11:40', 16000, 'Aceite')], 16, { open: 9, close: 20 });
+  assert.equal(bars[0].hour, 7);
+  assert.equal(bars[bars.length - 1].hour, 20);
+  const eleven = bars.find((b) => b.hour === 11)!;
+  assert.equal(eleven.total, 46000);
+  assert.equal(eleven.count, 2);
+  assert.equal(bars.find((b) => b.hour === 16)!.isNow, true);
+  assert.equal(bars.find((b) => b.hour === 17)!.isFuture, true);
+});
+
+test('showHours pide 3 ventas en al menos 2 horas', () => {
+  assert.equal(showHours([sale('09:00', 1, 'a'), sale('10:00', 1, 'a')]), false);
+  assert.equal(showHours([sale('20:00', 1, 'a'), sale('20:05', 1, 'a'), sale('20:10', 1, 'a')]), false);
+  assert.equal(showHours([sale('09:00', 1, 'a'), sale('09:30', 1, 'a'), sale('11:00', 1, 'a')]), true);
+});
+
+test('dayReadings dice la mejor hora, lo que más salió y el silencio solo si está abierto', () => {
+  const list = [sale('09:20', 22000, 'Corte clásico'), sale('11:05', 30000, 'Corte + barba'), sale('11:40', 16000, 'Aceite'), sale('12:15', 22000, 'Corte clásico'), sale('14:10', 18000, 'Arreglo')];
+  const now = new Date('2026-11-04T16:30:00-05:00');
+  const open = dayReadings(list, now, true);
+  assert.deepEqual(open.map((r) => r.title), ['Tu mejor hora: 11 am', 'Lo que más salió: Corte clásico', 'Llevas 2 horas sin ventas']);
+  assert.equal(open[0].sub, '$46.000 en 2 ventas');
+  assert.equal(open[2].sub, 'La última fue a las 2 pm');
+  assert.equal(dayReadings(list, now, false).some((r) => r.kind === 'quiet'), false);
+  assert.deepEqual(dayReadings(list.slice(0, 2), now, true), []);
+});
+
+test('dayReadings no dice «lo que más salió» si nada se repite', () => {
+  const list = [sale('09:00', 1, 'a'), sale('10:00', 1, 'b'), sale('11:00', 1, 'c')];
+  assert.equal(dayReadings(list, new Date('2026-11-04T12:00:00-05:00'), true).some((r) => r.kind === 'top'), false);
+});
+
+test('todayTitle y deltaWords', () => {
+  assert.equal(todayTitle('2026-11-04'), 'miércoles 4');
+  assert.equal(deltaWords(112, 100), '12 % más que el anterior');
+  assert.equal(deltaWords(90, 100, 'la anterior'), '10 % menos que la anterior');
+  assert.equal(deltaWords(100, 100), 'Igual que el anterior');
+  assert.equal(deltaWords(100, 0), null);
 });

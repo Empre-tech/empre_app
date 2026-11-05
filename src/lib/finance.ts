@@ -223,3 +223,100 @@ export function rangeFromParams(p: { from?: string; to?: string; compare?: strin
 export function compareText(a: { compare_from: string; compare_to: string }, today?: string): string {
   return `comparado con ${rangeLabel(a.compare_from, a.compare_to, today)}`;
 }
+
+// ---- Hoy: el día por horas ----
+
+export interface DaySale {
+  at: string;
+  amount: number;
+  /** Lo vendido, con su cantidad. */
+  items: { name: string; qty: number }[];
+}
+
+export interface HourBar {
+  hour: number;
+  total: number;
+  count: number;
+  isNow: boolean;
+  isFuture: boolean;
+}
+
+/** La hora (0–23) en Colombia. */
+export function hourCO(iso: string): number {
+  return new Date(new Date(iso).getTime() - 5 * 3600 * 1000).getUTCHours();
+}
+
+/** «11 am», «12 m», «2 pm». */
+export function hourLabel(h: number): string {
+  if (h === 0) return '12 am';
+  if (h === 12) return '12 m';
+  return h > 12 ? `${h - 12} pm` : `${h} am`;
+}
+
+/** «las 11 am», «la 1 pm». */
+export function atHour(h: number): string {
+  return `${h === 13 || h === 1 ? 'la' : 'las'} ${hourLabel(h)}`;
+}
+
+/**
+ * Las barras del día. Van del horario de hoy si lo hay; si no, de 8 am a 6 pm. Siempre caben la hora actual y cualquier
+ * venta registrada fuera de ese horario.
+ */
+export function hourBars(sales: DaySale[], nowHour: number, hours?: { open: number; close: number } | null): HourBar[] {
+  const seen = sales.map((s) => hourCO(s.at));
+  const start = Math.min(hours?.open ?? 8, nowHour, ...seen);
+  const end = Math.max(hours?.close ?? 18, nowHour, ...seen);
+  const out: HourBar[] = [];
+  for (let h = start; h <= end; h++) {
+    const here = sales.filter((s) => hourCO(s.at) === h);
+    out.push({ hour: h, total: here.reduce((a, s) => a + s.amount, 0), count: here.length, isNow: h === nowHour, isFuture: h > nowHour });
+  }
+  return out;
+}
+
+/**
+ * Las horas y lo que dicen solo salen con 3 ventas o más en al menos 2 horas distintas: si alguien anota todo junto al
+ * final del día, las horas no significan nada.
+ */
+export function showHours(sales: DaySale[]): boolean {
+  return sales.length >= 3 && new Set(sales.map((s) => hourCO(s.at))).size >= 2;
+}
+
+export interface DayReading {
+  kind: 'best' | 'top' | 'quiet';
+  title: string;
+  sub: string;
+}
+
+const salesWord = (n: number) => (n === 1 ? '1 venta' : `${n} ventas`);
+const pesos = (n: number) => `$${Math.round(n).toLocaleString('es-CO').replace(/,/g, '.')}`;
+
+/** Lo que dice el día, con plantillas y sus números: no inventa causas. «Sin ventas» solo si el negocio está abierto. */
+export function dayReadings(sales: DaySale[], now: Date, isOpenNow: boolean): DayReading[] {
+  if (!showHours(sales)) return [];
+  const out: DayReading[] = [];
+  const bars = hourBars(sales, hourCO(now.toISOString()));
+  const best = bars.reduce((a, b) => (b.total > a.total ? b : a));
+  if (best.total > 0) out.push({ kind: 'best', title: `Tu mejor hora: ${hourLabel(best.hour)}`, sub: `${pesos(best.total)} en ${salesWord(best.count)}` });
+  const items = new Map<string, number>();
+  for (const s of sales) for (const i of s.items) items.set(i.name, (items.get(i.name) ?? 0) + i.qty);
+  const top = [...items.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'es'))[0];
+  if (top && top[1] >= 2) out.push({ kind: 'top', title: `Lo que más salió: ${top[0]}`, sub: `${String(Math.round(top[1] * 10) / 10).replace('.', ',')} veces hoy` });
+  const last = Math.max(...sales.map((s) => new Date(s.at).getTime()));
+  const gap = Math.floor((now.getTime() - last) / 3600000);
+  if (isOpenNow && gap >= 2) out.push({ kind: 'quiet', title: `Llevas ${gap} horas sin ventas`, sub: `La última fue a ${atHour(hourCO(new Date(last).toISOString()))}` });
+  return out;
+}
+
+/** «miércoles 4». */
+export function todayTitle(ymd: string): string {
+  return `${WEEKDAYS[weekdayIndex(ymd)]} ${Number(ymd.slice(8, 10))}`;
+}
+
+/** «12 % más que el anterior»; null si no hay con qué comparar. */
+export function deltaWords(cur: number, prev: number, what = 'el anterior'): string | null {
+  const p = deltaPct(cur, prev);
+  if (p === null) return null;
+  if (p === 0) return `Igual que ${what}`;
+  return `${Math.abs(p)} % ${p > 0 ? 'más' : 'menos'} que ${what}`;
+}
