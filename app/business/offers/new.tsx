@@ -7,10 +7,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Offer, OfferType, RepeatPolicy } from '@/api/types';
 import { catalogApi } from '@/api/catalog';
 import { offersApi } from '@/api/offers';
+import { ledgerApi } from '@/api/ledger';
+import { AIWritingAssist } from '@/components/AIWritingAssist';
 import { Button } from '@/components/Button';
+import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { OfferTicket } from '@/components/offer/OfferTicket';
 import { TextField } from '@/components/TextField';
 import { formatPesos, offerPreview, parsePriceInput, publicCatalog } from '@/lib/catalog';
+import { chosenCost, offerTitleIdeas, priceVerdict, quietSlot, suggestedPrice } from '@/lib/empreAI';
+import { presetRange, todayCO } from '@/lib/finance';
 import { offerTypeLabel } from '@/lib/offer';
 import { bandHint, bestOffer, durationHint, slotsHint, suggestedSlots, type Hint } from '@/lib/offerInsights';
 import { useNow } from '@/lib/useNow';
@@ -48,6 +53,15 @@ export default function NewOfferScreen() {
   const catalog = useQuery({ queryKey: ['catalog', entityId], queryFn: () => catalogApi.list(entityId ?? ''), enabled: Boolean(entityId) });
   const offers = useQuery({ queryKey: ['offers', entityId], queryFn: () => offersApi.list(entityId ?? ''), enabled: Boolean(entityId) });
   const stats = useQuery({ queryKey: ['offer-stats', entityId], queryFn: () => offersApi.stats(entityId ?? ''), enabled: Boolean(entityId), staleTime: 60_000 });
+  // Empre AI piensa con tus últimos 30 días. Sin Finanzas o sin datos simplemente no dice nada.
+  const aiRange = useMemo(() => presetRange('30d', todayCO()), []);
+  const numbers = useQuery({
+    queryKey: ['ledger', entityId, 'analytics', aiRange.from, aiRange.to, aiRange.compare],
+    queryFn: () => ledgerApi.analytics(entityId ?? '', { from: aiRange.from, to: aiRange.to, compare: aiRange.compare }),
+    enabled: Boolean(entityId),
+    staleTime: 60_000,
+    retry: false,
+  });
   const services = publicCatalog(catalog.data ?? []);
   const useCatalog = services.length > 0;
   const summary = stats.data?.summary;
@@ -112,6 +126,13 @@ export default function NewOfferScreen() {
   };
 
   const shownTitle = title.trim() || chosen.map((s) => s.name).join(' + ');
+  const chosenNames = chosen.map((s) => s.name);
+  const cost = chosenCost(chosenNames, numbers.data?.products ?? []);
+  const verdict = priceVerdict(cost, specialValue);
+  const priceIdea = specialValue == null && cost !== null ? suggestedPrice(cost, preview.reference) : null;
+  const titleIdeas = title.trim() ? [] : offerTitleIdeas(chosenNames, specialValue, preview.reference);
+  const quiet = numbers.data ? quietSlot(numbers.data.heat) : null;
+  const idle = (numbers.data?.inventory.idle ?? []).map((l) => ({ line: l, service: services.find((s) => s.name === l.name) })).find((x) => x.service && !picked.includes(x.service.id));
   const previewOffer: Offer = {
     id: 'preview',
     entity_id: entityId ?? '',
@@ -215,6 +236,25 @@ export default function NewOfferScreen() {
           </View>
         ) : null}
 
+        {quiet || idle ? (
+          <View style={styles.ai}>
+            <View style={styles.aiHead}>
+              <EmpreSymbol product="ai" size={28} />
+              <Text style={styles.aiTitle}>Empre AI, con tus últimos 30 días</Text>
+            </View>
+            {idle ? (
+              <Pressable accessibilityRole="button" accessibilityLabel={`Agregar ${idle.line.name} a la oferta`} onPress={() => togglePick(idle.service!.id)} style={styles.aiRow}>
+                <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
+                  <Text style={styles.aiStrong}>{idle.line.name} está quieto</Text>
+                  <Text style={styles.aiSub}>{idle.line.text}. Una oferta puede moverlo.</Text>
+                </View>
+                <Text style={styles.aiAct}>Agregar</Text>
+              </Pressable>
+            ) : null}
+            {quiet ? <Text style={styles.aiSub}>Lo que menos te vende: {quiet}. Si quieres mover ese momento, publícala ese día; la oferta empieza al publicarla.</Text> : null}
+          </View>
+        ) : null}
+
         <Text style={styles.label}>¿Cuánto dura?</Text>
         <View style={styles.chips}>
           {TYPES.map((t) => (
@@ -233,6 +273,15 @@ export default function NewOfferScreen() {
             {preview.reference !== null ? <Text style={styles.note}>Precio habitual: {formatPesos(preview.reference)} (de tu catálogo; no cambia).</Text> : null}
             {picked.length > 0 && preview.reference === null ? <Text style={styles.note}>Algún servicio no tiene precio habitual: la oferta se publica sin mostrar ahorro.</Text> : null}
             <TextField label="Precio especial" placeholder={preview.reference ? formatPesos(Math.round((preview.reference * 0.7) / 1000) * 1000) : '30.000'} value={special} onChangeText={setSpecial} keyboardType="numeric" />
+            {priceIdea ? (
+              <Pressable accessibilityRole="button" accessibilityLabel={`Usar ${formatPesos(priceIdea)} como precio especial`} onPress={() => setSpecial(String(priceIdea))} style={styles.aiInline}>
+                <EmpreSymbol product="ai" size={22} animated={false} />
+                <Text style={styles.aiInlineText}>
+                  Empre AI sugiere <Text style={styles.aiStrong}>{formatPesos(priceIdea)}</Text>: da ahorro y aún te deja algo. Toca para usarlo.
+                </Text>
+              </Pressable>
+            ) : null}
+            {verdict && !preview.error ? <HintView hint={verdict} /> : null}
             {preview.error ? (
               <HintView hint={{ text: preview.error, warn: true }} />
             ) : preview.saving !== null && preview.reference ? (
@@ -248,6 +297,14 @@ export default function NewOfferScreen() {
         )}
 
         <TextField label="Título" placeholder={chosen.map((s) => s.name).join(' + ') || 'Corte + barba'} value={title} onChangeText={setTitle} />
+        {titleIdeas.length ? (
+          <View style={styles.chips} accessibilityLabel="Títulos que sugiere Empre AI">
+            {titleIdeas.map((t) => (
+              <Chip key={t} label={t} on={false} onPress={() => setTitle(t)} a11y={`Usar el título ${t}`} />
+            ))}
+          </View>
+        ) : null}
+        <AIWritingAssist kind="offer_title" currentText={[title.trim() || chosenNames.join(' + '), specialValue ? `Precio especial: ${formatPesos(specialValue)}` : '', preview.reference ? `Precio habitual: ${formatPesos(preview.reference)}` : ''].filter(Boolean).join('. ')} onApply={setTitle} label="Más ideas con Empre AI" />
 
         <Text style={styles.label}>Cupos</Text>
         <View style={styles.chips}>
@@ -353,6 +410,15 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
   content: { padding: spacing.lg, gap: spacing.md },
   label: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
+  ai: { gap: 10, padding: spacing.md, borderRadius: 20, backgroundColor: colors.surface },
+  aiHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  aiTitle: { flex: 1, fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  aiRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  aiStrong: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  aiSub: { fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.muted },
+  aiAct: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink, textDecorationLine: 'underline' },
+  aiInline: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, padding: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.selectedSoft },
+  aiInlineText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.ink },
   note: { fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, alignItems: 'center' },
   chip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },

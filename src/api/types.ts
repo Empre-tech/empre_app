@@ -322,7 +322,7 @@ export interface AIChatResponse {
 // Asistente de IA para redactar texto (POST /api/ai/writing-assistant)
 // ---------------------------------------------------------------------------
 
-export type AITextKind = 'business_description' | 'post_caption';
+export type AITextKind = 'business_description' | 'post_caption' | 'offer_title';
 
 export interface AITextRequest {
   kind: AITextKind;

@@ -94,6 +94,25 @@ export function SystemRow({ icon, symbol, tag, product, title, sub, amount, aler
   );
 }
 
+/** Lo que dice Empre AI, siempre con su logo: el dueño sabe de quién viene. `note` dice de dónde lo saca. */
+export function EmpreAICard({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
+  return (
+    <View style={styles.ai}>
+      <View style={styles.aiHead}>
+        <EmpreSymbol product="ai" size={28} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.aiBrand}>Empre AI</Text>
+          <Text style={styles.sectionTitle} accessibilityRole="header">
+            {title}
+          </Text>
+        </View>
+      </View>
+      {children}
+      {note ? <Text style={styles.aiNote}>{note}</Text> : null}
+    </View>
+  );
+}
+
 /** Un acceso de la fila de tres: siempre el mismo cuadro, en cualquier pantalla. */
 export function ActionTile({ icon, label, selected, onPress, width }: { icon: IconName; label: string; selected?: boolean; onPress: () => void; width?: number }) {
   return (
@@ -148,6 +167,10 @@ const styles = StyleSheet.create({
   rowSub: { flexShrink: 1, fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.semibold, color: colors.muted },
   rowSubAlert: { fontFamily: fonts.ui.extrabold, color: colors.ink },
   rowAmount: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  ai: { gap: 12, padding: 14, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
+  aiHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  aiBrand: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.faint },
+  aiNote: { fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
   tile: { minHeight: 84, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 6, paddingVertical: 8, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
   tileFlex: { flex: 1, minWidth: 0 },
   tileOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },

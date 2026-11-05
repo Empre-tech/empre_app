@@ -8,7 +8,7 @@ import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi, type Expense, type Sale } from '@/api/ledger';
 import { useInboxSummary } from '@/chat/useInboxSummary';
 import { EmptyState } from '@/components/EmptyState';
-import { SystemGroup, SystemHead, SystemRow, SystemSection, SystemTitle } from '@/components/system/parts';
+import { EmpreAICard, SystemGroup, SystemHead, SystemRow, SystemSection, SystemTitle } from '@/components/system/parts';
 import { VoiceSheet } from '@/components/ledger/VoiceSheet';
 import { addDays, atHour, dayReadings, deltaWords, hourBars, hourCO, hourLabel, presetRange, showHours, todayCO, todayTitle, type DaySale } from '@/lib/finance';
 import { categoryLabel, formatPesos, METHOD_LABEL, pendingCredit, pendingTotals, salePayText } from '@/lib/ledger';
@@ -290,13 +290,14 @@ export default function LedgerHome() {
             </SystemSection>
 
             {readings.length > 0 ? (
-              <SystemSection title="Lo que dice tu día">
-                <SystemGroup>
+              <EmpreAICard title="Lo que dice tu día">
+                <View>
                   {readings.map((r, i) => (
                     <SystemRow key={r.kind} first={i === 0} icon={READING_ICON[r.kind]} title={r.title} sub={r.sub} />
                   ))}
-                </SystemGroup>
-              </SystemSection>
+                  {readings.some((r) => r.kind === 'quiet') ? <SystemRow icon="pricetag-outline" title="Una oferta puede mover estas horas" sub="Prepárala en un minuto; tú decides si la publicas" onPress={() => router.push({ pathname: '/business/offers/new', params: { entityId } })} /> : null}
+                </View>
+              </EmpreAICard>
             ) : null}
           </>
         ) : count === 0 ? (

@@ -9,7 +9,8 @@ import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi, type Analytics, type InvLine, type ProductStat } from '@/api/ledger';
 import { EmptyState } from '@/components/EmptyState';
 import { HBars, HeatGrid } from '@/components/finance/Charts';
-import { SystemGroup, SystemHead, SystemRow, SystemSection, SystemTitle, ShareRow } from '@/components/system/parts';
+import { UnderstandWeek } from '@/components/finance/UnderstandWeek';
+import { EmpreAICard, SystemGroup, SystemHead, SystemRow, SystemSection, SystemTitle, ShareRow } from '@/components/system/parts';
 import { RangeSheet } from '@/components/finance/RangeSheet';
 import { bestSlot, bucketLabel, dayLong, deltaWords, leftOf, lowMargin, marginPct, presetRange, rangeFromParams, rangeTitle, rankProducts, todayCO, topMismatch, type DateRange } from '@/lib/finance';
 import { categoryLabel, formatPesos, METHOD_LABEL, pendingCredit, pendingTotals } from '@/lib/ledger';
@@ -276,13 +277,13 @@ function Summary({ a, entityId, range, firstDays, onDetail }: { a: Analytics; en
       </View>
 
       {todo.length > 0 ? (
-        <SystemSection title="Qué hacer">
-          <SystemGroup>
+        <EmpreAICard title="Qué hacer">
+          <View>
             {todo.map(({ key, ...t }, i) => (
               <SystemRow key={key} first={i === 0} {...t} />
             ))}
-          </SystemGroup>
-        </SystemSection>
+          </View>
+        </EmpreAICard>
       ) : null}
 
       {topList.length > 0 ? (
@@ -300,6 +301,7 @@ function Summary({ a, entityId, range, firstDays, onDetail }: { a: Analytics; en
 
       {!firstDays ? (
         <>
+          <UnderstandWeek a={a} onOffer={() => router.push({ pathname: '/business/offers/new', params: { entityId } })} />
           <View style={[styles.card, styles.stats]}>
             {m !== null ? <Stat label="Margen" value={`${m} %`} note={c.margin_coverage_pct < 100 ? `${c.margin_coverage_pct} % con costo` : undefined} /> : null}
             <Stat label="Por venta" value={formatPesos(c.avg_ticket)} />

@@ -15,6 +15,8 @@ interface Props {
   variant?: 'light' | 'dark';
   /** Compacto: solo el ícono, sin la palabra "IA" (para espacios chicos). */
   compact?: boolean;
+  /** El texto del botón; por defecto, «Mejorar con IA». */
+  label?: string;
 }
 
 /**
@@ -24,7 +26,7 @@ interface Props {
  * pedir otras opciones o cerrar sin aplicar nada — la IA nunca escribe por
  * su cuenta sin que él lo confirme tocando una opción.
  */
-export function AIWritingAssist({ kind, currentText, businessName, categoryName, onApply, variant = 'light', compact = false }: Props) {
+export function AIWritingAssist({ kind, currentText, businessName, categoryName, onApply, variant = 'light', compact = false, label = 'Mejorar con IA' }: Props) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +76,7 @@ export function AIWritingAssist({ kind, currentText, businessName, categoryName,
       >
         <Ionicons name="sparkles" size={14} color={variant === 'dark' ? '#fff' : colors.primary} />
         {!compact ? (
-          <Text style={[styles.triggerText, variant === 'dark' && styles.triggerTextDark]}>Mejorar con IA</Text>
+          <Text style={[styles.triggerText, variant === 'dark' && styles.triggerTextDark]}>{label}</Text>
         ) : null}
       </Pressable>
 
@@ -87,7 +89,7 @@ export function AIWritingAssist({ kind, currentText, businessName, categoryName,
                 <Ionicons name="sparkles" size={16} color={colors.primary} />
               </View>
               <Text style={styles.sheetTitle}>
-                {kind === 'post_caption' ? 'Ideas para tu publicación' : 'Ideas para tu descripción'}
+                {kind === 'post_caption' ? 'Ideas para tu publicación' : kind === 'offer_title' ? 'Ideas para tu oferta' : 'Ideas para tu descripción'}
               </Text>
             </View>
 
