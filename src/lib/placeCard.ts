@@ -126,3 +126,21 @@ export function openingFromHours(hours: HourRow[] | undefined, now: Date, isOpen
   }
   return {};
 }
+
+const SLOT_DAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+
+/** «Hora libre hoy a las 4:30 pm», en hora de Colombia. Más allá de una semana, o sin fecha válida, no dice nada. */
+export function nextSlotText(iso: string | undefined, now: Date = new Date()): string | null {
+  if (!iso) return null;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime()) || at.getTime() <= now.getTime()) return null;
+  const co = (d: Date) => new Date(d.getTime() - 5 * 3600 * 1000);
+  const dayIndex = (d: Date) => Math.floor(co(d).getTime() / 86400000);
+  const days = dayIndex(at) - dayIndex(now);
+  if (days > 6) return null;
+  const when = days === 0 ? 'hoy' : days === 1 ? 'mañana' : `el ${SLOT_DAYS[co(at).getUTCDay()]}`;
+  const h = co(at).getUTCHours();
+  const m = co(at).getUTCMinutes();
+  const clock = `${h % 12 === 0 ? 12 : h % 12}${m > 0 ? `:${String(m).padStart(2, '0')}` : ''} ${h < 12 ? 'am' : 'pm'}`;
+  return `Hora libre ${when} a ${h % 12 === 1 ? 'la' : 'las'} ${clock}`;
+}
