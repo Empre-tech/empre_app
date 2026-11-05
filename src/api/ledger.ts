@@ -476,6 +476,9 @@ export interface VoiceAction {
   new_party?: boolean;
   candidates?: { id: string; name: string }[];
   warnings?: string[];
+  /** Solo en el teléfono: dijo cuánto vale un producto que ya existe. Se cambia si el dueño lo confirma. */
+  price_ask?: { item_id: string; from: number | null; to: number };
+  price_ok?: boolean;
   /** type = stock: de qué producto o insumo habla y qué dijo (nivel o cantidad contada). */
   item_ref?: string;
   item_name?: string;

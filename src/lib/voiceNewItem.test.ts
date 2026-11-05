@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dictatedPrice, similarItems } from './voiceNewItem.ts';
+import { dictatedPrice, isPriceStatement, itemNamedIn, similarItems } from './voiceNewItem.ts';
 
 const items = [
   { ref: '1', name: 'Perfume Dior', kind: 'product' as const },
@@ -37,4 +37,22 @@ test('dictatedPrice lee el precio como se dice', () => {
 test('dictatedPrice no toma cantidades pequeñas como precio', () => {
   assert.equal(dictatedPrice('tengo 12 camisas'), null);
   assert.equal(dictatedPrice('se acabó el jugo'), null);
+});
+
+test('isPriceStatement distingue el precio del costo y de una venta', () => {
+  assert.equal(isPriceStatement('el perfume tiene un valor de $50,000'), true);
+  assert.equal(isPriceStatement('el corte vale 25 mil'), true);
+  assert.equal(isPriceStatement('el precio del aceite es 30.000'), true);
+  assert.equal(isPriceStatement('me cuesta 20 mil'), false);
+  assert.equal(isPriceStatement('vendí un perfume por 50 mil'), false);
+  assert.equal(isPriceStatement('el perfume vale mucho'), false);
+  assert.equal(isPriceStatement('se acabó el perfume'), false);
+});
+
+test('itemNamedIn solo responde si es uno y es un producto', () => {
+  const list = [{ ref: 'a', name: 'Perfume', kind: 'product' as const }, { ref: 'b', name: 'Corte clásico', kind: 'product' as const }, { ref: 'c', name: 'Aceite', kind: 'supply' as const }];
+  assert.equal(itemNamedIn('el perfume vale 50 mil', list)?.ref, 'a');
+  assert.equal(itemNamedIn('el corte vale 50 mil', list), null);
+  assert.equal(itemNamedIn('el aceite vale 50 mil', list), null);
+  assert.equal(itemNamedIn('perfume y corte clásico valen 50 mil', list), null);
 });

@@ -76,3 +76,24 @@ export function dictatedPrice(text: string): number | null {
   const plain = /\b(\d{3,7})\b/.exec(t);
   return plain ? Number(plain[1]) : null;
 }
+
+/**
+ * ¿Dijo cuánto vale lo que vende? «El perfume vale 50 mil», «el precio del corte es 25.000». «Me cuesta 20 mil» habla de
+ * su costo y «vendí uno por 50 mil» es una venta: ninguno cambia el precio.
+ */
+export function isPriceStatement(text: string): boolean {
+  const t = norm(text);
+  if (dictatedPrice(text) === null) return false;
+  if (/\b(me|nos) (cuesta|costo|sale|salio)\b/.test(t) || /\b(vendi|compre|pague|gaste|fie)\b/.test(t)) return false;
+  return /\b(vale|valor|cuesta|precio|lo vendo a|la vendo a|se vende a)\b/.test(t);
+}
+
+/** El único producto nombrado completo en la frase; con dos o ninguno, null: mejor no adivinar. */
+export function itemNamedIn<T extends SimilarItem>(text: string, items: T[]): T | null {
+  const said = words(text);
+  const hits = items.filter((i) => i.kind === 'product').filter((i) => {
+    const own = words(i.name);
+    return own.length > 0 && own.every((o) => said.some((s) => sameWord(s, o)));
+  });
+  return hits.length === 1 ? hits[0] : null;
+}
