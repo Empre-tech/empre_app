@@ -328,7 +328,7 @@ const styles = StyleSheet.create({
   tabTextActive: { color: colors.selected },
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   backText: { fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.primary },
-  list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
+  list: { paddingHorizontal: spacing.lg, paddingBottom: 120 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, padding: spacing.xl },
   empty: { textAlign: 'center', color: colors.muted, marginTop: spacing.xl },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md },

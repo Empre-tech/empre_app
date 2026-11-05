@@ -9,18 +9,30 @@ import { catalogApi } from '@/api/catalog';
 import { entitiesApi } from '@/api/endpoints';
 import { useAuth } from '@/auth/AuthContext';
 import { track } from '@/analytics/track';
+import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
+import { Cover } from '@/components/Cover';
 import { AskSheet } from '@/components/profile/AskSheet';
 import { audienceText, catalogCopy, priceText } from '@/lib/catalog';
 import { chatItemParam } from '@/lib/chatItem';
-import { categoryColor } from '@/lib/categoryColor';
 import { safeIcon } from '@/lib/icons';
 import { mediaUrl } from '@/lib/image';
 import { displayIcon } from '@/lib/mapView';
-import { colors, fonts, radius, spacing } from '@/theme';
+import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 
 const PHONE_RE = /^[+\d\s()-]{7,}$/;
-const GALLERY_H = 360;
+const GALLERY_H = 300;
+/** Sin foto no hay nada que mostrar en grande: una portada corta y la información arriba. */
+const COVER_H = 132;
+
+function Fact({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
+  return (
+    <View style={styles.fact}>
+      <Ionicons name={icon} size={14} color={colors.ink} />
+      <Text style={styles.factText}>{text}</Text>
+    </View>
+  );
+}
 
 /**
  * El detalle de un producto o servicio, como lo ve el cliente: sus fotos (se deslizan; un toque las abre a pantalla
@@ -33,7 +45,7 @@ export default function ProductScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { status } = useAuth();
+  const { status, user } = useAuth();
   const [selected, setSelected] = useState(itemId ?? '');
   const [page, setPage] = useState(0);
   const [viewer, setViewer] = useState<number | null>(null);
@@ -74,7 +86,7 @@ export default function ProductScreen() {
   const meta = [item.section || parent?.section, audienceText(item.audience?.length ? item.audience : parent?.audience)].filter(Boolean).join(' · ');
   const sectionIcon = catalog.data?.sections.find((s) => s.name === (item.section || parent?.section))?.icon;
   const icon = safeIcon(sectionIcon, safeIcon(displayIcon(b.category?.icon), 'pricetag-outline'));
-  const cat = categoryColor(b.category?.color);
+  const isOwner = Boolean(user && b.owner_id === user.id);
   const description = item.description || parent?.description;
   const contact = b.contact_info?.trim();
   const canCall = Boolean(contact && PHONE_RE.test(contact));
@@ -104,9 +116,9 @@ export default function ProductScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
-        <View style={{ height: GALLERY_H + insets.top, backgroundColor: photos.length ? colors.bg : cat.bg }}>
+        <View style={{ height: (photos.length ? GALLERY_H : COVER_H) + insets.top }}>
           {photos.length ? (
-            <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onScroll} style={{ marginTop: 0 }}>
+            <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onScroll}>
               {photos.map((id, i) => (
                 <Pressable key={id} accessibilityRole="imagebutton" accessibilityLabel={`Foto ${i + 1} de ${photos.length}. Ver en grande`} onPress={() => setViewer(i)}>
                   <Image source={{ uri: mediaUrl(id) }} style={{ width, height: GALLERY_H + insets.top }} contentFit="cover" transition={150} />
@@ -114,9 +126,7 @@ export default function ProductScreen() {
               ))}
             </ScrollView>
           ) : (
-            <View style={styles.noPhoto}>
-              <Ionicons name={icon} size={72} color={cat.fg} />
-            </View>
+            <Cover category={b.category?.name} icon={b.category?.icon} iconName={icon} iconSize={72} style={StyleSheet.absoluteFill} />
           )}
           <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={() => router.back()} style={[styles.round, { top: insets.top + spacing.sm, left: spacing.lg }]}>
             <Ionicons name="chevron-back" size={22} color={colors.ink} />
@@ -138,21 +148,19 @@ export default function ProductScreen() {
         </View>
 
         <View style={styles.body}>
-          <View style={{ gap: 4 }}>
+          <View style={styles.head}>
             {meta ? <Text style={styles.meta}>{meta}</Text> : null}
             <View style={styles.titleRow}>
               <Text style={styles.name}>{title}</Text>
               <Text style={price ? styles.price : styles.consult}>{price ?? 'Consultar'}</Text>
             </View>
-            {shown.sold_out ? (
-              <Text style={[styles.state, { color: colors.danger }]}>Agotado por ahora</Text>
-            ) : shown.fresh ? (
-              <Text style={[styles.state, { color: colors.success }]}>Precio actualizado</Text>
-            ) : null}
-            {item.duration_min ? (
-              <Text style={styles.meta}>
-                Dura {item.duration_min} min{item.bookable ? ' · se puede reservar' : ''}
-              </Text>
+            {shown.sold_out || shown.fresh || item.duration_min ? (
+              <View style={styles.facts}>
+                {shown.sold_out ? <Fact icon="alert-circle-outline" text="Agotado por ahora" /> : null}
+                {item.duration_min ? <Fact icon="time-outline" text={`${item.duration_min} min`} /> : null}
+                {item.bookable ? <Fact icon="calendar-outline" text="Se puede reservar" /> : null}
+                {!shown.sold_out && shown.fresh ? <Fact icon="checkmark" text="Precio al día" /> : null}
+              </View>
             ) : null}
           </View>
 
@@ -190,17 +198,30 @@ export default function ProductScreen() {
               <Text style={styles.desc}>{description}</Text>
             </View>
           ) : null}
-          <Text style={styles.meta}>Vendido por {b.name}</Text>
+          <Pressable accessibilityRole="link" accessibilityLabel={`Vendido por ${b.name}. Ver el negocio`} onPress={() => router.push({ pathname: '/business/[id]', params: { id: b.id } })} style={styles.seller}>
+            <Avatar uri={b.profile_url} name={b.name} size={40} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.sellerLabel}>Vendido por</Text>
+              <Text style={styles.sellerName} numberOfLines={1}>
+                {b.name}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.placeholder} />
+          </Pressable>
         </View>
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
-        {canCall ? (
+        {canCall && !isOwner ? (
           <Pressable accessibilityRole="button" accessibilityLabel={`Llamar a ${b.name}`} onPress={() => void Linking.openURL(`tel:${contact!.replace(/[^\d+]/g, '')}`)} style={styles.call}>
             <Ionicons name="call-outline" size={22} color={colors.ink} />
           </Pressable>
         ) : null}
-        <Button title={copy.kind === 'service' ? 'Preguntar por este servicio' : 'Preguntar por este producto'} onPress={() => setAsking(askName)} style={{ flex: 1 }} />
+        {isOwner ? (
+          <Button title="Editar" onPress={() => router.push({ pathname: '/business/products/item', params: { entityId: b.id, itemId: item.id } })} style={{ flex: 1 }} />
+        ) : (
+          <Button title={copy.kind === 'service' ? 'Preguntar por este servicio' : 'Preguntar por este producto'} onPress={() => setAsking(askName)} style={{ flex: 1 }} />
+        )}
       </View>
 
       <AskSheet item={asking} businessName={b.name} copy={copy} onClose={() => setAsking(null)} onSend={send} />
@@ -238,21 +259,26 @@ function PhotoViewer({ photos, start, onClose }: { photos: string[]; start: numb
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.surface },
-  noPhoto: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  screen: { flex: 1, backgroundColor: colors.bg },
   round: { position: 'absolute', width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center' },
   counter: { position: 'absolute', right: spacing.lg, bottom: spacing.lg, paddingHorizontal: 10, height: 26, borderRadius: 13, backgroundColor: 'rgba(22,35,58,0.72)', justifyContent: 'center' },
   counterText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },
   dots: { position: 'absolute', bottom: 20, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.6)' },
   dotOn: { width: 18, backgroundColor: '#fff' },
-  body: { padding: spacing.lg, gap: spacing.lg },
+  body: { paddingHorizontal: 20, paddingTop: 16, gap: 16 },
+  head: { gap: 8, padding: 16, marginTop: -28, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
+  facts: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  fact: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, borderRadius: 999, backgroundColor: colors.selectedSoft },
+  factText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  seller: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
+  sellerLabel: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  sellerName: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   meta: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
-  name: { flex: 1, fontSize: 22, lineHeight: 28, fontFamily: fonts.display.bold, color: colors.ink },
+  name: { flex: 1, fontSize: 22, lineHeight: 26, fontFamily: fonts.display.bold, color: colors.ink },
   price: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.ink },
   consult: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.muted, marginTop: 4 },
-  state: { fontSize: 13.5, fontFamily: fonts.ui.extrabold },
   label: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   option: { minWidth: 48, minHeight: 42, paddingHorizontal: 12, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },

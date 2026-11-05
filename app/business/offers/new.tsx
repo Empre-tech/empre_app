@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Offer, OfferType, RepeatPolicy } from '@/api/types';
@@ -23,9 +23,7 @@ import { colors, fonts, radius, spacing } from '@/theme';
 import { markFresh, notify } from '@/upload/uploadStore';
 
 const TYPES: OfferType[] = ['HORAS', 'DIA'];
-const HOURS_OPTIONS: Record<OfferType, number[]> = { HORAS: [1, 2, 3, 4], DIA: [8, 12], SEMANA: [168] };
 const DEFAULT_HOURS: Record<OfferType, number> = { HORAS: 2, DIA: 8, SEMANA: 168 };
-const SLOT_OPTIONS = [5, 8, 10, 15, 20];
 
 /** Cuándo termina una oferta que dura `hours` horas desde `now`. */
 function endsInHours(now: number, hours: number): string {
@@ -304,32 +302,17 @@ export default function NewOfferScreen() {
             ))}
           </View>
         ) : null}
-        <AIWritingAssist kind="offer_title" currentText={[title.trim() || chosenNames.join(' + '), specialValue ? `Precio especial: ${formatPesos(specialValue)}` : '', preview.reference ? `Precio habitual: ${formatPesos(preview.reference)}` : ''].filter(Boolean).join('. ')} onApply={setTitle} label="Más ideas con Empre AI" />
+        <AIWritingAssist kind="offer_title" currentText={[title.trim() || chosenNames.join(' + '), specialValue ? `Precio especial: ${formatPesos(specialValue)}` : '', preview.reference ? `Precio habitual: ${formatPesos(preview.reference)}` : ''].filter(Boolean).join('. ')} onApply={setTitle} label="Más ideas con Empre AI" fallback={offerTitleIdeas(chosenNames.length ? chosenNames : title.trim() ? [title.trim()] : [], specialValue, preview.reference)} />
 
-        <Text style={styles.label}>Cupos</Text>
-        <View style={styles.chips}>
-          {SLOT_OPTIONS.map((n) => (
-            <Chip key={n} label={`${n}`} star={starSlots === n} on={slots === n} onPress={() => setSlots(n)} a11y={`${n} cupos${starSlots === n ? ', lo que mejor te funcionó' : ''}`} />
-          ))}
-          <View style={styles.stepper}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Un cupo menos" onPress={() => setSlots((s) => Math.max(1, s - 1))} style={styles.stepBtn}>
-              <Text style={styles.stepText}>−</Text>
-            </Pressable>
-            <Text style={styles.stepValue}>{slots}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Un cupo más" onPress={() => setSlots((s) => Math.min(500, s + 1))} style={styles.stepBtn}>
-              <Text style={styles.stepText}>+</Text>
-            </Pressable>
-          </View>
-        </View>
+        <Regulator label="Cupos" value={slots} unit={slots === 1 ? 'cupo' : 'cupos'} min={1} max={500} onChange={setSlots} />
+        {starSlots && starSlots !== slots ? (
+          <Pressable accessibilityRole="button" onPress={() => setSlots(starSlots)} style={styles.bestLine}>
+            <Text style={styles.bestText}>Lo que mejor te funcionó: {starSlots} cupos. Usar</Text>
+          </Pressable>
+        ) : null}
         {hints.slots ? <HintView hint={hints.slots} /> : null}
 
-        <Text style={styles.label}>Duración</Text>
-        <View style={styles.chips}>
-          {HOURS_OPTIONS[type].map((h) => {
-            const star = type === 'HORAS' && Boolean(summary?.enough && summary.prefer_short) && h === 2;
-            return <Chip key={h} label={`${h} h`} star={star} on={hours === h} onPress={() => setHours(h)} a11y={`${h} horas${star ? ', lo que mejor te funcionó' : ''}`} />;
-          })}
-        </View>
+        <Regulator label="Duración" value={hours} unit="h" min={type === 'HORAS' ? 1 : 8} max={type === 'HORAS' ? 12 : 24} onChange={setHours} />
         {hints.duration ? <HintView hint={hints.duration} /> : null}
         {hints.band ? <HintView hint={hints.band} /> : null}
 
@@ -395,6 +378,47 @@ function Chip({ label, on, onPress, star, role = 'button', a11y }: { label: stri
   );
 }
 
+/** Sube o baja un número; dejar presionado corre más rápido. Reemplaza las listas de números fijos. */
+function Regulator({ label, value, unit, min, max, onChange }: { label: string; value: number; unit: string; min: number; max: number; onChange: (n: number) => void }) {
+  const live = useRef(value);
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    live.current = value;
+  }, [value]);
+  const stop = () => {
+    if (timer.current) clearInterval(timer.current);
+    timer.current = null;
+  };
+  useEffect(() => stop, []);
+  const step = (d: number) => {
+    const next = Math.max(min, Math.min(max, live.current + d));
+    live.current = next;
+    onChange(next);
+  };
+  const hold = (d: number) => {
+    stop();
+    timer.current = setInterval(() => step(d), 90);
+  };
+  const btn = (d: number, name: 'remove' | 'add', a11y: string, off: boolean) => (
+    <Pressable accessibilityRole="button" accessibilityLabel={a11y} accessibilityState={{ disabled: off }} disabled={off} onPress={() => step(d)} onLongPress={() => hold(d)} onPressOut={stop} delayLongPress={350} style={({ pressed }) => [styles.regBtn, off && styles.regBtnOff, pressed && styles.regBtnPressed]}>
+      <Ionicons name={name} size={22} color={off ? colors.placeholder : colors.ink} />
+    </Pressable>
+  );
+  return (
+    <View style={styles.reg} accessibilityLabel={`${label}: ${value} ${unit}`}>
+      <Text style={styles.regLabel}>{label}</Text>
+      {btn(-1, 'remove', `${label}: uno menos`, value <= min)}
+      <View style={styles.regValue}>
+        <Text style={styles.regNum} accessibilityLiveRegion="polite">
+          {value}
+        </Text>
+        <Text style={styles.regUnit}>{unit}</Text>
+      </View>
+      {btn(1, 'add', `${label}: uno más`, value >= max)}
+    </View>
+  );
+}
+
 function HintView({ hint }: { hint: Hint }) {
   return (
     <View style={[styles.hint, hint.warn && styles.hintWarn]}>
@@ -410,6 +434,16 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
   content: { padding: spacing.lg, gap: spacing.md },
   label: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
+  reg: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 16, paddingRight: 12, borderRadius: 20, backgroundColor: colors.surface },
+  regLabel: { flex: 1, fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  regBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.selectedSoft },
+  regBtnOff: { opacity: 0.5 },
+  regBtnPressed: { transform: [{ scale: 0.94 }] },
+  regValue: { minWidth: 64, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 3 },
+  regNum: { fontSize: 24, lineHeight: 28, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  regUnit: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  bestLine: { minHeight: 36, justifyContent: 'center', marginTop: -6 },
+  bestText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink, textDecorationLine: 'underline' },
   ai: { gap: 10, padding: spacing.md, borderRadius: 20, backgroundColor: colors.surface },
   aiHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   aiTitle: { flex: 1, fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
@@ -430,10 +464,10 @@ const styles = StyleSheet.create({
   stepBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   stepText: { fontSize: 18, fontFamily: fonts.ui.extrabold, color: colors.ink },
   stepValue: { minWidth: 44, textAlign: 'center', fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  hint: { padding: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.primarySoft },
-  hintWarn: { backgroundColor: '#FFF4DC' },
-  hintText: { fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.bold, color: colors.primaryDark },
-  hintTextWarn: { color: '#7A4B00' },
+  hint: { padding: spacing.md, borderRadius: 12, backgroundColor: colors.selectedSoft },
+  hintWarn: { backgroundColor: colors.accentSoft },
+  hintText: { fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.bold, color: colors.ink },
+  hintTextWarn: { color: colors.accentInk },
   repeat: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 56, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.primarySoft },
   repeatText: { flex: 1 },
   repeatTitle: { fontSize: 14, fontFamily: fonts.display.bold, color: colors.ink },

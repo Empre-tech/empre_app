@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { aiApi } from '@/api/endpoints';
 import type { AITextKind } from '@/api/types';
+import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 interface Props {
@@ -17,6 +18,8 @@ interface Props {
   compact?: boolean;
   /** El texto del botón; por defecto, «Mejorar con IA». */
   label?: string;
+  /** Ideas listas, sin modelo: si el servicio falla, salen estas en vez de un error. */
+  fallback?: string[];
 }
 
 /**
@@ -26,7 +29,7 @@ interface Props {
  * pedir otras opciones o cerrar sin aplicar nada — la IA nunca escribe por
  * su cuenta sin que él lo confirme tocando una opción.
  */
-export function AIWritingAssist({ kind, currentText, businessName, categoryName, onApply, variant = 'light', compact = false, label = 'Mejorar con IA' }: Props) {
+export function AIWritingAssist({ kind, currentText, businessName, categoryName, onApply, variant = 'light', compact = false, label = 'Mejorar con IA', fallback }: Props) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +47,9 @@ export function AIWritingAssist({ kind, currentText, businessName, categoryName,
       });
       setSuggestions(res.suggestions ?? []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No pudimos generar sugerencias.');
+      if (fallback?.length) setSuggestions(fallback);
+      else setError('Empre AI no pudo generar ideas ahora. Intenta de nuevo en un momento.');
+      void e;
     } finally {
       setLoading(false);
     }
@@ -74,7 +79,7 @@ export function AIWritingAssist({ kind, currentText, businessName, categoryName,
           pressed && styles.triggerPressed,
         ]}
       >
-        <Ionicons name="sparkles" size={14} color={variant === 'dark' ? '#fff' : colors.primary} />
+        {variant === 'dark' ? <Ionicons name="sparkles" size={14} color="#fff" /> : <EmpreSymbol product="ai" size={22} animated={false} />}
         {!compact ? (
           <Text style={[styles.triggerText, variant === 'dark' && styles.triggerTextDark]}>{label}</Text>
         ) : null}
@@ -86,7 +91,7 @@ export function AIWritingAssist({ kind, currentText, businessName, categoryName,
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
               <View style={styles.sheetHeaderIcon}>
-                <Ionicons name="sparkles" size={16} color={colors.primary} />
+                <EmpreSymbol product="ai" size={26} animated={false} />
               </View>
               <Text style={styles.sheetTitle}>
                 {kind === 'post_caption' ? 'Ideas para tu publicación' : kind === 'offer_title' ? 'Ideas para tu oferta' : 'Ideas para tu descripción'}
@@ -149,10 +154,10 @@ const styles = StyleSheet.create({
     height: 30,
     borderRadius: radius.pill,
   },
-  triggerLight: { backgroundColor: 'rgba(36,104,198,0.12)' },
+  triggerLight: { backgroundColor: colors.selectedSoft },
   triggerDark: { backgroundColor: 'rgba(255,255,255,0.18)' },
   triggerPressed: { opacity: 0.7 },
-  triggerText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.primary },
+  triggerText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   triggerTextDark: { color: '#fff' },
   backdrop: { flex: 1, backgroundColor: 'rgba(22,35,58,0.5)', justifyContent: 'flex-end' },
   sheet: {
