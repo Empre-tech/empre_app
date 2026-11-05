@@ -163,10 +163,9 @@ export default function LedgerHome() {
   const urgent: { key: string; icon: keyof typeof Ionicons.glyphMap; title: string; sub: string; alert?: boolean; amount?: string; onPress: () => void }[] = [
     ...(requests > 0 && FEATURES.agenda ? [{ key: 'agenda', icon: 'calendar-outline' as const, title: requests === 1 ? '1 cita por responder' : `${requests} citas por responder`, sub: 'Toca para verlas en la agenda', alert: true, onPress: () => router.push({ pathname: '/business/agenda/[id]', params: { id: entityId } }) }] : []),
     ...stockAlerts.slice(0, 2).map((a) => ({ key: `${a.kind}-${a.ref ?? a.title}`, icon: 'cube-outline' as const, title: a.title, sub: a.body, alert: true, onPress: () => goAnalytics('inventory') })),
-    ...(sum && sum.receivable > 0 ? [{ key: 'debts', icon: 'person-outline' as const, title: 'Te deben', sub: 'Toca para ver quién y recordarles', amount: formatPesos(sum.receivable), onPress: goDebts }] : []),
-    ...(sum && sum.payable > 0 ? [{ key: 'pay', icon: 'car-outline' as const, title: 'Debes', sub: 'A tus proveedores', amount: formatPesos(sum.payable), onPress: goDebts }] : []),
   ].slice(0, 3);
 
+  const accountsSub = sum && (sum.receivable > 0 || sum.payable > 0) ? [sum.receivable > 0 ? `Te deben ${formatPesos(sum.receivable)}` : null, sum.payable > 0 ? `Debes ${formatPesos(sum.payable)}` : null].filter(Boolean).join(' · ') : 'Nada pendiente por ahora';
   const w = week.data;
   const weekSub = w && w.current.sales_total > 0 ? [`Vendiste ${formatPesos(w.current.sales_total)}`, deltaWords(w.current.sales_total, w.previous.sales_total, 'la anterior')].filter(Boolean).join(' · ') : 'Tu primer resumen, con lo que llevas';
 
@@ -332,6 +331,8 @@ export default function LedgerHome() {
 
         <SystemGroup>
           <SystemRow first icon="bar-chart-outline" title="Ver cómo te ha ido esta semana" sub={weekSub} onPress={() => goAnalytics()} />
+          <SystemRow icon="people-outline" title="Te deben y debes" sub={accountsSub} onPress={goDebts} />
+          <SystemRow icon="cube-outline" title="Inventario" sub={stockAlerts.length ? `${stockAlerts.length === 1 ? '1 producto se acaba' : `${stockAlerts.length} productos se acaban`}` : 'Lo que tienes y lo que te queda'} alert={stockAlerts.length > 0} onPress={() => router.push({ pathname: '/business/products/[id]', params: { id: entityId } })} />
         </SystemGroup>
 
         {movements.length > 0 ? (
