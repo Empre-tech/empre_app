@@ -18,6 +18,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { notifyError } from '@/components/Notice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { catalogApi } from '@/api/catalog';
 import { entitiesApi, paymentsApi, reviewsApi } from '@/api/endpoints';
@@ -195,7 +196,7 @@ export default function BusinessScreen() {
       ]);
     } catch (e) {
       setIsFavorite(!next);
-      Alert.alert('No pudimos actualizar lo que sigues', e instanceof Error ? e.message : 'Intenta de nuevo.');
+      notifyError('No pudimos actualizar lo que sigues', e instanceof Error ? e.message : 'Intenta de nuevo.');
     } finally {
       setFavoriting(false);
     }
@@ -253,7 +254,7 @@ export default function BusinessScreen() {
       ]);
       setReviewModalOpen(false);
     } catch (e) {
-      Alert.alert('No pudimos guardar tu reseña', e instanceof Error ? e.message : 'Intenta de nuevo.');
+      notifyError('No pudimos guardar tu reseña', e instanceof Error ? e.message : 'Intenta de nuevo.');
     } finally {
       setSavingReview(false);
     }
@@ -277,7 +278,7 @@ export default function BusinessScreen() {
             ]);
             setReviewModalOpen(false);
           } catch (e) {
-            Alert.alert('No pudimos eliminar', e instanceof Error ? e.message : 'Intenta de nuevo.');
+            notifyError('No pudimos eliminar', e instanceof Error ? e.message : 'Intenta de nuevo.');
           } finally {
             setDeletingReview(false);
           }

@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { notifyError } from '@/components/Notice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi } from '@/api/endpoints';
 import type { Photo } from '@/api/types';
@@ -125,7 +126,7 @@ function PhotoEditor({ photo, entityId, businessName, categoryName, onClose, onC
       await onChanged();
       onClose();
     } catch (e) {
-      Alert.alert('No pudimos guardar', e instanceof Error ? e.message : 'Intenta de nuevo.');
+      notifyError('No pudimos guardar', e instanceof Error ? e.message : 'Intenta de nuevo.');
     } finally {
       setSaving(false);
     }
@@ -144,7 +145,7 @@ function PhotoEditor({ photo, entityId, businessName, categoryName, onClose, onC
             await onChanged();
             onClose();
           } catch (e) {
-            Alert.alert('No pudimos eliminar', e instanceof Error ? e.message : 'Intenta de nuevo.');
+            notifyError('No pudimos eliminar', e instanceof Error ? e.message : 'Intenta de nuevo.');
             setDeleting(false);
           }
         },

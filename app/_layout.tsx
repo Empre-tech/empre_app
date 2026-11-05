@@ -20,6 +20,7 @@ import { ChatProvider } from '@/chat/ChatProvider';
 import { usePushNotifications } from '@/notifications/usePushNotifications';
 import { UploadCapsule } from '@/upload/UploadCapsule';
 import { initUploads } from '@/upload/uploadStore';
+import { NoticeHost } from '@/components/Notice';
 import { flushLedger, initLedgerOutbox } from '@/ledger/ledgerStore';
 import { colors } from '@/theme';
 
@@ -106,6 +107,7 @@ export default function RootLayout() {
             <StatusBar style="dark" />
             <AppStack />
             <UploadCapsule />
+            <NoticeHost />
           </ChatProvider>
         </AuthProvider>
       </QueryClientProvider>

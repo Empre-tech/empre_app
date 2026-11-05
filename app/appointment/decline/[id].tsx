@@ -2,7 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { notifyError } from '@/components/Notice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi } from '@/api/agenda';
 import { Button } from '@/components/Button';
@@ -46,7 +47,7 @@ export default function DeclineScreen() {
       void queryClient.invalidateQueries({ queryKey: ['appointments'] });
       router.back();
     },
-    onError: (error: Error) => Alert.alert('No se pudo rechazar', error.message === 'bad_state' ? 'Esta solicitud ya cambió de estado.' : error.message),
+    onError: (error: Error) => notifyError('No se pudo rechazar', error.message === 'bad_state' ? 'Esta solicitud ya cambió de estado.' : error.message),
   });
 
   if (!appt) {

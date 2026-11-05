@@ -2,7 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { notifyError } from '@/components/Notice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi, type Appointment } from '@/api/agenda';
 import { Button } from '@/components/Button';
@@ -54,7 +55,7 @@ export default function AgentInboxScreen() {
     mutationFn: (apptId: string) => agendaApi.accept(apptId),
     onSuccess: reload,
     onError: (e: Error) => {
-      Alert.alert('No se pudo aceptar', e.message === 'bad_state' ? 'Esta solicitud ya venció o cambió.' : e.message);
+      notifyError('No se pudo aceptar', e.message === 'bad_state' ? 'Esta solicitud ya venció o cambió.' : e.message);
       reload();
     },
   });

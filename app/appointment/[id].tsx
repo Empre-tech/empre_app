@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { notifyError } from '@/components/Notice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi, type Appointment } from '@/api/agenda';
 import { useAuth } from '@/auth/AuthContext';
@@ -82,7 +83,7 @@ export default function AppointmentScreen() {
   const onError = (error: Error) => {
     const message =
       error.message === 'bad_state' ? 'Esta cita ya cambió de estado. Actualizamos la pantalla.' : error.message;
-    Alert.alert('No se pudo completar', message);
+    notifyError('No se pudo completar', message);
     void query.refetch();
   };
 

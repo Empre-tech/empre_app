@@ -15,6 +15,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { notifyError } from '@/components/Notice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { adminApi, categoriesApi } from '@/api/endpoints';
 import type { Category, Subcategory } from '@/api/types';
@@ -97,7 +98,7 @@ export default function AdminCategoriesScreen() {
               await adminApi.deleteCategory(category.id);
               await invalidateCategories();
             } catch (e) {
-              Alert.alert('No pudimos eliminar la categoría', e instanceof Error ? e.message : 'Inténtalo de nuevo.');
+              notifyError('No pudimos eliminar la categoría', e instanceof Error ? e.message : 'Inténtalo de nuevo.');
             }
           },
         },
@@ -116,7 +117,7 @@ export default function AdminCategoriesScreen() {
             await adminApi.deleteSubcategory(sub.id);
             await invalidateCategories();
           } catch (e) {
-            Alert.alert('No pudimos eliminar la subcategoría', e instanceof Error ? e.message : 'Inténtalo de nuevo.');
+            notifyError('No pudimos eliminar la subcategoría', e instanceof Error ? e.message : 'Inténtalo de nuevo.');
           }
         },
       },
