@@ -12,13 +12,17 @@ interface Props {
   filterCount: number;
   /** En el mapa usamos versión compacta de 1 línea para dejar más área de mapa libre. */
   compact?: boolean;
+  /** Avisa cuando el campo gana o pierde el foco. */
+  onFocusChange?: (focused: boolean) => void;
+  /** Sin el botón de filtros: los filtros viven en el panel de búsqueda. */
+  hideFilters?: boolean;
 }
 
 /**
  * Buscador de Explorar en doble nivel (pregunta principal + contexto debajo cuando está en reposo)
  * o versión compacta de 1 línea sobre el mapa, con el botón de Filtros dentro a la derecha.
  */
-export function SearchBar({ value, onChangeText, onOpenFilters, filterCount, compact }: Props) {
+export function SearchBar({ value, onChangeText, onOpenFilters, filterCount, compact, onFocusChange, hideFilters }: Props) {
   const active = filterCount > 0;
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
@@ -47,8 +51,14 @@ export function SearchBar({ value, onChangeText, onOpenFilters, filterCount, com
           ref={inputRef}
           value={value}
           onChangeText={onChangeText}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onFocus={() => {
+            setFocused(true);
+            onFocusChange?.(true);
+          }}
+          onBlur={() => {
+            setFocused(false);
+            onFocusChange?.(false);
+          }}
           placeholder={showTwoLevel ? '' : compact ? 'Busca negocios, ofertas o servicios…' : 'Busca un negocio, categoría o barrio'}
           placeholderTextColor={colors.muted}
           style={[styles.input, showTwoLevel && styles.inputTransparent]}
@@ -72,7 +82,7 @@ export function SearchBar({ value, onChangeText, onOpenFilters, filterCount, com
           </View>
         </Pressable>
       ) : null}
-      <Pressable
+      {hideFilters ? null : <Pressable
         accessibilityRole="button"
         accessibilityLabel={active ? `Abrir filtros, ${filterCount} activos` : 'Abrir filtros'}
         onPress={onOpenFilters}
@@ -85,7 +95,7 @@ export function SearchBar({ value, onChangeText, onOpenFilters, filterCount, com
             <Text style={styles.badgeText}>{filterCount}</Text>
           </View>
         ) : null}
-      </Pressable>
+      </Pressable>}
     </View>
   );
 }

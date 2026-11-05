@@ -3,7 +3,6 @@ import { Image } from 'expo-image';
 import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Marker } from 'react-native-maps';
-import { categoryColor } from '@/lib/categoryColor';
 import { pinLabel } from '@/lib/markerLabels';
 import { resolveImageUrl } from '@/lib/image';
 import type { EmphasisTier } from '@/lib/proximity';
@@ -40,19 +39,20 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
   const look = [tier, emphasis ?? '', selected ? 's' : '', mine ? 'm' : '', entity.has_active_offer ? 'o' : '', entity.is_open_now ? 'a' : 'c', closesSoon(entity.closes_at) ? 'p' : '', distanceLabel ?? ''].join('|');
   const { tracking, onLayout, onImageSettled, markerRef } = useMarkerTracking(look);
 
-  const cat = categoryColor(entity.category_color);
+  // Los pines no llevan color por categoría: el aro naranja dice oferta y el punto, cómo está.
+  const cat = { fg: colors.ink, bg: colors.selectedSoft };
   const open = entity.has_hours ? entity.is_open_now : true;
   const icon = (entity.category_icon || 'storefront') as keyof typeof Ionicons.glyphMap;
   const thumb = entity.profile_url ? resolveImageUrl(entity.profile_url) : null;
   const hasOffer = entity.has_active_offer;
   const showRayo = hasOffer && (entity.active_offer?.type === 'HORAS' || entity.active_offer?.type === 'DIA');
-  const borderColor = selected ? colors.primary : hasOffer ? colors.accent : '#ffffff';
+  const borderColor = selected ? colors.ink : hasOffer ? colors.accent : '#ffffff';
   const statusColor = !open ? '#8796AB' : closesSoon(entity.closes_at) ? colors.warning : '#14B8B0';
   const coordinate = { latitude: entity.latitude, longitude: entity.longitude };
 
   if (emphasis) {
     const closed = entity.has_hours && !entity.is_open_now;
-    const ring = selected ? colors.primary : closed ? '#8796AB' : hasOffer ? colors.accent : emphasis === 'big' ? colors.primary : '#ffffff';
+    const ring = selected ? colors.ink : closed ? '#8796AB' : hasOffer ? colors.accent : emphasis === 'big' ? colors.primary : '#ffffff';
     const faded = closed ? styles.closedFade : null;
     return (
       <Marker

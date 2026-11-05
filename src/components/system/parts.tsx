@@ -2,12 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { EmpreSymbol, type EmpreProduct } from '@/components/EmpreSymbol';
 import { colors, fonts, softShadow } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-/** Arriba, igual en Hoy y en Análisis: volver y de qué negocio se trata. */
-export function FinanceHead({ lead, name }: { lead: string; name?: string }) {
+/** Arriba, igual en cada pantalla interna: volver y de qué se trata. */
+export function SystemHead({ lead, name }: { lead: string; name?: string }) {
   const router = useRouter();
   return (
     <View style={styles.head}>
@@ -24,7 +25,7 @@ export function FinanceHead({ lead, name }: { lead: string; name?: string }) {
   );
 }
 
-export function FinanceTitle({ children }: { children: string }) {
+export function SystemTitle({ children }: { children: string }) {
   return (
     <Text style={styles.title} accessibilityRole="header">
       {children}
@@ -33,7 +34,7 @@ export function FinanceTitle({ children }: { children: string }) {
 }
 
 /** Una sección: su título y, si hay, un enlace al detalle. */
-export function FinanceSection({ title, link, onLink, children }: { title: string; link?: string; onLink?: () => void; children: ReactNode }) {
+export function SystemSection({ title, link, onLink, children }: { title: string; link?: string; onLink?: () => void; children: ReactNode }) {
   return (
     <View style={styles.section}>
       <View style={styles.sectionHead}>
@@ -51,19 +52,23 @@ export function FinanceSection({ title, link, onLink, children }: { title: strin
   );
 }
 
-export function FinanceGroup({ children }: { children: ReactNode }) {
+export function SystemGroup({ children }: { children: ReactNode }) {
   return <View style={styles.group}>{children}</View>;
 }
 
 /** Una fila. Lo urgente lleva un punto, no otro color. Sin `onPress` es solo un dato. */
-export function FinanceRow({ icon, title, sub, amount, alert, first, onPress }: { icon: IconName; title: string; sub?: string; amount?: string; alert?: boolean; first?: boolean; onPress?: () => void }) {
+export function SystemRow({ icon, symbol, tag, product, title, sub, amount, alert, first, onPress }: { icon: IconName; symbol?: EmpreProduct; tag?: string; product?: string; title: string; sub?: string; amount?: string; alert?: boolean; first?: boolean; onPress?: () => void }) {
   const body = (
     <>
       <View style={styles.rowIcon}>
-        <Ionicons name={icon} size={18} color={colors.ink} />
+        {symbol ? <EmpreSymbol product={symbol} size={28} /> : <Ionicons name={icon} size={18} color={colors.ink} />}
       </View>
       <View style={styles.rowText}>
-        <Text style={styles.rowTitle}>{title}</Text>
+        {tag ? <Text style={styles.rowTag}>{tag}</Text> : null}
+        <View style={styles.rowTop}>
+          <Text style={styles.rowTitle}>{title}</Text>
+          {product ? <Text style={styles.rowTag}>{product}</Text> : null}
+        </View>
         {sub ? (
           <View style={styles.rowSubLine}>
             {alert ? <View style={styles.dot} /> : null}
@@ -85,6 +90,18 @@ export function FinanceRow({ icon, title, sub, amount, alert, first, onPress }: 
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={[title, amount, sub].filter(Boolean).join('. ')} onPress={onPress} style={({ pressed }) => [styles.row, !first && styles.rowLine, pressed && { opacity: 0.85 }]}>
       {body}
+    </Pressable>
+  );
+}
+
+/** Un acceso de la fila de tres: siempre el mismo cuadro, en cualquier pantalla. */
+export function ActionTile({ icon, label, selected, onPress, width }: { icon: IconName; label: string; selected?: boolean; onPress: () => void; width?: number }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityState={{ selected: Boolean(selected) }} onPress={onPress} style={({ pressed }) => [styles.tile, width ? { width } : styles.tileFlex, selected && styles.tileOn, pressed && { opacity: 0.8 }]}>
+      <Ionicons name={icon} size={22} color={colors.ink} />
+      <Text style={styles.tileText} numberOfLines={2}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -123,12 +140,18 @@ const styles = StyleSheet.create({
   rowLine: { borderTopWidth: 1, borderTopColor: colors.selectedSoft },
   rowIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
   rowText: { flex: 1, minWidth: 0, gap: 1 },
+  rowTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 6 },
+  rowTag: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.faint },
   rowTitle: { flexShrink: 1, fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   rowSubLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.brand },
   rowSub: { flexShrink: 1, fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.semibold, color: colors.muted },
   rowSubAlert: { fontFamily: fonts.ui.extrabold, color: colors.ink },
   rowAmount: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  tile: { minHeight: 84, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 6, paddingVertical: 8, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
+  tileFlex: { flex: 1, minWidth: 0 },
+  tileOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
+  tileText: { fontSize: 12.5, lineHeight: 15, textAlign: 'center', fontFamily: fonts.ui.extrabold, color: colors.ink },
   share: { gap: 6, paddingVertical: 10 },
   shareHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   track: { height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: colors.selectedSoft },

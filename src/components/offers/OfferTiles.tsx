@@ -1,30 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Cover } from '@/components/Cover';
 import { categoryColor } from '@/lib/categoryColor';
-import { resolveImageUrl } from '@/lib/image';
 import { displayIcon } from '@/lib/mapView';
-import { photoTone } from '@/lib/photoTone';
 import { distanceLabel, featuredA11y, featuredClock, priceView, tileA11y, timeBadge, zoneSubtitle, type MarketItem, type MarketZone } from '@/lib/offerMarket';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-/** Foto del negocio o, sin foto, un tono de tinta del lienzo con su icono en blanco. */
+/** Foto del negocio o, sin foto, su portada. */
 function Photo({ item, style, size }: { item: MarketItem; style: object; size: 'sm' | 'md' | 'lg' }) {
-  const uri = item.photo ? resolveImageUrl(item.photo) : null;
-  return (
-    <View style={[style, { backgroundColor: photoTone(item.entity_id) }]}>
-      {uri ? (
-        <Image accessible={false} source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" recyclingKey={uri} transition={180} />
-      ) : (
-        <Ionicons name={displayIcon(item.category_icon) as IconName} size={DIMS[size]} color="#fff" />
-      )}
-    </View>
-  );
+  return <Cover photo={item.photo} category={item.category_name} icon={item.category_icon} iconName={displayIcon(item.category_icon) as IconName} iconSize={DIMS[size]} style={style} />;
 }
-const DIMS = { sm: 26, md: 34, lg: 44 };
+const DIMS = { sm: 30, md: 56, lg: 72 };
 
 function Price({ item, big }: { item: MarketItem; big?: boolean }) {
   const p = priceView(item);

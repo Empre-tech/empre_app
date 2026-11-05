@@ -8,6 +8,8 @@ import { categoryColor } from '@/lib/categoryColor';
 import { resolveImageUrl } from '@/lib/image';
 import type { coverSource } from '@/lib/profileLayout';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { Cover } from '@/components/Cover';
+import { displayIcon } from '@/lib/mapView';
 
 export interface HeroSlide {
   url: string;
@@ -61,6 +63,7 @@ export function ProfileHero({ name, categoryLabel, tagline, color, icon, profile
   return (
     <View>
       <View style={[styles.hero, { height, backgroundColor: cat.fg }]}>
+        {slides.length === 0 && !image ? <Cover category={categoryLabel} icon={icon} iconName={displayIcon(icon) as keyof typeof Ionicons.glyphMap} iconSize={96} style={StyleSheet.absoluteFill} /> : null}
         {slides.length > 0 ? (
           <ScrollView
             horizontal

@@ -9,7 +9,7 @@ import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi, type Analytics, type InvLine, type ProductStat } from '@/api/ledger';
 import { EmptyState } from '@/components/EmptyState';
 import { HBars, HeatGrid } from '@/components/finance/Charts';
-import { FinanceGroup, FinanceHead, FinanceRow, FinanceSection, FinanceTitle, ShareRow } from '@/components/finance/parts';
+import { SystemGroup, SystemHead, SystemRow, SystemSection, SystemTitle, ShareRow } from '@/components/system/parts';
 import { RangeSheet } from '@/components/finance/RangeSheet';
 import { bestSlot, bucketLabel, dayLong, deltaWords, leftOf, lowMargin, marginPct, presetRange, rangeFromParams, rangeTitle, rankProducts, todayCO, topMismatch, type DateRange } from '@/lib/finance';
 import { categoryLabel, formatPesos, METHOD_LABEL, pendingCredit, pendingTotals } from '@/lib/ledger';
@@ -52,8 +52,8 @@ export default function AnalyticsScreen() {
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={[styles.body, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + spacing.xxl }]} refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => void q.refetch()} />}>
         <View style={styles.top}>
-          <FinanceHead lead="Análisis de" name={entity.data?.name} />
-          <FinanceTitle>{detail ? DETAIL_TITLE[detail] : 'Cómo te ha ido'}</FinanceTitle>
+          <SystemHead lead="Análisis de" name={entity.data?.name} />
+          <SystemTitle>{detail ? DETAIL_TITLE[detail] : 'Cómo te ha ido'}</SystemTitle>
           {firstDays && a ? (
             <View style={styles.firstBar}>
               <Text style={styles.firstText}>Tus primeros días</Text>
@@ -159,7 +159,7 @@ function SalesTrend({ a }: { a: Analytics }) {
   if (hi >= 0 && offs[hi] > 8) parts.push(`${dayLong(a.series[hi].start)}: ${offs[hi]} % más de lo normal`);
   if (lo >= 0 && offs[lo] < -8) parts.push(`${dayLong(a.series[lo].start)}: ${-offs[lo]} % menos`);
   return (
-    <FinanceSection title="Cómo van las ventas">
+    <SystemSection title="Cómo van las ventas">
       <View style={styles.card}>
         <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} accessibilityRole="image" accessibilityLabel={`Ventas: ${formatPesos(a.current.sales_total)}. Periodo anterior: ${formatPesos(a.previous.sales_total)}.`} style={{ height: H }}>
           {width > 0 ? (
@@ -175,7 +175,7 @@ function SalesTrend({ a }: { a: Analytics }) {
         </View>
         {parts.length ? <Text style={styles.cardTitle}>{parts.join(' · ')}</Text> : null}
       </View>
-    </FinanceSection>
+    </SystemSection>
   );
 }
 
@@ -276,26 +276,26 @@ function Summary({ a, entityId, range, firstDays, onDetail }: { a: Analytics; en
       </View>
 
       {todo.length > 0 ? (
-        <FinanceSection title="Qué hacer">
-          <FinanceGroup>
+        <SystemSection title="Qué hacer">
+          <SystemGroup>
             {todo.map(({ key, ...t }, i) => (
-              <FinanceRow key={key} first={i === 0} {...t} />
+              <SystemRow key={key} first={i === 0} {...t} />
             ))}
-          </FinanceGroup>
-        </FinanceSection>
+          </SystemGroup>
+        </SystemSection>
       ) : null}
 
       {topList.length > 0 ? (
-        <FinanceSection title={hasCosts ? 'Lo que más te deja' : 'Lo que más vendes'} link={a.products.length > 3 || low ? 'Ver todos' : undefined} onLink={() => onDetail('products')}>
-          <FinanceGroup>
+        <SystemSection title={hasCosts ? 'Lo que más te deja' : 'Lo que más vendes'} link={a.products.length > 3 || low ? 'Ver todos' : undefined} onLink={() => onDetail('products')}>
+          <SystemGroup>
             {topList.map((x, i) => (
               <View key={x.ref}>
                 <ShareRow first={i === 0} label={x.name} value={formatPesos(hasCosts ? x.profit ?? 0 : x.revenue)} share={((hasCosts ? x.profit ?? 0 : x.revenue) / topMax) * 100} />
                 <Text style={[styles.meta, { marginTop: -6, paddingBottom: 8 }]}>{hasCosts ? `Vendiste ${formatPesos(x.revenue)} · te deja ${Math.round(x.margin_pct ?? 0)} %` : `${String(Math.round(x.qty * 10) / 10).replace('.', ',')} und`}</Text>
               </View>
             ))}
-          </FinanceGroup>
-        </FinanceSection>
+          </SystemGroup>
+        </SystemSection>
       ) : null}
 
       {!firstDays ? (
@@ -307,56 +307,56 @@ function Summary({ a, entityId, range, firstDays, onDetail }: { a: Analytics; en
           </View>
           <SalesTrend a={a} />
           {c.sales_count >= MIN_FOR_HEAT ? (
-            <FinanceSection title="Cuándo vendes más">
+            <SystemSection title="Cuándo vendes más">
               <View style={styles.card}>
                 {best ? <Text style={styles.cardTitle}>Tu mejor momento: {best}</Text> : null}
                 <HeatGrid heat={a.heat} />
               </View>
-            </FinanceSection>
+            </SystemSection>
           ) : null}
           {source && sourceTotal > 0 ? (
-            <FinanceSection title="De dónde vinieron">
-              <FinanceGroup>
+            <SystemSection title="De dónde vinieron">
+              <SystemGroup>
                 <ShareRow first label="Manual" value={formatPesos(source.manual)} share={(source.manual / sourceTotal) * 100} />
                 <ShareRow label="Empre Offers" value={formatPesos(source.offers)} share={(source.offers / sourceTotal) * 100} color={colors.accent} />
                 <ShareRow label="Agenda" value={formatPesos(source.agenda)} share={(source.agenda / sourceTotal) * 100} />
-              </FinanceGroup>
-            </FinanceSection>
+              </SystemGroup>
+            </SystemSection>
           ) : null}
           {cats.length > 0 ? (
-            <FinanceSection title="En qué gastaste">
-              <FinanceGroup>
+            <SystemSection title="En qué gastaste">
+              <SystemGroup>
                 {cats.slice(0, 4).map(([k, v], i) => (
                   <ShareRow key={k} first={i === 0} label={categoryLabel(k)} value={formatPesos(v)} share={(v / cats[0][1]) * 100} />
                 ))}
-              </FinanceGroup>
-            </FinanceSection>
+              </SystemGroup>
+            </SystemSection>
           ) : null}
           {pays.length > 0 ? (
-            <FinanceSection title="Cómo te pagaron">
-              <FinanceGroup>
+            <SystemSection title="Cómo te pagaron">
+              <SystemGroup>
                 {pays.map((x, i) => (
                   <ShareRow key={x.label} first={i === 0} label={x.label} value={formatPesos(x.value)} share={(x.value / payTotal) * 100} />
                 ))}
-              </FinanceGroup>
-            </FinanceSection>
+              </SystemGroup>
+            </SystemSection>
           ) : null}
           {inv.value_cost > 0 ? (
-            <FinanceSection title="Tu mercancía" link="Ver inventario" onLink={() => onDetail('inventory')}>
-              <FinanceGroup>
-                <FinanceRow first icon="cube-outline" title={`${formatPesos(inv.value_cost)} en mercancía`} sub={inv.value_price > inv.value_cost ? `Si lo vendes todo, ganarías ${formatPesos(inv.value_price - inv.value_cost)}` : `Con ${inv.valued} de ${inv.products} productos`} onPress={() => onDetail('inventory')} />
-                {inv.lost_total > 0 ? <FinanceRow icon="alert-circle-outline" title={`Perdiste ${formatPesos(inv.lost_total)}`} sub="Se dañó, venció o se perdió en estas fechas" onPress={() => onDetail('inventory')} /> : null}
-              </FinanceGroup>
-            </FinanceSection>
+            <SystemSection title="Tu mercancía" link="Ver inventario" onLink={() => onDetail('inventory')}>
+              <SystemGroup>
+                <SystemRow first icon="cube-outline" title={`${formatPesos(inv.value_cost)} en mercancía`} sub={inv.value_price > inv.value_cost ? `Si lo vendes todo, ganarías ${formatPesos(inv.value_price - inv.value_cost)}` : `Con ${inv.valued} de ${inv.products} productos`} onPress={() => onDetail('inventory')} />
+                {inv.lost_total > 0 ? <SystemRow icon="alert-circle-outline" title={`Perdiste ${formatPesos(inv.lost_total)}`} sub="Se dañó, venció o se perdió en estas fechas" onPress={() => onDetail('inventory')} /> : null}
+              </SystemGroup>
+            </SystemSection>
           ) : null}
         </>
       ) : (
-        <FinanceSection title="Lo que viene">
-          <FinanceGroup>
-            <FinanceRow first icon="bar-chart-outline" title="Cómo van tus ventas" sub={`Faltan ${Math.max(1, FIRST_DAYS - a.series.filter((x) => x.sales > 0).length)} días con ventas para comparar`} />
-            <FinanceRow icon="time-outline" title="Cuándo vendes más" sub="Con más ventas lo sabrás" />
-          </FinanceGroup>
-        </FinanceSection>
+        <SystemSection title="Lo que viene">
+          <SystemGroup>
+            <SystemRow first icon="bar-chart-outline" title="Cómo van tus ventas" sub={`Faltan ${Math.max(1, FIRST_DAYS - a.series.filter((x) => x.sales > 0).length)} días con ventas para comparar`} />
+            <SystemRow icon="time-outline" title="Cuándo vendes más" sub="Con más ventas lo sabrás" />
+          </SystemGroup>
+        </SystemSection>
       )}
     </>
   );

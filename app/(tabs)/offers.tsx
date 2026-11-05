@@ -1,12 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import * as Location from 'expo-location';
-import MapView, { Marker } from 'react-native-maps';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, BackHandler, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { categoriesApi } from '@/api/endpoints';
 import { claimsApi, offersApi } from '@/api/offers';
@@ -15,13 +13,13 @@ import { Button } from '@/components/Button';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { ZoneButton, ZoneList } from '@/components/ZoneButton';
 import { UpdatingBar } from '@/components/explore/LoadingMotion';
-import { useMarkerTracking } from '@/components/explore/useMarkerTracking';
 import { Reveal } from '@/components/offers/MarketMotion';
+import { Showcase } from '@/components/offers/Showcase';
+import { ActionTile } from '@/components/system/parts';
 import { FeaturedOffer, OfferRow, OfferTile, TILE_GAP, TILE_W, ZONE_W, ZoneCard } from '@/components/offers/OfferTiles';
 import { SkeletonBlock } from '@/components/Skeleton';
 import { loadLastCity, saveLastCity } from '@/lib/lastCityStore';
 import { displayIcon } from '@/lib/mapView';
-import { MAP_STYLE } from '@/lib/mapStyle';
 import { planHour, planKey, planLevel, planTag, planTitle, planWalk } from '@/lib/plans';
 import {
   distanceLabel,
@@ -29,7 +27,6 @@ import {
   endText,
   flattenPages,
   pesos,
-  priceView,
   listTitle,
   nearEnd,
   showZones,
@@ -193,13 +190,15 @@ export default function OffersScreen() {
     const first = onMap.find((o) => o.id === pin) ?? onMap[0];
     return first ? [first, ...onMap.filter((o) => o.id !== first.id)] : [];
   }, [onMap, pin]);
-  const mapCenter = center ?? (ordered[0] ? { latitude: ordered[0].latitude!, longitude: ordered[0].longitude! } : null);
   const sections = q ? [] : visibleSections(data);
   // Sin ubicaciones en el mapa, la fila igual muestra lo que hay.
   const railItems = ordered.length ? ordered : (data?.near ?? []).filter((o) => o.kind !== 'service').slice(0, 12);
   const zonesOn = !q && showZones(data);
   const zoneName = data?.zones.find((z) => z.id === zoneId)?.name;
   const zoneLabel = picked?.name ?? (data?.zone || (coords ? 'Cerca de ti' : city || 'Tu ciudad'));
+  // La vitrina: las tres que terminan primero. Las demás siguen abajo, sin repetirse.
+  const showcase = useMemo(() => [...railItems].sort((a, b) => (a.ends_at ?? '9').localeCompare(b.ends_at ?? '9')).slice(0, 3), [railItems]);
+  const restItems = railItems.filter((o) => !showcase.some((x) => x.id === o.id));
   const zoneTitle = picked ? `Ofertas en ${picked.name}` : coords ? 'Ofertas a pasos de ti' : city ? `Ofertas en ${city}` : 'Ofertas';
 
   // Barra compacta: aparece al bajar (por umbral, no con cada píxel).
@@ -278,15 +277,6 @@ export default function OffersScreen() {
       </Animated.View>
 
       <ScrollView ref={scrollRef} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" onScroll={onScroll} scrollEventThrottle={64}>
-        <Svg pointerEvents="none" width="100%" height={300} style={styles.wash}>
-          <Defs>
-            <LinearGradient id="wash" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor={colors.selectedSoft} />
-              <Stop offset="1" stopColor={colors.bg} />
-            </LinearGradient>
-          </Defs>
-          <Rect width="100%" height={300} fill="url(#wash)" />
-        </Svg>
         <View style={styles.top}>
           {home ? <EmpreSymbol size={26} /> : (
             <Pressable accessibilityRole="button" accessibilityLabel="Volver a Ofertas" onPress={closeAll} style={styles.round}>
@@ -294,11 +284,6 @@ export default function OffersScreen() {
             </Pressable>
           )}
           <ZoneButton lead={picked ? 'Estás viendo' : 'Estás en'} name={zoneLabel} open={zonesOpen} disabled={!data?.zones.length} onPress={() => setZonesOpen((v) => !v)} />
-          {home ? (
-            <Pressable accessibilityRole="button" accessibilityLabel="Buscar ofertas" onPress={() => openAll(true)} style={styles.round}>
-              <Ionicons name="search" size={20} color={colors.ink} />
-            </Pressable>
-          ) : null}
           <Pressable accessibilityRole="button" accessibilityLabel={`Mis salidas${activeClaims ? `: ${activeClaims} por usar` : ''}`} onPress={() => router.push('/salidas')} style={styles.round}>
             <Ionicons name="ticket-outline" size={20} color={colors.ink} style={{ transform: [{ rotate: '45deg' }] }} />
             {activeClaims ? <View style={styles.roundDot} /> : null}
@@ -325,50 +310,33 @@ export default function OffersScreen() {
           <Text style={styles.hero} accessibilityRole="header">
             {home ? zoneTitle : 'Todas las ofertas'}
           </Text>
-          {home && railItems.length > 0 ? (
-            <View style={styles.livePill}>
-              <View style={styles.liveDot} />
-              <Text style={styles.livePillText}>{railItems.length === 1 ? '1 activa' : `${railItems.length} activas`}</Text>
-            </View>
-          ) : null}
         </View>
 
-        {home && mapCenter && ordered.length ? (
-          <View style={styles.mapCard}>
-            <MapView
-              key={`${mapCenter.latitude.toFixed(3)},${mapCenter.longitude.toFixed(3)}`}
-              style={StyleSheet.absoluteFill}
-              initialRegion={{ latitude: mapCenter.latitude, longitude: mapCenter.longitude, latitudeDelta: 0.014, longitudeDelta: 0.014 }}
-              showsUserLocation={Boolean(coords) && !picked}
-              showsPointsOfInterests={false}
-              customMapStyle={MAP_STYLE}
-              toolbarEnabled={false}
-              rotateEnabled={false}
-              pitchEnabled={false}
-            >
-              {ordered.map((o) => {
-                const on = o.id === ordered[0].id;
-                return <OfferMapPin key={o.id} item={o} selected={on} onPress={() => setPin(o.id)} />;
-              })}
-            </MapView>
-            <View style={styles.mapZone} pointerEvents="none">
-              <View style={styles.mapZoneDot} />
-              <Text style={styles.mapZoneText} numberOfLines={1}>
-                {zoneLabel}
+        {home ? (
+          <View style={styles.pad}>
+            <Pressable accessibilityRole="search" accessibilityLabel="Buscar ofertas" onPress={() => openAll(true)} style={styles.field}>
+              <Ionicons name="search" size={20} color={colors.ink} />
+              <Text style={styles.fieldText} numberOfLines={1}>
+                Buscar ofertas en esta zona
               </Text>
-            </View>
-            <Pressable accessibilityRole="button" onPress={() => router.push('/map')} style={styles.mapBtn}>
-              <Ionicons name="expand-outline" size={14} color={colors.ink} />
-              <Text style={styles.mapBtnText}>Abrir mapa</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Abrir el mapa de ofertas" onPress={() => router.push('/map')} style={styles.fieldSlot}>
+                <Ionicons name="map-outline" size={18} color={colors.ink} />
+              </Pressable>
             </Pressable>
+            {showcase.length ? <Showcase items={showcase} now={now} onOpen={open} /> : null}
+            {(categories.data ?? []).length ? <Text style={styles.tilesLabel}>Por tipo de negocio</Text> : null}
           </View>
         ) : null}
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats} accessibilityLabel="Categorías">
-          <Chip label="Todas" active={!catId} onPress={() => setCatId(undefined)} />
-          {(categories.data ?? []).map((c) => (
-            <Chip key={c.id} label={c.name} icon={c.icon} active={catId === c.id} onPress={() => setCatId(catId === c.id ? undefined : c.id)} />
-          ))}
+          {home ? null : <Chip label="Todas" active={!catId} onPress={() => setCatId(undefined)} />}
+          {(categories.data ?? []).map((c) =>
+            home ? (
+              <ActionTile key={c.id} width={108} icon={displayIcon(c.icon) as keyof typeof Ionicons.glyphMap} label={c.name} selected={catId === c.id} onPress={() => setCatId(catId === c.id ? undefined : c.id)} />
+            ) : (
+              <Chip key={c.id} label={c.name} icon={c.icon} active={catId === c.id} onPress={() => setCatId(catId === c.id ? undefined : c.id)} />
+            ),
+          )}
         </ScrollView>
 
         {!showAll && !hasLoc && ready ? (
@@ -387,7 +355,7 @@ export default function OffersScreen() {
                 {ordered.length && zoneLabel ? (zoneLabel === 'Cerca de ti' ? 'Cerca de ti, ahora' : `En ${zoneLabel}, ahora`) : city ? `En ${city}, ahora` : 'Ahora'}
               </Text>
               <Pressable accessibilityRole="link" onPress={() => openAll(false)} style={styles.seeAll}>
-                <Text style={styles.seeAllText}>Ver todas</Text>
+                <Text style={styles.seeAllText}>{restItems.length ? 'Ver todas' : 'Ver más ofertas'}</Text>
               </Pressable>
             </View>
             {!data && (market.isLoading || !ready) ? (
@@ -398,11 +366,11 @@ export default function OffersScreen() {
               </View>
             ) : null}
             {data && !railItems.length ? <Text style={styles.none}>{`Hoy no hay ofertas aquí${catId ? ' en esta categoría' : ''}. Prueba otra zona o mira todas.`}</Text> : null}
-            {railItems.length ? (
+            {restItems.length ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail} snapToInterval={TILE_W + TILE_GAP} decelerationRate="fast" snapToAlignment="start">
-                {railItems.map((o, i) => (
+                {restItems.map((o, i) => (
                   <Reveal key={o.id} delay={80 + Math.min(i, 5) * 50} distance={6} duration={280}>
-                    <OfferTile item={o} now={now} selected={i === 0 && ordered.length > 0} onPress={() => open(o)} />
+                    <OfferTile item={o} now={now} onPress={() => open(o)} />
                   </Reveal>
                 ))}
               </ScrollView>
@@ -591,41 +559,6 @@ export default function OffersScreen() {
   );
 }
 
-/**
- * Pin de oferta en el mini-mapa con rastreo reactivo (`useMarkerTracking`) para evitar que Android
- * congele un círculo gigante vacío en el primer fotograma. Muestra icono + ahorro en cápsula.
- */
-function OfferMapPin({ item, selected, onPress }: { item: MarketItem; selected: boolean; onPress: () => void }) {
-  const save = priceView(item).save;
-  const look = `${item.id}|${selected ? 'on' : 'off'}|${save ?? ''}`;
-  const { tracking, onLayout, markerRef } = useMarkerTracking(look);
-
-  return (
-    <Marker
-      ref={markerRef}
-      coordinate={{ latitude: item.latitude!, longitude: item.longitude! }}
-      accessibilityLabel={`${item.entity_name}: ${item.title}${selected ? ', elegida' : ''}`}
-      onPress={onPress}
-      tracksViewChanges={tracking}
-      zIndex={selected ? 10 : 1}
-    >
-      <View onLayout={onLayout} collapsable={false} style={styles.pinWrap}>
-        <View style={[styles.pinPill, selected && styles.pinPillOn]}>
-          <View style={[styles.pinIconBubble, selected && styles.pinIconBubbleOn]}>
-            <Ionicons name={displayIcon(item.category_icon) as keyof typeof Ionicons.glyphMap} size={13} color={selected ? colors.ink : '#8F4300'} />
-          </View>
-          {save ? (
-            <Text style={[styles.pinSaveText, selected && styles.pinSaveTextOn]} numberOfLines={1}>
-              {save}
-            </Text>
-          ) : null}
-        </View>
-        <View style={[styles.pinTip, selected && styles.pinTipOn]} />
-      </View>
-    </Marker>
-  );
-}
-
 function Chip({ label, icon, active, onPress, soft }: { label: string; icon?: string; active: boolean; onPress: () => void; soft?: boolean }) {
   return (
     <Pressable
@@ -656,6 +589,11 @@ function EmptyOffers({ searching }: { searching: boolean }) {
 }
 
 const styles = StyleSheet.create({
+  pad: { paddingHorizontal: 20, gap: 14 },
+  field: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 14, paddingRight: 4, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
+  fieldText: { flex: 1, minWidth: 0, fontSize: 14.5, fontFamily: fonts.ui.semibold, color: colors.faint },
+  fieldSlot: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
+  tilesLabel: { marginTop: 6, marginBottom: -6, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   screen: { flex: 1, backgroundColor: colors.bg },
   body: { gap: 16, paddingBottom: 24 },
   wash: { position: 'absolute', left: 0, right: 0, top: 0 },

@@ -4,6 +4,7 @@ import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Keyboard,
   AccessibilityInfo,
   ActivityIndicator,
   Animated,
@@ -39,7 +40,9 @@ import { LoadingChip } from '@/components/explore/LoadingChip';
 import { LocationStrip } from '@/components/explore/LocationStrip';
 import { PlaceSheet } from '@/components/explore/PlaceSheet';
 import { PhotoViewer, type ViewerTarget } from '@/components/explore/PhotoViewer';
-import { MapLegend, YouDot, YOU_DOT } from '@/components/explore/MapReferences';
+import { YouDot, YOU_DOT } from '@/components/explore/MapReferences';
+import { ActionTile } from '@/components/system/parts';
+import { hourIdeas } from '@/lib/askChips';
 import { ExploreGuide, type GuideRect } from '@/components/explore/ExploreGuide';
 import { StackMarker } from '@/components/explore/StackMarker';
 import { SearchBar } from '@/components/explore/SearchBar';
@@ -100,6 +103,11 @@ const STARTUP_FIX_WAIT_MS = 4000;
  * una pantalla aparte a la que se llega cuando el cliente lo pide («O mira el mapa», «Verlos en el mapa»).
  */
 export default function MapScreen() {
+  const [searchOpen, setSearchOpen] = useState(false);
+  const closeSearch = () => {
+    Keyboard.dismiss();
+    setSearchOpen(false);
+  };
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
@@ -727,6 +735,7 @@ export default function MapScreen() {
   const selectedCategory = (categories.data ?? []).find((c) => c.id === categoryId) ?? null;
   const selectedGroup = groups.find((g) => g.id === groupId) ?? null;
   const selectedSubcategory = (selectedCategory?.subcategories ?? []).find((s) => s.id === subcategoryId) ?? null;
+  const selectedCategoryName = selectedSubcategory ? null : selectedCategory?.name ?? null;
   const walkPick = WALK_LIMITS.find((w) => w.km === radiusKm);
   const radiusLabel = radiusKm ? (walkPick ? `A ${walkPick.min} min a pie` : `< ${radiusKm} km`) : null;
 
@@ -984,7 +993,6 @@ export default function MapScreen() {
         }
       : null;
   const youDistance = youKm !== null ? onFootOrDistance(youKm) : null;
-  const [legendOpen, setLegendOpen] = useState(false);
 
   // Guía de la primera vez (3 pasos). Sale sola una vez; desde Perfil se puede volver a ver (?guide=1).
   const params = useLocalSearchParams<{ guide?: string }>();
@@ -1009,7 +1017,6 @@ export default function MapScreen() {
   useEffect(() => {
     if (params.guide !== '1') return;
     const t = setTimeout(() => {
-      setLegendOpen(false);
       setGuideStep(0);
     }, 300);
     router.setParams({ guide: undefined });
@@ -1025,7 +1032,6 @@ export default function MapScreen() {
     void saveGuideSeen();
   };
   const usefulRect: GuideRect = { x: spacing.md, y: topH + 8, width: mapSize.width - spacing.md * 2, height: Math.max(60, mapSize.height - sheet.heights.peek - topH - 16) };
-  const legendRect: GuideRect = { x: spacing.md, y: mapSize.height - sheetNowPx - spacing.md - 44, width: 44, height: 44 };
 
   // ---- Lo que recibe el panel (memorizado, 3.29): mover el mapa o empezar a arrastrar no lo vuelve a dibujar.
   const onViewS = useEventCallback((v: 'discover' | 'results') => {
@@ -1139,8 +1145,8 @@ export default function MapScreen() {
                   center={reference}
                   radius={radiusKm * 1000}
                   strokeWidth={1.5}
-                  strokeColor={colors.primary}
-                  fillColor="rgba(36,104,198, 0.12)"
+                  strokeColor={colors.ink}
+                  fillColor="rgba(14,35,70,0.06)"
                 />
               ) : null}
               {/* Sin círculo ni nombre de la zona (3.30): la franja de arriba ya dice dónde estás. */}
@@ -1152,7 +1158,7 @@ export default function MapScreen() {
                     longitude={m.longitude}
                     count={m.count}
                     hasOffer={m.hasOffer}
-                    color={categoryColor(categories.data?.find((c) => c.id === m.categoryId)?.color).fg}
+                    color={colors.ink}
                     label={m.label}
                     onPress={() => onBubblePress(m.latitude, m.longitude)}
                   />
@@ -1196,10 +1202,6 @@ export default function MapScreen() {
           ) : null}
 
           {youDot ? <YouDot bottom={youDotBottom} angle={youDot.angle} distance={youDistance} onPress={() => void goToMe()} /> : null}
-          {!selectedEntity && !placeItems && !tall ? (
-            <MapLegend bottom={locateBottom} open={legendOpen && guideStep === null} onToggle={() => setLegendOpen((v) => !v)} />
-          ) : null}
-
           {!selectedEntity && !placeItems ? (
             <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateY: sheetTuck }] }]} pointerEvents="box-none">
               <ExploreSheet
@@ -1266,6 +1268,85 @@ export default function MapScreen() {
           ) : null}
         </View>
 
+        {searchOpen ? (
+          <View style={[styles.searchPanel, { paddingTop: insets.top + spacing.sm + 112 }]}>
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelBody}>
+              {debouncedSearch ? null : (
+                <View style={styles.panelGroup}>
+                  <Text style={styles.panelLabel}>Para esta hora · {hourIdeas(new Date().getHours())[0].name.toLowerCase()}</Text>
+                  <View style={styles.panelTiles}>
+                    {hourIdeas(new Date().getHours()).map((q) => (
+                      <ActionTile
+                        key={q.label}
+                        icon={q.icon}
+                        label={q.label}
+                        onPress={() => {
+                          setSearch(q.ask);
+                          closeSearch();
+                        }}
+                      />
+                    ))}
+                  </View>
+                </View>
+              )}
+              {userCoords ? (
+                <View style={styles.panelGroup}>
+                  <Text style={styles.panelLabel}>Qué tan cerca, a pie</Text>
+                  <View style={styles.panelWalk}>
+                    {[...WALK_LIMITS.map((w) => ({ key: String(w.min), label: `${w.min} min`, km: w.km as number | null })), { key: 'all', label: 'Sin límite', km: null as number | null }].map((w) => {
+                      const on = radiusKm === w.km;
+                      return (
+                        <Pressable
+                          key={w.key}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: on }}
+                          accessibilityLabel={w.km === null ? 'Sin límite a pie' : `Hasta ${w.label} a pie`}
+                          onPress={() => {
+                            setRadiusKm(w.km);
+                            if (w.km !== null) focusRadius(userCoords, w.km);
+                          }}
+                          style={[styles.walkChoice, on && styles.walkChoiceOn]}
+                        >
+                          <Text style={styles.walkChoiceText}>{w.label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
+              <Pressable accessibilityRole="switch" accessibilityState={{ checked: openNow }} onPress={() => setOpenNow(!openNow)} style={styles.panelSwitch}>
+                <Text style={styles.panelSwitchText}>Solo abiertos ahora</Text>
+                <View style={[styles.switchTrack, openNow && styles.switchTrackOn]}>
+                  <View style={[styles.switchKnob, openNow && styles.switchKnobOn]} />
+                </View>
+              </Pressable>
+              <View style={styles.panelGroup}>
+                <Text style={styles.panelLabel}>Qué tipo de negocio</Text>
+                <GroupRow
+                  groups={groups}
+                  groupId={groupId}
+                  categoryId={categoryId}
+                  onGroup={chooseGroup}
+                  onCategory={(id) => {
+                    setCategoryId(id);
+                    setSubcategoryId(undefined);
+                  }}
+                  onSeeAll={() => setAllCatsOpen(true)}
+                />
+              </View>
+              <Pressable accessibilityRole="button" onPress={openFilters} style={styles.panelMore}>
+                <Text style={styles.panelMoreText}>Más filtros</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.placeholder} />
+              </Pressable>
+            </ScrollView>
+            <View style={[styles.panelFoot, { paddingBottom: insets.bottom + 16 }]}>
+              <Pressable accessibilityRole="button" onPress={closeSearch} style={styles.panelGo}>
+                <Text style={styles.panelGoText}>Ver en el mapa</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
         {/* Arriba, dónde estás (o qué zona mira el mapa); debajo, el buscador con el filtro y las categorías. Flotan sobre el
             mapa: mientras el dedo lo mueve, la franja se atenúa y el resto se desvanece. */}
         <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]} pointerEvents="box-none"
@@ -1273,22 +1354,20 @@ export default function MapScreen() {
             if (!selectedEntity && !tall) setTopH(Math.round(e.nativeEvent.layout.height));
           }}
         >
-          {selectedEntity ? null : (
-            <View onLayout={(e) => setStripRect(e.nativeEvent.layout)}>
-              <LocationStrip text={strip} moving={mapMoving} onAction={() => void goToMe()} />
-            </View>
-          )}
-          <Animated.View style={[styles.topRows, { opacity: topFade }]} pointerEvents={mapMoving ? 'none' : 'box-none'}>
-          <View style={styles.searchRow}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Volver" hitSlop={6} onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))} style={styles.backBtn}>
+          <View style={styles.whereRow}>
+            <Pressable accessibilityRole="button" accessibilityLabel={searchOpen ? 'Cerrar la búsqueda' : 'Volver'} hitSlop={6} onPress={() => (searchOpen ? closeSearch() : router.canGoBack() ? router.back() : router.replace('/(tabs)'))} style={styles.backBtn}>
               <Ionicons name="chevron-back" size={22} color={colors.ink} />
             </Pressable>
-            <View style={{ flex: 1 }}>
-              <SearchBar value={search} onChangeText={setSearch} onOpenFilters={openFilters} filterCount={activeFilterCount} compact />
-            </View>
+            {selectedEntity ? null : (
+              <View style={{ flex: 1, minWidth: 0 }} onLayout={(e) => setStripRect(e.nativeEvent.layout)}>
+                <LocationStrip text={strip} moving={mapMoving} onAction={() => void goToMe()} />
+              </View>
+            )}
           </View>
+          <Animated.View style={[styles.topRows, { opacity: topFade }]} pointerEvents={mapMoving ? 'none' : 'box-none'}>
+          <SearchBar value={search} onChangeText={setSearch} onOpenFilters={openFilters} filterCount={activeFilterCount} compact hideFilters onFocusChange={(f) => f && setSearchOpen(true)} />
 
-          {tall || selectedEntity ? null : searching ? (
+          {tall || selectedEntity || searchOpen ? null : searching ? (
             <ContextRow
               chips={contextRow}
               zoneName={null}
@@ -1301,101 +1380,26 @@ export default function MapScreen() {
                 AccessibilityInfo.announceForAccessibility('Buscando en esta zona');
               }}
             />
-          ) : (
-            <>
-              <GroupRow
-                groups={groups}
-                groupId={groupId}
-                categoryId={categoryId}
-                onGroup={chooseGroup}
-                onCategory={(id) => {
-                  setCategoryId(id);
-                  setSubcategoryId(undefined);
-                }}
-                onSeeAll={() => setAllCatsOpen(true)}
-                leading={
-                  userCoords ? (
-                    (() => {
-                      const activeWalk = WALK_LIMITS.find((w) => w.km === radiusKm);
-                      return (
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityState={{ expanded: walkOpen, selected: Boolean(activeWalk) }}
-                          accessibilityLabel={activeWalk ? `A ${activeWalk.min} minutos a pie. Toca para cambiar` : 'Filtrar por distancia a pie'}
-                          onPress={() => setWalkOpen((v) => !v)}
-                          style={[styles.walkTrigger, Boolean(activeWalk) && styles.walkTriggerOn]}
-                        >
-                          <Ionicons name="walk-outline" size={15} color={colors.ink} />
-                          <Text style={[styles.walkTriggerText, Boolean(activeWalk) && styles.walkTriggerTextOn]}>
-                            {activeWalk ? `${activeWalk.min} min` : 'A pie'}
-                          </Text>
-                          <Ionicons name={walkOpen ? 'chevron-up' : 'chevron-down'} size={13} color={colors.ink} />
-                        </Pressable>
-                      );
-                    })()
-                  ) : null
-                }
-                trailing={
-                  selectedSubcategory || radiusLabel || openNow ? (
-                    <View style={styles.activeChips}>
-                      {selectedSubcategory ? <ActiveChip icon="pricetag-outline" label={selectedSubcategory.name} onRemove={() => setSubcategoryId(undefined)} /> : null}
-                      {radiusLabel ? <ActiveChip icon="navigate" label={radiusLabel} onRemove={() => setRadiusKm(null)} /> : null}
-                      {openNow ? <ActiveChip icon="time-outline" label="Abiertos ahora" onRemove={() => setOpenNow(false)} /> : null}
-                      {activeFilterCount >= 2 ? (
-                        <Pressable accessibilityRole="button" accessibilityLabel="Limpiar todos los filtros" onPress={clearAllFilters} hitSlop={8} style={styles.clearChip}>
-                          <Text style={styles.clearChipText}>Limpiar</Text>
-                        </Pressable>
-                      ) : null}
-                    </View>
-                  ) : null
-                }
-              />
-              {walkOpen && userCoords ? (
-                <View style={styles.walkPopover} accessibilityLabel="Hasta dónde caminar">
-                  <Text style={styles.walkPopoverLabel}>Caminando:</Text>
-                  {WALK_LIMITS.map((w) => {
-                    const on = radiusKm === w.km;
-                    return (
-                      <Pressable
-                        key={w.min}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: on }}
-                        accessibilityLabel={`Hasta ${w.min} minutos a pie`}
-                        onPress={() => {
-                          setRadiusKm(on ? null : w.km);
-                          if (!on) focusRadius(userCoords, w.km);
-                          setWalkOpen(false);
-                        }}
-                        style={[styles.walkOpt, on && styles.walkOptOn]}
-                      >
-                        <Text style={[styles.walkOptText, on && styles.walkOptTextOn]}>{w.min} min</Text>
-                      </Pressable>
-                    );
-                  })}
-                  {radiusKm !== null ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Sin límite a pie"
-                      onPress={() => {
-                        setRadiusKm(null);
-                        setWalkOpen(false);
-                      }}
-                      style={styles.walkClearOpt}
-                    >
-                      <Text style={styles.walkClearOptText}>Todo</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
+          ) : selectedSubcategory || radiusLabel || openNow || categoryId ? (
+            <View style={styles.activeChips}>
+              {selectedCategoryName ? <ActiveChip icon="pricetag-outline" label={selectedCategoryName} onRemove={() => { setCategoryId(undefined); setSubcategoryId(undefined); }} /> : null}
+              {selectedSubcategory ? <ActiveChip icon="pricetag-outline" label={selectedSubcategory.name} onRemove={() => setSubcategoryId(undefined)} /> : null}
+              {radiusLabel ? <ActiveChip icon="navigate" label={radiusLabel} onRemove={() => setRadiusKm(null)} /> : null}
+              {openNow ? <ActiveChip icon="time-outline" label="Abiertos ahora" onRemove={() => setOpenNow(false)} /> : null}
+              {activeFilterCount >= 2 ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Limpiar todos los filtros" onPress={clearAllFilters} hitSlop={8} style={styles.clearChip}>
+                  <Text style={styles.clearChipText}>Limpiar</Text>
+                </Pressable>
               ) : null}
-            </>
-          )}
+            </View>
+          ) : null}
           {mapLoading && !tall && !selectedEntity ? <LoadingChip /> : null}
           </Animated.View>
         </View>
 
       </View>
 
-      {guideStep !== null ? <ExploreGuide step={guideStep} rects={[stripRect, usefulRect, legendRect]} size={mapSize} onStep={onGuideStep} /> : null}
+      {guideStep !== null ? <ExploreGuide step={guideStep} rects={[stripRect, usefulRect]} size={mapSize} onStep={onGuideStep} /> : null}
 
       <PhotoViewer
         target={viewer}
@@ -1678,6 +1682,27 @@ function CategoryGridItem({
 }
 
 const styles = StyleSheet.create({
+  whereRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  searchPanel: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: 5, backgroundColor: colors.bg },
+  panelBody: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 20, gap: 20 },
+  panelGroup: { gap: 8 },
+  panelLabel: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  panelTiles: { flexDirection: 'row', gap: 8 },
+  panelWalk: { flexDirection: 'row', gap: 8 },
+  walkChoice: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.surface },
+  walkChoiceOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
+  walkChoiceText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  panelSwitch: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.surface },
+  panelSwitchText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  switchTrack: { width: 46, height: 28, padding: 3, borderRadius: 14, backgroundColor: colors.placeholder },
+  switchTrackOn: { backgroundColor: colors.ink },
+  switchKnob: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.surface },
+  switchKnobOn: { alignSelf: 'flex-end' },
+  panelMore: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.surface },
+  panelMoreText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  panelFoot: { paddingTop: 10, paddingHorizontal: 20, borderTopWidth: 1, borderTopColor: colors.hairline, backgroundColor: colors.surface },
+  panelGo: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.primary },
+  panelGoText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
   screen: { flex: 1, backgroundColor: colors.bg },

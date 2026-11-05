@@ -1,8 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
-import { categoryColor } from '@/lib/categoryColor';
+import { Cover } from '@/components/Cover';
 import { formatDistance } from '@/lib/format';
 import { resolveImageUrl } from '@/lib/image';
 import { offerUrgency, timeLeftLabel, timeLeftMs } from '@/lib/offer';
@@ -44,7 +43,6 @@ export function BusinessSheet({ entity, isMine, qrOfferId, onClose, onDirections
   const rating = featuredRating(entity.avg_rating, entity.review_count);
   const sub = [entity.subcategory || entity.category_name, distance, walk].filter(Boolean).join(' · ');
   const status = statusLine(entity);
-  const cat = categoryColor(entity.category_color);
   const photo = entity.profile_url ? resolveImageUrl(entity.profile_url) : null;
   const quote = review?.quote ?? (entity.tagline ? entity.tagline : null);
 
@@ -108,13 +106,7 @@ export function BusinessSheet({ entity, isMine, qrOfferId, onClose, onDirections
         </View>
 
         <Pressable accessibilityRole="button" accessibilityLabel={`${entity.name}. ${sub}.${entity.review_count == null ? '' : ` ${rating.text}.`} Entrar al negocio`} onPress={() => onProfile()} style={styles.identity}>
-          <View style={[styles.photo, { backgroundColor: cat.fg }]}>
-            {photo ? (
-              <Image accessible={false} source={{ uri: photo }} style={styles.photoImage} contentFit="cover" />
-            ) : (
-              <Ionicons name={(entity.category_icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap} size={44} color="#fff" />
-            )}
-          </View>
+          <Cover photo={photo} category={entity.subcategory || entity.category_name} icon={entity.category_icon} iconName={(entity.category_icon || 'storefront-outline') as keyof typeof Ionicons.glyphMap} iconSize={72} style={styles.photo} />
           <Text style={styles.name} numberOfLines={1}>
             {entity.name}
           </Text>
@@ -254,7 +246,6 @@ const styles = StyleSheet.create({
   close: { width: 44, height: 44, marginRight: -10, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   identity: { alignItems: 'center', gap: 3 },
   photo: { width: PHOTO, height: PHOTO, marginBottom: spacing.sm, borderRadius: radius.lg + 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  photoImage: { width: PHOTO, height: PHOTO },
   name: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
   sub: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted, textAlign: 'center' },
   rating: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink, textAlign: 'center' },

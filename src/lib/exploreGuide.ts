@@ -1,6 +1,6 @@
 // Guía de la primera vez en Explorar (3.23): tres pasos con foco. Sin React para poder probarlo con Node.
 
-export type GuideStepId = 'where' | 'area' | 'legend';
+export type GuideStepId = 'where' | 'area' ;
 
 export interface GuideStep {
   id: GuideStepId;
@@ -15,7 +15,6 @@ export const GUIDE_STEPS: GuideStep[] = [
     title: 'Lo que ves es lo que sale',
     text: 'El panel de abajo muestra los destacados de lo que ves en el mapa. Muévelo y cambian con la zona.',
   },
-  { id: 'legend', title: 'Qué significan los pines', text: 'Rayo: oferta activa ahora. Punto verde: abierto. Toca la «i» cuando quieras repasarlo.' },
 ];
 
 /** Siguiente paso: «Saltar» o terminar el último la cierran (null). */

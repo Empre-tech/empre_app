@@ -8,7 +8,7 @@ import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi, type Expense, type Sale } from '@/api/ledger';
 import { useInboxSummary } from '@/chat/useInboxSummary';
 import { EmptyState } from '@/components/EmptyState';
-import { FinanceGroup, FinanceHead, FinanceRow, FinanceSection, FinanceTitle } from '@/components/finance/parts';
+import { SystemGroup, SystemHead, SystemRow, SystemSection, SystemTitle } from '@/components/system/parts';
 import { VoiceSheet } from '@/components/ledger/VoiceSheet';
 import { addDays, atHour, dayReadings, deltaWords, hourBars, hourCO, hourLabel, presetRange, showHours, todayCO, todayTitle, type DaySale } from '@/lib/finance';
 import { categoryLabel, formatPesos, METHOD_LABEL, pendingCredit, pendingTotals, salePayText } from '@/lib/ledger';
@@ -195,8 +195,8 @@ export default function LedgerHome() {
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={[styles.body, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 32 }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         <View style={styles.top}>
-          <FinanceHead lead="Finanzas de" name={entity.data?.name} />
-          <FinanceTitle>{`Hoy, ${todayTitle(today)}`}</FinanceTitle>
+          <SystemHead lead="Finanzas de" name={entity.data?.name} />
+          <SystemTitle>{`Hoy, ${todayTitle(today)}`}</SystemTitle>
           <Pressable accessibilityRole="button" accessibilityLabel="Dictar una venta o gasto" onPress={() => setVoiceOpen(true)} style={styles.field}>
             <Text style={styles.fieldText} numberOfLines={1}>
               Dicta una venta o un gasto
@@ -252,7 +252,7 @@ export default function LedgerHome() {
 
         {hasHours ? (
           <>
-            <FinanceSection title="Tu día por horas">
+            <SystemSection title="Tu día por horas">
               <View style={styles.card}>
                 <View style={styles.hours}>
                   {bars.map((b) => {
@@ -287,20 +287,20 @@ export default function LedgerHome() {
                 </View>
                 {truncated ? <Text style={styles.detailSub}>Hoy tienes más de {SALES_LIMIT} ventas: las horas cuentan solo las últimas.</Text> : null}
               </View>
-            </FinanceSection>
+            </SystemSection>
 
             {readings.length > 0 ? (
-              <FinanceSection title="Lo que dice tu día">
-                <FinanceGroup>
+              <SystemSection title="Lo que dice tu día">
+                <SystemGroup>
                   {readings.map((r, i) => (
-                    <FinanceRow key={r.kind} first={i === 0} icon={READING_ICON[r.kind]} title={r.title} sub={r.sub} />
+                    <SystemRow key={r.kind} first={i === 0} icon={READING_ICON[r.kind]} title={r.title} sub={r.sub} />
                   ))}
-                </FinanceGroup>
-              </FinanceSection>
+                </SystemGroup>
+              </SystemSection>
             ) : null}
           </>
         ) : count === 0 ? (
-          <FinanceSection title="Tu día por horas">
+          <SystemSection title="Tu día por horas">
             <View style={styles.card}>
               <View style={styles.hours} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
                 {EXAMPLE_BARS.map((h, i) => (
@@ -314,28 +314,28 @@ export default function LedgerHome() {
               </View>
               <Text style={styles.invite}>Con tus ventas, aquí verás a qué hora vendes más y qué es lo que más sale.</Text>
             </View>
-          </FinanceSection>
+          </SystemSection>
         ) : (
           <Text style={styles.nextStep}>{count === 1 ? 'Con 2 ventas más verás tu día por horas' : count === 2 ? 'Con 1 venta más verás tu día por horas' : 'Cuando vendas en otras horas verás tu día completo'}</Text>
         )}
 
         {urgent.length > 0 ? (
-          <FinanceSection title="Lo que no puede esperar">
-            <FinanceGroup>
+          <SystemSection title="Lo que no puede esperar">
+            <SystemGroup>
               {urgent.map(({ key, ...u }, i) => (
-                <FinanceRow key={key} first={i === 0} {...u} />
+                <SystemRow key={key} first={i === 0} {...u} />
               ))}
-            </FinanceGroup>
-          </FinanceSection>
+            </SystemGroup>
+          </SystemSection>
         ) : null}
 
-        <FinanceGroup>
-          <FinanceRow first icon="bar-chart-outline" title="Ver cómo te ha ido esta semana" sub={weekSub} onPress={() => goAnalytics()} />
-        </FinanceGroup>
+        <SystemGroup>
+          <SystemRow first icon="bar-chart-outline" title="Ver cómo te ha ido esta semana" sub={weekSub} onPress={() => goAnalytics()} />
+        </SystemGroup>
 
         {movements.length > 0 ? (
-          <FinanceSection title={selected ? `Movimientos de ${atHour(selected.hour)}` : 'Movimientos de hoy'}>
-            <FinanceGroup>
+          <SystemSection title={selected ? `Movimientos de ${atHour(selected.hour)}` : 'Movimientos de hoy'}>
+            <SystemGroup>
               {shownMoves.length === 0 ? <Text style={styles.noMoves}>Sin movimientos en esta hora</Text> : null}
               {shownMoves.map((m, i) => (
                 <Pressable key={m.key} accessibilityRole="button" accessibilityLabel={`${m.kind === 'sale' ? 'Venta' : 'Gasto'} de ${formatPesos(m.amount)}, ${m.title}${m.voided ? ', anulada' : ''}. Toca para anular`} onPress={() => (m.pending ? undefined : askVoid(m))} style={[styles.move, i > 0 && styles.moveLine]}>
@@ -358,22 +358,22 @@ export default function LedgerHome() {
                   </Text>
                 </Pressable>
               ))}
-            </FinanceGroup>
-          </FinanceSection>
+            </SystemGroup>
+          </SystemSection>
         ) : null}
 
-        <FinanceSection title="Otras formas de vender">
-          <FinanceGroup>
-            {quick ? <FinanceRow first icon="flash-outline" title="Modo mostrador" sub="Para cuando hay fila: un toque, una venta" onPress={() => router.push({ pathname: '/business/ledger/quick/[id]', params: { id: entityId } })} /> : null}
-            {quick && FEATURES.tabs ? <FinanceRow icon="restaurant-outline" title="Mesas y cuentas" sub="El cliente va pidiendo y paga al final" onPress={() => router.push({ pathname: '/business/ledger/tabs/[id]', params: { id: entityId } })} /> : null}
-            <FinanceRow first={!quick} icon="person-outline" title="Fiado" sub="Lo paga después; queda en «Te deben»" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId, fiado: '1' } })} />
-            {parked.length > 0 ? <FinanceRow icon="time-outline" title={parked.length === 1 ? '1 venta en espera' : `${parked.length} ventas en espera`} sub="No cuentan en la caja hasta que las cobres" onPress={goSale} /> : null}
-          </FinanceGroup>
-        </FinanceSection>
+        <SystemSection title="Otras formas de vender">
+          <SystemGroup>
+            {quick ? <SystemRow first icon="flash-outline" title="Modo mostrador" sub="Para cuando hay fila: un toque, una venta" onPress={() => router.push({ pathname: '/business/ledger/quick/[id]', params: { id: entityId } })} /> : null}
+            {quick && FEATURES.tabs ? <SystemRow icon="restaurant-outline" title="Mesas y cuentas" sub="El cliente va pidiendo y paga al final" onPress={() => router.push({ pathname: '/business/ledger/tabs/[id]', params: { id: entityId } })} /> : null}
+            <SystemRow first={!quick} icon="person-outline" title="Fiado" sub="Lo paga después; queda en «Te deben»" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId, fiado: '1' } })} />
+            {parked.length > 0 ? <SystemRow icon="time-outline" title={parked.length === 1 ? '1 venta en espera' : `${parked.length} ventas en espera`} sub="No cuentan en la caja hasta que las cobres" onPress={goSale} /> : null}
+          </SystemGroup>
+        </SystemSection>
 
-        <FinanceGroup>
-          <FinanceRow first icon="cash-outline" title="Cerrar la caja de hoy" sub="Cuenta lo que hay y mira si cuadra" onPress={() => router.push({ pathname: '/business/ledger/cash/[id]', params: { id: entityId } })} />
-        </FinanceGroup>
+        <SystemGroup>
+          <SystemRow first icon="cash-outline" title="Cerrar la caja de hoy" sub="Cuenta lo que hay y mira si cuadra" onPress={() => router.push({ pathname: '/business/ledger/cash/[id]', params: { id: entityId } })} />
+        </SystemGroup>
       </ScrollView>
 
       <VoiceSheet entityId={entityId} visible={voiceOpen} onClose={() => setVoiceOpen(false)} hints={hints} />
