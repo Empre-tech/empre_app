@@ -2,10 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmpreSymbol, type EmpreProduct } from '@/components/EmpreSymbol';
 import { colors, fonts, softShadow } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
+
+/** Tapa la franja de la hora del teléfono: lo que sube al desplazar no queda debajo de ella. */
+export function StatusCap() {
+  const insets = useSafeAreaInsets();
+  return <View pointerEvents="none" style={[styles.cap, { height: insets.top }]} />;
+}
 
 /** Arriba, igual en cada pantalla interna: volver y de qué se trata. */
 export function SystemHead({ lead, name }: { lead: string; name?: string }) {
@@ -143,6 +150,7 @@ export function ShareRow({ label, value, share, color = colors.ink, first }: { l
 }
 
 const styles = StyleSheet.create({
+  cap: { position: 'absolute', left: 0, right: 0, top: 0, backgroundColor: colors.bg },
   head: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, ...softShadow },
   headText: { flex: 1, minWidth: 0 },

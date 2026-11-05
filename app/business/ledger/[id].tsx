@@ -8,7 +8,7 @@ import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi, type Expense, type Sale } from '@/api/ledger';
 import { useInboxSummary } from '@/chat/useInboxSummary';
 import { EmptyState } from '@/components/EmptyState';
-import { EmpreAICard, SystemGroup, SystemHead, SystemRow, SystemSection, SystemTitle } from '@/components/system/parts';
+import { EmpreAICard, StatusCap, SystemGroup, SystemHead, SystemRow, SystemSection, SystemTitle } from '@/components/system/parts';
 import { VoiceSheet } from '@/components/ledger/VoiceSheet';
 import { addDays, atHour, dayReadings, deltaWords, hourBars, hourCO, hourLabel, presetRange, showHours, todayCO, todayTitle, type DaySale } from '@/lib/finance';
 import { categoryLabel, formatPesos, METHOD_LABEL, pendingCredit, pendingTotals, salePayText } from '@/lib/ledger';
@@ -376,6 +376,7 @@ export default function LedgerHome() {
           <SystemRow first icon="cash-outline" title="Cerrar la caja de hoy" sub="Cuenta lo que hay y mira si cuadra" onPress={() => router.push({ pathname: '/business/ledger/cash/[id]', params: { id: entityId } })} />
         </SystemGroup>
       </ScrollView>
+      <StatusCap />
 
       <VoiceSheet entityId={entityId} visible={voiceOpen} onClose={() => setVoiceOpen(false)} hints={hints} />
     </View>

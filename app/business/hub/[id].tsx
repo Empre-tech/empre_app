@@ -15,7 +15,7 @@ import type { EmpreProduct } from '@/components/EmpreSymbol';
 import { EmptyState } from '@/components/EmptyState';
 import { GrowthCard } from '@/components/profile/GrowthCard';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
-import { ActionTile, SystemGroup, SystemHead, SystemRow, SystemSection, SystemTitle } from '@/components/system/parts';
+import { ActionTile, StatusCap, SystemGroup, SystemHead, SystemRow, SystemSection, SystemTitle } from '@/components/system/parts';
 import { FEATURES } from '@/config';
 import { catalogCopy } from '@/lib/catalog';
 import { addDays, presetRange, todayCO } from '@/lib/finance';
@@ -117,6 +117,8 @@ export default function BusinessHubScreen() {
   const next = appts.find((a) => a.status === 'confirmed' && hourOf(a.starts_at) >= nowH);
   const sel: Appointment | undefined = appts.find((a) => a.id === selId) ?? next ?? appts[0];
   const showDay = FEATURES.agenda && (appts.length > 0 || requests > 0);
+  // La acción roja cambia con lo que toca: responder si hay una cita pendiente; si no, vender.
+  const responding = Boolean(sel && showDay && sel.status === 'requested');
   const who = (a: Appointment) => [a.customer?.name, a.service?.name].filter(Boolean).join(' · ') || 'Cita';
   const allClear = soldToday === 0 && requests === 0 && appts.length === 0;
 
@@ -220,8 +222,8 @@ export default function BusinessHubScreen() {
                     {sel && showDay ? who(sel) : soldToday > 0 ? `Llevas ${formatPesos(soldToday)} hoy` : 'Aquí las vas a ver'}
                   </Text>
                 </View>
-                <Pressable accessibilityRole="button" onPress={sel && showDay ? agenda : sale} style={styles.btnRed}>
-                  <Text style={styles.btnRedText}>{sel && showDay ? (sel.status === 'requested' ? 'Responder' : 'Ver agenda') : 'Registrar venta'}</Text>
+                <Pressable accessibilityRole="button" onPress={responding ? agenda : sale} style={styles.btnRed}>
+                  <Text style={styles.btnRedText}>{responding ? 'Responder' : 'Registrar venta'}</Text>
                 </Pressable>
               </View>
             </View>
@@ -230,8 +232,8 @@ export default function BusinessHubScreen() {
               <Text style={styles.label}>Lo de todos los días</Text>
               <View style={styles.tiles}>
                 <ActionTile icon="qr-code-outline" label="Canjear" onPress={go('/business/scan')} />
-                {FEATURES.ledger ? <ActionTile icon="stats-chart-outline" label="Vender" onPress={sale} /> : null}
-                {FEATURES.agenda ? <ActionTile icon="calendar-outline" label="Agenda" onPress={agenda} /> : null}
+                {FEATURES.ledger ? <ActionTile icon="remove-circle-outline" label="Gasto" onPress={go({ pathname: '/business/ledger/expense/[id]', params: { id: entityId } })} /> : null}
+                {FEATURES.ledger ? <ActionTile icon="people-outline" label="Te deben" onPress={go({ pathname: '/business/ledger/debts/[id]', params: { id: entityId } })} /> : null}
               </View>
             </View>
 
@@ -275,6 +277,7 @@ export default function BusinessHubScreen() {
           </>
         )}
       </ScrollView>
+      <StatusCap />
     </View>
   );
 }

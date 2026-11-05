@@ -10,7 +10,7 @@ import { ledgerApi, type Analytics, type InvLine, type ProductStat } from '@/api
 import { EmptyState } from '@/components/EmptyState';
 import { HBars, HeatGrid } from '@/components/finance/Charts';
 import { UnderstandWeek } from '@/components/finance/UnderstandWeek';
-import { EmpreAICard, SystemGroup, SystemHead, SystemRow, SystemSection, SystemTitle, ShareRow } from '@/components/system/parts';
+import { EmpreAICard, StatusCap, SystemGroup, SystemHead, SystemRow, SystemSection, SystemTitle, ShareRow } from '@/components/system/parts';
 import { RangeSheet } from '@/components/finance/RangeSheet';
 import { bestSlot, bucketLabel, dayLong, deltaWords, leftOf, lowMargin, marginPct, presetRange, rangeFromParams, rangeTitle, rankProducts, todayCO, topMismatch, type DateRange } from '@/lib/finance';
 import { categoryLabel, formatPesos, METHOD_LABEL, pendingCredit, pendingTotals } from '@/lib/ledger';
@@ -88,6 +88,7 @@ export default function AnalyticsScreen() {
           <Summary a={a} entityId={entityId} range={range} firstDays={firstDays} onDetail={openDetail} />
         )}
       </ScrollView>
+      <StatusCap />
 
       <RangeSheet visible={sheet} value={range} onApply={setRange} onClose={() => setSheet(false)} />
     </View>
