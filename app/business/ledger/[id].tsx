@@ -2,18 +2,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { agendaApi } from '@/api/agenda';
 import { entitiesApi } from '@/api/endpoints';
-import { ledgerApi, type Expense, type Sale } from '@/api/ledger';
+import { ledgerApi, type Sale } from '@/api/ledger';
 import { useInboxSummary } from '@/chat/useInboxSummary';
 import { EmptyState } from '@/components/EmptyState';
-import { EmpreAICard, StatusCap, SystemGroup, SystemHead, SystemRow, SystemSection, SystemTitle } from '@/components/system/parts';
-import { VoiceSheet } from '@/components/ledger/VoiceSheet';
-import { addDays, atHour, dayReadings, deltaWords, hourBars, hourCO, hourLabel, presetRange, showHours, todayCO, todayTitle, type DaySale } from '@/lib/finance';
-import { categoryLabel, formatPesos, METHOD_LABEL, pendingCredit, pendingTotals, salePayText } from '@/lib/ledger';
+import { EmpreAICard, StatusCap, SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
+import { expenseMovement, MoveRows, saleMovement, type Movement } from '@/components/finance/Moves';
+import { FinanceTop } from '@/components/finance/Top';
+import { addDays, atHour, dayReadings, expectedToday, hourBars, hourCO, hourLabel, leftOf, moneyIn, moneyOut, monthlyGap, presetRange, showHours, todayCO, todayTitle, WEEK_NAMES, weekdayIndex, type DaySale } from '@/lib/finance';
+import { categoryLabel, formatPesos, pendingCredit, pendingTotals, salePayText } from '@/lib/ledger';
+import { useFinanceSetup } from '@/ledger/financeSetup';
 import { useParkedSales } from '@/ledger/parkedSales';
-import { discardLedgerItem, flushLedger, queueVoid, retryLedgerItem, useLedgerOutbox } from '@/ledger/ledgerStore';
+import { discardLedgerItem, flushLedger, retryLedgerItem, useLedgerOutbox } from '@/ledger/ledgerStore';
 import { FEATURES } from '@/config';
 import { colors, fonts, softShadow, spacing } from '@/theme';
 
@@ -23,35 +26,6 @@ const startCO = (ymd: string) => `${ymd}T00:00:00-05:00`;
 const SALES_LIMIT = 500;
 const READING_ICON = { best: 'time-outline', top: 'pricetag-outline', quiet: 'hourglass-outline' } as const;
 const EXAMPLE_BARS = [10, 30, 62, 44, 18, 8, 26, 52, 36, 14, 8, 4];
-
-interface Movement {
-  key: string;
-  kind: 'sale' | 'expense';
-  id: string;
-  at: string;
-  amount: number;
-  title: string;
-  sub: string;
-  voided: boolean;
-  pending: boolean;
-}
-
-function timeOf(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-}
-
-const originText = (source: Sale['source']) => (source === 'offer_claim' ? 'Empre Offers · ' : source === 'appointment' ? 'Agenda · ' : '');
-
-function saleMovement(s: Sale): Movement {
-  const what = s.lines?.length ? s.lines.map((l) => (l.qty === 1 ? l.name : `${l.qty} × ${l.name}`)).join(', ') : s.note || 'Venta';
-  return { key: `s${s.id}`, kind: 'sale', id: s.id, at: s.occurred_at, amount: s.total, title: what, sub: `${originText(s.source)}${salePayText({ ...s, partyName: s.party?.name })}${s.source === 'voice' ? ' · por voz' : ''}`, voided: s.status === 'voided', pending: false };
-}
-
-function expenseMovement(e: Expense): Movement {
-  return { key: `e${e.id}`, kind: 'expense', id: e.id, at: e.occurred_at, amount: e.amount, title: e.note || categoryLabel(e.category), sub: `${categoryLabel(e.category)} · ${e.method === 'credit' ? 'A crédito' : METHOD_LABEL[e.method]}${e.party ? ` · ${e.party.name}` : ''}`, voided: e.status === 'voided', pending: false };
-}
 
 /** El horario de hoy en horas enteras para las barras; sin horario, null. Los días 24 horas tampoco lo acotan. */
 function hoursToday(rows: { weekday: number; closed: boolean; is_24h: boolean; open_time: string; close_time: string }[] | undefined, now: Date): { open: number; close: number } | null {
@@ -71,7 +45,6 @@ export default function LedgerHome() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const today = todayCO();
-  const [voiceOpen, setVoiceOpen] = useState(false);
   const [selHour, setSelHour] = useState<number | null>(null);
   const [now, setNow] = useState(() => new Date());
   const outbox = useLedgerOutbox();
@@ -103,6 +76,15 @@ export default function LedgerHome() {
   const sales = useQuery({ queryKey: ['ledger', entityId, 'sales', today], queryFn: () => ledgerApi.sales(entityId, { ...span, limit: SALES_LIMIT }), enabled: Boolean(entityId) });
   const expenses = useQuery({ queryKey: ['ledger', entityId, 'expenses', today], queryFn: () => ledgerApi.expenses(entityId, { ...span, limit: 100 }), enabled: Boolean(entityId) });
   const items = useQuery({ queryKey: ['ledger', entityId, 'items'], queryFn: () => ledgerApi.items(entityId), enabled: Boolean(entityId), staleTime: 60_000 });
+  const monthRange = useMemo(() => presetRange('month', today), [today]);
+  const month = useQuery({
+    queryKey: ['ledger', entityId, 'analytics', monthRange.from, monthRange.to, monthRange.compare],
+    queryFn: () => ledgerApi.analytics(entityId, { from: monthRange.from, to: monthRange.to, compare: monthRange.compare }),
+    enabled: Boolean(entityId),
+    staleTime: 60_000,
+  });
+  const agenda = useQuery({ queryKey: ['agenda', entityId, today, 'finance'], queryFn: () => agendaApi.agenda(entityId, startCO(today), startCO(addDays(today, 1))), enabled: Boolean(entityId), staleTime: 60_000 });
+  const setup = useFinanceSetup(entityId);
   const insights = useQuery({ queryKey: ['ledger', entityId, 'insights'], queryFn: () => ledgerApi.insights(entityId), enabled: Boolean(entityId), staleTime: 60_000 });
   const inventory = useQuery({ queryKey: ['ledger', entityId, 'inventory'], queryFn: () => ledgerApi.inventory(entityId), enabled: Boolean(entityId), staleTime: 60_000 });
   const quick = inventory.data?.quick_sale === true;
@@ -165,17 +147,33 @@ export default function LedgerHome() {
     ...stockAlerts.slice(0, 2).map((a) => ({ key: `${a.kind}-${a.ref ?? a.title}`, icon: 'cube-outline' as const, title: a.title, sub: a.body, alert: true, onPress: () => goAnalytics('inventory') })),
   ].slice(0, 3);
 
-  const accountsSub = sum && (sum.receivable > 0 || sum.payable > 0) ? [sum.receivable > 0 ? `Te deben ${formatPesos(sum.receivable)}` : null, sum.payable > 0 ? `Debes ${formatPesos(sum.payable)}` : null].filter(Boolean).join(' · ') : 'Nada pendiente por ahora';
+  const localOwed = setup.debts.filter((d) => d.kind === 'customer').reduce((s, d) => s + d.amount, 0);
+  const localOwe = setup.debts.filter((d) => d.kind === 'supplier').reduce((s, d) => s + d.amount, 0);
+  const owedAll = (sum?.receivable ?? 0) + localOwed;
+  const oweAll = (sum?.payable ?? 0) + localOwe;
+  const accountsSub = owedAll > 0 || oweAll > 0 ? [owedAll > 0 ? `Te deben ${formatPesos(owedAll)}` : null, oweAll > 0 ? `Debes ${formatPesos(oweAll)}` : null].filter(Boolean).join(' · ') : null;
   const w = week.data;
-  const weekSub = w && w.current.sales_total > 0 ? [`Vendiste ${formatPesos(w.current.sales_total)}`, deltaWords(w.current.sales_total, w.previous.sales_total, 'la anterior')].filter(Boolean).join(' · ') : 'Tu primer resumen, con lo que llevas';
+  const hasHistory = Boolean(w) && w!.current.sales_count + w!.previous.sales_count > 0;
+  const goPlata = () => router.push({ pathname: '/business/ledger/plata/[id]', params: { id: entityId } });
 
-  const askVoid = (m: Movement) => {
-    if (m.voided) return;
-    Alert.alert(m.kind === 'sale' ? 'Anular esta venta' : 'Anular este gasto', `${m.title} · ${formatPesos(m.amount)}\n\nNo se borra: queda marcada como anulada y deja de contar.`, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Anular', style: 'destructive', onPress: () => queueVoid(m.kind, entityId, m.id, 'Anulada por el dueño') },
-    ]);
-  };
+  // Cuánto falta para cubrir lo del mes, con lo que el dueño nos contó que paga.
+  const gap = setup.monthly && month.data ? monthlyGap(setup.monthly, leftOf(month.data.current)) : null;
+  const monthlyRow = !setup.monthly ? null : !gap ? { title: `Este mes necesitas cubrir ${formatPesos(setup.monthly)}`, sub: 'Lo que nos contaste que pagas cada mes' } : gap.covered ? { title: 'Este mes ya cubres lo que pagas', sub: `Te han quedado más de ${formatPesos(setup.monthly)}` } : gap.missing === setup.monthly ? { title: `Este mes necesitas cubrir ${formatPesos(setup.monthly)}`, sub: 'Lo que nos contaste que pagas cada mes' } : { title: `Este mes te faltan ${formatPesos(gap.missing)}`, sub: `Para cubrir los ${formatPesos(setup.monthly)} que pagas cada mes` };
+
+  // Sin ventas hoy nunca se muestra un cero: lo que se espera, lo normal o lo de ayer; si no hay nada, el siguiente paso.
+  const expected = expectedToday(agenda.data ?? [], items.data ?? []);
+  const todayIndex = w ? w.series.findIndex((p) => p.start === today) : -1;
+  const normalToday = w?.normal?.length === w?.series.length && todayIndex >= 0 ? w?.normal?.[todayIndex] ?? 0 : 0;
+  const yesterday = todayIndex > 0 ? w?.series[todayIndex - 1]?.sales ?? 0 : 0;
+  const openingHero = salesTotal > 0 ? null : expected.total > 0
+    ? { label: 'Hoy esperas', value: formatPesos(expected.total), words: '', note: `${expected.priced === 1 ? '1 cita en tu agenda' : `${expected.priced} citas en tu agenda`}, si se cumplen. Cuenta cuando las cobres.` }
+    : expected.count > 0
+      ? { label: 'Hoy', value: '', words: expected.count === 1 ? 'Tienes 1 cita' : `Tienes ${expected.count} citas`, note: 'Con precio en tu catálogo, te decimos cuánto esperar.' }
+      : normalToday > 0
+        ? { label: `Un ${WEEK_NAMES[weekdayIndex(today)]} normal vendes`, value: formatPesos(normalToday), words: '', note: 'Registra tu primera venta de hoy.' }
+        : yesterday > 0
+          ? { label: 'Ayer vendiste', value: formatPesos(yesterday), words: '', note: 'Registra tu primera venta de hoy.' }
+          : { label: 'Hoy', value: '', words: 'Empieza por tu primera venta', note: 'Te toma dos toques.' };
 
   const refreshing = summary.isRefetching || sales.isRefetching;
   const onRefresh = () => {
@@ -186,25 +184,13 @@ export default function LedgerHome() {
     void week.refetch();
   };
 
-  const hints = (items.data ?? []).map((i) => i.name);
   const goSale = () => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId } });
   const goExpense = () => router.push({ pathname: '/business/ledger/expense/[id]', params: { id: entityId } });
 
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={[styles.body, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 32 }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-        <View style={styles.top}>
-          <SystemHead lead="Finanzas de" name={entity.data?.name} />
-          <SystemTitle>{`Hoy, ${todayTitle(today)}`}</SystemTitle>
-          <Pressable accessibilityRole="button" accessibilityLabel="Dictar una venta o gasto" onPress={() => setVoiceOpen(true)} style={styles.field}>
-            <Text style={styles.fieldText} numberOfLines={1}>
-              Dicta una venta o un gasto
-            </Text>
-            <View style={styles.fieldSlot}>
-              <Ionicons name="mic-outline" size={18} color={colors.ink} />
-            </View>
-          </Pressable>
-        </View>
+        <FinanceTop entityId={entityId} space="hoy" title={`Hoy, ${todayTitle(today)}`} />
 
         {outbox.items.some((x) => x.entityId === entityId) ? <OutboxBanner entityId={entityId} /> : null}
 
@@ -217,13 +203,19 @@ export default function LedgerHome() {
             ) : (
               <>
                 <View>
-                  <Text style={styles.label}>Vendiste hoy</Text>
-                  <Text style={styles.hero} numberOfLines={1} adjustsFontSizeToFit accessibilityLiveRegion="polite">
-                    {formatPesos(salesTotal)}
-                  </Text>
+                  <Text style={styles.label}>{openingHero ? openingHero.label : 'Vendiste hoy'}</Text>
+                  {openingHero && !openingHero.value ? (
+                    <Text style={styles.heroWords} accessibilityLiveRegion="polite">
+                      {openingHero.words}
+                    </Text>
+                  ) : (
+                    <Text style={styles.hero} numberOfLines={1} adjustsFontSizeToFit accessibilityLiveRegion="polite">
+                      {openingHero ? openingHero.value : formatPesos(salesTotal)}
+                    </Text>
+                  )}
                 </View>
                 {count === 0 && expensesTotal === 0 ? (
-                  <Text style={styles.invite}>Registra tu primera venta. Te toma dos toques.</Text>
+                  <Text style={styles.invite}>{openingHero?.note ?? 'Registra tu primera venta. Te toma dos toques.'}</Text>
                 ) : (
                   <View style={styles.minis}>
                     <Mini label="Te entró" value={formatPesos(entered)} />
@@ -330,8 +322,10 @@ export default function LedgerHome() {
         ) : null}
 
         <SystemGroup>
-          <SystemRow first icon="bar-chart-outline" title="Ver cómo te ha ido esta semana" sub={weekSub} onPress={() => goAnalytics()} />
-          <SystemRow icon="people-outline" title="Te deben y debes" sub={accountsSub} onPress={goDebts} />
+          {!setup.done && !hasHistory ? <SystemRow first icon="help-circle-outline" title="Cuéntanos tres cosas" sub="Tu caja, quién te debe y lo que pagas al mes. Son opcionales" onPress={() => router.push({ pathname: '/business/ledger/arranque/[id]', params: { id: entityId } })} /> : null}
+          {w && hasHistory ? <SystemRow first icon="bar-chart-outline" title={leftOf(w.current) >= 0 ? `Estos 7 días te quedaron ${formatPesos(leftOf(w.current))}` : `Estos 7 días salieron ${formatPesos(-leftOf(w.current))} de más`} sub={`Entró ${formatPesos(moneyIn(w.current))} · salió ${formatPesos(moneyOut(w.current))}`} onPress={goPlata} /> : null}
+          {monthlyRow ? <SystemRow first={!w || (!hasHistory && setup.done)} icon="wallet-outline" title={monthlyRow.title} sub={monthlyRow.sub} onPress={goPlata} /> : null}
+          {accountsSub ? <SystemRow icon="people-outline" title="Te deben y debes" sub={accountsSub} onPress={goDebts} /> : null}
           <SystemRow icon="cube-outline" title="Inventario" sub={stockAlerts.length ? `${stockAlerts.length === 1 ? '1 producto se acaba' : `${stockAlerts.length} productos se acaban`}` : 'Lo que tienes y lo que te queda'} alert={stockAlerts.length > 0} onPress={() => router.push({ pathname: '/business/products/[id]', params: { id: entityId } })} />
         </SystemGroup>
 
@@ -339,27 +333,7 @@ export default function LedgerHome() {
           <SystemSection title={selected ? `Movimientos de ${atHour(selected.hour)}` : 'Movimientos de hoy'}>
             <SystemGroup>
               {shownMoves.length === 0 ? <Text style={styles.noMoves}>Sin movimientos en esta hora</Text> : null}
-              {shownMoves.map((m, i) => (
-                <Pressable key={m.key} accessibilityRole="button" accessibilityLabel={`${m.kind === 'sale' ? 'Venta' : 'Gasto'} de ${formatPesos(m.amount)}, ${m.title}${m.voided ? ', anulada' : ''}. Toca para anular`} onPress={() => (m.pending ? undefined : askVoid(m))} style={[styles.move, i > 0 && styles.moveLine]}>
-                  <View style={styles.moveIcon}>
-                    <Ionicons name={m.kind === 'sale' ? 'arrow-up' : 'arrow-down'} size={16} color={colors.ink} />
-                  </View>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.moveTitle, m.voided && styles.struck]} numberOfLines={1}>
-                      {m.title}
-                    </Text>
-                    <Text style={styles.moveSub} numberOfLines={2}>
-                      {timeOf(m.at)} · {m.sub}
-                      {m.pending ? ' · sin enviar' : ''}
-                      {m.voided ? ' · anulada' : ''}
-                    </Text>
-                  </View>
-                  <Text style={[styles.moveAmount, m.voided && styles.struck, m.kind === 'expense' && { color: colors.muted }]}>
-                    {m.kind === 'expense' ? '−' : ''}
-                    {formatPesos(m.amount)}
-                  </Text>
-                </Pressable>
-              ))}
+              <MoveRows entityId={entityId} moves={shownMoves} />
             </SystemGroup>
           </SystemSection>
         ) : null}
@@ -379,7 +353,6 @@ export default function LedgerHome() {
       </ScrollView>
       <StatusCap />
 
-      <VoiceSheet entityId={entityId} visible={voiceOpen} onClose={() => setVoiceOpen(false)} hints={hints} />
     </View>
   );
 }
@@ -433,14 +406,11 @@ function OutboxBanner({ entityId }: { entityId: string }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   body: { paddingHorizontal: 20, gap: 24 },
-  top: { gap: 14 },
-  field: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 14, paddingRight: 4, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
-  fieldText: { flex: 1, fontSize: 14.5, fontFamily: fonts.ui.semibold, color: colors.faint },
-  fieldSlot: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
   main: { borderRadius: 20, overflow: 'hidden', backgroundColor: colors.surface, ...softShadow },
   mainTop: { minHeight: 168, justifyContent: 'space-between', gap: 12, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.selectedSoft },
   label: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   hero: { fontSize: 40, lineHeight: 46, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  heroWords: { fontSize: 26, lineHeight: 32, fontFamily: fonts.display.bold, color: colors.ink },
   invite: { fontSize: 14.5, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.muted },
   minis: { flexDirection: 'row', gap: 12 },
   mini: { flex: 1, minWidth: 0, gap: 1 },
@@ -466,13 +436,6 @@ const styles = StyleSheet.create({
   exampleText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   nextStep: { textAlign: 'center', fontSize: 14.5, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.muted },
   noMoves: { minHeight: 58, paddingVertical: 18, fontSize: 14.5, fontFamily: fonts.ui.semibold, color: colors.muted },
-  move: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
-  moveLine: { borderTopWidth: 1, borderTopColor: colors.selectedSoft },
-  moveIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
-  moveTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  moveSub: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.semibold, color: colors.muted },
-  moveAmount: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink, fontVariant: ['tabular-nums'] },
-  struck: { textDecorationLine: 'line-through', color: colors.muted },
   banner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: 12, borderRadius: 12, backgroundColor: colors.selectedSoft },
   bannerText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.ink },
   bannerLink: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },

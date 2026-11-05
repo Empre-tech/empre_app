@@ -15,7 +15,7 @@ export function StatusCap() {
 }
 
 /** Arriba, igual en cada pantalla interna: volver y de qué se trata. */
-export function SystemHead({ lead, name }: { lead: string; name?: string }) {
+export function SystemHead({ lead, name, right }: { lead: string; name?: string; right?: ReactNode }) {
   const router = useRouter();
   return (
     <View style={styles.head}>
@@ -28,6 +28,7 @@ export function SystemHead({ lead, name }: { lead: string; name?: string }) {
           {name ?? ' '}
         </Text>
       </View>
+      {right}
     </View>
   );
 }

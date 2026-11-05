@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { chosenCost, dayToExplain, explainDay, offerTitleIdeas, priceVerdict, quietSlot, suggestedPrice } from './empreAI.ts';
+import { cuentasReadings, plataReadings, rentaReadings, chosenCost, dayToExplain, explainDay, offerTitleIdeas, priceVerdict, quietSlot, suggestedPrice } from './empreAI.ts';
 
 // 2026-11-03 es martes y 2026-11-07, sábado.
 const week = {
@@ -82,4 +82,26 @@ test('offerTitleIdeas solo dice lo que la oferta es', () => {
   assert.deepEqual(offerTitleIdeas(['Corte', 'Barba'], 30000, 40000), ['Corte + Barba a $30.000', 'Corte + Barba con 25 % menos', 'Corte + Barba solo por hoy']);
   assert.deepEqual(offerTitleIdeas(['Corte'], null, null), ['Corte solo por hoy']);
   assert.deepEqual(offerTitleIdeas([], 30000, 40000), []);
+});
+
+test('plataReadings dice el mejor día y lo comprado a crédito', () => {
+  const r = plataReadings([{ start: '2026-11-07', left: 96000 }, { start: '2026-11-03', left: 20000 }], 'day', 60000, null);
+  assert.equal(r[0].title, 'El sábado fue tu mejor día');
+  assert.equal(r[1].title, 'Compraste $60.000 a crédito');
+  assert.equal(plataReadings([{ start: '2026-11-07', left: 96000 }], 'day', 0, null).length, 0);
+});
+
+test('cuentasReadings empieza por lo más antiguo y dice cuánto cubre', () => {
+  const now = new Date('2026-11-05T12:00:00Z');
+  const r = cuentasReadings([{ name: 'Laura', balance: 30000, oldest_at: '2026-10-31T12:00:00Z' }, { name: 'Mario', balance: 40000, oldest_at: '2026-10-24T12:00:00Z' }, { name: 'Carlos', balance: 15000, oldest_at: '2026-11-03T12:00:00Z' }], 120000, now);
+  assert.equal(r[0].title, 'Empieza por Mario: $40.000');
+  assert.equal(r[0].sub, 'Es lo más antiguo: 12 días');
+  assert.equal(r[1].title, 'Si cobras todo, cubres lo que debes en un 71 %');
+  assert.deepEqual(cuentasReadings([], 100), []);
+});
+
+test('rentaReadings avisa lo que casi no deja y lo que no tiene costo', () => {
+  const r = rentaReadings([{ name: 'Cera', margin_pct: 7, profit: 3000 }, { name: 'Corte', margin_pct: 67, profit: 9000 }, { name: 'Café', margin_pct: null, profit: null }], 1, 156000);
+  assert.equal(r[0].title, 'Cera casi no te deja: 7 %');
+  assert.equal(r[1].sub, 'Sin costo, $156.000 de tus ventas no se cuentan');
 });

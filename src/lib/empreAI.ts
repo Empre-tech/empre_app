@@ -157,3 +157,68 @@ export function offerTitleIdeas(names: string[], special: number | null | undefi
   out.push(`${what} solo por hoy`);
   return out.slice(0, 3);
 }
+
+// ---- Los espacios de Finanzas ----
+
+export interface Reading<K extends string> {
+  kind: K;
+  title: string;
+  sub: string;
+}
+
+/** Lo que dice la plata del periodo: su mejor parte, lo comprado a crédito y contra el periodo anterior. */
+export function plataReadings(
+  series: { start: string; left: number }[],
+  bucket: string,
+  credit: number,
+  delta: string | null,
+): Reading<'best' | 'credit' | 'delta'>[] {
+  const out: Reading<'best' | 'credit' | 'delta'>[] = [];
+  const active = series.filter((p) => p.left !== 0);
+  if (bucket === 'day' && active.length >= 2) {
+    const best = active.reduce((a, b) => (b.left > a.left ? b : a));
+    if (best.left > 0) out.push({ kind: 'best', title: `El ${WEEKDAYS[weekdayOf(best.start)]} fue tu mejor día`, sub: `Te quedaron ${pesos(best.left)}` });
+  }
+  if (credit > 0) out.push({ kind: 'credit', title: `Compraste ${pesos(credit)} a crédito`, sub: 'Saldrán cuando pagues: ya están en «Debes»' });
+  if (delta) out.push({ kind: 'delta', title: `Te quedó ${delta.charAt(0).toLowerCase()}${delta.slice(1)}`, sub: 'Sin contar lo que sigue fiado' });
+  return out;
+}
+
+const daysAgo = (iso: string | undefined, now: Date) => (iso ? Math.max(0, Math.floor((now.getTime() - Date.parse(iso)) / 86400000)) : 0);
+
+/** Qué cobrar primero: lo más antiguo. Si también se debe, cuánto de eso cubrirían los cobros. */
+export function cuentasReadings(
+  owedToYou: { name: string; balance: number; oldest_at?: string }[],
+  youOwe: number,
+  now: Date = new Date(),
+): Reading<'first' | 'cover'>[] {
+  const out: Reading<'first' | 'cover'>[] = [];
+  if (owedToYou.length === 0) return out;
+  const oldest = [...owedToYou].sort((a, b) => (a.oldest_at ?? '9').localeCompare(b.oldest_at ?? '9'))[0];
+  const days = daysAgo(oldest.oldest_at, now);
+  out.push({ kind: 'first', title: `Empieza por ${oldest.name}: ${pesos(oldest.balance)}`, sub: days > 0 ? `Es lo más antiguo: ${days === 1 ? '1 día' : `${days} días`}` : 'Es lo primero que quedó pendiente' });
+  const owed = owedToYou.reduce((s, p) => s + p.balance, 0);
+  if (youOwe > 0) {
+    const pct = Math.round((owed / youOwe) * 100);
+    out.push({ kind: 'cover', title: pct >= 100 ? 'Si cobras todo, cubres lo que debes' : `Si cobras todo, cubres lo que debes en un ${pct} %`, sub: `Te deben ${pesos(owed)} · debes ${pesos(youOwe)}` });
+  }
+  return out;
+}
+
+/** Qué revisar: lo que casi no deja y lo que aún no tiene costo. No propone precios. */
+export function rentaReadings(
+  products: { name: string; margin_pct: number | null; profit: number | null }[],
+  uncostedCount: number,
+  uncostedRevenue: number,
+): Reading<'low' | 'cost'>[] {
+  const out: Reading<'low' | 'cost'>[] = [];
+  const low = products.filter((p) => p.margin_pct !== null && p.margin_pct < 10).sort((a, b) => (a.margin_pct ?? 0) - (b.margin_pct ?? 0))[0];
+  if (low) {
+    const pct = Math.round(low.margin_pct ?? 0);
+    out.push({ kind: 'low', title: pct < 0 ? `${low.name} te hace perder` : `${low.name} casi no te deja: ${pct} %`, sub: (low.profit ?? 0) < 0 ? `Perdiste ${pesos(low.profit ?? 0)}. Revisa su precio o su costo` : 'Revisa su precio o su costo' });
+  }
+  if (uncostedCount > 0) {
+    out.push({ kind: 'cost', title: uncostedCount === 1 ? 'Ponle costo a 1 producto' : `Ponles costo a ${uncostedCount} productos`, sub: `Sin costo, ${pesos(uncostedRevenue)} de tus ventas no se cuentan` });
+  }
+  return out;
+}

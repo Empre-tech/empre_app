@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { AmountField, Chip } from '@/components/ledger/parts';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
+import { useFinanceSetup } from '@/ledger/financeSetup';
 import { queueCashClose, queueCashMove, queueVoid, useLedgerOutbox } from '@/ledger/ledgerStore';
 import { cashReasonLabel, CASH_REASONS, formatPesos, newClientId, type CashDirection } from '@/lib/ledger';
 import { colors, fonts, radius, spacing } from '@/theme';
@@ -48,7 +49,10 @@ export default function CashScreen() {
 
   const cash = useQuery({ queryKey: ['ledger', entityId, 'cash'], queryFn: () => ledgerApi.cash(entityId), enabled: Boolean(entityId) });
   const [step, setStep] = useState(1);
-  const [opening, setOpening] = useState(0);
+  const [typedOpening, setOpening] = useState<number | null>(null);
+  // Lo que el dueño dijo al empezar sirve de punto de partida; lo que escriba aquí manda.
+  const declaredCash = useFinanceSetup(entityId).cash;
+  const opening = typedOpening ?? declaredCash ?? 0;
   const [counts, setCounts] = useState<Record<number, number>>({});
   const [coins, setCoins] = useState(0);
   const [baseNext, setBaseNext] = useState<number | null>(null);

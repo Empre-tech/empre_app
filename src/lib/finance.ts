@@ -15,6 +15,7 @@ export interface DateRange {
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 export const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const WEEKDAYS = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+export const WEEK_NAMES = WEEKDAYS;
 export const WEEK_INITIALS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 export const FRANJAS = ['Mañana', 'Mediodía', 'Tarde', 'Noche'];
 
@@ -324,4 +325,92 @@ export function deltaWords(cur: number, prev: number, what = 'el anterior'): str
 /** «Te quedó»: lo que entró menos los gastos. Si el backend aún no lo manda, lo saca sin lo fiado (sin contar abonos). */
 export function leftOf(t: { left?: number; sales_total: number; expenses_total: number; by_method: { credit: number } }): number {
   return t.left ?? t.sales_total - t.by_method.credit - t.expenses_total;
+}
+
+// ---- Plata: lo que entró y lo que salió de verdad ----
+
+interface MoneyTotals {
+  entered?: number;
+  out?: number;
+  sales_total: number;
+  expenses_total: number;
+  debts_collected?: number;
+  by_method: { credit: number };
+}
+
+/** Lo que entró: sin lo fiado y con los abonos. */
+export function moneyIn(t: MoneyTotals): number {
+  return t.entered ?? t.sales_total - t.by_method.credit + (t.debts_collected ?? 0);
+}
+
+/** Lo que salió. Un backend viejo no separa lo comprado a crédito: ahí son todos los gastos. */
+export function moneyOut(t: MoneyTotals): number {
+  return t.out ?? t.expenses_total;
+}
+
+export function pointOut(p: { out?: number; expenses: number }): number {
+  return p.out ?? p.expenses;
+}
+
+export function pointIn(p: { in?: number; left?: number; sales: number; expenses: number }): number {
+  return p.in ?? (p.left !== undefined ? p.left + p.expenses : p.sales);
+}
+
+/** «Estos 7 días», «Este mes» o las fechas elegidas. */
+export function rangeName(r: DateRange, today?: string): string {
+  const names: Partial<Record<Preset, string>> = { today: 'Hoy', yesterday: 'Ayer', '7d': 'Estos 7 días', '30d': 'Estos 30 días', month: 'Este mes', lastMonth: 'El mes pasado', year: 'Este año' };
+  return names[r.preset] ?? `Del ${rangeLabel(r.from, r.to, today)}`;
+}
+
+export interface ExpectedToday {
+  /** Citas confirmadas de hoy. */
+  count: number;
+  /** Las que tienen precio en el catálogo. */
+  priced: number;
+  total: number;
+}
+
+/** Lo que se espera hoy por la agenda: citas confirmadas con el precio del catálogo. Sin precio no se inventa. */
+export function expectedToday(
+  appointments: { kind: string; status: string; service?: { name: string } }[],
+  items: { name: string; price: number | null }[],
+): ExpectedToday {
+  const prices = new Map(items.filter((i) => i.price !== null && i.price > 0).map((i) => [i.name.trim().toLowerCase(), i.price as number]));
+  const out: ExpectedToday = { count: 0, priced: 0, total: 0 };
+  for (const a of appointments) {
+    if (a.kind !== 'booking' || a.status !== 'confirmed') continue;
+    out.count++;
+    const price = a.service ? prices.get(a.service.name.trim().toLowerCase()) : undefined;
+    if (price) {
+      out.priced++;
+      out.total += price;
+    }
+  }
+  return out;
+}
+
+export interface AgingRow {
+  key: 'fresh' | 'month' | 'old';
+  label: string;
+  total: number;
+}
+
+/** Cuánto llevan las deudas: hasta 7 días, de 8 a 30 y más de 30. Cada saldo cuenta desde lo más antiguo sin pagar. */
+export function agingRows(rows: { balance: number; oldest_at?: string }[], now: Date = new Date()): AgingRow[] {
+  const out: AgingRow[] = [
+    { key: 'fresh', label: 'Al día · hasta 7 días', total: 0 },
+    { key: 'month', label: 'De 8 a 30 días', total: 0 },
+    { key: 'old', label: 'Más de 30 días', total: 0 },
+  ];
+  for (const r of rows) {
+    const days = r.oldest_at ? Math.floor((now.getTime() - Date.parse(r.oldest_at)) / 86400000) : 0;
+    out[days <= 7 ? 0 : days <= 30 ? 1 : 2].total += r.balance;
+  }
+  return out;
+}
+
+/** Lo que falta para cubrir lo que se paga al mes, con lo que ha quedado este mes. */
+export function monthlyGap(monthly: number, leftThisMonth: number): { covered: boolean; missing: number } {
+  const missing = monthly - Math.max(0, leftThisMonth);
+  return { covered: missing <= 0, missing: Math.max(0, missing) };
 }

@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  agingRows,
+  expectedToday,
+  moneyIn,
+  moneyOut,
+  monthlyGap,
+  pointIn,
+  pointOut,
   addDays,
   atHour,
   dayReadings,
@@ -188,4 +195,41 @@ test('leftOf usa el dato del servidor y, sin él, quita lo fiado', () => {
   assert.equal(leftOf(t), 45);
   assert.equal(leftOf({ ...t, left: 55 }), 55);
   assert.equal(leftOf({ ...t, left: 0 }), 0);
+});
+
+test('moneyIn y moneyOut usan el servidor y, sin él, se acercan con lo que hay', () => {
+  const t = { sales_total: 742, expenses_total: 268, debts_collected: 40, by_method: { credit: 111 } };
+  assert.equal(moneyIn(t), 671);
+  assert.equal(moneyOut(t), 268);
+  assert.equal(moneyIn({ ...t, entered: 600 }), 600);
+  assert.equal(moneyOut({ ...t, out: 238 }), 238);
+  assert.equal(pointIn({ sales: 100, expenses: 30, left: 50 }), 80);
+  assert.equal(pointIn({ sales: 100, expenses: 30, in: 90, left: 50 }), 90);
+  assert.equal(pointOut({ expenses: 30, out: 0 }), 0);
+});
+
+test('expectedToday cuenta citas confirmadas y solo suma las que tienen precio', () => {
+  const items = [{ name: 'Corte clásico', price: 22000 }, { name: 'Barba', price: null }];
+  const e = expectedToday(
+    [
+      { kind: 'booking', status: 'confirmed', service: { name: 'corte clásico ' } },
+      { kind: 'booking', status: 'confirmed', service: { name: 'Barba' } },
+      { kind: 'booking', status: 'requested', service: { name: 'Corte clásico' } },
+      { kind: 'block', status: 'confirmed' },
+    ],
+    items,
+  );
+  assert.deepEqual(e, { count: 2, priced: 1, total: 22000 });
+});
+
+test('agingRows reparte por antigüedad', () => {
+  const now = new Date('2026-11-05T12:00:00Z');
+  const rows = agingRows([{ balance: 30, oldest_at: '2026-11-03T12:00:00Z' }, { balance: 40, oldest_at: '2026-10-24T12:00:00Z' }, { balance: 5, oldest_at: '2026-09-01T12:00:00Z' }, { balance: 7 }], now);
+  assert.deepEqual(rows.map((r) => r.total), [37, 40, 5]);
+});
+
+test('monthlyGap no cuenta lo que salió de más', () => {
+  assert.deepEqual(monthlyGap(900, 480), { covered: false, missing: 420 });
+  assert.deepEqual(monthlyGap(900, -50), { covered: false, missing: 900 });
+  assert.deepEqual(monthlyGap(900, 950), { covered: true, missing: 0 });
 });
