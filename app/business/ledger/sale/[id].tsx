@@ -326,7 +326,10 @@ export default function NewSaleScreen() {
               <PayDeck
                 methods={how === 'one' ? PAY_ALL : OTHER_METHODS}
                 value={method}
-                onChange={setMethod}
+                onChange={(m) => {
+                  setMethod(m);
+                  if (total > 0) setEditAmount(false);
+                }}
                 amount={how === 'one' || paid === null ? total : paid}
                 note={how === 'split' && paid !== null ? `El resto, ${formatPesos(rest)}, con otra forma` : how === 'part' && paid !== null ? `Queda debiendo ${formatPesos(rest)}` : undefined}
                 party={party?.name}

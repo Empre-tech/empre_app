@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Pop } from '@/components/ledger/Flow';
-import { formatPesos, METHOD_LABEL, type PayMethod } from '@/lib/ledger';
+import { formatPesos, type PayMethod } from '@/lib/ledger';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, softShadow } from '@/theme';
 
@@ -11,6 +11,14 @@ const LOOK: Record<PayMethod, { bg: string; fg: string; soft: string; label: str
   transfer: { bg: '#1C3F8F', fg: '#FFFFFF', soft: 'rgba(255,255,255,0.78)', label: 'Transferencia', line: 'Revisa que te haya llegado', icon: 'phone-portrait-outline' },
   card: { bg: '#131B2E', fg: '#FFFFFF', soft: 'rgba(255,255,255,0.72)', label: 'Tarjeta', line: 'Pásala por tu datáfono', icon: 'card-outline' },
   credit: { bg: '#FFF8E7', fg: colors.ink, soft: '#6B5A36', label: 'Fiado', line: 'Queda en «Te deben»', icon: 'person-outline' },
+};
+
+/** Cuando la plata sale: un gasto se dice distinto, y lo fiado es lo que tú debes. */
+const LOOK_OUT: Record<PayMethod, { label: string; line: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  cash: { label: 'Efectivo', line: 'Sale de tu caja', icon: 'cash-outline' },
+  transfer: { label: 'Transferencia', line: 'Sale de tu cuenta', icon: 'phone-portrait-outline' },
+  card: { label: 'Tarjeta', line: 'Se paga con tu tarjeta', icon: 'card-outline' },
+  credit: { label: 'A crédito', line: 'Queda en «Debes»', icon: 'time-outline' },
 };
 
 const CARD_H = 196;
@@ -49,7 +57,7 @@ function CashScene({ moving }: { moving: boolean }) {
 }
 
 /** Puntos que viajan de un celular al otro, sin parar mientras se ve. */
-function TransferScene({ moving }: { moving: boolean }) {
+function TransferScene({ moving, out }: { moving: boolean; out: boolean }) {
   const [t] = useState(() => new Animated.Value(0));
   useEffect(() => {
     if (!moving) return;
@@ -60,7 +68,7 @@ function TransferScene({ moving }: { moving: boolean }) {
   return (
     <View pointerEvents="none" style={styles.transfer}>
       <View style={styles.phone}>
-        <Ionicons name="person" size={16} color="#1C3F8F" />
+        <Ionicons name={out ? 'storefront' : 'person'} size={16} color="#1C3F8F" />
       </View>
       <View style={styles.wire}>
         {[0, 1, 2, 3].map((i) => {
@@ -71,7 +79,7 @@ function TransferScene({ moving }: { moving: boolean }) {
         })}
       </View>
       <View style={styles.phoneTo}>
-        <Ionicons name="storefront" size={16} color="#1C3F8F" />
+        <Ionicons name={out ? 'cube' : 'storefront'} size={16} color="#1C3F8F" />
       </View>
     </View>
   );
@@ -104,7 +112,7 @@ function CardScene({ moving }: { moving: boolean }) {
 }
 
 /** La libreta del fiado: renglones y una línea que se escribe sola. */
-function CreditScene({ moving, party }: { moving: boolean; party?: string }) {
+function CreditScene({ moving, party, out }: { moving: boolean; party?: string; out: boolean }) {
   const [write] = useState(() => new Animated.Value(moving ? 0 : 1));
   useEffect(() => {
     if (moving) Animated.timing(write, { toValue: 1, duration: 700, delay: 200, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
@@ -118,7 +126,7 @@ function CreditScene({ moving, party }: { moving: boolean; party?: string }) {
       <View pointerEvents="none" style={styles.noteTag}>
         <Ionicons name="pencil" size={13} color="#6B5A36" />
         <Text style={styles.noteTagText} numberOfLines={1}>
-          {party ?? 'Falta a quién'}
+          {party ?? (out ? 'Falta el proveedor' : 'Falta a quién')}
         </Text>
       </View>
       <Animated.View pointerEvents="none" style={[styles.ink, { transform: [{ scaleX: write }] }]} />
@@ -126,20 +134,24 @@ function CreditScene({ moving, party }: { moving: boolean; party?: string }) {
   );
 }
 
-function PayCard({ method, moving, amount, note, party }: { method: PayMethod; moving: boolean; amount: number; note?: string; party?: string }) {
-  const look = LOOK[method];
+function PayCard({ method, moving, amount, note, party, out }: { method: PayMethod; moving: boolean; amount: number; note?: string; party?: string; out: boolean }) {
+  const look = { ...LOOK[method], ...(out ? LOOK_OUT[method] : null) };
   return (
     <View style={[styles.card, { backgroundColor: look.bg }]}>
       {method === 'cash' ? <CashScene moving={moving} /> : null}
-      {method === 'transfer' ? <TransferScene moving={moving} /> : null}
+      {method === 'transfer' ? <TransferScene moving={moving} out={out} /> : null}
       {method === 'card' ? <CardScene moving={moving} /> : null}
-      {method === 'credit' ? <CreditScene moving={moving} party={party} /> : null}
+      {method === 'credit' ? <CreditScene moving={moving} party={party} out={out} /> : null}
       <View style={styles.cardFoot}>
         <Text style={[styles.cardLabel, { color: look.soft }]}>{look.label}</Text>
         <Pop value={amount}>
-          <Text style={[styles.cardAmount, { color: look.fg }]} numberOfLines={1} adjustsFontSizeToFit>
-            {formatPesos(amount)}
-          </Text>
+          {amount > 0 ? (
+            <Text style={[styles.cardAmount, { color: look.fg }]} numberOfLines={1} adjustsFontSizeToFit>
+              {formatPesos(amount)}
+            </Text>
+          ) : (
+            <Text style={[styles.cardMissing, { color: look.fg }]}>¿Cuánto fue?</Text>
+          )}
         </Pop>
         <Text style={[styles.cardLine, { color: look.soft }]} numberOfLines={1}>
           {note ?? look.line}
@@ -153,7 +165,8 @@ function PayCard({ method, moving, amount, note, party }: { method: PayMethod; m
  * El cobro como un mazo: cada forma de pago es una carta distinta. Al elegir, la carta de encima sale y entra la nueva; también
  * se puede pasar deslizando. El monto vive solo aquí.
  */
-export function PayDeck({ methods, value, onChange, amount, note, party, onEdit }: { methods: PayMethod[]; value: PayMethod; onChange: (m: PayMethod) => void; amount: number; note?: string; party?: string; onEdit?: () => void }) {
+export function PayDeck({ methods, value, onChange, amount, note, party, onEdit, out = false }: { methods: PayMethod[]; value: PayMethod; onChange: (m: PayMethod) => void; amount: number; note?: string; party?: string; onEdit?: () => void; out?: boolean }) {
+  const words = (m: PayMethod) => (out ? LOOK_OUT[m] : LOOK[m]);
   const reduce = useReduceMotion();
   const [leaving, setLeaving] = useState<{ method: PayMethod; dir: number } | null>(null);
   const [deal] = useState(() => new Animated.Value(1));
@@ -197,7 +210,9 @@ export function PayDeck({ methods, value, onChange, amount, note, party, onEdit 
   const behind = methods.filter((m) => m !== value).slice(0, 2);
   return (
     <View style={styles.wrap}>
-      <View accessible accessibilityRole="summary" accessibilityLabel={`${LOOK[value].label}, ${formatPesos(amount)}. ${note ?? LOOK[value].line}`} accessibilityLiveRegion="polite" style={styles.stage} {...swipe.panHandlers}>
+      {/* El mazo se recorta en el borde de la pantalla: una carta que sale nunca ensancha la página. */}
+      <View style={styles.clip}>
+      <View accessible accessibilityRole="summary" accessibilityLabel={`${words(value).label}, ${amount > 0 ? formatPesos(amount) : 'falta el monto'}. ${note ?? words(value).line}`} accessibilityLiveRegion="polite" style={styles.stage} {...swipe.panHandlers}>
         {behind.map((m, i) => (
           <View key={m} pointerEvents="none" style={[styles.peek, { backgroundColor: LOOK[m].bg, transform: [{ rotate: i === 0 ? '-3deg' : '3deg' }, { translateY: i === 0 ? -5 : -9 }, { scale: i === 0 ? 0.97 : 0.94 }] }]} />
         ))}
@@ -212,7 +227,7 @@ export function PayDeck({ methods, value, onChange, amount, note, party, onEdit 
               },
             ]}
           >
-            <PayCard method={leaving.method} moving={false} amount={amount} party={party} />
+            <PayCard method={leaving.method} moving={false} amount={amount} party={party} out={out} />
           </Animated.View>
         ) : null}
         <Animated.View
@@ -224,7 +239,7 @@ export function PayDeck({ methods, value, onChange, amount, note, party, onEdit 
             },
           ]}
         >
-          <PayCard method={value} moving={!reduce} amount={amount} note={note} party={party} />
+          <PayCard method={value} moving={!reduce} amount={amount} note={note} party={party} out={out} />
         </Animated.View>
         {onEdit ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Cambiar el monto" onPress={onEdit} style={styles.edit}>
@@ -232,15 +247,16 @@ export function PayDeck({ methods, value, onChange, amount, note, party, onEdit 
           </Pressable>
         ) : null}
       </View>
+      </View>
 
       <View style={styles.tiles} accessibilityRole="radiogroup" accessibilityLabel="Cómo te pagaron">
         {methods.map((m) => {
           const on = m === value;
           return (
-            <Pressable key={m} accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={m === 'credit' ? 'Fiado' : METHOD_LABEL[m]} onPress={() => onChange(m)} style={[styles.tile, m === 'transfer' && styles.tileLong, on && styles.tileOn]}>
-              <Ionicons name={LOOK[m].icon} size={22} color={colors.ink} />
+            <Pressable key={m} accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={words(m).label} onPress={() => onChange(m)} style={[styles.tile, m === 'transfer' && styles.tileLong, on && styles.tileOn]}>
+              <Ionicons name={words(m).icon} size={22} color={colors.ink} />
               <Text style={styles.tileText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
-                {LOOK[m].label}
+                {words(m).label}
               </Text>
             </Pressable>
           );
@@ -252,6 +268,7 @@ export function PayDeck({ methods, value, onChange, amount, note, party, onEdit 
 
 const styles = StyleSheet.create({
   wrap: { gap: 14 },
+  clip: { marginHorizontal: -16, marginVertical: -8, paddingHorizontal: 16, paddingVertical: 8, overflow: 'hidden' },
   stage: { height: CARD_H + 10, justifyContent: 'flex-end' },
   layer: { position: 'absolute', left: 0, right: 0, bottom: 0, height: CARD_H },
   peek: { position: 'absolute', left: 6, right: 6, bottom: 0, height: CARD_H, borderRadius: 22, opacity: 0.55 },
@@ -259,6 +276,7 @@ const styles = StyleSheet.create({
   cardFoot: { position: 'absolute', left: 18, right: 18, bottom: 16, gap: 1 },
   cardLabel: { fontSize: 12.5, fontFamily: fonts.ui.extrabold },
   cardAmount: { fontSize: 38, lineHeight: 44, fontFamily: fonts.display.bold, fontVariant: ['tabular-nums'] },
+  cardMissing: { fontSize: 28, lineHeight: 44, fontFamily: fonts.display.bold },
   cardLine: { fontSize: 12.5, fontFamily: fonts.ui.bold },
   edit: { position: 'absolute', right: 10, bottom: 12, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.92)' },
   // Efectivo

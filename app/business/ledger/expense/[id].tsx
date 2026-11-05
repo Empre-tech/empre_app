@@ -7,13 +7,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { ledgerApi, type InventoryItem } from '@/api/ledger';
 import { DoneMark, FlowHeader, useFlowBack, useFlowStep } from '@/components/ledger/Flow';
 import { AmountField, Chip, LedgerReceipt, PartyPicker, type PartyChoice } from '@/components/ledger/parts';
+import { PayDeck } from '@/components/ledger/PayDeck';
 import { fmtQty, normalize, packToUnits } from '@/lib/inventory';
 import { categoryLabel, EXPENSE_CATEGORIES, formatPesos, METHOD_LABEL, newClientId, type PayMethod } from '@/lib/ledger';
 import { queueExpense, queueVoid } from '@/ledger/ledgerStore';
 import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 
 const PAY_ALL: PayMethod[] = ['cash', 'transfer', 'card', 'credit'];
-const PAY_ICON: Record<PayMethod, keyof typeof Ionicons.glyphMap> = { cash: 'cash-outline', transfer: 'phone-portrait-outline', card: 'card-outline', credit: 'time-outline' };
 const PANES = ['what', 'pay', 'done'] as const;
 
 /** Un producto o insumo que se compró. Los textos son lo que el dueño escribe; se convierten al guardar. */
@@ -78,6 +78,7 @@ export default function NewExpenseScreen() {
   const [method, setMethod] = useState<PayMethod>('cash');
   const [supplier, setSupplier] = useState<PartyChoice | null>(null);
   const [note, setNote] = useState('');
+  const [editAmount, setEditAmount] = useState(false);
   const [saved, setSaved] = useState<{ clientId: string; amount: number; text: string; voided: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,6 +92,7 @@ export default function NewExpenseScreen() {
     setMethod('cash');
     setSupplier(null);
     setNote('');
+    setEditAmount(false);
     setSaved(null);
     setPane('what');
     setError(null);
@@ -127,11 +129,9 @@ export default function NewExpenseScreen() {
     setSaved({ clientId, amount, text: `${categoryLabel(category)} · ${mText}`, voided: false });
   };
 
-  const primaryTitle = saved
-    ? 'Nuevo gasto'
-    : amount > 0
-      ? `Guardar gasto ${formatPesos(amount)}`
-      : 'Escribe cuánto fue';
+  const waitingSupplier = method === 'credit' && !supplier;
+  const payDisabled = amount <= 0 || waitingSupplier;
+  const primaryTitle = amount <= 0 ? 'Escribe cuánto fue' : waitingSupplier ? '¿A quién le debes?' : method === 'credit' ? `Anotar ${formatPesos(amount)} a ${supplier?.name ?? ''}` : `Guardar gasto ${formatPesos(amount)}`;
 
   const backToWhat = useCallback(() => setPane('what'), []);
   useFlowBack(!saved && pane === 'pay' ? backToWhat : null);
@@ -146,6 +146,9 @@ export default function NewExpenseScreen() {
   const goPay = () => {
     if (buy.some((b) => lineUnits(b) === null)) return setError('Completa la cantidad y el costo de cada producto, o quítalo.');
     setError(null);
+    // El campo llega cuando el paso ya entró: enfocarlo a mitad del movimiento corre la pantalla de lado.
+    setEditAmount(false);
+    if (amount <= 0) setTimeout(() => setEditAmount(true), 400);
     setPane('pay');
   };
   const stepN = saved ? 3 : pane === 'pay' ? 2 : 1;
@@ -178,31 +181,18 @@ export default function NewExpenseScreen() {
           </ScrollView>
         ) : shown === 'pay' ? (
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-            <View style={styles.bill}>
-              <Text style={styles.billLabel}>¿Cuánto fue?</Text>
-              <AmountField value={amount} onChange={setAmount} autoFocus={amount <= 0} />
-            </View>
             <View style={{ gap: 10 }}>
               <Text style={styles.sectionTitle} accessibilityRole="header">
                 ¿Cómo lo pagaste?
               </Text>
-              <View style={styles.methods}>
-                {PAY_ALL.map((m) => {
-                  const on = method === m;
-                  return (
-                    <Pressable key={m} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setMethod(m)} style={[styles.method, on && styles.methodOn]}>
-                      <Ionicons name={PAY_ICON[m]} size={24} color={colors.ink} />
-                      <Text style={styles.methodText}>{m === 'credit' ? 'A crédito' : METHOD_LABEL[m]}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+              <PayDeck out methods={PAY_ALL} value={method} onChange={(m) => { setMethod(m); if (amount > 0) setEditAmount(false); }} amount={amount} party={supplier?.name} onEdit={() => setEditAmount((v) => !v)} />
+              {editAmount ? <AmountField value={amount} onChange={setAmount} autoFocus={amount <= 0} /> : null}
             </View>
             {method === 'credit' ? (
               <View style={{ gap: spacing.sm }}>
                 <Text style={styles.label}>Proveedor (lo recordamos)</Text>
                 <PartyPicker entityId={entityId} kind="supplier" value={supplier} onChange={setSupplier} />
-                {supplier ? <Text style={styles.hintText}>Queda como deuda con {supplier.name}. La ves en Deudas y la pagas cuando quieras.</Text> : null}
+                {supplier ? <Text style={styles.hintText}>Queda como deuda con {supplier.name}. La ves en Cuentas y la pagas cuando quieras.</Text> : null}
               </View>
             ) : null}
             <TextInput value={note} onChangeText={setNote} placeholder="Agregar una nota (opcional)" placeholderTextColor={colors.faint} style={styles.note} maxLength={200} accessibilityLabel="Nota del gasto" />
@@ -331,8 +321,8 @@ export default function NewExpenseScreen() {
             </Pressable>
           </>
         ) : pane === 'pay' ? (
-          <Pressable accessibilityRole="button" accessibilityState={{ disabled: amount <= 0 }} disabled={amount <= 0} onPress={save} style={[styles.primaryBtn, amount <= 0 && styles.primaryBtnDisabled]}>
-            <Text style={[styles.primaryBtnText, amount <= 0 && styles.primaryBtnTextDisabled]}>{primaryTitle}</Text>
+          <Pressable accessibilityRole="button" accessibilityState={{ disabled: payDisabled }} disabled={payDisabled} onPress={save} style={[styles.primaryBtn, payDisabled && styles.primaryBtnDisabled]}>
+            <Text style={[styles.primaryBtnText, payDisabled && styles.primaryBtnTextDisabled]}>{primaryTitle}</Text>
           </Pressable>
         ) : (
           <Pressable accessibilityRole="button" onPress={goPay} style={[styles.primaryBtn, styles.nextBtn]}>
@@ -349,10 +339,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   question: { fontSize: 26, lineHeight: 30, letterSpacing: -0.4, fontFamily: fonts.display.bold, color: colors.ink },
   sectionTitle: { fontSize: 19, lineHeight: 23, fontFamily: fonts.display.bold, color: colors.ink },
-  bill: { gap: 8, padding: 16, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
-  billLabel: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   methods: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  method: { width: '48.5%', minHeight: 76, alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
   catTile: { width: '48.5%', minHeight: 64, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
   methodOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
   methodText: { textAlign: 'center', fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
@@ -364,7 +351,7 @@ const styles = StyleSheet.create({
   secondaryBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   secondaryBtnText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   nextBtn: { flexDirection: 'row', gap: 8 },
-  body: { paddingHorizontal: spacing.lg, paddingTop: 6, paddingBottom: spacing.xl, gap: 14 },
+  body: { paddingHorizontal: 20, paddingTop: 6, paddingBottom: spacing.xl, gap: 14 },
   label: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   eyebrow: { fontSize: 12, fontFamily: fonts.ui.extrabold, letterSpacing: 0.8, color: colors.faint },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
