@@ -476,6 +476,8 @@ export interface VoiceAction {
   new_party?: boolean;
   candidates?: { id: string; name: string }[];
   warnings?: string[];
+  /** Solo en el teléfono: sumar, descontar o contar lo que dijo. `from` es lo que hay contado; null si no se lleva la cuenta. */
+  stock_move?: { kind: 'add' | 'remove' | 'count'; qty: number; from: number | null; reason: AdjustReason; counted?: number };
   /** Solo en el teléfono: dijo cuánto vale un producto que ya existe. Se cambia si el dueño lo confirma. */
   price_ask?: { item_id: string; from: number | null; to: number };
   price_ok?: boolean;

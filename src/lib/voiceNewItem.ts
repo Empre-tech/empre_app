@@ -105,7 +105,7 @@ export function isMoneyTalk(text: string): boolean {
 
 /** «30 pollos», «hay 12 camisas», «me quedan 3 jugos»: cuánto y de qué. null si no dice una cantidad. */
 export function countFromWords(text: string): { qty: number; name: string } | null {
-  const m = /^(?:hay |tengo |quedan |me quedan |son |llegaron )?(\d{1,5})(?: (?:de|unidades de|unidades))? (.+)$/.exec(norm(text));
+  const m = /^(?:hay |tengo |quedan |me quedan |son )?(\d{1,5})(?: (?:de|unidades de|unidades))? (.+)$/.exec(norm(text));
   return m && m[2].trim() ? { qty: Number(m[1]), name: m[2].trim() } : null;
 }
 
@@ -118,4 +118,55 @@ export function sameNameItem<T extends SimilarItem>(name: string, items: T[]): T
     return own.length === asked.length && asked.every((a) => own.some((o) => sameWord(a, o)));
   });
   return hits.length === 1 ? hits[0] : null;
+}
+
+// ---- Lo que se dice de inventario: preguntar, sumar, descontar o contar ----
+
+export type InvIntent =
+  | { kind: 'ask'; name: string }
+  | { kind: 'add'; qty: number; name: string }
+  | { kind: 'remove'; qty: number; name: string; reason: 'danado' | 'vencido' | 'perdida' | 'otro' }
+  | { kind: 'count'; qty: number; name: string };
+
+const WORD_QTY: Record<string, number> = { un: 1, una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10 };
+const QTY = '(\\d{1,5}|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)';
+const toQty = (s: string) => WORD_QTY[s] ?? Number(s);
+const cleanName = (s: string) => s.replace(/^(?:(?:mas|unidades|de|del|a|al|la|el|los|las)\s+)+/, '').replace(/\s+(?:disponibles?|hay|tengo|tenemos|quedan?|me quedan?)$/, '').trim();
+
+/**
+ * Qué quiere hacer con reglas, sin modelo de lenguaje: responde al instante y no cuesta. Si no encaja, devuelve null y sigue
+ * el camino normal. «Hay poco café» y «no hay café» avisan del nivel: no son una pregunta.
+ */
+export function inventoryIntent(text: string): InvIntent | null {
+  const t = norm(text);
+  const remove = new RegExp(`^(?:descuenta|descontar|descuentale|quita|quitar|quitale|resta|restar|restale|saca|sacar|bota|botar) ${QTY} (.+)$`).exec(t);
+  if (remove) return { kind: 'remove', qty: toQty(remove[1]), name: cleanName(remove[2]), reason: 'otro' };
+  const lost = new RegExp(`^se (danaron|dano|vencieron|vencio|perdieron|perdio) ${QTY} (.+)$`).exec(t);
+  if (lost) return { kind: 'remove', qty: toQty(lost[2]), name: cleanName(lost[3]), reason: lost[1].startsWith('dan') ? 'danado' : lost[1].startsWith('venc') ? 'vencido' : 'perdida' };
+  const add = new RegExp(`^(?:me |nos )?(?:llegaron|llego|entraron|entro|agrega|agregar|agregale|suma|sumar|sumale|anade|anadir|mete|meter) ${QTY} (.+)$`).exec(t);
+  if (add) return { kind: 'add', qty: toQty(add[1]), name: cleanName(add[2]) };
+  const count = countFromWords(text);
+  if (count) return { kind: 'count', qty: count.qty, name: cleanName(count.name) };
+  const howMany = /^cuant[oa]s?(?: hay de| tengo de| de)? (.+)$/.exec(t);
+  if (howMany) {
+    const name = cleanName(howMany[1]);
+    return name ? { kind: 'ask', name } : null;
+  }
+  const ask = /^(?:y )?(?:hay|tienes|tengo|tenemos|queda|quedan|me queda|me quedan|esta|estan)(?: disponibles?| algo de)? (.+)$/.exec(t);
+  if (ask && !/^(?:poc[oa]s?|mucho|muchos|nada|\d)/.test(ask[1])) {
+    const name = cleanName(ask[1]);
+    return name ? { kind: 'ask', name } : null;
+  }
+  return null;
+}
+
+/** La respuesta a «¿hay?» de un producto, según lo que se sabe de él. */
+export function availabilityLine(item: { status: string; qty: number; counted: boolean; mode: string; unit?: string }): { text: string; has: boolean | null } {
+  const exact = item.counted && item.mode === 'exact';
+  const qty = String(Math.round(item.qty * 10) / 10).replace('.', ',');
+  if (item.status === 'out' || (exact && item.qty <= 0)) return { text: 'Se acabó', has: false };
+  if (item.status === 'low') return { text: exact ? `Quedan pocos: ${qty}` : 'Queda poco', has: true };
+  if (exact) return { text: `Hay ${qty}`, has: true };
+  if (item.status === 'ok') return { text: 'Hay', has: true };
+  return { text: 'No llevas la cuenta', has: null };
 }

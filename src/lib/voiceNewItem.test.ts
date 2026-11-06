@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { countFromWords, dictatedPrice, isMoneyTalk, isPriceStatement, itemNamedIn, sameNameItem, similarItems } from './voiceNewItem.ts';
+import { availabilityLine, inventoryIntent, countFromWords, dictatedPrice, isMoneyTalk, isPriceStatement, itemNamedIn, sameNameItem, similarItems } from './voiceNewItem.ts';
 
 const items = [
   { ref: '1', name: 'Perfume Dior', kind: 'product' as const },
@@ -77,4 +77,36 @@ test('sameNameItem solo acepta el mismo nombre', () => {
   assert.equal(sameNameItem('pollos', list)?.ref, 'a');
   assert.equal(sameNameItem('pollo asado', list)?.ref, 'b');
   assert.equal(sameNameItem('camisa', list), null);
+});
+
+test('inventoryIntent reconoce una pregunta', () => {
+  assert.deepEqual(inventoryIntent('hay disponible afeitadora'), { kind: 'ask', name: 'afeitadora' });
+  assert.deepEqual(inventoryIntent('¿Hay afeitadoras?'), { kind: 'ask', name: 'afeitadoras' });
+  assert.deepEqual(inventoryIntent('tengo cera mate'), { kind: 'ask', name: 'cera mate' });
+  assert.deepEqual(inventoryIntent('cuántas cremas quedan'), { kind: 'ask', name: 'cremas' });
+  assert.deepEqual(inventoryIntent('cuánto hay de harina'), { kind: 'ask', name: 'harina' });
+});
+
+test('inventoryIntent no confunde un aviso con una pregunta', () => {
+  assert.equal(inventoryIntent('hay poco café'), null);
+  assert.equal(inventoryIntent('queda poca lechuga'), null);
+  assert.equal(inventoryIntent('no hay café'), null);
+  assert.equal(inventoryIntent('se acabó la harina'), null);
+});
+
+test('inventoryIntent separa sumar, descontar y contar', () => {
+  assert.deepEqual(inventoryIntent('Llegaron 24 gaseosas'), { kind: 'add', qty: 24, name: 'gaseosas' });
+  assert.deepEqual(inventoryIntent('agrega dos cremas'), { kind: 'add', qty: 2, name: 'cremas' });
+  assert.deepEqual(inventoryIntent('descuenta 3 jabones'), { kind: 'remove', qty: 3, name: 'jabones', reason: 'otro' });
+  assert.deepEqual(inventoryIntent('se dañaron 2 de las cremas'), { kind: 'remove', qty: 2, name: 'cremas', reason: 'danado' });
+  assert.deepEqual(inventoryIntent('hay 30 pollos'), { kind: 'count', qty: 30, name: 'pollos' });
+  assert.deepEqual(inventoryIntent('30 pollos'), { kind: 'count', qty: 30, name: 'pollos' });
+});
+
+test('availabilityLine responde con lo que se sabe', () => {
+  assert.deepEqual(availabilityLine({ status: 'ok', qty: 5, counted: true, mode: 'exact' }), { text: 'Hay 5', has: true });
+  assert.deepEqual(availabilityLine({ status: 'low', qty: 2, counted: true, mode: 'exact' }), { text: 'Quedan pocos: 2', has: true });
+  assert.deepEqual(availabilityLine({ status: 'out', qty: 0, counted: true, mode: 'exact' }), { text: 'Se acabó', has: false });
+  assert.deepEqual(availabilityLine({ status: 'ok', qty: 0, counted: false, mode: 'light' }), { text: 'Hay', has: true });
+  assert.deepEqual(availabilityLine({ status: 'none', qty: 0, counted: false, mode: 'none' }), { text: 'No llevas la cuenta', has: null });
 });
