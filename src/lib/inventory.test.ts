@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cartTotal, fmtQty, groupInventory, itemLine, missingIngredients, packToUnits, sectionize, sectionSummary, type InvLike } from './inventory.ts';
+import { cartTotal, fmtQty, groupInventory, itemLine, missingIngredients, packToUnits, sectionize, sectionSummary, stockState, withStock, type InvLike } from './inventory.ts';
 
 const base = { kind: 'product', unit: 'unidad', days_left: null, sold_28: 0, qty: 0 } as const;
 const mk = (o: Partial<InvLike> & { name: string }): InvLike => ({ ref: o.name, mode: 'light', status: 'ok', ...base, ...o }) as InvLike;
@@ -116,4 +116,21 @@ test('el resumen de una sección dice lo que importa', () => {
   assert.equal(sectionSummary([{ is_service: true, mode: 'none', status: 'none', qty: 0 } as never, { is_service: true, mode: 'none', status: 'none', qty: 0 } as never]).text, '2 servicios');
   // Un producto con variantes cuenta por sus variantes.
   assert.equal(sectionSummary([{ ...light('ok'), children: [light('out'), light('ok')] } as never]).text, '1 se acabó');
+});
+
+test('semáforo: cada producto cae en uno solo y lo que no se cuenta en ninguno', () => {
+  const it = (name: string, status: string, sold = 0, more: object = {}) => ({ name, status, mode: 'light', qty: 0, days_left: null, sold_28: sold, ...more }) as InvLike;
+  assert.equal(stockState(it('a', 'ok')), 'ok');
+  assert.equal(stockState(it('a', 'low')), 'low');
+  assert.equal(stockState(it('a', 'out')), 'out');
+  assert.equal(stockState(it('a', 'unknown')), null);
+  assert.equal(stockState(it('a', 'ok', 0, { mode: 'none' })), null);
+  assert.equal(stockState(it('a', 'ok', 0, { is_service: true })), null);
+  // Un plato con un insumo agotado ya no se puede vender, aunque el plato diga «hay».
+  assert.equal(stockState(it('a', 'ok', 0, { ingredients: [{ name: 'Pollo', status: 'out' }] })), 'out');
+  assert.equal(stockState(it('a', 'ok', 0, { ingredients: [{ name: 'Pollo', status: 'low' }] })), 'low');
+  const list = [it('Poco vendido', 'low', 1), it('Hay', 'ok', 9), it('Muy vendido', 'low', 8), it('Agotado', 'out', 5)];
+  assert.deepEqual(withStock(list, 'low').map((i) => i.name), ['Muy vendido', 'Poco vendido']);
+  assert.deepEqual(withStock(list, 'ok').map((i) => i.name), ['Hay']);
+  assert.deepEqual(withStock(list, 'out').map((i) => i.name), ['Agotado']);
 });

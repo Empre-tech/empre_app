@@ -88,7 +88,7 @@ export function cleanLabel(s: string): string {
   return t ? t.charAt(0).toUpperCase() + t.slice(1) : '';
 }
 
-export type SupplyFilter = 'attention' | 'out' | 'low' | 'all';
+export type SupplyFilter = 'attention' | 'ok' | 'out' | 'low' | 'all';
 
 /** Filtra por estado: «atención» = se acabó o queda poco. */
 export function filterByStatus<T extends { status: string }>(items: T[], f: SupplyFilter): T[] {

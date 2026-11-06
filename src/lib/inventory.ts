@@ -89,6 +89,22 @@ export function groupInventory<T extends InvLike>(items: T[], query = ''): Group
   return { urgent, rest, uncontrolled };
 }
 
+export type StockState = 'ok' | 'low' | 'out';
+
+/** En qué semáforo cae: un insumo que falta manda sobre el estado propio. Lo que no se cuenta no cae en ninguno. */
+export function stockState(i: InvLike): StockState | null {
+  if (i.is_service || (i.mode !== 'light' && i.mode !== 'exact')) return null;
+  const m = missingIngredients(i);
+  if (i.status === 'out' || m.out.length > 0) return 'out';
+  if (i.status === 'low' || m.low.length > 0) return 'low';
+  return i.status === 'ok' ? 'ok' : null;
+}
+
+/** Lo que está en ese semáforo, lo más vendido primero. */
+export function withStock<T extends InvLike>(items: T[], state: StockState): T[] {
+  return items.filter((i) => stockState(i) === state).sort((a, b) => b.sold_28 - a.sold_28 || a.name.localeCompare(b.name, 'es'));
+}
+
 export function normalize(s: string): string {
   return s
     .toLowerCase()
