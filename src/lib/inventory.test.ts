@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cartTotal, fmtQty, groupInventory, itemLine, missingIngredients, packToUnits, sectionize, sectionSummary, stockState, withStock, type InvLike } from './inventory.ts';
+import { cartTotal, fmtQty, groupInventory, itemLine, missingIngredients, packToUnits, sectionize, sectionSummary, stockState, withStock, bestSellers, canRankBySales, type InvLike } from './inventory.ts';
 
 const base = { kind: 'product', unit: 'unidad', days_left: null, sold_28: 0, qty: 0 } as const;
 const mk = (o: Partial<InvLike> & { name: string }): InvLike => ({ ref: o.name, mode: 'light', status: 'ok', ...base, ...o }) as InvLike;
@@ -133,4 +133,14 @@ test('semáforo: cada producto cae en uno solo y lo que no se cuenta en ninguno'
   assert.deepEqual(withStock(list, 'low').map((i) => i.name), ['Muy vendido', 'Poco vendido']);
   assert.deepEqual(withStock(list, 'ok').map((i) => i.name), ['Hay']);
   assert.deepEqual(withStock(list, 'out').map((i) => i.name), ['Agotado']);
+});
+
+test('más vendidos: primero lo que más sale, sin desordenar la lista original', () => {
+  const it = (name: string, sold: number) => ({ name, status: 'ok', mode: 'light', qty: 0, days_left: null, sold_28: sold }) as InvLike;
+  const list = [it('Sin ventas B', 0), it('Poco', 2), it('Sin ventas A', 0), it('Mucho', 40)];
+  assert.deepEqual(bestSellers(list).map((i) => i.name), ['Mucho', 'Poco', 'Sin ventas A', 'Sin ventas B']);
+  assert.equal(list[0].name, 'Sin ventas B');
+  assert.equal(canRankBySales(list), true);
+  assert.equal(canRankBySales([it('Una', 5), it('Otra', 0)]), false);
+  assert.equal(canRankBySales([]), false);
 });

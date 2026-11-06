@@ -100,9 +100,19 @@ export function stockState(i: InvLike): StockState | null {
   return i.status === 'ok' ? 'ok' : null;
 }
 
+/** Lo más vendido primero; lo que aún no se vende, al final y por nombre. */
+export function bestSellers<T extends InvLike>(items: T[]): T[] {
+  return items.slice().sort((a, b) => b.sold_28 - a.sold_28 || a.name.localeCompare(b.name, 'es'));
+}
+
+/** Ordenar por ventas solo dice algo si ya se han vendido al menos dos cosas distintas. */
+export function canRankBySales(items: InvLike[]): boolean {
+  return items.filter((i) => i.sold_28 > 0).length >= 2;
+}
+
 /** Lo que está en ese semáforo, lo más vendido primero. */
 export function withStock<T extends InvLike>(items: T[], state: StockState): T[] {
-  return items.filter((i) => stockState(i) === state).sort((a, b) => b.sold_28 - a.sold_28 || a.name.localeCompare(b.name, 'es'));
+  return bestSellers(items.filter((i) => stockState(i) === state));
 }
 
 export function normalize(s: string): string {
