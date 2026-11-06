@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
   tiles: { flexDirection: 'row', gap: 6 },
   tile: { flex: 1, minWidth: 0, minHeight: 68, alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 3, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
   // «Transferencia» es la palabra larga: su cuadro crece para que no se corte.
-  tileLong: { flex: 1.35 },
+  tileLong: { flex: 1.6 },
   tileOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
   tileText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

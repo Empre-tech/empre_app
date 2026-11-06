@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dictatedPrice, isPriceStatement, itemNamedIn, similarItems } from './voiceNewItem.ts';
+import { countFromWords, dictatedPrice, isMoneyTalk, isPriceStatement, itemNamedIn, sameNameItem, similarItems } from './voiceNewItem.ts';
 
 const items = [
   { ref: '1', name: 'Perfume Dior', kind: 'product' as const },
@@ -55,4 +55,26 @@ test('itemNamedIn solo responde si es uno y es un producto', () => {
   assert.equal(itemNamedIn('el corte vale 50 mil', list), null);
   assert.equal(itemNamedIn('el aceite vale 50 mil', list), null);
   assert.equal(itemNamedIn('perfume y corte clásico valen 50 mil', list), null);
+});
+
+test('isMoneyTalk reconoce cuando se movió plata', () => {
+  assert.equal(isMoneyTalk('vendí 3 pollos'), true);
+  assert.equal(isMoneyTalk('le fié 20 mil a Jorge'), true);
+  assert.equal(isMoneyTalk('30 pollos'), false);
+  assert.equal(isMoneyTalk('se acabó el pollo'), false);
+});
+
+test('countFromWords lee cuánto hay', () => {
+  assert.deepEqual(countFromWords('30 pollos'), { qty: 30, name: 'pollos' });
+  assert.deepEqual(countFromWords('Hay 12 camisas'), { qty: 12, name: 'camisas' });
+  assert.deepEqual(countFromWords('me quedan 3 unidades de jugo'), { qty: 3, name: 'jugo' });
+  assert.equal(countFromWords('se acabó el pollo'), null);
+  assert.equal(countFromWords('30'), null);
+});
+
+test('sameNameItem solo acepta el mismo nombre', () => {
+  const list = [{ ref: 'a', name: 'Pollo', kind: 'product' as const }, { ref: 'b', name: 'Pollo asado', kind: 'product' as const }];
+  assert.equal(sameNameItem('pollos', list)?.ref, 'a');
+  assert.equal(sameNameItem('pollo asado', list)?.ref, 'b');
+  assert.equal(sameNameItem('camisa', list), null);
 });

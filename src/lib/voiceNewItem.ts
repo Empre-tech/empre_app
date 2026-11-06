@@ -97,3 +97,25 @@ export function itemNamedIn<T extends SimilarItem>(text: string, items: T[]): T 
   });
   return hits.length === 1 ? hits[0] : null;
 }
+
+/** ¿Habla de plata que se movió? Entonces no es inventario, aunque esté en esa pestaña. */
+export function isMoneyTalk(text: string): boolean {
+  return /\b(vendi|vendio|vendimos|cobre|fie|fiado|gaste|pague|abono|abonaron)\b/.test(norm(text));
+}
+
+/** «30 pollos», «hay 12 camisas», «me quedan 3 jugos»: cuánto y de qué. null si no dice una cantidad. */
+export function countFromWords(text: string): { qty: number; name: string } | null {
+  const m = /^(?:hay |tengo |quedan |me quedan |son |llegaron )?(\d{1,5})(?: (?:de|unidades de|unidades))? (.+)$/.exec(norm(text));
+  return m && m[2].trim() ? { qty: Number(m[1]), name: m[2].trim() } : null;
+}
+
+/** El que se llama igual, palabra por palabra, en productos o insumos. Con dos o ninguno, null. */
+export function sameNameItem<T extends SimilarItem>(name: string, items: T[]): T | null {
+  const asked = words(name);
+  if (asked.length === 0) return null;
+  const hits = items.filter((i) => {
+    const own = words(i.name);
+    return own.length === asked.length && asked.every((a) => own.some((o) => sameWord(a, o)));
+  });
+  return hits.length === 1 ? hits[0] : null;
+}
