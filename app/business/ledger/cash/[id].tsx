@@ -9,10 +9,13 @@ import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { AmountField, Chip } from '@/components/ledger/parts';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
+import { MethodDeck } from '@/components/finance/MethodDeck';
+import { useTodayDeck } from '@/components/finance/useTodayDeck';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { useFinanceSetup } from '@/ledger/financeSetup';
 import { queueCashClose, queueCashMove, queueVoid, useLedgerOutbox } from '@/ledger/ledgerStore';
 import { cashReasonLabel, CASH_REASONS, formatPesos, newClientId, type CashDirection } from '@/lib/ledger';
+import { buildDeck, type DeckEntry } from '@/lib/methodDeck';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const BILLS: { value: number; label: string; bg: string; fg: string }[] = [
@@ -29,7 +32,6 @@ const QUICK_AMOUNTS = [20000, 50000, 100000];
 const PAID_SOMEONE = 'le_pague';
 
 const clock = (iso: string) => new Date(iso).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
-const signed = (n: number) => `${n < 0 ? '−' : '+'}${formatPesos(Math.abs(n))}`;
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 interface MoveDraft {
@@ -73,6 +75,24 @@ export default function CashScreen() {
   const base = baseKnown ? (data?.base ?? 0) : opening;
   const movesNet = moves.reduce((s, m) => s + (m.direction === 'in' ? m.amount : -m.amount), 0);
   const expected = base + (flow ? flow.sales + flow.debts_in - flow.expenses - flow.debts_out : 0) + movesNet;
+
+  // El mazo del día: el efectivo abierto (lo único que se cuenta) y los demás medios cerrados.
+  const today = useTodayDeck(entityId);
+  const movesKey = moves.map((m) => `${m.id}:${m.amount}:${m.direction}`).join();
+  const deck = useMemo(() => {
+    const extra: DeckEntry[] = [
+      ...(flow && flow.debts_in > 0 ? [{ at: '', label: 'Fiados que te pagaron', method: 'cash' as const, amount: flow.debts_in }] : []),
+      ...(flow && flow.debts_out > 0 ? [{ at: '', label: 'Abonos a proveedores', method: 'cash' as const, amount: -flow.debts_out }] : []),
+      ...moves.map((m) => ({ id: m.id, at: m.at, label: `${m.direction === 'in' ? 'Metiste' : 'Sacaste'}: ${cashReasonLabel(m.reason).toLowerCase()}`, method: 'cash' as const, amount: m.direction === 'in' ? m.amount : -m.amount })),
+    ];
+    return buildDeck([...today.entries, ...extra], ['cash']);
+    // `moves` se arma en cada render; movesKey resume su contenido.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [today.entries, flow, movesKey]);
+  const movesIn = moves.filter((m) => m.direction === 'in').reduce((s, m) => s + m.amount, 0);
+  const movesOut = movesIn - movesNet;
+  // Lo que entró y salió según el servidor, para que base + entró − salió dé lo que debería haber.
+  const cashSums = flow ? { in: flow.sales + flow.debts_in + movesIn, out: flow.expenses + flow.debts_out + movesOut } : undefined;
 
   const billsTotal = BILLS.reduce((s, b) => s + b.value * (counts[b.value] ?? 0), 0);
   const total = billsTotal + coins;
@@ -179,31 +199,34 @@ export default function CashScreen() {
                 <Text style={styles.noticeText}>Ya cerraste hoy con {formatPesos(data.close.counted)}. Si cierras otra vez, reemplaza ese cierre.</Text>
               </View>
             ) : null}
-            <View style={styles.card}>
-              <Text style={styles.eyebrowCaps}>EN EFECTIVO DEBERÍAS TENER</Text>
-              <Text style={styles.hero} accessibilityLiveRegion="polite">{formatPesos(expected)}</Text>
-              {baseKnown ? (
-                <CalcRow title="Base con la que abriste" sub={data.carried ? 'Lo que dejaste, más lo de los días sin cerrar' : 'Lo que dejaste en el último cierre'} value={formatPesos(data.base)} />
-              ) : (
-                <View style={styles.openingBox}>
-                  <Text style={styles.rowTitle}>¿Con cuánto abriste hoy?</Text>
-                  <Text style={styles.rowSub}>Solo te lo preguntamos la primera vez. Desde mañana sale de tu cierre.</Text>
-                  <AmountField value={opening} onChange={setOpening} />
-                </View>
-              )}
-              {flow && flow.sales > 0 ? <CalcRow title="Ventas en efectivo" sub={plural(flow.sales_count, 'venta', 'ventas')} value={signed(flow.sales)} good /> : null}
-              {flow && flow.expenses > 0 ? <CalcRow title="Gastos en efectivo" sub={plural(flow.expenses_count, 'gasto', 'gastos')} value={signed(-flow.expenses)} /> : null}
-              {flow && flow.debts_in > 0 ? <CalcRow title="Fiados que te pagaron" sub="En efectivo" value={signed(flow.debts_in)} good /> : null}
-              {flow && flow.debts_out > 0 ? <CalcRow title="Abonos a proveedores" sub="En efectivo" value={signed(-flow.debts_out)} /> : null}
-              {moves.map((m) => (
-                <CalcRow key={m.id} title={`${m.direction === 'in' ? 'Metiste' : 'Sacaste'}: ${cashReasonLabel(m.reason).toLowerCase()}`} sub={`No es venta ni gasto · ${clock(m.at)}`} value={signed(m.direction === 'in' ? m.amount : -m.amount)} onPress={() => askVoid(m)} />
-              ))}
-              <Pressable accessibilityRole="button" onPress={() => openMove()} style={({ pressed }) => [styles.moveLink, pressed && { opacity: 0.85 }]}>
-                <Ionicons name="swap-horizontal" size={18} color={colors.ink} />
-                <Text style={styles.moveLinkText}>Saqué o metí plata</Text>
-              </Pressable>
-              <Text style={styles.note}>Transferencias y tarjeta no van en la caja: ya están en tu cuenta. Sacar o meter plata cambia lo que debería haber, no lo que te quedó.</Text>
+            {deck.length > 1 ? <Text style={styles.note}>Así te pagaron hoy. Solo el efectivo se cuenta: lo demás ya está en tu cuenta o te lo deben.</Text> : null}
+            <View accessibilityLiveRegion="polite">
+              <MethodDeck
+                cards={deck}
+                mode="caja"
+                initialOpen="cash"
+                cashExpected={expected}
+                cashBase={base}
+                cashSums={cashSums}
+                timeOf={clock}
+                onMove={(e) => {
+                  const m = moves.find((x) => x.id === e.id);
+                  if (m) askVoid(m);
+                }}
+              />
             </View>
+            {!baseKnown ? (
+              <View style={[styles.card, styles.openingAlone]}>
+                <Text style={styles.rowTitle}>¿Con cuánto abriste hoy?</Text>
+                <Text style={styles.rowSub}>Solo te lo preguntamos la primera vez. Desde mañana sale de tu cierre.</Text>
+                <AmountField value={opening} onChange={setOpening} />
+              </View>
+            ) : null}
+            <Pressable accessibilityRole="button" onPress={() => openMove()} style={({ pressed }) => [styles.moveLink, styles.moveLinkAlone, pressed && { opacity: 0.85 }]}>
+              <Ionicons name="swap-horizontal" size={18} color={colors.ink} />
+              <Text style={styles.moveLinkText}>Saqué o metí plata</Text>
+            </Pressable>
+            <Text style={styles.note}>Sacar o meter plata cambia lo que debería haber, no lo que te quedó. Para quitar uno, tócalo en el efectivo.</Text>
             {unsent > 0 ? <Text style={styles.warn}>Tienes {plural(unsent, 'registro', 'registros')} sin enviar. Cuando salgan, esta cuenta puede cambiar.</Text> : null}
             {!data.close ? (
               <View style={styles.firstTime}>
@@ -377,24 +400,6 @@ export default function CashScreen() {
   );
 }
 
-function CalcRow({ title, sub, value, good, onPress }: { title: string; sub: string; value: string; good?: boolean; onPress?: () => void }) {
-  const body = (
-    <>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.rowTitle}>{title}</Text>
-        <Text style={styles.rowSub}>{sub}</Text>
-      </View>
-      <Text style={[styles.calcValue, good && { color: colors.verified }]}>{value}</Text>
-    </>
-  );
-  if (!onPress) return <View style={[styles.calcRow, styles.line]}>{body}</View>;
-  return (
-    <Pressable accessibilityRole="button" accessibilityHint="Toca para quitarlo" onPress={onPress} style={({ pressed }) => [styles.calcRow, styles.line, pressed && { opacity: 0.85 }]}>
-      {body}
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, gap: spacing.md },
@@ -423,6 +428,8 @@ const styles = StyleSheet.create({
   notice: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.verifiedSoft },
   noticeText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.ink },
   moveLink: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.line },
+  moveLinkAlone: { backgroundColor: colors.surface },
+  openingAlone: { gap: 4 },
   moveLinkText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   note: { fontSize: 13, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.muted },
   warn: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.warning },

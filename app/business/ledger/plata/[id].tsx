@@ -8,6 +8,7 @@ import { agendaApi } from '@/api/agenda';
 import { ledgerApi, type Analytics } from '@/api/ledger';
 import { EmptyState } from '@/components/EmptyState';
 import { HeatGrid } from '@/components/finance/Charts';
+import { MethodDeck } from '@/components/finance/MethodDeck';
 import { expenseMovement, MoveRows, saleMovement, timeOf } from '@/components/finance/Moves';
 import { RangeSheet } from '@/components/finance/RangeSheet';
 import { FinanceTop, Mini3 } from '@/components/finance/Top';
@@ -16,6 +17,8 @@ import { EmpreAICard, ShareRow, StatusCap, SystemGroup, SystemRow, SystemSection
 import { plataReadings } from '@/lib/empreAI';
 import { addDays, bestSlot, bucketLabel, dayLong, deltaWords, expectedToday, moneyIn, moneyOut, pointIn, pointOut, presetRange, rangeName, todayCO, type DateRange } from '@/lib/finance';
 import { categoryLabel, formatPesos, METHOD_LABEL, pendingCredit, pendingTotals } from '@/lib/ledger';
+import { useTodayDeck } from '@/components/finance/useTodayDeck';
+import { buildDeck, deckEntered } from '@/lib/methodDeck';
 import { useFinanceSetup } from '@/ledger/financeSetup';
 import { useLedgerOutbox } from '@/ledger/ledgerStore';
 import { colors, fonts, softShadow, spacing } from '@/theme';
@@ -100,6 +103,7 @@ function Full({ a, entityId, range, entered, out, onRange }: { a: Analytics; ent
 
   return (
     <>
+      <TodayDeck entityId={entityId} />
       <View style={styles.main}>
         <View style={styles.mainTop}>
           <View style={styles.heroRow}>
@@ -203,6 +207,24 @@ function Full({ a, entityId, range, entered, out, onRange }: { a: Analytics; ent
   );
 }
 
+/** Hoy, por cómo te pagaron: una tarjeta por medio. Sin movimientos hoy no aparece. */
+function TodayDeck({ entityId }: { entityId: string }) {
+  const { entries } = useTodayDeck(entityId);
+  const cards = useMemo(() => buildDeck(entries), [entries]);
+  if (cards.length === 0) return null;
+  return (
+    <View style={{ gap: 10 }}>
+      <View style={styles.deckHead}>
+        <Text style={styles.deckTitle} accessibilityRole="header">
+          Hoy, por cómo te pagaron
+        </Text>
+        <Text style={styles.label}>Entró {formatPesos(deckEntered(cards))}</Text>
+      </View>
+      <MethodDeck cards={cards} mode="plata" timeOf={timeOf} />
+    </View>
+  );
+}
+
 function Legend({ color, label, value }: { color: string; label: string; value: string }) {
   return (
     <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
@@ -282,4 +304,6 @@ const styles = StyleSheet.create({
   noMoves: { minHeight: 58, paddingVertical: 18, fontSize: 14.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   card: { gap: spacing.sm, padding: 14, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
   cardTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  deckHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
+  deckTitle: { flexShrink: 1, fontSize: 19, lineHeight: 23, fontFamily: fonts.display.bold, color: colors.ink },
 });
