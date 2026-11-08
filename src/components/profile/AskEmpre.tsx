@@ -197,7 +197,8 @@ function TurnView({ turn, muted, onAction, onChoose }: { turn: Turn; muted?: boo
   );
 }
 
-function BlockView({ b, onChoose }: { b: Block; onChoose?: (id: string, label: string) => void }) {
+/** Un bloque de respuesta de Empre AI; también lo usa la burbuja del chat (3.62). */
+export function BlockView({ b, onChoose }: { b: Block; onChoose?: (id: string, label: string) => void }) {
   switch (b.kind) {
     case 'text':
       return (

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -16,6 +16,11 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { track } from '@/analytics/track';
+import { AiAnswerBubble, AiStatusLine } from '@/components/chat/AiAnswerBubble';
+import { useAnswerData } from '@/components/chat/useAnswerData';
+import { answer as buildAnswer, detectIntent, suggestQuestions, type Action, type Answer, type Intent } from '@/lib/answers';
+import { autoAnswerStep, ownerRepliedSince } from '@/lib/chatAutoAnswer';
 import { chatApi, entitiesApi } from '@/api/endpoints';
 import type { ChatMessage } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
@@ -33,6 +38,17 @@ import { colors, fonts, radius, spacing } from '@/theme';
 const LOCAL_PREFIX = 'local-';
 const PHONE_RE = /^[+\d\s()-]{7,}$/;
 const QUICK_REPLIES = ['¿Horario?', '¿Precios?', '¿Hacen envíos?'];
+
+/** Lo que Empre AI agrega a la conversación (3.62, F1). Vive solo en este teléfono hasta F2. */
+type AiRow =
+  | { id: string; created_at: string; ai: 'answer'; intent: Intent; answer: Answer }
+  | { id: string; created_at: string; ai: 'status'; text: string };
+interface PendingQuestion {
+  id: string;
+  askedAt: string;
+  intent: Intent;
+  answer: Answer;
+}
 
 export default function ChatScreen() {
   // `draft`: un mensaje ya escrito (por ejemplo, preguntar por un ítem del catálogo); la persona lo revisa y lo envía.
@@ -54,6 +70,9 @@ export default function ChatScreen() {
   const [attached, setAttached] = useState(() => parseChatItem(itemParam));
   // Mensajes nuevos de esta sesión (más nuevo primero): entrantes + los que enviamos nosotros.
   const [live, setLive] = useState<ChatMessage[]>([]);
+  // Empre AI (3.62): lo que respondió, las preguntas en espera y qué intenciones ya respondió.
+  const [aiRows, setAiRows] = useState<AiRow[]>([]);
+  const [pending, setPending] = useState<PendingQuestion[]>([]);
 
   const history = useQuery({
     queryKey: ['history', entityId, customerId],
@@ -83,6 +102,7 @@ export default function ChatScreen() {
     refetchIntervalInBackground: false,
   });
   const otherOnline = presence.data?.online ?? false;
+  const answerData = useAnswerData(entityId, !sentByEntity, authStatus === 'signedIn');
 
   const todayHours = useMemo(() => {
     const hours = business.data?.hours;
@@ -97,10 +117,10 @@ export default function ChatScreen() {
   const contact = business.data?.contact_info?.trim();
   const hasPhone = Boolean(contact && PHONE_RE.test(contact));
 
-  const sendQuick = (content: string) => {
-    if (!entityId || !customerId || !user || chat.status !== 'open') return;
+  const sendQuick = (content: string): boolean => {
+    if (!entityId || !customerId || !user || chat.status !== 'open') return false;
     const sent = chat.send({ entity_id: entityId, user_id: customerId, sent_by_entity: sentByEntity, content });
-    if (!sent) return;
+    if (!sent) return false;
     setLive((prev) => [
       {
         id: `${LOCAL_PREFIX}${Date.now()}`,
@@ -115,6 +135,7 @@ export default function ChatScreen() {
       ...prev,
     ]);
     void queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    return true;
   };
 
   // Cada vez que el socket (re)conecta mientras esta pantalla está abierta,
@@ -179,6 +200,82 @@ export default function ChatScreen() {
     return out; // ya viene más nuevo primero: encaja con FlatList `inverted`
   }, [live, history.data]);
 
+  // Empre AI responde con lo que publicó el negocio (3.62, F1). Las reglas viven en `lib/chatAutoAnswer`.
+  const latest = useRef({ messages, otherOnline, aiRows, pending });
+  useEffect(() => {
+    latest.current = { messages, otherOnline, aiRows, pending };
+  }, [messages, otherOnline, aiRows, pending]);
+  const answeredIntents = useMemo(() => new Set<string>(aiRows.flatMap((r) => (r.ai === 'answer' ? [r.intent] : []))), [aiRows]);
+
+  const resolvePending = useCallback(() => {
+    const { messages: msgs, otherOnline: online, aiRows: rows, pending: list } = latest.current;
+    if (!list.length) return;
+    const answered = new Set<string>(rows.flatMap((r) => (r.ai === 'answer' ? [r.intent] : [])));
+    const hasStatus = rows.some((r) => r.ai === 'status');
+    const keep: PendingQuestion[] = [];
+    const add: AiRow[] = [];
+    {
+      for (const q of list) {
+        const step = autoAnswerStep({
+          answerable: !q.answer.unanswered && q.intent !== 'unknown',
+          intent: q.intent,
+          ownerOnline: online,
+          ownerReplied: ownerRepliedSince(msgs, q.askedAt),
+          elapsedMs: Date.now() - Date.parse(q.askedAt),
+          answered,
+        });
+        if (step === 'wait') keep.push(q);
+        else if (step === 'answer') {
+          answered.add(q.intent);
+          add.push({ id: `ai-${q.id}`, created_at: new Date().toISOString(), ai: 'answer', intent: q.intent, answer: q.answer });
+        } else if (step === 'status' && !hasStatus && !add.some((r) => r.ai === 'status')) {
+          const who = answerData?.name ?? name ?? 'El negocio';
+          add.push({ id: `ai-${q.id}`, created_at: new Date().toISOString(), ai: 'status', text: online ? `${who} está en línea; seguro te responde pronto.` : `${who} aún no responde. Te llega un aviso cuando conteste.` });
+        }
+      }
+    }
+    setPending(keep);
+    if (add.length) setAiRows((prev) => [...add, ...prev]);
+  }, [answerData?.name, name]);
+
+  // Mientras haya preguntas en espera, se revisa cada segundo (el dueño puede contestar o pasar los 45 s).
+  useEffect(() => {
+    if (!pending.length) return;
+    const id = setInterval(resolvePending, 1000);
+    return () => clearInterval(id);
+  }, [pending.length, resolvePending]);
+
+  /** Después de enviar una pregunta del cliente: Empre AI prepara la respuesta con los datos del negocio. */
+  const askEmpreAI = (content: string, preset?: Intent) => {
+    if (sentByEntity || !answerData || !entityId) return;
+    const found = preset ? { intent: preset, services: [] } : detectIntent(content, answerData.services);
+    const now = new Date();
+    const ans = buildAnswer(answerData, found.intent, { serviceId: found.services.length === 1 ? found.services[0].id : undefined, text: content, weekday: now.getDay(), now: now.getTime() });
+    track('question_asked', entityId, { intent: found.intent, answered: !ans.unanswered });
+    const q = { id: String(now.getTime()), askedAt: now.toISOString(), intent: found.intent, answer: ans };
+    latest.current = { ...latest.current, pending: [...latest.current.pending, q] };
+    setPending((list) => [...list, q]);
+    // Un momento de «escribiendo», no un salto instantáneo.
+    setTimeout(resolvePending, 700);
+  };
+
+  const onAiAction = (a: Action) => {
+    if (a.kind === 'open_offer') router.push({ pathname: '/offer/[id]', params: { id: a.offerId, entityId } });
+    else if (a.kind === 'see_slots') router.push({ pathname: '/business/[id]', params: { id: entityId } });
+  };
+  const onAiChoose = (intent: Intent) => (serviceId: string) => {
+    if (!answerData) return;
+    const now = new Date();
+    const ans = buildAnswer(answerData, intent, { serviceId, weekday: now.getDay(), now: now.getTime() });
+    setAiRows((prev) => [{ id: `ai-${now.getTime()}`, created_at: now.toISOString(), ai: 'answer', intent, answer: ans }, ...prev]);
+  };
+
+  const rows = useMemo<(ChatMessage | AiRow)[]>(
+    () => (aiRows.length ? [...aiRows, ...messages].sort((a, b) => b.created_at.localeCompare(a.created_at)) : messages),
+    [aiRows, messages],
+  );
+  const suggestions = useMemo(() => (answerData ? suggestQuestions(answerData, answeredIntents as ReadonlySet<Intent>, 3) : []), [answerData, answeredIntents]);
+
   // Ids del mensaje más antiguo de cada día (separador "Hoy"/"Ayer" arriba de ese mensaje).
   const dayStarts = useMemo(() => {
     const set = new Set<string>();
@@ -229,6 +326,7 @@ export default function ChatScreen() {
     setText('');
     setError(null);
     void queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    askEmpreAI(content);
   };
 
   const connected = chat.status === 'open';
@@ -279,11 +377,11 @@ export default function ChatScreen() {
         ) : null}
       </View>
 
-      {!sentByEntity && (todayHours || business.data) ? (
+      {!sentByEntity && todayHours ? (
         <View style={styles.infoBar}>
           <Ionicons name="time-outline" size={13} color={colors.muted} />
           <Text style={styles.infoBarText} numberOfLines={1}>
-            {[todayHours, 'Suele responder en 1 hora'].filter(Boolean).join(' · ')}
+            {todayHours}
           </Text>
         </View>
       ) : null}
@@ -313,10 +411,18 @@ export default function ChatScreen() {
           <FlatList
             style={styles.messagesList}
             inverted
-            data={messages}
+            data={rows}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.messages}
-            renderItem={({ item }) => {
+            renderItem={({ item: row }) => {
+            if ('ai' in row) {
+              return row.ai === 'answer' ? (
+                <AiAnswerBubble answer={row.answer} businessName={answerData?.name ?? name ?? 'el negocio'} onAction={onAiAction} onChoose={onAiChoose(row.intent)} />
+              ) : (
+                <AiStatusLine text={row.text} />
+              );
+            }
+            const item = row;
             const mine = item.sender_id === user?.id;
             return (
               <View>
@@ -375,11 +481,13 @@ export default function ChatScreen() {
           style={styles.quickRepliesScroll}
           contentContainerStyle={styles.quickReplies}
         >
-          {QUICK_REPLIES.map((label) => (
+          {(suggestions.length ? suggestions : QUICK_REPLIES.map((label) => ({ label, intent: undefined as Intent | undefined }))).map(({ label, intent }) => (
             <Pressable
               key={label}
               accessibilityRole="button"
-              onPress={() => sendQuick(label)}
+              onPress={() => {
+                if (sendQuick(label)) askEmpreAI(label, intent);
+              }}
               disabled={!connected}
               style={({ pressed }) => [styles.quickReplyChip, (pressed || !connected) && { opacity: 0.6 }]}
             >
