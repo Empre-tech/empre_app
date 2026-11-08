@@ -297,8 +297,11 @@ export const chatApi = {
    * el backend tenga que consultarlo en cada sondeo.
    */
   /** Guarda que Empre AI respondió `intent` (3.62, F2); el dueño lo ve en su hilo. Solo el cliente de la conversación. */
-  aiAnswer: (entityId: string, intent: string, serviceId?: string) =>
-    request<ChatMessage>(`/api/chat/ai-answer/${entityId}`, { method: 'POST', body: { intent, ...(serviceId ? { service_id: serviceId } : {}) } }),
+  aiAnswer: (entityId: string, intent: string, serviceId?: string, answerId?: string) =>
+    request<ChatMessage>(`/api/chat/ai-answer/${entityId}`, { method: 'POST', body: { intent, ...(serviceId ? { service_id: serviceId } : {}), ...(answerId ? { answer_id: answerId } : {}) } }),
+
+  /** Empre AI no supo responder esta pregunta del cliente: el dueño la ve para enseñarle (3.62, F3). */
+  aiUnknown: (entityId: string, messageId: string) => request<void>(`/api/chat/ai-unknown/${entityId}`, { method: 'POST', body: { message_id: messageId } }),
 
   presence: (entityId: string, userId?: string, ownerId?: string) =>
     request<{ online: boolean }>(`/api/chat/presence/${entityId}`, {

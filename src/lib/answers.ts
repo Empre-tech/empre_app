@@ -4,7 +4,19 @@
 //
 // Las respuestas se arman en el teléfono con los datos que el perfil ya cargó: no hay otra consulta ni otro endpoint.
 
-export type Intent = 'services' | 'duration' | 'price' | 'hours' | 'offers' | 'availability' | 'book' | 'delivery' | 'unknown';
+export type Intent = 'services' | 'duration' | 'price' | 'hours' | 'offers' | 'availability' | 'book' | 'delivery' | 'custom' | 'unknown';
+
+/**
+ * Lo que el dueño le enseñó a Empre AI (3.62, F3). Con `intent` completa o corrige esa respuesta; sin `intent` es una
+ * pregunta propia del negocio («¿Atienden niños?») y se reconoce por `keywords`.
+ */
+export interface TaughtAnswer {
+  id: string;
+  intent: string;
+  question: string;
+  keywords: string[];
+  answer: string;
+}
 
 export interface AnswerService {
   id: string;
@@ -46,6 +58,8 @@ export interface AnswerData {
   serviceMode: 'in_place' | 'delivery' | 'both' | '';
   /** La agenda del negocio está encendida (y la app la muestra). */
   agendaOn: boolean;
+  /** Lo que el dueño enseñó (3.62, F3); vacío si no enseñó nada. */
+  taught?: TaughtAnswer[];
 }
 
 export type Block =
@@ -106,6 +120,7 @@ export function dayHours(hours: AnswerHour[], weekday: number): string | null {
 
 /** Lo que exige cada intención para poder ofrecerse como pregunta. */
 function canAnswer(intent: Intent, d: AnswerData): boolean {
+  if (taughtFor(d, intent)) return true;
   switch (intent) {
     case 'services':
       return d.services.length > 0;
@@ -176,6 +191,7 @@ export function followUps(d: AnswerData, last: Intent, asked: ReadonlySet<Intent
     availability: ['book', 'hours', 'offers'],
     book: ['offers', 'hours'],
     delivery: ['services', 'hours'],
+    custom: ['services', 'hours', 'offers'],
     unknown: ['services', 'hours', 'offers'],
   };
   const seen = new Set<Intent>();
@@ -211,12 +227,36 @@ export function mentionedServices(text: string, services: AnswerService[]): Answ
   });
 }
 
-/** La intención de un texto libre. Si nombra un servicio sin decir qué quiere saber, se entiende como «ese servicio». */
-export function detectIntent(text: string, services: AnswerService[]): { intent: Intent; services: AnswerService[] } {
+/** La respuesta que enseñó el dueño para una intención, si la hay. */
+const taughtFor = (d: AnswerData, intent: Intent) => (intent === 'custom' || intent === 'unknown' ? undefined : (d.taught ?? []).find((t) => t.intent === intent));
+
+/**
+ * ¿El texto coincide con una pregunta propia que enseñó el dueño? Compara raíces de 5 letras y pide que aparezca al
+ * menos la mitad de sus palabras clave (y siempre una).
+ */
+export function matchTaught(text: string, taught: TaughtAnswer[] = []): TaughtAnswer | undefined {
+  const words = plain(text).split(' ').filter((w) => w.length >= 4);
+  const has = (k: string) => words.some((w) => w.slice(0, 5) === plain(k).slice(0, 5));
+  let best: { t: TaughtAnswer; hits: number } | undefined;
+  for (const t of taught) {
+    if (t.intent || !t.keywords.length) continue;
+    const hits = t.keywords.filter(has).length;
+    if (hits >= Math.max(1, Math.ceil(t.keywords.length / 2)) && (!best || hits > best.hits)) best = { t, hits };
+  }
+  return best?.t;
+}
+
+/**
+ * La intención de un texto libre. Si nombra un servicio sin decir qué quiere saber, se entiende como «ese servicio».
+ * Las preguntas propias que enseñó el dueño (`taught`) se reconocen antes que un servicio suelto.
+ */
+export function detectIntent(text: string, services: AnswerService[], taught?: TaughtAnswer[]): { intent: Intent; services: AnswerService[]; taughtId?: string } {
   const t = ` ${plain(text)} `;
   const named = mentionedServices(text, services);
   const hit = WORDS.find(([, re]) => re.test(t));
   if (hit) return { intent: hit[0], services: named };
+  const own = matchTaught(text, taught);
+  if (own) return { intent: 'custom', services: [], taughtId: own.id };
   if (named.length) return { intent: 'price', services: named };
   return { intent: 'unknown', services: [] };
 }
@@ -246,7 +286,22 @@ const offersFor = (d: AnswerData, now: number, s?: AnswerService) =>
  * La respuesta a una intención. `serviceId` acota a un servicio; `text` es lo que escribió la persona (para el
  * borrador si hay que escribirle al negocio). `weekday` es el día de hoy (0 = domingo) y `now` la hora actual en ms.
  */
-export function answer(d: AnswerData, intent: Intent, opts: { serviceId?: string; text?: string; weekday: number; now: number }): Answer {
+export function answer(d: AnswerData, intent: Intent, opts: { serviceId?: string; taughtId?: string; text?: string; weekday: number; now: number }): Answer {
+  // Una pregunta propia del negocio: se responde con lo que enseñó el dueño, tal cual.
+  if (intent === 'custom') {
+    const own = (d.taught ?? []).find((t) => t.id === opts.taughtId);
+    if (!own) return missing(d, 'unknown', 'esa información', opts.text?.trim() || '¿me ayudas con una pregunta?');
+    return { intent, unanswered: false, source: `Respuesta de ${d.name}`, blocks: [{ kind: 'text', title: own.answer }], actions: [] };
+  }
+  const base = baseAnswer(d, intent, opts);
+  const own = taughtFor(d, intent);
+  if (!own) return base;
+  // El dueño enseñó algo sobre esto: si no había dato, su respuesta lo reemplaza; si había, se suma al final.
+  if (base.unanswered) return { intent, unanswered: false, source: `Respuesta de ${d.name}`, blocks: [{ kind: 'text', title: own.answer }], actions: [] };
+  return { ...base, blocks: [...base.blocks, { kind: 'text', title: `Además, ${d.name} dice:`, body: own.answer }] };
+}
+
+function baseAnswer(d: AnswerData, intent: Intent, opts: { serviceId?: string; text?: string; weekday: number; now: number }): Answer {
   const svc = opts.serviceId ? d.services.find((s) => s.id === opts.serviceId) : undefined;
   const question = opts.text?.trim() || questionLabel(intent, d.noun) || '¿me ayudas con una pregunta?';
   const bookable = d.agendaOn ? d.services.filter((s) => s.bookable && (s.duration_min ?? 0) > 0) : [];
@@ -281,7 +336,7 @@ export function answer(d: AnswerData, intent: Intent, opts: { serviceId?: string
       }
       const withData = d.services.filter(has);
       if (!withData.length) return missing(d, intent, field, question);
-      if (withData.length === 1) return answer(d, intent, { ...opts, serviceId: withData[0].id });
+      if (withData.length === 1) return baseAnswer(d, intent, { ...opts, serviceId: withData[0].id });
       return {
         intent,
         unanswered: false,

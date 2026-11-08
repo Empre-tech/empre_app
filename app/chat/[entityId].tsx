@@ -17,7 +17,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { track } from '@/analytics/track';
-import { AiAnswerBubble, AiAnswerOwnerRow, AiStatusLine } from '@/components/chat/AiAnswerBubble';
+import { answersApi, replyLabel } from '@/api/answers';
+import { AiAnswerBubble, AiAnswerOwnerRow, AiStatusLine, TeachLink } from '@/components/chat/AiAnswerBubble';
 import { useAnswerData } from '@/components/chat/useAnswerData';
 import { answer as buildAnswer, detectIntent, suggestQuestions, type Action, type Answer, type Intent } from '@/lib/answers';
 import { autoAnswerStep, ownerRepliedSince } from '@/lib/chatAutoAnswer';
@@ -46,8 +47,10 @@ type AiRow =
 interface PendingQuestion {
   id: string;
   askedAt: string;
+  text: string;
   intent: Intent;
   serviceId?: string;
+  taughtId?: string;
   answer: Answer;
 }
 
@@ -106,6 +109,9 @@ export default function ChatScreen() {
   });
   const otherOnline = presence.data?.online ?? false;
   const answerData = useAnswerData(entityId, true, authStatus === 'signedIn');
+  const aiOn = Boolean(answerData && !answerData.aiChatOff);
+  const replyTime = useQuery({ queryKey: ['reply-time', entityId], queryFn: () => answersApi.replyTime(entityId), enabled: !sentByEntity && Boolean(entityId), staleTime: 30 * 60_000 });
+  const replyText = replyTime.data?.minutes ? `Suele responder en ~${replyLabel(replyTime.data.minutes)}` : null;
 
   const todayHours = useMemo(() => {
     const hours = business.data?.hours;
@@ -240,7 +246,10 @@ export default function ChatScreen() {
         else if (step === 'answer') {
           answered.add(q.intent);
           saveToServer.push(q);
-        } else if (step === 'status' && !hasStatus && !add.some((r) => r.ai === 'status')) {
+        } else if (step === 'status') {
+          const asked = msgs.find((m) => m.sender_id === user?.id && m.content === q.text && !m.id.startsWith(LOCAL_PREFIX) && Date.parse(m.created_at) >= Date.parse(q.askedAt) - 60_000);
+          if (asked) void chatApi.aiUnknown(entityId, asked.id).catch(() => undefined);
+          if (hasStatus || add.some((r) => r.ai === 'status')) continue;
           const who = answerData?.name ?? name ?? 'El negocio';
           add.push({ id: `ai-${q.id}`, created_at: new Date().toISOString(), ai: 'status', text: online ? `${who} está en línea; seguro te responde pronto.` : `${who} aún no responde. Te llega un aviso cuando conteste.` });
         }
@@ -250,11 +259,11 @@ export default function ChatScreen() {
     if (add.length) setAiRows((prev) => [...add, ...prev]);
     for (const q of saveToServer) {
       chatApi
-        .aiAnswer(entityId, q.intent, q.serviceId)
+        .aiAnswer(entityId, q.intent, q.serviceId, q.taughtId)
         .then((m) => setLive((prev) => (prev.some((x) => x.id === m.id) ? prev : [m, ...prev])))
         .catch(() => setAiRows((prev) => [{ id: `ai-${q.id}`, created_at: new Date().toISOString(), ai: 'answer', intent: q.intent, answer: q.answer }, ...prev]));
     }
-  }, [answerData?.name, name, entityId]);
+  }, [answerData?.name, name, entityId, user?.id]);
 
   // Mientras haya preguntas en espera, se revisa cada segundo (el dueño puede contestar o pasar los 45 s).
   useEffect(() => {
@@ -265,13 +274,13 @@ export default function ChatScreen() {
 
   /** Después de enviar una pregunta del cliente: Empre AI prepara la respuesta con los datos del negocio. */
   const askEmpreAI = (content: string, preset?: Intent) => {
-    if (sentByEntity || !answerData || !entityId) return;
-    const found = preset ? { intent: preset, services: [] } : detectIntent(content, answerData.services);
+    if (sentByEntity || !answerData || answerData.aiChatOff || !entityId) return;
+    const found: { intent: Intent; services: { id: string }[]; taughtId?: string } = preset ? { intent: preset, services: [] } : detectIntent(content, answerData.services, answerData.taught);
     const now = new Date();
-    const ans = buildAnswer(answerData, found.intent, { serviceId: found.services.length === 1 ? found.services[0].id : undefined, text: content, weekday: now.getDay(), now: now.getTime() });
+    const ans = buildAnswer(answerData, found.intent, { serviceId: found.services.length === 1 ? found.services[0].id : undefined, taughtId: found.taughtId, text: content, weekday: now.getDay(), now: now.getTime() });
     track('question_asked', entityId, { intent: found.intent, answered: !ans.unanswered });
     const serviceId = found.services.length === 1 ? found.services[0].id : undefined;
-    const q: PendingQuestion = { id: String(now.getTime()), askedAt: now.toISOString(), intent: found.intent, serviceId, answer: ans };
+    const q: PendingQuestion = { id: String(now.getTime()), askedAt: now.toISOString(), text: content, intent: found.intent, serviceId, taughtId: found.taughtId, answer: ans };
     latest.current = { ...latest.current, pending: [...latest.current.pending, q] };
     setPending((list) => [...list, q]);
     // Un momento de «escribiendo», no un salto instantáneo.
@@ -293,7 +302,8 @@ export default function ChatScreen() {
     () => (aiRows.length ? [...aiRows, ...messages].sort((a, b) => b.created_at.localeCompare(a.created_at)) : messages),
     [aiRows, messages],
   );
-  const suggestions = useMemo(() => (answerData ? suggestQuestions(answerData, answeredIntents as ReadonlySet<Intent>, 3) : []), [answerData, answeredIntents]);
+  const suggestions = useMemo(() => (answerData && aiOn ? suggestQuestions(answerData, answeredIntents as ReadonlySet<Intent>, 3) : []), [answerData, aiOn, answeredIntents]);
+  const teach = (params: { intent?: string; question?: string }) => router.push({ pathname: '/business/teach/[id]', params: { id: entityId, ...params } });
 
   // Ids del mensaje más antiguo de cada día (separador "Hoy"/"Ayer" arriba de ese mensaje).
   const dayStarts = useMemo(() => {
@@ -396,11 +406,11 @@ export default function ChatScreen() {
         ) : null}
       </View>
 
-      {!sentByEntity && todayHours ? (
+      {!sentByEntity && (todayHours || replyText) ? (
         <View style={styles.infoBar}>
           <Ionicons name="time-outline" size={13} color={colors.muted} />
           <Text style={styles.infoBarText} numberOfLines={1}>
-            {todayHours}
+            {[todayHours, replyText].filter(Boolean).join(' · ')}
           </Text>
         </View>
       ) : null}
@@ -451,8 +461,8 @@ export default function ChatScreen() {
             if (item.kind === 'ai_answer' && item.ai_intent) {
               const intent = item.ai_intent as Intent;
               const when = new Date(item.created_at);
-              const built = answerData ? buildAnswer(answerData, intent, { serviceId: item.ai_service_id, weekday: when.getDay(), now: openedAt }) : null;
-              if (sentByEntity) return <AiAnswerOwnerRow summary={item.content} answer={built} />;
+              const built = answerData ? buildAnswer(answerData, intent, { serviceId: item.ai_service_id, taughtId: item.ai_answer_id, weekday: when.getDay(), now: openedAt }) : null;
+              if (sentByEntity) return <AiAnswerOwnerRow summary={item.content} answer={built} onCorrect={() => teach({ intent: intent === 'custom' ? '' : intent })} />;
               return built ? (
                 <AiAnswerBubble
                   answer={built}
@@ -505,6 +515,7 @@ export default function ChatScreen() {
                   </View>
                 </View>
                 )}
+                {sentByEntity && item.ai_unanswered ? <TeachLink onPress={() => teach({ question: item.content })} /> : null}
               </View>
             );
             }}

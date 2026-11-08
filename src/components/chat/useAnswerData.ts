@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { agendaApi } from '@/api/agenda';
+import { answersApi } from '@/api/answers';
 import { catalogApi } from '@/api/catalog';
 import { entitiesApi } from '@/api/endpoints';
 import { statusApi } from '@/api/offers';
@@ -13,13 +14,14 @@ import { catalogCopy } from '@/lib/catalog';
  * consultas (y la misma caché) que el perfil, así que abrir el chat desde el perfil no pide nada otra vez. `null`
  * mientras no llega el negocio.
  */
-export function useAnswerData(entityId: string | undefined, enabled: boolean, signedIn: boolean): AnswerData | null {
+export function useAnswerData(entityId: string | undefined, enabled: boolean, signedIn: boolean): (AnswerData & { aiChatOff: boolean }) | null {
   const id = entityId ?? '';
   const on = enabled && Boolean(entityId);
   const business = useQuery({ queryKey: ['entity', id], queryFn: () => entitiesApi.get(id), enabled: on });
   const catalog = useQuery({ queryKey: ['catalog', id], queryFn: () => catalogApi.list(id), enabled: on, staleTime: 60_000 });
   const offers = useActiveOffers(id, on);
   const status = useQuery({ queryKey: ['status', id], queryFn: () => statusApi.get(id), enabled: on, staleTime: 60_000 });
+  const taught = useQuery({ queryKey: ['business-answers', id], queryFn: () => answersApi.list(id), enabled: on, staleTime: 60_000 });
   const agenda = useQuery({ queryKey: ['agenda-summary', id], queryFn: () => agendaApi.summary(id), enabled: on && FEATURES.agenda && signedIn, staleTime: 20_000 });
 
   const b = business.data;
@@ -35,5 +37,7 @@ export function useAnswerData(entityId: string | undefined, enabled: boolean, si
     availability: status.data?.availability || null,
     serviceMode: b.service_mode ?? '',
     agendaOn: FEATURES.agenda && Boolean(agenda.data?.enabled),
+    taught: taught.data?.data ?? [],
+    aiChatOff: taught.data?.ai_chat_off ?? false,
   };
 }

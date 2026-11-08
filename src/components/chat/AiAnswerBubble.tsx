@@ -71,7 +71,7 @@ export function AiAnswerBubble({ answer, businessName, onAction, onChoose, onFee
  * Lo que ve el dueño (3.62, F2): plegado, para que sepa qué ya se respondió y qué falta. Al abrirlo ve la respuesta
  * tal como la vio el cliente, armada con lo que su negocio tiene publicado.
  */
-export function AiAnswerOwnerRow({ summary, answer }: { summary: string; answer: Answer | null }) {
+export function AiAnswerOwnerRow({ summary, answer, onCorrect }: { summary: string; answer: Answer | null; onCorrect?: () => void }) {
   const [open, setOpen] = useState(false);
   return (
     <View style={styles.ownerWrap}>
@@ -88,9 +88,24 @@ export function AiAnswerOwnerRow({ summary, answer }: { summary: string; answer:
             <BlockView key={i} b={b} />
           ))}
           {answer.source ? <Text style={styles.source}>{answer.source}</Text> : null}
+          {onCorrect ? (
+            <Pressable accessibilityRole="button" onPress={onCorrect} style={styles.correct}>
+              <Text style={styles.correctText}>Corregir o completar</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
     </View>
+  );
+}
+
+/** Debajo de una pregunta que Empre AI no supo responder, en el hilo del dueño. */
+export function TeachLink({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={styles.teach}>
+      <EmpreSymbol product="ai" size={14} animated={false} />
+      <Text style={styles.teachText}>Empre AI no supo responder · Enséñale</Text>
+    </Pressable>
   );
 }
 
@@ -119,6 +134,10 @@ const styles = StyleSheet.create({
   ownerRow: { minHeight: 44, maxWidth: '92%', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.selectedSoft },
   ownerText: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   ownerBubble: { alignSelf: 'stretch', maxWidth: '100%' },
+  correct: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.line },
+  correctText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  teach: { alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10 },
+  teachText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark, textDecorationLine: 'underline' },
   statusRow: { alignItems: 'center', marginVertical: 6 },
   status: { maxWidth: '88%', textAlign: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.selectedSoft, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
 });

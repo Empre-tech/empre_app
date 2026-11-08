@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi, type Appointment } from '@/api/agenda';
+import { answersApi } from '@/api/answers';
 import { entitiesApi, paymentsApi } from '@/api/endpoints';
 import { ledgerApi } from '@/api/ledger';
 import { novedadesApi } from '@/api/novedades';
@@ -64,6 +65,7 @@ export default function BusinessHubScreen() {
   const business = useQuery({ queryKey: ['entity', entityId], queryFn: () => entitiesApi.get(entityId), enabled: Boolean(entityId) });
   const subscription = useQuery({ queryKey: ['subscription', entityId], queryFn: () => paymentsApi.getSubscription(entityId), enabled: Boolean(entityId) });
   const followers = useQuery({ queryKey: ['followers', entityId], queryFn: () => novedadesApi.followers(entityId), enabled: Boolean(entityId) });
+  const unansweredQ = useQuery({ queryKey: ['answers-unanswered', entityId], queryFn: () => answersApi.unanswered(entityId), enabled: Boolean(entityId), staleTime: 60_000 });
   const sold = useQuery({
     queryKey: ['ledger', entityId, 'analytics', dayRange.from, dayRange.to, dayRange.compare],
     queryFn: () => ledgerApi.analytics(entityId, { from: dayRange.from, to: dayRange.to, compare: dayRange.compare }),
@@ -130,6 +132,7 @@ export default function BusinessHubScreen() {
   const hasRunning = running !== undefined;
   const stockAlert = (insights.data ?? []).find((i) => i.kind === 'soon' || i.kind === 'out' || i.kind === 'low');
   const nItems = items.data?.length ?? 0;
+  const nUnanswered = unansweredQ.data?.data?.length ?? 0;
   const spaces: { key: string; title: string; sub: string; symbol?: EmpreProduct; alert?: boolean; onPress: () => void }[] = [
     ...(FEATURES.ledger ? [{ key: 'finance', title: 'Finanzas', sub: soldToday > 0 ? `Hoy ${formatPesos(soldToday)}` : 'Tu caja y lo que te deben', symbol: 'finance' as const, onPress: finance }] : []),
     { key: 'products', title: short, sub: stockAlert ? stockAlert.title : nItems > 0 ? (nItems === 1 ? '1 en tu catálogo' : `${nItems} en tu catálogo`) : `Agrega lo que ${copy.kind === 'service' ? 'ofreces' : 'vendes'}`, alert: Boolean(stockAlert), onPress: products },
@@ -139,6 +142,7 @@ export default function BusinessHubScreen() {
   const later: HubRow[] = [
     { key: 'profile', icon: 'person-outline', title: 'Perfil público', sub: b.is_verified ? 'Nombre, horario, ubicación y contacto' : 'Aún sin verificar · nombre, horario y contacto', onPress: edit },
     { key: 'photos', icon: 'images-outline', title: 'Fotos y videos', sub: `${b.photos?.length ?? 0} publicadas · súbelas y edítalas aquí`, onPress: photos },
+    { key: 'teach', icon: 'sparkles-outline', symbol: 'ai', product: 'Empre AI', title: 'Enséñale a Empre AI', sub: nUnanswered ? (nUnanswered === 1 ? '1 pregunta que no supo responder' : `${nUnanswered} preguntas que no supo responder`) : 'Lo que responde por ti en tu chat', alert: nUnanswered > 0, onPress: go({ pathname: '/business/teach/[id]', params: { id: entityId } }) },
     { key: 'reviews', icon: 'star-outline', title: 'Reseñas', sub: b.review_count > 0 ? (b.review_count === 1 ? '1 reseña' : `${b.review_count} reseñas`) : 'Aparecen cuando te visiten', onPress: go({ pathname: '/business/reviews/[id]', params: { id: entityId } }) },
     ...(FEATURES.agenda ? [{ key: 'agent', icon: 'chatbubble-ellipses-outline' as const, symbol: 'agent' as const, product: 'Empre Agent', title: 'Citas con Agent', sub: 'Lo que resolvió solo y lo que espera tu decisión', onPress: go({ pathname: '/business/agent/[id]', params: { id: entityId, name: b.name } }) }] : []),
     ...(FEATURES.ledger && FEATURES.tabs ? [{ key: 'tabs', icon: (b.business_profile === 'food' ? 'restaurant-outline' : 'receipt-outline') as IconName, title: b.business_profile === 'food' ? 'Mesas' : 'Cuentas abiertas', sub: b.business_profile === 'food' ? 'Lo que va pidiendo cada mesa, y cobrar al final' : 'Para clientes que piden varias cosas y pagan al final', onPress: go({ pathname: '/business/ledger/tabs/[id]', params: { id: entityId } }) }] : []),

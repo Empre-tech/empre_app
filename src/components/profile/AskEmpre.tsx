@@ -63,15 +63,15 @@ export function AskEmpreSheet({ data, start, onClose, handlers }: { data: Answer
 
 function SheetBody({ data, start, onClose, handlers }: { data: AnswerData; start: { intent: Intent; label: string } | { text: string }; onClose: () => void; handlers: AskHandlers }) {
   const insets = useSafeAreaInsets();
-  const ask = (intent: Intent, question: string, serviceId?: string): Turn => {
+  const ask = (intent: Intent, question: string, serviceId?: string, taughtId?: string): Turn => {
     const now = Date.now();
-    const a = answer(data, intent, { serviceId, text: question, weekday: new Date(now).getDay(), now });
+    const a = answer(data, intent, { serviceId, taughtId, text: question, weekday: new Date(now).getDay(), now });
     handlers.onAsked?.(a.intent, !a.unanswered);
     return { id: now + Math.random(), question, answer: a };
   };
   const fromText = (text: string): Turn => {
-    const d = detectIntent(text, data.services);
-    return ask(d.intent, text, d.services.length === 1 ? d.services[0].id : undefined);
+    const d = detectIntent(text, data.services, data.taught);
+    return ask(d.intent, text, d.services.length === 1 ? d.services[0].id : undefined, d.taughtId);
   };
   const [turns, setTurns] = useState<Turn[]>(() => ('intent' in start ? [ask(start.intent, start.label)] : start.text ? [fromText(start.text)] : []));
   const [showOld, setShowOld] = useState(false);

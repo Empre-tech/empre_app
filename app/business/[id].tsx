@@ -26,6 +26,7 @@ import { novedadesApi } from '@/api/novedades';
 import type { Photo } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { agendaApi } from '@/api/agenda';
+import { answersApi } from '@/api/answers';
 import { statusApi } from '@/api/offers';
 import { AgendaStrip } from '@/components/agenda/AgendaStrip';
 import { BookingSheet } from '@/components/agenda/BookingSheet';
@@ -148,6 +149,8 @@ export default function BusinessScreen() {
   // «Pregúntale» (fase 1): la hoja de respuestas y, desde ella, la hoja de reservar con el servicio elegido.
   const [askStart, setAskStart] = useState<{ intent: Intent; label: string } | { text: string } | null>(null);
   const [bookingFor, setBookingFor] = useState<{ serviceId?: string } | null>(null);
+  // Lo que el dueño le enseñó a Empre AI (3.62, F3): también responde en «Pregúntale».
+  const taughtAnswers = useQuery({ queryKey: ['business-answers', id], queryFn: () => answersApi.list(id ?? ''), enabled: Boolean(id), staleTime: 60_000 });
   const bizStatus = useQuery({ queryKey: ['status', id], queryFn: () => statusApi.get(id ?? ''), enabled: Boolean(id), staleTime: 60_000 });
   const agendaSummary = useQuery({
     queryKey: ['agenda-summary', id],
@@ -414,6 +417,7 @@ export default function BusinessScreen() {
     availability: bizStatus.data?.availability || null,
     serviceMode: business.service_mode ?? '',
     agendaOn: FEATURES.agenda && Boolean(agendaSummary.data?.enabled),
+    taught: taughtAnswers.data?.data ?? [],
   };
   const askHandlers = {
     onSeeSlots: (serviceId?: string) => {

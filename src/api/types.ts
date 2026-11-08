@@ -179,6 +179,10 @@ export interface ChatMessage {
   kind?: 'text' | 'appointment' | 'ai_answer';
   ai_intent?: string;
   ai_service_id?: string;
+  /** Con ai_intent "custom": cuál respuesta de las que enseñó el dueño. */
+  ai_answer_id?: string;
+  /** En una pregunta del cliente: Empre AI no supo responderla (el dueño la ve para enseñarle). */
+  ai_unanswered?: boolean;
   appointment_id?: string;
   /** El producto o servicio por el que se pregunta (tarjeta arriba del texto). */
   item_id?: string;
