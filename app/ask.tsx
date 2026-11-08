@@ -2,29 +2,43 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { askApi, type AskFilters, type AskResponse } from '@/api/ask';
 import { categoriesApi } from '@/api/endpoints';
+import { discoveryApi } from '@/api/offers';
+import type { DiscoveryItem } from '@/api/types';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { BusinessCardModal } from '@/components/explore/BusinessCardModal';
 import type { WithDistance } from '@/components/explore/FeaturedCard';
 import { speechAvailable, startDictation } from '@/ledger/speech';
-import { filterChips, howFar, suggestionAction } from '@/lib/askChips';
+import { areaAround, familyFor, noneTitle, pickAlternatives } from '@/lib/askAlternatives';
+import { filterChips, hourIdeas, howFar, suggestionAction } from '@/lib/askChips';
+import { hourCO } from '@/lib/finance';
 import { formatPesos } from '@/lib/catalog';
 import { resolveImageUrl } from '@/lib/image';
 import { displayIcon } from '@/lib/mapView';
 import { MAP_STYLE } from '@/lib/mapStyle';
 import { photoTone } from '@/lib/photoTone';
+import { clearHabits, countSearch } from '@/lib/searchHabitsStore';
 import { addRecent, loadRecents, saveRecents } from '@/lib/searchRecents';
 import { useCoords } from '@/lib/useCoords';
+import { liveParse } from '@/lib/voiceLive';
 import { colors, fonts, spacing } from '@/theme';
 
 const NO_FILTERS: AskFilters = { open_now: false, with_offer: false, delivery: false, cheapest: false };
 
 const plain = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+type AskPlace = AskResponse['businesses'][number] & Partial<DiscoveryItem>;
+
+/** Un negocio de la lista de cerca con la forma de un resultado, sin perder su oferta para la tarjeta. */
+function placeFrom(i: DiscoveryItem): AskPlace {
+  const km = (i.distance_meters ?? 0) / 1000;
+  return { ...i, category_id: i.category_id ?? '', category_name: i.category_name ?? '', category_icon: i.category_icon ?? '', profile_url: i.profile_url ?? '', is_open_now: Boolean(i.is_open_now), has_hours: i.is_open_now !== undefined, distance_km: km, minutes: Math.max(1, Math.round(km * 12.5)), delivery: false } as AskPlace;
+}
 
 /**
  * La búsqueda de Finder (tableros «Escribiendo» y «Resultados que entienden»). Arriba, el buscador. Sin escribir, lo
@@ -43,7 +57,7 @@ export default function AskScreen() {
   const [answer, setAnswer] = useState<AskResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [card, setCard] = useState<AskResponse['businesses'][number] | null>(null);
+  const [card, setCard] = useState<AskPlace | null>(null);
   const [recents, setRecents] = useState<string[]>([]);
   const [listening, setListening] = useState(false);
   const stopRef = useRef<(() => void) | null>(null);
@@ -63,6 +77,8 @@ export default function AskScreen() {
     setLoading(true);
     setError(null);
     setRecents((list) => addRecent(list, clean));
+    // Una búsqueda nueva (no al cambiar un filtro de la misma) cuenta para «Lo que más buscas» del inicio.
+    if (clean !== question) void countSearch(clean);
     try {
       const res = await askApi.ask({
         q: clean,
@@ -107,7 +123,8 @@ export default function AskScreen() {
           setText(t);
           if (isFinal && t.trim()) {
             setListening(false);
-            void run(t, NO_FILTERS);
+            const parsed = liveParse(t);
+            void run(t, parsed.searchFilters);
           }
         },
         onEnd: () => setListening(false),
@@ -138,13 +155,31 @@ export default function AskScreen() {
   };
 
   const typed = plain(text.trim());
+  const live = useMemo(() => liveParse(text), [text]);
+  const hasLiveFilters = live.searchFilters.open_now || live.searchFilters.with_offer || live.searchFilters.delivery || live.searchFilters.cheapest;
   const showResults = !editing && (loading || Boolean(answer) || Boolean(error));
   const catHits = typed ? (categories.data ?? []).filter((c) => plain(c.name).includes(typed)).slice(0, 5) : [];
   const recentHits = typed ? recents.filter((r) => plain(r).includes(typed) && plain(r) !== typed).slice(0, 3) : recents;
   const chips = filterChips(filters);
 
   const biz = answer?.businesses ?? [];
-  const onMap = biz.filter((b) => b.latitude && b.longitude);
+  const asked = answer?.terms || question;
+  const isNone = !loading && !error && Boolean(answer) && biz.length === 0;
+  const family = isNone ? familyFor(asked) : null;
+  const nearby = useQuery({
+    queryKey: ['ask-alternatives', family?.family, coords?.latitude.toFixed(2), coords?.longitude.toFixed(2)],
+    // Sin ubicación se mira toda la ciudad, igual que la búsqueda.
+    queryFn: () => discoveryApi.discover({ ...(coords ? { ...areaAround(coords.latitude, coords.longitude), lat: coords.latitude, long: coords.longitude } : {}), limit: 60 }),
+    enabled: Boolean(family),
+    staleTime: 60_000,
+  });
+  const alts = useMemo(() => {
+    const lists = family ? pickAlternatives(nearby.data?.items ?? [], family, filters) : { offers: [], rest: [] };
+    return { offers: lists.offers.map(placeFrom), rest: lists.rest.map(placeFrom) };
+  }, [family, nearby.data, filters]);
+  const hasAlts = alts.offers.length + alts.rest.length > 0;
+  const ideas = isNone ? hourIdeas(hourCO(new Date().toISOString())) : [];
+  const onMap = (biz.length ? (biz as AskPlace[]) : [...alts.offers, ...alts.rest]).filter((b) => b.latitude && b.longitude);
   const region = regionFor(onMap, coords);
   const count = biz.length === 1 ? '1 lugar que cumple' : `${biz.length} lugares que cumplen`;
 
@@ -182,7 +217,7 @@ export default function AskScreen() {
 
         <ScrollView style={styles.sheet} contentContainerStyle={[styles.sheetIn, { paddingBottom: insets.bottom + 20 }]} keyboardShouldPersistTaps="handled">
           <View style={styles.group}>
-            <Text style={styles.eyebrow}>ENTENDÍ ESTO · TOCA PARA QUITAR</Text>
+            {isNone ? null : <Text style={styles.eyebrow}>ENTENDÍ ESTO · TOCA PARA QUITAR</Text>}
             <View style={styles.chips}>
               <Pressable accessibilityRole="button" accessibilityLabel={`Quitar: ${answer?.terms || question}`} onPress={clear} style={styles.chipOn}>
                 <Text style={styles.chipOnText}>{answer?.terms || question}</Text>
@@ -259,10 +294,46 @@ export default function AskScreen() {
                   <Text style={styles.note}>Ordenado por lo que pediste, si está abierto y cercanía. Nadie paga por salir arriba.</Text>
                 </>
               ) : (
-                <View style={styles.none}>
-                  <Text style={styles.noneTitle}>Nadie cerca ofrece «{question}» todavía</Text>
-                  <Text style={styles.hint}>{answer.reply}</Text>
-                </View>
+                <>
+                  <View style={styles.none} accessibilityLiveRegion="polite">
+                    <Text style={styles.noneTitle}>{noneTitle(asked, family)}</Text>
+                    <Text style={styles.hint}>{hasAlts && family ? `Pero hay esto parecido. No son ${family.plural}.` : chips.length ? 'Prueba quitando una condición.' : 'Todavía no hay nada parecido en Empre.'}</Text>
+                  </View>
+                  {family && nearby.isLoading ? <ActivityIndicator color={colors.primary} /> : null}
+                  {alts.offers.length ? (
+                    <View style={styles.altGroup}>
+                      <Text style={styles.altHead}>Con oferta ahora</Text>
+                      {alts.offers.map((b, i) => (
+                        <ResultRow key={b.id} b={b} tone={i} onOpen={() => setCard(b)} />
+                      ))}
+                    </View>
+                  ) : null}
+                  {alts.rest.length && family ? (
+                    <View style={styles.altGroup}>
+                      <Text style={styles.altHead}>Otras opciones de {family.family}</Text>
+                      {alts.rest.map((b, i) => (
+                        <ResultRow key={b.id} b={b} tone={i + alts.offers.length} onOpen={() => setCard(b)} />
+                      ))}
+                    </View>
+                  ) : null}
+                  {hasAlts ? (
+                    <Text style={styles.note}>Ordenado por si está abierto y cercanía. Nadie paga por salir aquí.</Text>
+                  ) : family && nearby.isLoading ? null : (
+                    <View style={styles.altGroup}>
+                      <Text style={styles.altHead}>Mira lo que hay en tu zona</Text>
+                      <View style={styles.ideas}>
+                        {ideas.map((idea) => (
+                          <Pressable key={idea.ask} accessibilityRole="button" onPress={() => void run(idea.ask, NO_FILTERS)} style={({ pressed }) => [styles.idea, pressed && styles.pressed]}>
+                            <Ionicons name={idea.icon} size={22} color={colors.ink} />
+                            <Text style={styles.ideaText} numberOfLines={2}>
+                              {idea.label}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                </>
               )}
             </>
           ) : null}
@@ -309,8 +380,53 @@ export default function AskScreen() {
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 20 }]} keyboardShouldPersistTaps="handled">
+        {listening || hasLiveFilters ? (
+          <View style={styles.liveCard} accessibilityLiveRegion="polite">
+            <View style={styles.liveCardHead}>
+              <Text style={styles.liveBrand}>EMPRE AI LIVE · BÚSQUEDA</Text>
+              {listening ? <View style={styles.liveDot} /> : null}
+            </View>
+            <Text style={styles.liveTranscript}>
+              {live.words.length > 0
+                ? live.words.map((w, i) => (
+                    <Text key={i} style={w.tag === 'filter' ? styles.liveWordFilter : undefined}>
+                      {`${w.text}${i < live.words.length - 1 ? ' ' : ''}`}
+                    </Text>
+                  ))
+                : 'Habla con naturalidad: «comida rápida abierta ahora con oferta»…'}
+            </Text>
+            {hasLiveFilters ? (
+              <View style={styles.chips}>
+                {live.searchFilters.open_now ? (
+                  <View style={[styles.liveFilterPill, styles.filterRow, { backgroundColor: colors.verifiedSoft }]}>
+                    <View style={styles.openDot} />
+                    <Text style={[styles.liveFilterText, { color: colors.verified }]}>Abierto ahora</Text>
+                  </View>
+                ) : null}
+                {live.searchFilters.with_offer ? (
+                  <View style={[styles.liveFilterPill, styles.filterRow, { backgroundColor: colors.accentSoft }]}>
+                    <Ionicons name="pricetag-outline" size={13} color={colors.accentInk} />
+                    <Text style={[styles.liveFilterText, { color: colors.accentInk }]}>Con oferta</Text>
+                  </View>
+                ) : null}
+                {live.searchFilters.delivery ? (
+                  <View style={[styles.liveFilterPill, styles.filterRow, { backgroundColor: colors.selectedSoft }]}>
+                    <Ionicons name="bicycle-outline" size={14} color={colors.ink} />
+                    <Text style={[styles.liveFilterText, { color: colors.ink }]}>Domicilio</Text>
+                  </View>
+                ) : null}
+                {live.searchFilters.cheapest ? (
+                  <View style={[styles.liveFilterPill, styles.filterRow, { backgroundColor: colors.selectedSoft }]}>
+                    <Ionicons name="cash-outline" size={14} color={colors.ink} />
+                    <Text style={[styles.liveFilterText, { color: colors.ink }]}>Más económico</Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
         {typed ? (
-          <Pressable accessibilityRole="button" onPress={() => void run(text, NO_FILTERS)} style={({ pressed }) => [styles.searchRow, pressed && styles.pressed]}>
+          <Pressable accessibilityRole="button" onPress={() => void run(text, live.searchFilters)} style={({ pressed }) => [styles.searchRow, pressed && styles.pressed]}>
             <Ionicons name="search" size={18} color={colors.ink} />
             <Text style={styles.searchRowText} numberOfLines={1}>
               Buscar «{text.trim()}»
@@ -345,6 +461,7 @@ export default function AskScreen() {
                   onPress={() => {
                     setRecents([]);
                     saveRecents([]);
+                    clearHabits();
                   }}
                   style={styles.linkTap}
                 >
@@ -393,7 +510,40 @@ function regionFor(list: { latitude: number; longitude: number }[], coords: { la
   return { latitude: (minLat + maxLat) / 2, longitude: (minLng + maxLng) / 2, latitudeDelta: Math.max(0.012, (maxLat - minLat) * 1.7), longitudeDelta: Math.max(0.012, (maxLng - minLng) * 1.5) };
 }
 
+/** Un negocio en la lista: foto, categoría con distancia, si está abierto y lo que coincide de lo que vende. */
+function ResultRow({ b, tone, onOpen }: { b: AskPlace; tone: number; onOpen: () => void }) {
+  const photo = b.profile_url ? resolveImageUrl(b.profile_url) : null;
+  return (
+    <Pressable accessibilityRole="button" onPress={onOpen} style={({ pressed }) => [styles.result, pressed && styles.pressed]}>
+      <View style={[styles.resultPhoto, { backgroundColor: photoTone(tone) }]}>
+        {photo ? <Image accessible={false} source={{ uri: photo }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Ionicons name={displayIcon(b.category_icon) as keyof typeof Ionicons.glyphMap} size={28} color="#fff" />}
+        {b.has_active_offer ? (
+          <View style={styles.offer}>
+            <Text style={styles.offerText}>Oferta</Text>
+          </View>
+        ) : null}
+      </View>
+      <View style={styles.resultBody}>
+        <Text style={styles.resultName} numberOfLines={1}>
+          {b.name}
+        </Text>
+        <Text style={styles.resultSub} numberOfLines={2}>
+          {[b.category_name, b.distance_km > 0 ? howFar(b.minutes, b.distance_km) : null].filter(Boolean).join(' · ')}
+        </Text>
+        {b.has_hours ? <Text style={[styles.statusText, { color: b.is_open_now ? colors.verified : colors.muted }]}>{b.is_open_now ? 'Abierto' : 'Cerrado'}</Text> : null}
+      </View>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  altGroup: { gap: 8 },
+  altHead: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  ideas: { flexDirection: 'row', gap: 8 },
+  idea: { flex: 1, minWidth: 0, minHeight: 84, alignItems: 'center', justifyContent: 'center', gap: 6, padding: 8, borderRadius: 16, backgroundColor: colors.bg },
+  ideaText: { fontSize: 12.5, textAlign: 'center', fontFamily: fonts.ui.extrabold, color: colors.ink },
+  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  openDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#14B8B0' },
   screen: { flex: 1, backgroundColor: colors.bg },
   pressed: { opacity: 0.8 },
   // Escribiendo
@@ -404,6 +554,14 @@ const styles = StyleSheet.create({
   clearBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.line },
   micBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   body: { padding: 12, gap: 12 },
+  liveCard: { gap: 8, padding: 14, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  liveCardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  liveBrand: { fontSize: 11, letterSpacing: 0.7, fontFamily: fonts.ui.extrabold, color: colors.verified },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981' },
+  liveTranscript: { fontSize: 18, lineHeight: 25, fontFamily: fonts.display.bold, color: colors.ink },
+  liveWordFilter: { color: colors.verified, backgroundColor: colors.verifiedSoft },
+  liveFilterPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
+  liveFilterText: { fontSize: 12, fontFamily: fonts.ui.extrabold },
   tight: { gap: 4 },
   group: { gap: 8 },
   groupHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

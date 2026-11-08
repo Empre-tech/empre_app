@@ -25,6 +25,7 @@ const config: ExpoConfig = {
   scheme: 'empre',
   version: '0.1.0',
   orientation: 'portrait',
+  icon: './assets/icon.png',
   userInterfaceStyle: 'light',
   owner: 'gioleonp',
   extra: {
@@ -38,6 +39,10 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'co.empre.app',
+    adaptiveIcon: {
+      foregroundImage: './assets/icon.png',
+      backgroundColor: '#F6F8FB',
+    },
     permissions: ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION'],
     config: {
       // Solo necesaria en builds propios (EAS/dev client); Expo Go ya trae una.
@@ -72,9 +77,6 @@ const config: ExpoConfig = {
     [
       'expo-notifications',
       {
-        // Ícono/color del ícono pequeño de la notificación en Android. Usa el
-        // color de marca; el ícono real se agrega más adelante (por ahora cae
-        // al ícono por defecto de la app).
         color: '#F58220',
       },
     ],

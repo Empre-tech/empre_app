@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi, type Appointment } from '@/api/agenda';
 import { useAuth } from '@/auth/AuthContext';
+import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { SignInPrompt } from '@/components/SignInPrompt';
 import { formatWhen, STATUS_COLOR, STATUS_LABEL } from '@/lib/agendaFormat';
 import { colors, fonts, radius, spacing } from '@/theme';

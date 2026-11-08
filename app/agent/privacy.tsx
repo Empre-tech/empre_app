@@ -24,7 +24,7 @@ export default function AgentPrivacyScreen() {
         <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={() => router.back()} style={styles.back}>
           <Ionicons name="chevron-back" size={20} color={colors.ink} />
         </Pressable>
-        <EmpreSymbol product="agent" size={30} />
+        <EmpreSymbol product="agent" size={32} />
         <View style={styles.headText}>
           <Text style={styles.eyebrow}>PERFIL</Text>
           <Text style={styles.title} accessibilityRole="header">

@@ -1,41 +1,43 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
+import { useQueries, useQuery } from '@tanstack/react-query';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi } from '@/api/agenda';
-import { usersApi } from '@/api/endpoints';
+import { catalogApi } from '@/api/catalog';
+import type { ServiceItem } from '@/lib/catalog';
+import { entitiesApi } from '@/api/endpoints';
 import { novedadesApi } from '@/api/novedades';
-import { discoveryApi, offersApi } from '@/api/offers';
-import type { DiscoveryItem } from '@/api/types';
+import { claimsApi, discoveryApi, offersApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
 import { Avatar } from '@/components/Avatar';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
-import { Cover } from '@/components/Cover';
 import { BusinessCardModal } from '@/components/explore/BusinessCardModal';
-import { HomeMap } from '@/components/explore/HomeMap';
-import { ActionTile, SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
 import type { WithDistance } from '@/components/explore/FeaturedCard';
 import { useZones } from '@/components/explore/useZoneName';
+import { BAND, dayPart, HomeBand } from '@/components/home/HomeBand';
+import { HomeDoors, type SmallDoor } from '@/components/home/HomeDoors';
+import { ParaTiCarousel, type ParaTiSlide } from '@/components/home/ParaTiCarousel';
+import { MarketItemSheet } from '@/components/offers/MarketItemSheet';
+import { SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
 import { ZoneButton, ZoneList } from '@/components/ZoneButton';
+import { FEATURES } from '@/config';
 import { hourIdeas } from '@/lib/askChips';
-import { displayIcon } from '@/lib/mapView';
+import { effectiveClaimStatus } from '@/lib/claims';
+import { mediaUrl } from '@/lib/image';
 import { dayLabel, stripEntries, type NovedadItem } from '@/lib/novedades';
-import { distanceLabel, priceView } from '@/lib/offerMarket';
+import { mergeCatalogIntoMarket, type MarketItem } from '@/lib/offerMarket';
+import { pickParaTi, type ParaTiCandidate } from '@/lib/paraTi';
+import { topHabits, type SearchHabit } from '@/lib/searchHabits';
+import { loadHabits } from '@/lib/searchHabitsStore';
 import { useCoords } from '@/lib/useCoords';
 import { colors, fonts, softShadow } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-/** «21:00» → «Hasta 9 pm». */
-function untilLabel(closes?: string): string {
-  const m = closes?.match(/^(\d{1,2}):(\d{2})/);
-  if (!m) return 'Abierto';
-  const h = Number(m[1]);
-  const h12 = h % 12 || 12;
-  return `Hasta ${h12}${m[2] === '00' ? '' : `:${m[2]}`} ${h < 12 ? 'am' : 'pm'}`;
-}
+/** Lo que cabe «a 5 minutos a pie». */
+const NEAR_M = 400;
 
 function whenLabel(iso: string, now: number): string {
   const min = Math.floor((now - Date.parse(iso)) / 60_000);
@@ -45,41 +47,26 @@ function whenLabel(iso: string, now: number): string {
   return dayLabel(iso, now);
 }
 
-/** Una tarjeta de «Cerca y abierto». Con pocos negocios se reparten el ancho; con muchos, van en fila. */
-function NearCard({ b, width, wide, onPress }: { b: DiscoveryItem; width?: number; wide?: boolean; onPress: () => void }) {
-  const dist = distanceLabel(b.distance_meters);
-  const sub = [b.subcategory || b.category_name, dist ? `a ${dist}` : null].filter(Boolean).join(' · ');
-  const until = untilLabel(b.closes_at);
-  return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${b.name}. ${sub}. ${until}${b.has_active_offer ? '. Tiene oferta' : ''}`} onPress={onPress} style={({ pressed }) => [styles.nearCard, width ? { width } : wide ? styles.nearWide : styles.nearFlex, pressed && styles.pressed]}>
-      <Cover photo={b.profile_url} category={b.subcategory || b.category_name} icon={b.category_icon} iconName={displayIcon(b.category_icon) as IconName} style={styles.nearPhoto}>
-        {b.has_active_offer ? (
-          <View style={styles.offer}>
-            <Text style={styles.offerText}>Oferta</Text>
-          </View>
-        ) : null}
-      </Cover>
-      <View style={styles.nearBody}>
-        <Text style={styles.nearName} numberOfLines={1}>
-          {b.name}
-        </Text>
-        <Text style={styles.nearSub} numberOfLines={1}>
-          {sub}
-        </Text>
-        <View style={styles.live}>
-          <View style={styles.liveDot} />
-          <Text style={styles.liveText} numberOfLines={1}>
-            Abierto · {until.toLowerCase()}
-          </Text>
-        </View>
-      </View>
-    </Pressable>
-  );
+/** «hoy 4:30 pm», «mañana 10:00 am» o «vie 9:00 am». */
+function apptWhen(iso: string, now: number): string {
+  const d = new Date(iso);
+  const h = d.getHours();
+  const time = `${h % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`;
+  const today = new Date(now);
+  const days = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 86_400_000);
+  const day = days === 0 ? 'hoy' : days === 1 ? 'mañana' : d.toLocaleDateString('es-CO', { weekday: 'short' }).replace('.', '');
+  return `${day} ${time}`;
+}
+
+function expiresIn(iso: string, now: number): string {
+  const min = Math.max(1, Math.ceil((Date.parse(iso) - now) / 60_000));
+  return min < 60 ? `Vence en ${min} min` : `Vence en ${Math.floor(min / 60)} h`;
 }
 
 /**
- * Inicio de Empre Finder, el escritorio de quien busca: tu zona, el buscador y el mapa como pieza principal. Debajo, lo
- * de esta hora, lo de siempre, lo abierto cerca y lo que publican los negocios. Cada sección sale si tiene algo real.
+ * Inicio de Empre en capas (3.59): 1 · buscar y puertas, con una franja que cambia con la hora; 2 · lo tuyo, solo lo que
+ * está en curso; 3 · «Para ti», como mucho 3 recomendaciones por reglas fijas que llevan directo a lo importante; 4 · lo
+ * nuevo en tu zona. Con pocos datos cada capa se encoge o no se dibuja: nunca se rellena con datos inventados.
  */
 export default function HomeScreen() {
   const router = useRouter();
@@ -90,8 +77,11 @@ export default function HomeScreen() {
   const zones = useZones();
   const [zoneId, setZoneId] = useState<string | null>(null);
   const [zonesOpen, setZonesOpen] = useState(false);
-  const [pinId, setPinId] = useState<string | null>(null);
   const [card, setCard] = useState<WithDistance | null>(null);
+  const [previewItem, setPreviewItem] = useState<MarketItem | null>(null);
+  const [habits, setHabits] = useState<SearchHabit[]>([]);
+  // La hora del inicio: se fija al entrar y se renueva cada vez que vuelves a él (de ella salen la franja y «Para ti»).
+  const [now, setNow] = useState(() => Date.now());
   const newsY = useRef(0);
   const scrollRef = useRef<ScrollView>(null);
   const zone = zones.find((z) => z.id === zoneId) ?? null;
@@ -99,83 +89,200 @@ export default function HomeScreen() {
   const place = center ? { lat: center.latitude, long: center.longitude } : {};
   const placeKey = [center?.latitude.toFixed(3), center?.longitude.toFixed(3)];
 
+  // Lo que más buscas vive en el teléfono; se relee al volver al inicio (por si acabas de buscar).
+  useFocusEffect(
+    useCallback(() => {
+      setNow(Date.now());
+      void loadHabits().then(setHabits);
+    }, []),
+  );
+
   const open = useQuery({ queryKey: ['home-near', ...placeKey], queryFn: () => discoveryApi.discover({ ...place, limit: 12 }), staleTime: 60_000 });
   const market = useQuery({ queryKey: ['home-market', ...placeKey], queryFn: () => offersApi.market(place), staleTime: 60_000 });
   const news = useQuery({ queryKey: ['novedades'], queryFn: novedadesApi.list, enabled: signedIn, staleTime: 60_000 });
-  const appts = useQuery({ queryKey: ['appointments'], queryFn: agendaApi.mine, enabled: signedIn, staleTime: 60_000 });
-  const follows = useQuery({ queryKey: ['my-favorites'], queryFn: usersApi.favorites, enabled: signedIn, staleTime: 60_000 });
+  const appts = useQuery({ queryKey: ['appointments'], queryFn: agendaApi.mine, enabled: signedIn && FEATURES.agenda, staleTime: 60_000 });
+  const claims = useQuery({ queryKey: ['my-claims'], queryFn: claimsApi.mine, enabled: signedIn, staleTime: 30_000 });
+  const mine = useQuery({ queryKey: ['my-entities'], queryFn: entitiesApi.mine, enabled: signedIn, staleTime: 60_000 });
 
-  const openNear = useMemo(() => (open.data?.items ?? []).filter((b) => b.is_open_now).slice(0, 6), [open.data]);
+  const nearBizList = useMemo(() => (open.data?.items ?? []).slice(0, 6), [open.data]);
+  const catalogQueries = useQueries({
+    queries: nearBizList.map((b) => ({
+      queryKey: ['catalog', b.id],
+      queryFn: () => catalogApi.list(b.id),
+      staleTime: 120_000,
+    })),
+  });
+  const catalogsByEntity = useMemo(() => {
+    const map: Record<string, ServiceItem[]> = {};
+    nearBizList.forEach((b, idx) => {
+      const data = catalogQueries[idx]?.data;
+      if (data?.length) map[b.id] = data;
+    });
+    return map;
+  }, [nearBizList, catalogQueries]);
+
+  /** Ofertas y servicios del catálogo cerca, sin repetir: los candidatos de «Para ti» que no son negocios. */
+  const marketItems = useMemo(() => {
+    const d = market.data;
+    const raw = d ? [...(d.featured ? [d.featured] : []), ...d.near, ...d.trending, ...d.for_you.items, ...d.searched.items] : [];
+    const seen = new Set<string>();
+    const unique = raw.filter((o) => (seen.has(o.id) ? false : (seen.add(o.id), true)));
+    return mergeCatalogIntoMarket(unique, open.data?.items ?? [], catalogsByEntity, (id?: string) => (id ? mediaUrl(id) : undefined));
+  }, [market.data, open.data, catalogsByEntity]);
+
+  const hour = new Date(now).getHours();
+  const part = dayPart(hour);
+  const band = BAND[part];
+  const ideas = useMemo(() => hourIdeas(hour), [hour]);
+  const firstName = user?.name?.trim().split(/\s+/)[0];
+  const zoneName = zone?.name ?? (market.data?.zone || null);
+
+  const discovery = useMemo(() => open.data?.items ?? [], [open.data]);
+  const openNear = useMemo(() => discovery.filter((b) => b.is_open_now), [discovery]);
+  const mapItems = useMemo(() => openNear.filter((b) => b.latitude && b.longitude).slice(0, 8), [openNear]);
+  const walkable = openNear.filter((b) => b.distance_meters <= NEAR_M).length;
+  const mapSub = walkable ? `${walkable} ${walkable === 1 ? 'abierto' : 'abiertos'} a 5 min a pie` : openNear.length ? `${openNear.length} ${openNear.length === 1 ? 'abierto' : 'abiertos'} cerca` : 'Nada abierto cerca ahora';
+
+  // Capa 2 · Lo tuyo: solo lo que está en curso.
+  const nextAppt = useMemo(
+    () =>
+      [...(appts.data ?? [])]
+        .filter((a) => (a.status === 'confirmed' || a.status === 'requested') && Date.parse(a.ends_at) > now && Date.parse(a.starts_at) - now < 48 * 3_600_000)
+        .sort((a, b) => a.starts_at.localeCompare(b.starts_at))[0] ?? null,
+    [appts.data, now],
+  );
+  const activeClaims = useMemo(() => (claims.data ?? []).filter((c) => effectiveClaimStatus(c, now) === 'RECLAMADO').slice(0, 2), [claims.data, now]);
   const newsAll = useMemo(() => news.data ?? [], [news.data]);
   const unseen = newsAll.filter((n) => n.unseen);
   const strip = useMemo(() => stripEntries(newsAll), [newsAll]);
-  // Lo de siempre: tu última cita atendida. Solo sale de lo que ya hiciste.
-  const usual = useMemo(() => [...(appts.data ?? [])].filter((a) => a.status === 'completed' && a.entity?.id).sort((a, b) => b.starts_at.localeCompare(a.starts_at))[0] ?? null, [appts.data]);
-  const usualOpen = usual ? (open.data?.items ?? []).find((b) => b.id === usual.entity?.id) : undefined;
-  const firstName = user?.name?.trim().split(/\s+/)[0];
-  // En el mapa del inicio, solo lo abierto que trae ubicación.
-  const mapItems = useMemo(() => openNear.filter((b) => b.latitude && b.longitude), [openNear]);
-  const pinned = openNear.find((b) => b.id === pinId) ?? null;
-  const zoneName = zone?.name ?? (market.data?.zone || null);
+  const usualIds = useMemo(() => (appts.data ?? []).filter((a) => a.status === 'completed' && a.entity?.id).map((a) => a.entity!.id), [appts.data]);
 
-  // El mayor ahorro de verdad que hay hoy por aquí; sin ahorro no se promete ninguno.
-  const bestSave = useMemo(() => {
-    const d = market.data;
-    if (!d) return 0;
-    return [...(d.featured ? [d.featured] : []), ...d.near, ...d.trending].reduce((best, o) => {
-      const s = priceView(o).save;
-      const pct = s ? Number(s.replace(/\D/g, '')) : 0;
-      return Math.max(best, pct);
-    }, 0);
-  }, [market.data]);
-  const where = zoneName ? `en ${zoneName}` : 'cerca de ti';
+  // Capa 3 · Para ti.
+  const top = useMemo(() => topHabits(habits, now), [habits, now]);
+  const picks = useMemo(() => {
+    const byEntity = new Map(discovery.map((b) => [b.id, b]));
+    const cands: ParaTiCandidate[] = [
+      ...marketItems.map((m): ParaTiCandidate => {
+        const biz = byEntity.get(m.entity_id);
+        const kind = m.kind === 'service' ? 'service' : 'offer';
+        return {
+          key: `${kind}:${m.id}`,
+          kind,
+          id: m.id,
+          entityId: m.entity_id,
+          entityName: m.entity_name,
+          title: m.title,
+          category: [m.category_name, biz?.subcategory].filter(Boolean).join(' '),
+          open: m.open_now ?? biz?.is_open_now ?? null,
+          distanceM: m.distance_meters,
+          endsAt: kind === 'offer' ? m.ends_at : undefined,
+          closesAt: m.open_until ?? biz?.closes_at,
+          trending: m.trending,
+          rating: m.rating,
+        };
+      }),
+      ...discovery.map(
+        (b): ParaTiCandidate => ({
+          key: `business:${b.id}`,
+          kind: 'business',
+          id: b.id,
+          entityId: b.id,
+          entityName: b.name,
+          title: b.name,
+          category: [b.category_name, b.subcategory].filter(Boolean).join(' '),
+          open: b.is_open_now,
+          distanceM: b.distance_meters,
+          closesAt: b.closes_at,
+        }),
+      ),
+    ];
+    return pickParaTi(cands, {
+      now,
+      topTerms: top.map((h) => h.term),
+      usualEntityIds: usualIds,
+      hourWords: ideas.map((i) => i.ask),
+      busyEntityIds: nextAppt?.entity?.id ? [nextAppt.entity.id] : [],
+      busyOfferIds: activeClaims.map((c) => c.offer_id),
+    });
+  }, [marketItems, discovery, top, usualIds, nextAppt, activeClaims, now, ideas]);
 
-  const ideas = hourIdeas(new Date().getHours());
-  const now = Date.now();
+  const slides: ParaTiSlide[] = picks.map((p) => {
+    const c = p.candidate;
+    const biz = discovery.find((b) => b.id === c.entityId);
+    const item = c.kind === 'business' ? null : marketItems.find((m) => m.id === c.id) ?? null;
+    return {
+      pick: p,
+      photo: item?.photo ?? biz?.profile_url ?? null,
+      category: biz?.subcategory || biz?.category_name || item?.category_name,
+      icon: biz?.category_icon ?? item?.category_icon ?? null,
+      onOpen: () => {
+        if (c.kind === 'offer') router.push({ pathname: '/offer/[id]', params: { id: c.id, entityId: c.entityId } });
+        else if (c.kind === 'service' && item) setPreviewItem(item);
+        else if (biz) setCard({ ...biz, distanceKm: biz.distance_meters / 1000 });
+      },
+    };
+  });
+
   const ask = (q?: string, voice = false) => router.push({ pathname: '/ask', params: { ...(q ? { q } : {}), ...(voice ? { voice: '1' } : {}) } });
   const openNews = (n: NovedadItem) => {
     if (n.kind === 'offer') router.push({ pathname: '/offer/[id]', params: { id: n.id, entityId: n.entity_id } });
     else router.push({ pathname: '/business/[id]', params: { id: n.entity_id } });
   };
 
+  // Con historial, lo que más buscas; sin historial, lo típico de esta hora.
+  const chips = top.length ? { label: 'Lo que más buscas', items: top.map((h) => ({ label: h.term, ask: h.term })) } : { label: 'Para esta hora', items: ideas.map((i) => ({ label: i.label, ask: i.ask })) };
+
+  const firstBiz = (mine.data ?? [])[0];
+  const doors: SmallDoor[] = [
+    ...(FEATURES.agenda ? [{ key: 'citas', label: 'Citas', icon: 'calendar-outline' as IconName, onPress: () => router.push('/appointments') }] : []),
+    { key: 'salidas', label: 'Salidas', icon: 'ticket-outline', onPress: () => router.push('/salidas') },
+    { key: 'sigo', label: 'Sigo', icon: 'heart-outline', onPress: () => router.push('/favorites') },
+    firstBiz
+      ? { key: 'negocio', label: 'Mi negocio', icon: 'storefront-outline', onPress: () => router.push({ pathname: '/business/hub/[id]', params: { id: firstBiz.id } }) }
+      : { key: 'negocio', label: 'Tu negocio', icon: 'storefront-outline', onPress: () => router.push('/business/new') },
+  ];
+
+  const hasTuyo = Boolean(nextAppt) || activeClaims.length > 0 || strip.length > 0;
+
   return (
     <View style={styles.screen}>
-      <ScrollView
-        ref={scrollRef}
-        style={styles.screen}
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.topRow}>
-          <EmpreSymbol size={26} />
-          <ZoneButton lead={zone ? 'Estás viendo' : 'Estás en'} name={zoneName ?? (coords ? 'Cerca de ti' : 'Tu ciudad')} open={zonesOpen} disabled={zones.length === 0} onPress={() => setZonesOpen((v) => !v)} />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={unseen.length ? `Ir a lo nuevo: ${unseen.length} cosas nuevas` : 'Estás al día'}
-            hitSlop={6}
-            onPress={() => (newsAll.length ? scrollRef.current?.scrollTo({ y: newsY.current - 16, animated: true }) : router.push('/novedades'))}
-            style={styles.bell}
-          >
-            <Ionicons name="notifications-outline" size={20} color={colors.ink} />
-            {unseen.length ? <View style={styles.bellDot} /> : null}
-          </Pressable>
-        </View>
+      <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {/* Capa 1 · Buscar, con el tema de la hora */}
+        <HomeBand part={part} top={insets.top + 12}>
+          <View style={styles.topRow}>
+            <EmpreSymbol product="master" size={32} />
+            <View style={styles.zone}>
+              <ZoneButton lead={zone ? 'Estás viendo' : 'Estás en'} name={zoneName ?? (coords ? 'Cerca de ti' : 'Tu ciudad')} open={zonesOpen} disabled={zones.length === 0} dark={part === 'noche'} onPress={() => setZonesOpen((v) => !v)} />
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={unseen.length ? `Ir a lo nuevo: ${unseen.length} cosas nuevas` : 'Estás al día'}
+              hitSlop={6}
+              onPress={() => (newsAll.length ? scrollRef.current?.scrollTo({ y: newsY.current - 16, animated: true }) : router.push('/novedades'))}
+              style={styles.bell}
+            >
+              <Ionicons name="notifications-outline" size={20} color={colors.ink} />
+              {unseen.length ? <View style={styles.bellDot} /> : null}
+            </Pressable>
+          </View>
 
-        {zonesOpen ? (
-          <ZoneList
-            options={[{ id: '', name: 'Cerca de ti', where: 'aquí' }, ...zones.map((z) => ({ id: z.id, name: z.name }))]}
-            selected={zoneId ?? ''}
-            onPick={(o) => {
-              setZoneId(o.id || null);
-              setZonesOpen(false);
-            }}
-          />
-        ) : null}
+          {zonesOpen ? (
+            <ZoneList
+              options={[{ id: '', name: 'Cerca de ti', where: 'aquí' }, ...zones.map((z) => ({ id: z.id, name: z.name }))]}
+              selected={zoneId ?? ''}
+              onPick={(o) => {
+                setZoneId(o.id || null);
+                setZonesOpen(false);
+              }}
+            />
+          ) : null}
 
-        <View style={styles.block}>
-          <Text style={styles.title} accessibilityRole="header">
-            ¿Qué necesitas hoy{firstName ? `, ${firstName}` : ''}?
-          </Text>
+          <View style={styles.greet}>
+            <Text style={[styles.hello, { color: band.sub }]}>{band.hello}</Text>
+            <Text style={[styles.title, { color: band.ink }]} accessibilityRole="header">
+              ¿Qué necesitas hoy{firstName ? `, ${firstName}` : ''}?
+            </Text>
+          </View>
 
           <View style={styles.searchPill}>
             <Pressable accessibilityRole="search" accessibilityLabel="Busca un negocio, un servicio o lo que necesites" onPress={() => ask()} style={styles.searchTap}>
@@ -189,92 +296,64 @@ export default function HomeScreen() {
             </Pressable>
           </View>
 
-          <View style={styles.main}>
-            <View style={styles.mainMap}>
-              {center ? (
-                <HomeMap center={center} items={mapItems} selectedId={pinId} onPick={(id) => setPinId(pinId === id ? null : id)} showUser={!zone} />
-              ) : (
-                <View style={styles.mapEmpty}>
-                  <Ionicons name="map-outline" size={30} color={colors.faint} />
-                </View>
-              )}
-            </View>
-            <View style={styles.mainFoot}>
-              <View style={styles.mainText} accessibilityLiveRegion="polite">
-                <Text style={styles.mainHead} numberOfLines={1}>
-                  {pinned ? pinned.name : 'Abierto cerca de ti'}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRail} contentContainerStyle={styles.chipIn}>
+            <Text style={[styles.chipLabel, { color: band.sub }]}>{chips.label}</Text>
+            {chips.items.map((c) => (
+              <Pressable key={c.label} accessibilityRole="button" accessibilityLabel={`Buscar ${c.label}`} onPress={() => ask(c.ask)} style={[styles.chip, { backgroundColor: band.chipBg, borderColor: band.chipLine }]}>
+                <Text style={[styles.chipText, { color: band.ink }]} numberOfLines={1}>
+                  {c.label}
                 </Text>
-                {pinned || openNear.length ? (
-                  <View style={styles.live}>
-                    <View style={styles.liveDot} />
-                    <Text style={styles.liveText} numberOfLines={1}>
-                      {pinned ? ['Abierto', untilLabel(pinned.closes_at).toLowerCase(), distanceLabel(pinned.distance_meters) ? `a ${distanceLabel(pinned.distance_meters)}` : null].filter(Boolean).join(' · ') : `${mapItems.length} ${mapItems.length === 1 ? 'negocio' : 'negocios'} cerca`}
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={styles.mainSub}>{where === 'cerca de ti' ? 'Mira qué hay en tu zona' : `Mira qué hay ${where}`}</Text>
-                )}
-              </View>
-              <Pressable accessibilityRole="button" onPress={() => (pinned ? setCard({ ...pinned, distanceKm: pinned.distance_meters / 1000 }) : router.push('/map'))} style={styles.mainBtn}>
-                <Text style={styles.mainBtnText}>{pinned ? 'Ver negocio' : 'Abrir mapa'}</Text>
               </Pressable>
-            </View>
-          </View>
+            ))}
+          </ScrollView>
+        </HomeBand>
 
-          <View style={styles.hour}>
-            <Text style={styles.label}>Para esta hora · {ideas[0].name.toLowerCase()}</Text>
-            <View style={styles.quick}>
-              {ideas.map((q) => (
-                <ActionTile key={q.label} icon={q.icon} label={q.label} onPress={() => ask(q.ask)} />
-              ))}
-            </View>
-          </View>
+        <View style={styles.body}>
+          {/* Puertas */}
+          <HomeDoors
+            center={center}
+            mapItems={mapItems}
+            mapSub={mapSub}
+            hasOpen={openNear.length > 0}
+            offersSub={marketItems.length ? 'Las de hoy, cerca' : 'En toda la ciudad'}
+            onExplore={() => router.push('/map')}
+            onOffers={() => router.push('/(tabs)/offers')}
+            doors={doors}
+          />
 
-          {usual ? (
-            <SystemGroup>
-              <SystemRow first icon={usualOpen ? (displayIcon(usualOpen.category_icon) as IconName) : 'repeat'} tag="Lo de siempre" title={[usual.service?.name, usual.entity?.name].filter(Boolean).join(' · ')} sub={usualOpen?.is_open_now ? `Abierto · ${untilLabel(usualOpen.closes_at).toLowerCase()}` : 'Tu última cita. Pide otra cuando quieras'} onPress={() => router.push({ pathname: '/business/[id]', params: { id: usual.entity!.id } })} />
-            </SystemGroup>
-          ) : null}
-
-          {openNear.length ? (
-            <SystemSection title="Cerca y abierto ahora" link={openNear.length > 3 ? 'Ver todos' : undefined} onLink={() => router.push('/map')}>
-              {openNear.length <= 3 ? (
-                <View style={styles.pairs}>
-                  {openNear.map((b) => (
-                    <NearCard key={b.id} b={b} wide={openNear.length === 1} onPress={() => setCard({ ...b, distanceKm: b.distance_meters / 1000 })} />
-                  ))}
-                </View>
-              ) : (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.railIn}>
-                  {openNear.map((b) => (
-                    <NearCard key={b.id} b={b} width={212} onPress={() => setCard({ ...b, distanceKm: b.distance_meters / 1000 })} />
-                  ))}
-                </ScrollView>
-              )}
-            </SystemSection>
-          ) : null}
-
-          {signedIn && newsAll.length ? (
-            <View onLayout={(e) => (newsY.current = e.nativeEvent.layout.y)}>
-              <SystemSection title="Lo nuevo en tu zona" link="Ver todo" onLink={() => router.push('/novedades')}>
+          {/* Capa 2 · Lo tuyo */}
+          {hasTuyo ? (
+            <SystemSection title="Lo tuyo">
+              {nextAppt || activeClaims.length ? (
                 <SystemGroup>
-                  {newsAll.slice(0, 3).map((n, i) => (
-                    <SystemRow key={n.kind + n.id} first={i === 0} icon={n.kind === 'offer' ? 'pricetag-outline' : 'images-outline'} tag={n.kind === 'offer' ? 'Oferta nueva' : 'Publicó'} title={n.title.trim() || n.entity_name} sub={`${n.entity_name} · ${whenLabel(n.at, now)}`} alert={n.unseen} onPress={() => openNews(n)} />
+                  {nextAppt ? (
+                    <SystemRow
+                      first
+                      icon="calendar-outline"
+                      tag={`Tu cita · ${apptWhen(nextAppt.starts_at, now)}${nextAppt.status === 'requested' ? ' · por confirmar' : ''}`}
+                      title={nextAppt.service?.name ?? 'Cita'}
+                      sub={nextAppt.entity?.name}
+                      onPress={() => router.push({ pathname: '/appointment/[id]', params: { id: nextAppt.id } })}
+                    />
+                  ) : null}
+                  {activeClaims.map((c, i) => (
+                    <SystemRow
+                      key={c.id}
+                      first={!nextAppt && i === 0}
+                      icon="qr-code-outline"
+                      tag={`Oferta reclamada · ${expiresIn(c.expires_at, now)}`}
+                      title={c.offer?.title ?? 'Tu oferta'}
+                      sub={[c.entity_name, 'muestra tu QR en caja'].filter(Boolean).join(' · ')}
+                      alert
+                      onPress={() => router.push({ pathname: '/offer/claim', params: { claimId: c.id, offerId: c.offer_id } })}
+                    />
                   ))}
                 </SystemGroup>
-              </SystemSection>
-            </View>
-          ) : null}
-
-          {signedIn ? (
-            <View style={styles.hour}>
-              <Text style={styles.secTitle} accessibilityRole="header">
-                De los negocios que sigues
-              </Text>
+              ) : null}
               {strip.length ? (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.followIn}>
                   {strip.map((w) => (
-                    <Pressable key={w.entityId} accessibilityRole="button" onPress={() => router.push({ pathname: '/business/[id]', params: { id: w.entityId } })} style={styles.follow}>
+                    <Pressable key={w.entityId} accessibilityRole="button" accessibilityLabel={`${w.name}${w.ring === 'offer' ? ', oferta nueva' : w.ring === 'post' ? ', publicó' : ''}`} onPress={() => router.push({ pathname: '/business/[id]', params: { id: w.entityId } })} style={styles.follow}>
                       <View style={[styles.followRing, { borderColor: w.ring === 'offer' ? colors.accent : w.ring === 'post' ? colors.ink : colors.line }]}>
                         <Avatar uri={w.profileUrl} name={w.name} size={56} />
                       </View>
@@ -285,78 +364,72 @@ export default function HomeScreen() {
                     </Pressable>
                   ))}
                 </ScrollView>
-              ) : (follows.data ?? []).length ? (
-                <Text style={styles.followNone}>Los negocios que sigues no han publicado nada nuevo.</Text>
-              ) : (
-                <View style={styles.noFollows}>
-                  <Text style={styles.noFollowsText}>Sigue a tus negocios favoritos para ver aquí lo que publican y sus ofertas nuevas.</Text>
-                  <Pressable accessibilityRole="button" onPress={() => router.push('/map')} style={styles.noFollowsBtn}>
-                    <Text style={styles.noFollowsBtnText}>Buscar negocios para seguir</Text>
-                  </Pressable>
-                </View>
-              )}
+              ) : null}
+            </SystemSection>
+          ) : null}
+
+          {/* Capa 3 · Para ti */}
+          {slides.length ? (
+            <View style={styles.section}>
+              <View style={styles.paraHead}>
+                <EmpreSymbol product="ai" size={22} />
+                <Text style={styles.secTitle} accessibilityRole="header">
+                  {top.length || usualIds.length ? 'Para ti' : 'Para ti, a esta hora'}
+                </Text>
+              </View>
+              <ParaTiCarousel slides={slides} />
             </View>
           ) : null}
 
-          <SystemGroup>
-            <SystemRow first icon="pricetag-outline" symbol="offers" title={bestSave > 0 ? `Hasta ${bestSave} % de ahorro hoy ${where}` : `Las ofertas de hoy ${where}`} sub="Empre Offers" onPress={() => router.push('/(tabs)/offers')} />
-          </SystemGroup>
+          {/* Capa 4 · Lo nuevo en tu zona */}
+          <View onLayout={(e) => (newsY.current = e.nativeEvent.layout.y)}>
+            <SystemSection title="Lo nuevo en tu zona" link={newsAll.length > 3 ? 'Ver todo' : undefined} onLink={() => router.push('/novedades')}>
+              <SystemGroup>
+                {newsAll.length ? (
+                  newsAll.slice(0, 3).map((n, i) => (
+                    <SystemRow key={n.kind + n.id} first={i === 0} icon={n.kind === 'offer' ? 'pricetag-outline' : 'images-outline'} tag={n.kind === 'offer' ? 'Oferta nueva' : 'Publicó'} title={n.title.trim() || n.entity_name} sub={`${n.entity_name} · ${whenLabel(n.at, now)}`} alert={n.unseen} onPress={() => openNews(n)} />
+                  ))
+                ) : (
+                  <SystemRow first icon="heart-outline" tag="Para empezar" title="Sigue a los negocios que te gustan" sub="Aquí verás lo que publican y sus ofertas" onPress={() => router.push('/map')} />
+                )}
+              </SystemGroup>
+            </SystemSection>
+          </View>
         </View>
         <BusinessCardModal entity={card} onClose={() => setCard(null)} origin="home" />
+        <MarketItemSheet item={previewItem} onClose={() => setPreviewItem(null)} />
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.bg },
+  content: { paddingBottom: 120 },
+  body: { paddingHorizontal: 20, paddingTop: 16, gap: 26 },
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  zone: { flex: 1, minWidth: 0 },
+  bell: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: colors.surface, ...softShadow },
+  bellDot: { position: 'absolute', top: 10, right: 10, width: 9, height: 9, borderRadius: 5, borderWidth: 2, borderColor: colors.surface, backgroundColor: colors.brand },
+  greet: { gap: 2 },
+  hello: { fontSize: 13, fontFamily: fonts.ui.extrabold },
+  title: { fontSize: 26, lineHeight: 30, fontFamily: fonts.display.bold, letterSpacing: -0.4 },
   searchPill: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 14, paddingRight: 4, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
   searchTap: { flex: 1, minWidth: 0, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10 },
   searchText: { flex: 1, minWidth: 0, fontSize: 14.5, fontFamily: fonts.ui.semibold, color: colors.faint },
   mic: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.selectedSoft, alignItems: 'center', justifyContent: 'center' },
-  main: { borderRadius: 20, overflow: 'hidden', backgroundColor: colors.surface, ...softShadow },
-  mainMap: { height: 168, backgroundColor: colors.selectedSoft },
-  mapEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  mainFoot: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingLeft: 16, paddingRight: 12 },
-  mainText: { flex: 1, minWidth: 0, gap: 2 },
-  mainHead: { fontSize: 16, lineHeight: 20, fontFamily: fonts.display.bold, color: colors.ink },
-  mainSub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
-  mainBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primary },
-  mainBtnText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  live: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#14B8B0' },
-  liveText: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.verified },
-  label: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  pairs: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  nearCard: { borderRadius: 20, overflow: 'hidden', backgroundColor: colors.surface, ...softShadow },
-  nearFlex: { flex: 1, minWidth: 150 },
-  nearWide: { width: '100%' },
-  nearPhoto: { height: 116 },
-  nearBody: { paddingTop: 12, paddingHorizontal: 14, paddingBottom: 14, gap: 3 },
-  screen: { flex: 1, backgroundColor: colors.bg },
-  content: { paddingHorizontal: 20, paddingBottom: 32, gap: 14 },
-  pressed: { opacity: 0.75 },
-  topRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  bell: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: colors.surface, ...softShadow },
-  bellDot: { position: 'absolute', top: 10, right: 10, width: 9, height: 9, borderRadius: 5, borderWidth: 2, borderColor: colors.surface, backgroundColor: colors.brand },
-  block: { gap: 20 },
-  title: { fontSize: 26, lineHeight: 30, fontFamily: fonts.display.bold, color: colors.ink, letterSpacing: -0.4 },
-  hour: { gap: 8 },
-  quick: { flexDirection: 'row', gap: 8 },
+  chipRail: { marginHorizontal: -20, marginTop: -2 },
+  chipIn: { alignItems: 'center', gap: 8, paddingHorizontal: 20 },
+  chipLabel: { fontSize: 12.5, fontFamily: fonts.ui.extrabold },
+  chip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 999, borderWidth: 1 },
+  chipText: { fontSize: 13, fontFamily: fonts.ui.extrabold },
+  section: { gap: 8 },
+  paraHead: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 28 },
   secTitle: { fontSize: 19, fontFamily: fonts.display.bold, color: colors.ink },
   rail: { marginHorizontal: -20 },
-  railIn: { gap: 10, paddingHorizontal: 20, paddingTop: 2, paddingBottom: 12 },
-  offer: { position: 'absolute', left: 8, top: 8, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.accent },
-  offerText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  nearName: { fontSize: 16, lineHeight: 20, fontFamily: fonts.display.bold, color: colors.ink },
-  nearSub: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
   followIn: { gap: 16, paddingHorizontal: 20, paddingTop: 4, paddingBottom: 4 },
-  follow: { width: 72, alignItems: 'center', gap: 6 },
+  follow: { width: 76, alignItems: 'center', gap: 6 },
   followRing: { width: 67, height: 67, borderRadius: 34, borderWidth: 2.5, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   followName: { fontSize: 12, lineHeight: 14, fontFamily: fonts.ui.bold, color: colors.ink, textAlign: 'center' },
   followWhat: { fontSize: 12, fontFamily: fonts.ui.extrabold, textAlign: 'center' },
-  followNone: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.muted },
-  noFollows: { padding: 14, gap: 10, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
-  noFollowsText: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.muted },
-  noFollowsBtn: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primary },
-  noFollowsBtnText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
 });

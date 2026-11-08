@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ledgerApi, type InventoryItem } from '@/api/ledger';
-import { DoneMark, FlowHeader, useFlowBack, useFlowStep } from '@/components/ledger/Flow';
+import { DoneMark, FLOW_SETTLE_MS, FlowHeader, Pop, useFlowBack, useFlowStep } from '@/components/ledger/Flow';
 import { AmountField, Chip, LedgerReceipt, PartyPicker, type PartyChoice } from '@/components/ledger/parts';
 import { PayDeck } from '@/components/ledger/PayDeck';
 import { fmtQty, normalize, packToUnits } from '@/lib/inventory';
@@ -36,7 +36,12 @@ function lineUnits(l: BuyLine): { qty: number; unitCost: number } | null {
   return { qty: q, unitCost: Math.round(c) };
 }
 
-/** Registrar un gasto (lienzo VentaPagos): 1 · Qué compraste o pagaste, 2 · Cuánto, 3 · Cómo se pagó y 4 · Listo. */
+/**
+ * Registrar un gasto, con las mismas tres etapas y el mismo movimiento que una venta:
+ * 1 · Qué compraste o pagaste: el tipo de gasto y, si es mercancía, lo que entró al inventario.
+ * 2 · Cuánto y cómo: el mazo de pago (sale de tu caja, de tu cuenta o queda a crédito).
+ * 3 · Listo: el visto, el comprobante, «Nuevo gasto» o volver.
+ */
 export default function NewExpenseScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const entityId = id ?? '';
@@ -48,7 +53,11 @@ export default function NewExpenseScreen() {
   const [buy, setBuy] = useState<BuyLine[]>([]);
   const [find, setFind] = useState('');
   const [manual, setManual] = useState<number | null>(null);
-  const done = buy.map(lineUnits).filter((x): x is { qty: number; unitCost: number } => x !== null);
+  const [category, setCategory] = useState('mercancia');
+  // Lo comprado solo cuenta en «mercancía»: si cambia a otro tipo, las líneas se guardan por si vuelve, pero no suman
+  // al monto ni frenan el paso (antes quedaban ocultas y bloqueaban «Seguir» con un error que no se podía corregir).
+  const activeBuy = category === 'mercancia' ? buy : [];
+  const done = activeBuy.map(lineUnits).filter((x): x is { qty: number; unitCost: number } => x !== null);
   const linesTotal = done.reduce((t, x) => t + Math.round(x.qty * x.unitCost), 0);
   const amount = manual ?? linesTotal;
   const setAmount = (n: number) => setManual(n);
@@ -74,7 +83,6 @@ export default function NewExpenseScreen() {
     setManual(null);
   };
 
-  const [category, setCategory] = useState('mercancia');
   const [method, setMethod] = useState<PayMethod>('cash');
   const [supplier, setSupplier] = useState<PartyChoice | null>(null);
   const [note, setNote] = useState('');
@@ -83,8 +91,17 @@ export default function NewExpenseScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const { shown, style: flowStyle } = useFlowStep<(typeof PANES)[number]>(saved ? 'done' : pane, PANES);
+  // El campo del monto llega cuando el paso ya entró: enfocarlo a mitad del movimiento corre la pantalla de lado.
+  const focusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (focusTimer.current) clearTimeout(focusTimer.current);
+    },
+    [],
+  );
 
   const reset = () => {
+    if (focusTimer.current) clearTimeout(focusTimer.current);
     setManual(null);
     setBuy([]);
     setFind('');
@@ -103,7 +120,7 @@ export default function NewExpenseScreen() {
       reset();
       return;
     }
-    if (buy.some((b) => lineUnits(b) === null)) return setError('Completa la cantidad y el costo de cada producto, o quítalo.');
+    if (activeBuy.some((b) => lineUnits(b) === null)) return setError('Completa la cantidad y el costo de cada producto, o quítalo.');
     if (amount <= 0) return setError('Escribe cuánto fue el gasto.');
     if (method === 'credit' && !supplier) return setError('Una compra a crédito necesita el proveedor.');
     const clientId = newClientId();
@@ -115,8 +132,8 @@ export default function NewExpenseScreen() {
       party_id: supplier?.id,
       note: note.trim() || undefined,
       lines:
-        category === 'mercancia' && buy.length > 0
-          ? buy.map((b) => {
+        activeBuy.length > 0
+          ? activeBuy.map((b) => {
               const u = lineUnits(b) as { qty: number; unitCost: number };
               return b.item.kind === 'supply'
                 ? { stock_item_id: b.item.ref, name: b.item.name, qty: u.qty, unit_cost: u.unitCost }
@@ -133,7 +150,10 @@ export default function NewExpenseScreen() {
   const payDisabled = amount <= 0 || waitingSupplier;
   const primaryTitle = amount <= 0 ? 'Escribe cuánto fue' : waitingSupplier ? '¿A quién le debes?' : method === 'credit' ? `Anotar ${formatPesos(amount)} a ${supplier?.name ?? ''}` : `Guardar gasto ${formatPesos(amount)}`;
 
-  const backToWhat = useCallback(() => setPane('what'), []);
+  const backToWhat = useCallback(() => {
+    if (focusTimer.current) clearTimeout(focusTimer.current);
+    setPane('what');
+  }, []);
   useFlowBack(!saved && pane === 'pay' ? backToWhat : null);
   const switchKind = (k: 'sale' | 'expense') => {
     if (k === 'sale') router.replace({ pathname: '/business/ledger/sale/[id]', params: { id: entityId } });
@@ -141,14 +161,17 @@ export default function NewExpenseScreen() {
   /** Elegir un tipo de gasto lleva al siguiente paso; en «mercancía» aún puedes anotar qué compraste. */
   const pickCategory = (key: string) => {
     setCategory(key);
-    if (key !== 'mercancia') goPay();
+    if (key !== 'mercancia') goPay(key);
   };
-  const goPay = () => {
-    if (buy.some((b) => lineUnits(b) === null)) return setError('Completa la cantidad y el costo de cada producto, o quítalo.');
+  /** `forCategory`: el tipo recién tocado, porque el estado aún no se actualizó en este mismo toque. */
+  const goPay = (forCategory: string = category) => {
+    const lines = forCategory === 'mercancia' ? buy : [];
+    if (lines.some((b) => lineUnits(b) === null)) return setError('Completa la cantidad y el costo de cada producto, o quítalo.');
     setError(null);
-    // El campo llega cuando el paso ya entró: enfocarlo a mitad del movimiento corre la pantalla de lado.
+    const nextAmount = manual ?? lines.map(lineUnits).reduce((t, x) => t + (x ? Math.round(x.qty * x.unitCost) : 0), 0);
     setEditAmount(false);
-    if (amount <= 0) setTimeout(() => setEditAmount(true), 400);
+    if (focusTimer.current) clearTimeout(focusTimer.current);
+    if (nextAmount <= 0) focusTimer.current = setTimeout(() => setEditAmount(true), FLOW_SETTLE_MS);
     setPane('pay');
   };
   const stepN = saved ? 3 : pane === 'pay' ? 2 : 1;
@@ -325,8 +348,10 @@ export default function NewExpenseScreen() {
             <Text style={[styles.primaryBtnText, payDisabled && styles.primaryBtnTextDisabled]}>{primaryTitle}</Text>
           </Pressable>
         ) : (
-          <Pressable accessibilityRole="button" onPress={goPay} style={[styles.primaryBtn, styles.nextBtn]}>
-            <Text style={styles.primaryBtnText}>{amount > 0 ? `Seguir · ${formatPesos(amount)}` : 'Seguir'}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={amount > 0 ? `Seguir con ${formatPesos(amount)}` : 'Seguir'} onPress={() => goPay()} style={[styles.primaryBtn, styles.nextBtn]}>
+            <Pop value={amount}>
+              <Text style={styles.primaryBtnText}>{amount > 0 ? `Seguir · ${formatPesos(amount)}` : 'Seguir'}</Text>
+            </Pop>
             <Ionicons name="arrow-forward" size={18} color="#fff" />
           </Pressable>
         )}
@@ -340,7 +365,7 @@ const styles = StyleSheet.create({
   question: { fontSize: 26, lineHeight: 30, letterSpacing: -0.4, fontFamily: fonts.display.bold, color: colors.ink },
   sectionTitle: { fontSize: 19, lineHeight: 23, fontFamily: fonts.display.bold, color: colors.ink },
   methods: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  catTile: { width: '48.5%', minHeight: 64, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
+  catTile: { width: '48.5%', minHeight: 64, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
   methodOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
   methodText: { textAlign: 'center', fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   doneBody: { alignItems: 'center', gap: 16, paddingHorizontal: 20, paddingTop: 24, paddingBottom: 24 },
@@ -351,49 +376,23 @@ const styles = StyleSheet.create({
   secondaryBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   secondaryBtnText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   nextBtn: { flexDirection: 'row', gap: 8 },
-  body: { paddingHorizontal: 20, paddingTop: 6, paddingBottom: spacing.xl, gap: 14 },
+  // Mismas medidas que «Nueva venta»: al cambiar Venta ↔ Gasto la pantalla no salta.
+  body: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 16 },
   label: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   eyebrow: { fontSize: 12, fontFamily: fonts.ui.extrabold, letterSpacing: 0.8, color: colors.faint },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  note: { minHeight: 48, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.lg, paddingHorizontal: spacing.md, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink, backgroundColor: colors.surface },
+  note: { minHeight: 52, paddingHorizontal: 14, borderRadius: 16, fontSize: 14.5, fontFamily: fonts.ui.medium, color: colors.ink, backgroundColor: colors.surface, ...softShadow },
   hintText: { fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
-  buyRow: { gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md },
+  buyRow: { gap: spacing.sm, padding: 14, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
   buyHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  buyName: { flex: 1, fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
+  buyName: { flex: 1, fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   buyInputs: { flexDirection: 'row', gap: spacing.sm },
   buyInput: { minHeight: 46, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 16, fontFamily: fonts.ui.bold, color: colors.ink, backgroundColor: colors.bg },
   tiny: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },
-  footer: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: 12,
-    gap: 10,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.hairline,
-  },
-  primaryBtn: {
-    minHeight: 54,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryBtnDisabled: {
-    backgroundColor: colors.hairline,
-  },
-  primaryBtnDone: {
-    backgroundColor: colors.selectedSoft,
-  },
-  primaryBtnText: {
-    fontSize: 16,
-    fontFamily: fonts.ui.extrabold,
-    color: colors.surface,
-  },
-  primaryBtnTextDisabled: {
-    color: colors.faint,
-  },
-  primaryBtnTextDone: {
-    color: colors.ink,
-  },
+  footer: { gap: 8, paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.hairline, backgroundColor: colors.surface },
+  primaryBtn: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.primary },
+  primaryBtnDisabled: { backgroundColor: colors.hairline },
+  primaryBtnText: { fontSize: 15.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  primaryBtnTextDisabled: { color: colors.faint },
 });

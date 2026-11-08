@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ledgerApi } from '@/api/ledger';
 import type { RedeemResult } from '@/api/types';
 import { queueVoid } from '@/ledger/ledgerStore';
 import { formatPesos, METHOD_LABEL, type PayMethod } from '@/lib/ledger';
 import { formatAgo, formatCurrency, formatSlotsLeft } from '@/lib/offer';
+import { useReduceMotion } from '@/lib/useReduceMotion';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { colors, fonts } from '@/theme';
 
@@ -91,6 +92,20 @@ interface Props {
  */
 export function RedeemResultView({ result, offline, onNext, onRetry, onFinance, practice = false }: Props) {
   const insets = useSafeAreaInsets();
+  const reduce = useReduceMotion();
+  const pop = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if ((!result && !offline) || reduce) {
+      pop.setValue(1);
+      return;
+    }
+    pop.setValue(0);
+    const s = Animated.spring(pop, { toValue: 1, friction: 6, tension: 85, useNativeDriver: true });
+    s.start();
+    return () => s.stop();
+  }, [result, offline, reduce, pop]);
+
   if (!result && !offline) return null;
 
   const look: Look = offline
@@ -107,6 +122,12 @@ export function RedeemResultView({ result, offline, onNext, onRetry, onFinance, 
 
   const ok = look.tone === 'ok';
   const hour = new Date().toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' }).replace(/\s*([ap])\.\s*m\.?/i, ' $1m');
+  const discAnim = reduce
+    ? undefined
+    : {
+        opacity: pop.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.2, 1, 1] }),
+        transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.65, 1] }) }],
+      };
 
   return (
     <View style={styles.root} accessibilityRole="alert" accessibilityLiveRegion="assertive">
@@ -117,13 +138,13 @@ export function RedeemResultView({ result, offline, onNext, onRetry, onFinance, 
             <Text style={styles.bandSmall}>{hour}</Text>
           </View>
           {ok ? (
-            <View style={styles.discOk}>
+            <Animated.View style={[styles.discOk, discAnim]}>
               <EmpreSymbol product="check" size={64} />
-            </View>
+            </Animated.View>
           ) : (
-            <View style={styles.discBad}>
+            <Animated.View style={[styles.discBad, discAnim]}>
               <Ionicons name={look.icon} size={38} color="#fff" />
-            </View>
+            </Animated.View>
           )}
           <Text style={ok ? styles.titleOk : styles.title}>{look.title}</Text>
           <Text style={styles.why}>{look.why}</Text>

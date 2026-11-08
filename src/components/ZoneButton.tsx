@@ -9,15 +9,16 @@ export interface ZoneOption {
 }
 
 /** La zona arriba, como «Entregar en…»: se toca para cambiarla. Igual en Finder y en Ofertas. */
-export function ZoneButton({ lead, name, open, onPress, disabled }: { lead: string; name: string; open: boolean; onPress: () => void; disabled?: boolean }) {
+/** `dark`: sobre la franja de noche del inicio, el texto va en blanco. */
+export function ZoneButton({ lead, name, open, onPress, disabled, dark }: { lead: string; name: string; open: boolean; onPress: () => void; disabled?: boolean; dark?: boolean }) {
   return (
     <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${lead} ${name}. Cambiar de zona`} disabled={disabled} onPress={onPress} style={styles.btn}>
-      <Text style={styles.lead}>{lead}</Text>
+      <Text style={[styles.lead, dark && { color: 'rgba(255,255,255,0.8)' }]}>{lead}</Text>
       <View style={styles.nameRow}>
-        <Text style={styles.name} numberOfLines={1}>
+        <Text style={[styles.name, dark && { color: '#FFFFFF' }]} numberOfLines={1}>
           {name}
         </Text>
-        {disabled ? null : <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={14} color={colors.ink} />}
+        {disabled ? null : <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={14} color={dark ? '#FFFFFF' : colors.ink} />}
       </View>
     </Pressable>
   );

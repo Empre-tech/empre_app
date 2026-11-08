@@ -6,9 +6,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, softShadow } from '@/theme';
 
+/** Lo que tarda en salir el paso actual y en entrar el nuevo. Quien espere a que el paso esté quieto usa FLOW_SETTLE_MS. */
+export const FLOW_OUT_MS = 140;
+export const FLOW_IN_MS = 340;
+export const FLOW_SETTLE_MS = FLOW_OUT_MS + FLOW_IN_MS;
+
 /**
  * El paso que se ve y su movimiento: el actual sale hacia un lado y el nuevo entra por el otro, según se avance o se
- * vuelva. Con «Reducir movimiento» cambia sin moverse. `order` da el sentido.
+ * vuelva. Con «Reducir movimiento» cambia sin moverse. `order` da el sentido. Empezar otro registro desde «Listo»
+ * (del último paso al primero) cuenta como avanzar, no como volver.
  */
 export function useFlowStep<T extends string>(target: T, order: readonly T[]) {
   const reduce = useReduceMotion();
@@ -22,16 +28,17 @@ export function useFlowStep<T extends string>(target: T, order: readonly T[]) {
       Animated.timing(p, { toValue: 1, duration: 160, useNativeDriver: true }).start();
       return;
     }
-    const d = order.indexOf(target) >= order.indexOf(shown) ? 1 : -1;
+    const restart = order.indexOf(shown) === order.length - 1 && order.indexOf(target) === 0;
+    const d = restart || order.indexOf(target) >= order.indexOf(shown) ? 1 : -1;
     setDir(d);
-    const out = Animated.timing(p, { toValue: 0, duration: 130, easing: Easing.in(Easing.quad), useNativeDriver: true });
+    const out = Animated.timing(p, { toValue: 0, duration: FLOW_OUT_MS, easing: Easing.out(Easing.quad), useNativeDriver: true });
     out.start();
     // Con reloj y no al terminar la animación: el contenido cambia aunque el teléfono se atrase con un cuadro.
     const swap = setTimeout(() => {
       setShown(target);
       p.setValue(-1);
-      Animated.timing(p, { toValue: 1, duration: 280, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
-    }, 130);
+      Animated.timing(p, { toValue: 1, duration: FLOW_IN_MS, easing: Easing.bezier(0.2, 0.8, 0.2, 1), useNativeDriver: true }).start();
+    }, FLOW_OUT_MS);
     return () => {
       out.stop();
       clearTimeout(swap);
@@ -39,13 +46,21 @@ export function useFlowStep<T extends string>(target: T, order: readonly T[]) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target, reduce]);
   // p va de 1 (quieto) a 0 (saliendo); entra desde -1. Con esto el mismo valor mueve la salida y la entrada.
+  // Recorrido corto y la opacidad sube antes que el movimiento termine: se siente un paso, no un salto.
   const style = reduce
     ? undefined
     : {
-        opacity: p.interpolate({ inputRange: [-1, 0, 1], outputRange: [0, 0, 1] }),
-        transform: [{ translateX: p.interpolate({ inputRange: [-1, 0, 1], outputRange: [36 * dir, -24 * dir, 0] }) }],
+        opacity: p.interpolate({ inputRange: [-1, -0.4, 0, 1], outputRange: [0, 0.6, 0, 1] }),
+        transform: [{ translateX: p.interpolate({ inputRange: [-1, 0, 1], outputRange: [20 * dir, -12 * dir, 0] }) }],
       };
-  return { shown: reduce ? target : shown, style };
+  // La barra de abajo cambia con el contenido: se desvanece y sube un poco, sin moverse de lado.
+  const footStyle = reduce
+    ? undefined
+    : {
+        opacity: p.interpolate({ inputRange: [-1, -0.4, 0, 1], outputRange: [0, 0.6, 0, 1] }),
+        transform: [{ translateY: p.interpolate({ inputRange: [-1, 0, 1], outputRange: [12, 6, 0] }) }],
+      };
+  return { shown: reduce ? target : shown, style, footStyle };
 }
 
 /** Volver con el botón del teléfono: mientras `onBack` exista, retrocede un paso en vez de salir. */

@@ -10,6 +10,7 @@ import { ApiError } from '@/api/client';
 import { entitiesApi } from '@/api/endpoints';
 import { claimsApi } from '@/api/offers';
 import { Button } from '@/components/Button';
+import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { RedeemResultView } from '@/components/RedeemResultView';
 import { TextField } from '@/components/TextField';
 import { colors, fonts, spacing } from '@/theme';
@@ -130,6 +131,7 @@ export default function ScanScreen() {
         <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={() => router.back()} style={styles.back}>
           <Ionicons name="chevron-back" size={20} color="#fff" />
         </Pressable>
+        <EmpreSymbol product="offers" size={32} />
         <View style={styles.headText}>
           <Text style={styles.title} accessibilityRole="header">
             Canjear ofertas
@@ -155,13 +157,27 @@ export default function ScanScreen() {
         {mode === 'scan' ? (
           permission?.granted ? (
             <>
-              <View style={styles.frame} pointerEvents="none">
-                <View style={[styles.corner, styles.cornerTL]} />
-                <View style={[styles.corner, styles.cornerTR]} />
-                <View style={[styles.corner, styles.cornerBL]} />
-                <View style={[styles.corner, styles.cornerBR]} />
-                <Animated.View style={[styles.scanLine, { transform: [{ translateY: scanAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 232] }) }] }]} />
-              </View>
+              <Animated.View
+                style={[
+                  styles.frame,
+                  {
+                    transform: [
+                      {
+                        scale: loading
+                          ? 0.94
+                          : scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.035, 1] }),
+                      },
+                    ],
+                  },
+                ]}
+                pointerEvents="none"
+              >
+                <View style={[styles.corner, styles.cornerTL, loading && { borderColor: '#2FD3C9' }]} />
+                <View style={[styles.corner, styles.cornerTR, loading && { borderColor: '#2FD3C9' }]} />
+                <View style={[styles.corner, styles.cornerBL, loading && { borderColor: '#2FD3C9' }]} />
+                <View style={[styles.corner, styles.cornerBR, loading && { borderColor: '#2FD3C9' }]} />
+                <Animated.View style={[styles.scanLine, loading && { backgroundColor: '#2FD3C9' }, { transform: [{ translateY: scanAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 232] }) }] }]} />
+              </Animated.View>
               <View style={styles.camText}>
                 <Text style={styles.camTitle}>{loading ? 'Revisando el código' : 'Escanea el código'}</Text>
                 <Text style={styles.camSub}>{loading ? 'Validando con Empre' : 'Apunta al QR del cliente. Lo validamos antes de mostrar nada.'}</Text>

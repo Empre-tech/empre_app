@@ -3,10 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { notifyError } from '@/components/Notice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi, type Appointment, type AppointmentService } from '@/api/agenda';
 import { entitiesApi } from '@/api/endpoints';
 import { Button } from '@/components/Button';
+import { EmpreSymbol } from '@/components/EmpreSymbol';
 import {
   dayKey,
   dayNumber,
@@ -108,7 +110,7 @@ export default function BusinessAgendaScreen() {
     mutationFn: (apptId: string) => agendaApi.accept(apptId),
     onSuccess: reload,
     onError: (e: Error) => {
-      Alert.alert('No se pudo aceptar', e.message === 'bad_state' ? 'Esta solicitud ya venció o cambió.' : e.message);
+      notifyError('No se pudo aceptar', e.message === 'bad_state' ? 'Esta solicitud ya venció o cambió.' : e.message);
       reload();
     },
   });
@@ -116,7 +118,7 @@ export default function BusinessAgendaScreen() {
   const noShow = useMutation({
     mutationFn: (apptId: string) => agendaApi.outcome(apptId, false),
     onSuccess: reload,
-    onError: (e: Error) => Alert.alert('No se pudo anotar', e.message === 'bad_state' ? 'Esta cita ya cambió.' : e.message),
+    onError: (e: Error) => notifyError('No se pudo anotar', e.message === 'bad_state' ? 'Esta cita ya cambió.' : e.message),
   });
 
   const askUnblock = (a: Appointment) =>
@@ -131,6 +133,7 @@ export default function BusinessAgendaScreen() {
         <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Volver" style={styles.back}>
           <Ionicons name="chevron-back" size={20} color={colors.ink} />
         </Pressable>
+        <EmpreSymbol product="agent" size={32} />
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Agenda</Text>
           {entity ? (
@@ -156,7 +159,7 @@ export default function BusinessAgendaScreen() {
         </View>
       ) : !settings.data?.enabled ? (
         <View style={styles.center}>
-          <Ionicons name="calendar-outline" size={42} color={colors.primary} />
+          <EmpreSymbol product="agent" size={56} />
           <Text style={styles.emptyTitle}>Define tus horarios y empieza a recibir citas</Text>
           <Text style={styles.emptyText}>Tus clientes verán tus espacios libres y te pedirán cita desde tu perfil.</Text>
           <Button
@@ -356,7 +359,7 @@ export default function BusinessAgendaScreen() {
                 setBlockOpen(false);
                 reload();
               } catch (error) {
-                Alert.alert('No se pudo agendar', error instanceof Error ? error.message : 'Intenta de nuevo');
+                notifyError('No se pudo agendar', error instanceof Error ? error.message : 'Intenta de nuevo');
               }
             }}
             onCreateBlock={async (startIso, minutes) => {
@@ -374,13 +377,13 @@ export default function BusinessAgendaScreen() {
                         agendaApi
                           .block(id, startIso, endIso, true)
                           .then(reload)
-                          .catch((e: Error) => Alert.alert('No se pudo bloquear', e.message));
+                          .catch((e: Error) => notifyError('No se pudo bloquear', e.message));
                       },
                     },
                   ]);
                   return;
                 }
-                Alert.alert('No se pudo bloquear', error instanceof Error ? error.message : 'Intenta de nuevo');
+                notifyError('No se pudo bloquear', error instanceof Error ? error.message : 'Intenta de nuevo');
                 return;
               }
               setBlockOpen(false);

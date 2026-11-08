@@ -24,7 +24,7 @@ interface Props {
 
 /**
  * Botón "Mejorar con IA" reutilizable: abre una hoja con 2-3 opciones de
- * texto generadas (descripción del negocio o caption de una publicación) y,
+ * texto generadas (descripción del negocio, caption de una publicación o título de oferta) y,
  * al elegir una, la aplica con `onApply`. El dueño siempre revisa y puede
  * pedir otras opciones o cerrar sin aplicar nada — la IA nunca escribe por
  * su cuenta sin que él lo confirme tocando una opción.
@@ -47,6 +47,28 @@ export function AIWritingAssist({ kind, currentText, businessName, categoryName,
       });
       setSuggestions(res.suggestions ?? []);
     } catch (e) {
+      if (kind === 'offer_title') {
+        try {
+          const compat = await aiApi.improveText({
+            kind: 'post_caption',
+            current_text: `Título corto y directo para una oferta: ${currentText?.trim() || 'Promoción de hoy'}`,
+            business_name: businessName?.trim() || undefined,
+            category_name: categoryName?.trim() || undefined,
+          });
+          if (compat.suggestions?.length) {
+            setSuggestions(compat.suggestions.map((s) => s.replace(/^["«]|["»]$/g, '').trim()).slice(0, 3));
+            return;
+          }
+        } catch {
+          // Si también falla la llamada compatible, usamos las ideas locales instantáneas.
+        }
+        const cleanBase = (currentText?.split('.')[0] ?? '').trim() || 'Oferta especial';
+        const localIdeas = fallback?.length
+          ? fallback
+          : [`${cleanBase} solo por hoy`, `${cleanBase} a precio especial`, `Aprovecha hoy: ${cleanBase}`];
+        setSuggestions(localIdeas);
+        return;
+      }
       if (fallback?.length) setSuggestions(fallback);
       else setError('Empre AI no pudo generar ideas ahora. Intenta de nuevo en un momento.');
       void e;

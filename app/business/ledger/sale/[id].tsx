@@ -140,7 +140,9 @@ export default function NewSaleScreen() {
           : null
       : null;
 
-  const { shown, style: flowStyle } = useFlowStep<(typeof PANES)[number]>(saved ? 'done' : pane, PANES);
+  const { shown, style: flowStyle, footStyle } = useFlowStep<(typeof PANES)[number]>(saved ? 'done' : pane, PANES);
+  // La barra de abajo y el título siguen al paso que se ve, así cambian juntos con el contenido.
+  const footPane = shown === 'done' ? (saved ? 'done' : pane) : shown;
   // Lo que llevas sube desde abajo cuando hay algo que cobrar.
   const [cartIn] = useState(() => new Animated.Value(0));
   const hasTotal = total > 0;
@@ -284,15 +286,15 @@ export default function NewSaleScreen() {
 
   const count = lines.reduce((s, i) => s + (qty[i.id] ?? 0), 0);
   const what = lines.length ? `${count} ${count === 1 ? 'cosa' : 'cosas'}` : 'Otro monto';
-  const stepN = saved ? 3 : pane === 'pay' ? 2 : 1;
-  const stepLabel = saved ? 'Listo' : pane === 'pay' ? 'Cómo te pagaron' : 'Qué vendiste';
+  const stepN = footPane === 'done' ? 3 : footPane === 'pay' ? 2 : 1;
+  const stepLabel = footPane === 'done' ? 'Listo' : footPane === 'pay' ? 'Cómo te pagaron' : 'Qué vendiste';
   const switchKind = (k: 'sale' | 'expense') => {
     if (k === 'expense') router.replace({ pathname: '/business/ledger/expense/[id]', params: { id: entityId } });
   };
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <FlowHeader title={saved ? 'Listo' : pane === 'pay' ? 'Cobrar' : 'Nueva venta'} step={stepN} steps={3} label={stepLabel} onBack={!saved && pane === 'pay' ? backToWhat : undefined} kind={!saved && pane === 'what' ? 'sale' : undefined} onKind={switchKind} />
+      <FlowHeader title={footPane === 'done' ? 'Listo' : footPane === 'pay' ? 'Cobrar' : 'Nueva venta'} step={stepN} steps={3} label={stepLabel} onBack={!saved && pane === 'pay' ? backToWhat : undefined} kind={!saved && pane === 'what' ? 'sale' : undefined} onKind={switchKind} />
 
       <Animated.View style={[styles.flex, flowStyle]}>
         {shown === 'done' && saved ? (
@@ -468,12 +470,13 @@ export default function NewSaleScreen() {
                   const q = qty[it.id] ?? 0;
                   const supply = itemSupplyNote(invById.get(it.id));
                   return (
-                    <Pressable key={it.id} accessibilityRole="button" accessibilityLabel={`${it.name}, ${formatPesos(it.price ?? 0)}${q > 0 ? `, llevas ${q}` : ''}`} onPress={() => bump(it, 1)} style={({ pressed }) => [styles.tile, q > 0 && styles.tileActive, pressed && styles.tilePressed]}>
+                    <View key={it.id} style={styles.tileWrap}>
+                    <Pressable accessibilityRole="button" accessibilityLabel={`${it.name}, ${formatPesos(it.price ?? 0)}${q > 0 ? `, llevas ${q}` : ''}`} onPress={() => bump(it, 1)} style={({ pressed }) => [styles.tile, q > 0 && styles.tileActive, pressed && styles.tilePressed]}>
                       <Text style={styles.tileName} numberOfLines={2}>
                         {it.name}
                       </Text>
                       <Text style={styles.tilePrice}>{formatPesos(it.price ?? 0)}</Text>
-                      <Text style={[styles.tileNote, supply.warn && styles.tileNoteWarn]} numberOfLines={1}>
+                      <Text style={[styles.tileNote, supply.warn && styles.tileNoteWarn, q > 0 && styles.tileNoteRoom]} numberOfLines={1}>
                         {supply.text}
                       </Text>
                       {q > 0 ? (
@@ -482,6 +485,18 @@ export default function NewSaleScreen() {
                         </Pop>
                       ) : null}
                     </Pressable>
+                      {q > 0 ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={q === 1 ? `Quitar ${it.name}` : `Quitar uno de ${it.name}, quedan ${q - 1}`}
+                          onPress={() => bump(it, -1)}
+                          hitSlop={6}
+                          style={({ pressed }) => [styles.tileMinus, pressed && styles.tileMinusPressed]}
+                        >
+                          <Ionicons name={q === 1 ? 'close' : 'remove'} size={18} color={colors.ink} />
+                        </Pressable>
+                      ) : null}
+                    </View>
                   );
                 })}
               </View>
@@ -499,26 +514,26 @@ export default function NewSaleScreen() {
         )}
       </Animated.View>
 
-      {saved ? (
-        <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
+      {footPane === 'done' && saved ? (
+        <Animated.View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }, footStyle]}>
           <Pressable accessibilityRole="button" onPress={reset} style={styles.primaryBtn}>
             <Text style={styles.primaryBtnText}>Nueva venta</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))} style={styles.secondaryBtn}>
             <Text style={styles.secondaryBtnText}>Volver a Finanzas</Text>
           </Pressable>
-        </View>
-      ) : pane === 'pay' ? (
-        <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
+        </Animated.View>
+      ) : footPane === 'pay' ? (
+        <Animated.View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }, footStyle]}>
           <Pressable accessibilityRole="button" accessibilityLabel={payText} accessibilityState={{ disabled: primaryDisabled }} disabled={primaryDisabled} onPress={save} style={[styles.primaryBtn, primaryDisabled && styles.primaryBtnDisabled]}>
             <Text style={[styles.primaryBtnText, primaryDisabled && styles.primaryBtnTextDisabled]}>{payText}</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={park} style={styles.secondaryBtn}>
             <Text style={styles.secondaryBtnText}>Guardar para después</Text>
           </Pressable>
-        </View>
+        </Animated.View>
       ) : (
-        <Animated.View pointerEvents={total > 0 ? 'auto' : 'none'} style={[styles.cart, { paddingBottom: insets.bottom + spacing.md, opacity: cartIn, transform: [{ translateY: cartIn.interpolate({ inputRange: [0, 1], outputRange: [90, 0] }) }] }]}>
+        <Animated.View pointerEvents={total > 0 && pane === 'what' ? 'auto' : 'none'} style={[styles.cart, { paddingBottom: insets.bottom + spacing.md, opacity: cartIn, transform: [{ translateY: cartIn.interpolate({ inputRange: [0, 1], outputRange: [90, 0] }) }] }]}>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.cartWhat} numberOfLines={1}>
               {what}
@@ -586,7 +601,8 @@ const styles = StyleSheet.create({
   tabPillOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
   tabPillText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   tilesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  tile: { width: '48.5%', minHeight: 104, justifyContent: 'space-between', gap: 4, padding: 14, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
+  tileWrap: { width: '48.5%' },
+  tile: { flexGrow: 1, minHeight: 104, justifyContent: 'space-between', gap: 4, padding: 14, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
   tileActive: { borderWidth: 2, borderColor: colors.ink, padding: 12, backgroundColor: colors.selectedSoft },
   tilePressed: { transform: [{ scale: 0.97 }] },
   tileName: { paddingRight: 22, fontSize: 14.5, lineHeight: 18, fontFamily: fonts.ui.extrabold, color: colors.ink },
@@ -594,6 +610,9 @@ const styles = StyleSheet.create({
   tileNote: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
   tileNoteWarn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
   tileQtyBadge: { position: 'absolute', right: 8, top: 8, minWidth: 26, height: 26, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: colors.ink },
+  tileNoteRoom: { paddingRight: 44 },
+  tileMinus: { position: 'absolute', right: 8, bottom: 8, width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.surface },
+  tileMinusPressed: { transform: [{ scale: 0.92 }], backgroundColor: colors.selectedSoft },
   tileQtyBadgeText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.surface },
   otherBtn: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
   otherBtnText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },

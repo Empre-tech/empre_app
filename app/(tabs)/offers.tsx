@@ -1,41 +1,64 @@
 import { Ionicons } from '@expo/vector-icons';
-import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, BackHandler, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import {
+  AccessibilityInfo,
+  Animated,
+  BackHandler,
+  Easing,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { askApi } from '@/api/ask';
+import { catalogApi } from '@/api/catalog';
 import { categoriesApi } from '@/api/endpoints';
-import { claimsApi, offersApi } from '@/api/offers';
+import { claimsApi, discoveryApi, offersApi } from '@/api/offers';
+import type { DiscoveryItem } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/Button';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { ZoneButton, ZoneList } from '@/components/ZoneButton';
 import { UpdatingBar } from '@/components/explore/LoadingMotion';
+import { MarketItemSheet } from '@/components/offers/MarketItemSheet';
 import { Reveal } from '@/components/offers/MarketMotion';
-import { Showcase } from '@/components/offers/Showcase';
-import { ActionTile } from '@/components/system/parts';
 import { FeaturedOffer, OfferRow, OfferTile, TILE_GAP, TILE_W, ZONE_W, ZoneCard } from '@/components/offers/OfferTiles';
+import { Showcase } from '@/components/offers/Showcase';
 import { SkeletonBlock } from '@/components/Skeleton';
+import { ActionTile } from '@/components/system/parts';
+import type { ServiceItem } from '@/lib/catalog';
+import { mediaUrl } from '@/lib/image';
 import { loadLastCity, saveLastCity } from '@/lib/lastCityStore';
 import { displayIcon } from '@/lib/mapView';
-import { planHour, planKey, planLevel, planTag, planTitle, planWalk } from '@/lib/plans';
 import {
+  askItemsToMarketItems,
   distanceLabel,
   effectiveSort,
   endText,
+  filterVitrinaItems,
   flattenPages,
-  pesos,
   listTitle,
+  mergeCatalogIntoMarket,
   nearEnd,
+  pesos,
   showZones,
   sortOptions,
   visibleSections,
   zoneFilterOrder,
   type MarketItem,
   type MarketSort,
+  type VitrinaFilter,
 } from '@/lib/offerMarket';
+import { planHour, planKey, planLevel, planTag, planTitle, planWalk } from '@/lib/plans';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, radius, softShadow, spacing } from '@/theme';
@@ -45,9 +68,18 @@ type Coords = { latitude: number; longitude: number };
 const COMPACT_AT = 72; // px bajados para pasar a la barra compacta
 const MINI_H = 60; // alto de la barra compacta (la lista no queda debajo al saltar a una zona)
 
+const VITRINA_FILTERS: { key: VitrinaFilter; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: 'all', label: 'Todo', icon: 'grid-outline' },
+  { key: 'offers', label: 'Con oferta', icon: 'flame-outline' },
+  { key: 'services', label: 'Catálogo y servicios', icon: 'pricetag-outline' },
+  { key: 'open', label: 'Abierto ahora', icon: 'time-outline' },
+];
+
 /**
- * Inicio de Ofertas (tablero «Inicio de Ofertas»): tu zona arriba, las ofertas en el mapa con la elegida primero en la
- * fila, categorías y, debajo, el resto de la vitrina. Nada patrocinado ni contadores.
+ * Vitrina Unificada de Empre (Ofertas + Catálogo de Servicios y Productos):
+ * - Combina las ofertas activas con los servicios y productos con precio de los negocios cercanos para asegurar volumen real.
+ * - Permite buscar un producto o servicio específico y detectar al instante si tiene una oferta vigente.
+ * - Al tocar cualquier tarjeta, abre `MarketItemSheet` con respuestas instantáneas de Empre AI y chat directo al negocio.
  */
 export default function OffersScreen() {
   const router = useRouter();
@@ -64,19 +96,21 @@ export default function OffersScreen() {
   const [term, setTerm] = useState<string | undefined>();
   const [sort, setSort] = useState<MarketSort>('near');
   const [zone, setZone] = useState<string | undefined>();
+  const [vitrinaFilter, setVitrinaFilter] = useState<VitrinaFilter>('all');
   const [text, setText] = useState('');
   const [q, setQ] = useState('');
   const [compact, setCompact] = useState(false);
-  // La zona que eligió ver: mueve el mapa y la vitrina a ese lugar. Sin elegir, donde estás.
   const [picked, setPicked] = useState<{ id: string; name: string; latitude: number; longitude: number } | null>(null);
   const [zonesOpen, setZonesOpen] = useState(false);
   const [pin, setPin] = useState<string | null>(null);
   const [listY, setListY] = useState(0);
   const [showAll, setShowAll] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<MarketItem | null>(null);
+
   const { status } = useAuth();
   const claims = useQuery({ queryKey: ['claims', 'mine'], queryFn: claimsApi.mine, enabled: status === 'signedIn', retry: false, staleTime: 15_000 });
   const activeClaims = (claims.data ?? []).filter((c) => c.status === 'RECLAMADO').length;
-  // Atrás del teléfono: de «Todas» vuelve a Ofertas, no se sale de la pestaña.
+
   useFocusEffect(
     useCallback(() => {
       if (!showAll) return;
@@ -91,8 +125,7 @@ export default function OffersScreen() {
   useEffect(() => {
     void loadLastCity().then(setLastCity);
   }, []);
-  // La ubicación se vuelve a leer cada vez que se entra a la pestaña: si te moviste de zona o de ciudad, la vitrina
-  // cambia sola.
+
   const readPosition = useCallback(async () => {
     try {
       const { status } = await Location.getForegroundPermissionsAsync();
@@ -100,7 +133,7 @@ export default function OffersScreen() {
       const pos = await Location.getLastKnownPositionAsync();
       if (pos) setCoords({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
     } catch {
-      // Sin ubicación: la vitrina usa la última ciudad conocida y no muestra «cerca» ni distancias.
+      // Sin ubicación: la vitrina usa la última ciudad conocida.
     }
   }, []);
   useFocusEffect(
@@ -119,7 +152,7 @@ export default function OffersScreen() {
       // Se queda sin ubicación.
     }
   }, []);
-  // Búsqueda en el servidor, con una pausa corta para no pedir por cada letra.
+
   useEffect(() => {
     const t = setTimeout(() => setQ(text.trim()), 300);
     return () => clearTimeout(t);
@@ -144,7 +177,6 @@ export default function OffersScreen() {
   });
   const data = market.data;
   const city = data?.city ?? '';
-  // Zona elegida para la lista; si ya no es de esta ciudad (te moviste), no filtra.
   const zoneId = zone && (!data || data.zones.some((z) => z.id === zone)) ? zone : undefined;
 
   const all = useInfiniteQuery({
@@ -156,9 +188,76 @@ export default function OffersScreen() {
     staleTime: 60_000,
     enabled: ready,
   });
-  const items = useMemo(() => flattenPages(all.data?.pages), [all.data?.pages]);
 
-  // La ciudad que puso la ubicación queda guardada en el teléfono para cuando no haya ubicación.
+  // Negocios cercanos y sus catálogos publicados: nutren la vitrina con servicios/productos con precio real.
+  const nearbyBizQuery = useQuery({
+    queryKey: ['vitrina-discover', placeKey, category ?? 'all'],
+    queryFn: () =>
+      discoveryApi.discover({
+        ...(center ? { lat: center.latitude, long: center.longitude } : {}),
+        category,
+        limit: 8,
+      }),
+    staleTime: 60_000,
+    enabled: ready,
+  });
+  const nearbyBiz = useMemo(() => nearbyBizQuery.data?.items ?? [], [nearbyBizQuery.data?.items]);
+  const bizById = useMemo(() => {
+    const map: Record<string, DiscoveryItem> = {};
+    for (const b of nearbyBiz) map[b.id] = b;
+    return map;
+  }, [nearbyBiz]);
+
+  const catalogQueries = useQueries({
+    queries: nearbyBiz.slice(0, 6).map((b) => ({
+      queryKey: ['catalog', b.id],
+      queryFn: () => catalogApi.list(b.id),
+      staleTime: 2 * 60_000,
+    })),
+  });
+
+  const catalogsByEntity = useMemo(() => {
+    const map: Record<string, ServiceItem[]> = {};
+    nearbyBiz.slice(0, 6).forEach((b, idx) => {
+      const items = catalogQueries[idx]?.data;
+      if (items) map[b.id] = items;
+    });
+    return map;
+  }, [nearbyBiz, catalogQueries]);
+
+  // Búsqueda inteligente de productos y servicios específicos vía `/api/ask` cuando el usuario busca en la vitrina
+  const askSearchQuery = useQuery({
+    queryKey: ['vitrina-ask-search', q, placeKey],
+    queryFn: () =>
+      askApi.ask({
+        q,
+        ...(center ? { lat: center.latitude, long: center.longitude } : {}),
+      }),
+    enabled: Boolean(q && q.length >= 2),
+    staleTime: 30_000,
+  });
+
+  const rawAllItems = useMemo(() => flattenPages(all.data?.pages), [all.data?.pages]);
+
+  const resolvePhoto = useCallback((id?: string) => (id ? mediaUrl(id) : undefined), []);
+
+  // Lista unificada para «Todas» y búsqueda: ofertas + servicios del catálogo + hallazgos de Empre AI
+  const items = useMemo(() => {
+    const merged = mergeCatalogIntoMarket(rawAllItems, nearbyBiz, catalogsByEntity, resolvePhoto);
+    if (q && askSearchQuery.data?.items.length) {
+      const askMapped = askItemsToMarketItems(askSearchQuery.data.items, bizById, resolvePhoto);
+      const seen = new Set(merged.map((m) => m.service_id ?? m.id));
+      for (const a of askMapped) {
+        const keyId = a.service_id ?? a.id;
+        if (!seen.has(keyId)) {
+          seen.add(keyId);
+          merged.push(a);
+        }
+      }
+    }
+    return filterVitrinaItems(merged, vitrinaFilter);
+  }, [rawAllItems, nearbyBiz, catalogsByEntity, q, askSearchQuery.data?.items, bizById, vitrinaFilter, resolvePhoto]);
+
   const saved = useRef('');
   useEffect(() => {
     if (coords && !picked && city && city !== saved.current && city !== lastCity) {
@@ -166,42 +265,59 @@ export default function OffersScreen() {
       void saveLastCity(city);
     }
   }, [coords, picked, city, lastCity]);
-  // El lector de pantalla se entera cuando cambias de zona o de ciudad (la primera vez no: ya lo lee el título).
+
   const place1 = data ? `${city}|${data.zone}` : '';
   const prevPlace = useRef('');
   useEffect(() => {
     if (!place1) return;
     if (prevPlace.current && prevPlace.current !== place1) {
-      AccessibilityInfo.announceForAccessibility(data?.zone ? `Ahora en ${data.zone}, ${city}` : `Ofertas en ${city || 'todas las ciudades'}`);
+      AccessibilityInfo.announceForAccessibility(data?.zone ? `Ahora en ${data.zone}, ${city}` : `Vitrina en ${city || 'todas las ciudades'}`);
     }
     prevPlace.current = place1;
   }, [place1, data?.zone, city]);
 
-  const open = useCallback(
-    (o: MarketItem) =>
-      o.kind === 'service'
-        ? router.push({ pathname: '/business/[id]', params: { id: o.entity_id } })
-        : router.push({ pathname: '/offer/[id]', params: { id: o.id, entityId: o.entity_id } }),
-    [router],
+  // Al tocar cualquier tarjeta se abre la ficha interactiva rápida (con Empre AI y chat directo)
+  const open = useCallback((o: MarketItem) => {
+    setSelectedItem(o);
+  }, []);
+
+  // Ítems combinados para la portada: ofertas cercanas + servicios destacados del catálogo de negocios cercanos
+  const mergedNear = useMemo(
+    () => mergeCatalogIntoMarket(data?.near ?? [], nearbyBiz, catalogsByEntity, resolvePhoto),
+    [data?.near, nearbyBiz, catalogsByEntity, resolvePhoto],
   );
-  // Las ofertas del mapa: las cercanas con ubicación; la del pin elegido va primera en la fila.
-  const onMap = useMemo(() => (data?.near ?? []).filter((o) => o.kind !== 'service' && o.latitude && o.longitude).slice(0, 12), [data?.near]);
+
+  const onMap = useMemo(() => mergedNear.filter((o) => o.latitude && o.longitude).slice(0, 14), [mergedNear]);
   const ordered = useMemo(() => {
     const first = onMap.find((o) => o.id === pin) ?? onMap[0];
     return first ? [first, ...onMap.filter((o) => o.id !== first.id)] : [];
   }, [onMap, pin]);
   const sections = q ? [] : visibleSections(data);
-  // Sin ubicaciones en el mapa, la fila igual muestra lo que hay.
-  const railItems = ordered.length ? ordered : (data?.near ?? []).filter((o) => o.kind !== 'service').slice(0, 12);
+  const baseRailItems = ordered.length ? ordered : mergedNear.slice(0, 14);
+  const railItems = useMemo(() => filterVitrinaItems(baseRailItems, vitrinaFilter), [baseRailItems, vitrinaFilter]);
+
+  // Servicios del catálogo destacados para su propia fila cuando hay tanto ofertas como catálogo
+  const catalogSpotlightItems = useMemo(
+    () => mergedNear.filter((o) => o.kind === 'service' || Boolean(o.service_id)).slice(0, 10),
+    [mergedNear],
+  );
+
   const zonesOn = !q && showZones(data);
   const zoneName = data?.zones.find((z) => z.id === zoneId)?.name;
   const zoneLabel = picked?.name ?? (data?.zone || (coords ? 'Cerca de ti' : city || 'Tu ciudad'));
-  // La vitrina: las tres que terminan primero. Las demás siguen abajo, sin repetirse.
-  const showcase = useMemo(() => [...railItems].sort((a, b) => (a.ends_at ?? '9').localeCompare(b.ends_at ?? '9')).slice(0, 3), [railItems]);
-  const restItems = railItems.filter((o) => !showcase.some((x) => x.id === o.id));
-  const zoneTitle = picked ? `Ofertas en ${picked.name}` : coords ? 'Ofertas a pasos de ti' : city ? `Ofertas en ${city}` : 'Ofertas';
 
-  // Barra compacta: aparece al bajar (por umbral, no con cada píxel).
+  // La vitrina superior (Showcase): solo las ofertas reales con vigencia que terminan primero.
+  const showcase = useMemo(
+    () =>
+      baseRailItems
+        .filter((o) => o.kind !== 'service' && Boolean(o.ends_at))
+        .sort((a, b) => (a.ends_at ?? '9').localeCompare(b.ends_at ?? '9'))
+        .slice(0, 3),
+    [baseRailItems],
+  );
+  const restItems = railItems.filter((o) => !showcase.some((x) => x.id === o.id));
+  const zoneTitle = picked ? `Vitrina en ${picked.name}` : coords ? 'Catálogo y ofertas cerca' : city ? `Catálogo y ofertas en ${city}` : 'Catálogo y ofertas';
+
   const [bar] = useState(() => new Animated.Value(0));
   useEffect(() => {
     if (reduce) {
@@ -242,7 +358,6 @@ export default function OffersScreen() {
   );
   const inCity = city ? ` en ${city}` : '';
 
-  // Lo que el lienzo muestra al entrar; «Ver todas» y la lupa abren el resto de la vitrina.
   const home = !showAll;
   const closeAll = () => {
     setShowAll(false);
@@ -264,22 +379,24 @@ export default function OffersScreen() {
         aria-hidden={!compact}
         style={[styles.mini, { top: insets.top, opacity: bar, transform: [{ translateY: bar.interpolate({ inputRange: [0, 1], outputRange: [-MINI_H, 0] }) }] }]}
       >
-        <EmpreSymbol size={22} />
+        <EmpreSymbol product="offers" size={24} />
         <Pressable accessibilityRole="button" accessibilityLabel={`Zona: ${zoneLabel}. Volver arriba para cambiarla`} onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: !reduce })} style={styles.miniTap}>
           <Text style={styles.miniCity} numberOfLines={1}>
             {zoneLabel}
           </Text>
           <Ionicons name="chevron-down" size={14} color={colors.ink} />
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Buscar ofertas" onPress={() => openAll(true)} style={styles.miniBtn}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Buscar servicios, productos u ofertas" onPress={() => openAll(true)} style={styles.miniBtn}>
           <Ionicons name="search" size={20} color={colors.ink} />
         </Pressable>
       </Animated.View>
 
       <ScrollView ref={scrollRef} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" onScroll={onScroll} scrollEventThrottle={64}>
         <View style={styles.top}>
-          {home ? <EmpreSymbol size={26} /> : (
-            <Pressable accessibilityRole="button" accessibilityLabel="Volver a Ofertas" onPress={closeAll} style={styles.round}>
+          {home ? (
+            <EmpreSymbol product="offers" size={32} />
+          ) : (
+            <Pressable accessibilityRole="button" accessibilityLabel="Volver a la vitrina" onPress={closeAll} style={styles.round}>
               <Ionicons name="chevron-back" size={20} color={colors.ink} />
             </Pressable>
           )}
@@ -307,23 +424,50 @@ export default function OffersScreen() {
         ) : null}
 
         <View style={styles.heroRow}>
-          <Text style={styles.hero} accessibilityRole="header">
-            {home ? zoneTitle : 'Todas las ofertas'}
-          </Text>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={styles.hero} accessibilityRole="header">
+              {home ? zoneTitle : 'Catálogo y ofertas'}
+            </Text>
+            <Text style={styles.heroSub}>
+              Servicios con precio al día, productos y ofertas activas · Pregunta con Empre AI
+            </Text>
+          </View>
         </View>
+
+        {/* PÍLDORAS DE FILTRO DE VITRINA (Inspirado en Swiggy / Shop) */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.vitrinaPills}>
+          {VITRINA_FILTERS.map((f) => {
+            const active = vitrinaFilter === f.key;
+            return (
+              <Pressable
+                key={f.key}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                onPress={() => setVitrinaFilter(f.key)}
+                style={({ pressed }) => [styles.vitrinaPill, active && styles.vitrinaPillOn, pressed && styles.chipPressed]}
+              >
+                <Ionicons name={f.icon} size={14} color={active ? '#fff' : colors.ink} />
+                <Text style={[styles.vitrinaPillText, active && styles.vitrinaPillTextOn]}>{f.label}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
 
         {home ? (
           <View style={styles.pad}>
-            <Pressable accessibilityRole="search" accessibilityLabel="Buscar ofertas" onPress={() => openAll(true)} style={styles.field}>
+            <Pressable accessibilityRole="search" accessibilityLabel="Buscar un producto, servicio u oferta" onPress={() => openAll(true)} style={styles.field}>
               <Ionicons name="search" size={20} color={colors.ink} />
               <Text style={styles.fieldText} numberOfLines={1}>
-                Buscar ofertas en esta zona
+                Busca un servicio, producto o mira si tiene oferta…
               </Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Buscar con voz en Empre AI" onPress={() => router.push({ pathname: '/ask', params: { voice: '1' } })} style={styles.fieldMic}>
+                <Ionicons name="mic-outline" size={18} color={colors.primaryDark} />
+              </Pressable>
               <Pressable accessibilityRole="button" accessibilityLabel="Abrir el mapa de ofertas" onPress={() => router.push('/map')} style={styles.fieldSlot}>
                 <Ionicons name="map-outline" size={18} color={colors.ink} />
               </Pressable>
             </Pressable>
-            {showcase.length ? <Showcase items={showcase} now={now} onOpen={open} /> : null}
+            {showcase.length && vitrinaFilter !== 'services' ? <Showcase items={showcase} now={now} onOpen={open} /> : null}
             {(categories.data ?? []).length ? <Text style={styles.tilesLabel}>Por tipo de negocio</Text> : null}
           </View>
         ) : null}
@@ -341,7 +485,7 @@ export default function OffersScreen() {
 
         {!showAll && !hasLoc && ready ? (
           <View style={styles.loc}>
-            <Text style={styles.locText}>{locAsked ? 'Sin permiso de ubicación no podemos decir qué está cerca.' : city ? 'Con tu ubicación te mostramos primero lo que está cerca.' : 'Con tu ubicación te mostramos las ofertas de tu ciudad.'}</Text>
+            <Text style={styles.locText}>{locAsked ? 'Sin permiso de ubicación no podemos decir qué está cerca.' : city ? 'Con tu ubicación te mostramos primero lo que está cerca.' : 'Con tu ubicación te mostramos el catálogo y las ofertas de tu ciudad.'}</Text>
             <Pressable accessibilityRole="button" onPress={() => void askLocation()} style={styles.locBtn}>
               <Text style={styles.locBtnText}>Activar</Text>
             </Pressable>
@@ -351,11 +495,24 @@ export default function OffersScreen() {
         {home ? (
           <View style={styles.sec}>
             <View style={styles.railHead}>
-              <Text style={styles.shTitle} accessibilityRole="header">
-                {ordered.length && zoneLabel ? (zoneLabel === 'Cerca de ti' ? 'Cerca de ti, ahora' : `En ${zoneLabel}, ahora`) : city ? `En ${city}, ahora` : 'Ahora'}
-              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.shTitle} accessibilityRole="header">
+                  {vitrinaFilter === 'services'
+                    ? 'Servicios y productos del catálogo'
+                    : vitrinaFilter === 'offers'
+                      ? 'Ofertas activas ahora'
+                      : ordered.length && zoneLabel
+                        ? zoneLabel === 'Cerca de ti'
+                          ? 'Destacados cerca de ti'
+                          : `En ${zoneLabel}, ahora`
+                        : city
+                          ? `En ${city}, ahora`
+                          : 'Destacados ahora'}
+                </Text>
+                <Text style={styles.shWhy}>Toca cualquiera para preguntar con Empre AI o ver si tiene oferta</Text>
+              </View>
               <Pressable accessibilityRole="link" onPress={() => openAll(false)} style={styles.seeAll}>
-                <Text style={styles.seeAllText}>{restItems.length ? 'Ver todas' : 'Ver más ofertas'}</Text>
+                <Text style={styles.seeAllText}>{restItems.length ? 'Ver todo' : 'Explorar todo'}</Text>
               </Pressable>
             </View>
             {!data && (market.isLoading || !ready) ? (
@@ -365,10 +522,12 @@ export default function OffersScreen() {
                 ))}
               </View>
             ) : null}
-            {data && !railItems.length ? <Text style={styles.none}>{`Hoy no hay ofertas aquí${catId ? ' en esta categoría' : ''}. Prueba otra zona o mira todas.`}</Text> : null}
-            {restItems.length ? (
+            {data && !restItems.length && !railItems.length ? (
+              <Text style={styles.none}>{`Hoy no hay resultados con este filtro${catId ? ' en esta categoría' : ''}. Prueba «Todo» o explora todas las zonas.`}</Text>
+            ) : null}
+            {(restItems.length ? restItems : railItems).length ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail} snapToInterval={TILE_W + TILE_GAP} decelerationRate="fast" snapToAlignment="start">
-                {restItems.map((o, i) => (
+                {(restItems.length ? restItems : railItems).map((o, i) => (
                   <Reveal key={o.id} delay={80 + Math.min(i, 5) * 50} distance={6} duration={280}>
                     <OfferTile item={o} now={now} onPress={() => open(o)} />
                   </Reveal>
@@ -378,13 +537,38 @@ export default function OffersScreen() {
           </View>
         ) : null}
 
+        {/* FILA DEDICADA DE CATÁLOGO DE SERVICIOS Y PRODUCTOS (Para garantizar volumen y descubrimiento por precio) */}
+        {home && vitrinaFilter === 'all' && catalogSpotlightItems.length > 0 ? (
+          <View style={styles.sec}>
+            <View style={styles.railHead}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.shTitle} accessibilityRole="header">
+                  Del catálogo de los negocios
+                </Text>
+                <Text style={styles.shWhy}>Precios publicados por cada local · Mira al instante si tienen oferta</Text>
+              </View>
+              <Pressable
+                accessibilityRole="link"
+                onPress={() => {
+                  setVitrinaFilter('services');
+                  openAll(false);
+                }}
+                style={styles.seeAll}
+              >
+                <Text style={styles.seeAllText}>Ver catálogo</Text>
+              </Pressable>
+            </View>
+            {rail(catalogSpotlightItems)}
+          </View>
+        ) : null}
+
         {home && data?.routes.length ? (
           <View style={styles.sec}>
             <View style={styles.sh}>
               <Text style={styles.shTitle} accessibilityRole="header">
                 Planes para hoy
               </Text>
-              <Text style={styles.shWhy}>Negocios distintos, un mismo recorrido</Text>
+              <Text style={styles.shWhy}>Negocios distintos, un mismo recorrido (combina ofertas y servicios)</Text>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail} snapToInterval={272 + TILE_GAP} decelerationRate="fast" snapToAlignment="start">
               {data.routes.map((r) => (
@@ -437,7 +621,16 @@ export default function OffersScreen() {
             <View style={styles.searchWrap}>
               <View style={styles.search}>
                 <Ionicons name="search" size={18} color={colors.muted} />
-                <TextInput ref={searchRef} value={text} onChangeText={setText} placeholder={city ? `Busca en ${city}` : 'Busca una oferta o un negocio'} placeholderTextColor={colors.muted} style={styles.searchInput} accessibilityLabel="Buscar en las ofertas" returnKeyType="search" />
+                <TextInput
+                  ref={searchRef}
+                  value={text}
+                  onChangeText={setText}
+                  placeholder={city ? `Busca un servicio, producto u oferta en ${city}` : 'Busca un servicio, producto u oferta'}
+                  placeholderTextColor={colors.muted}
+                  style={styles.searchInput}
+                  accessibilityLabel="Buscar en el catálogo y ofertas"
+                  returnKeyType="search"
+                />
                 {text ? (
                   <Pressable accessibilityRole="button" accessibilityLabel="Borrar búsqueda" onPress={() => setText('')} hitSlop={10}>
                     <Ionicons name="close-circle" size={18} color={colors.muted} />
@@ -446,7 +639,7 @@ export default function OffersScreen() {
               </View>
             </View>
 
-            {data?.featured && !q ? (
+            {data?.featured && !q && vitrinaFilter !== 'services' ? (
               <Reveal key={`featured|${key}|${data.featured.id}`} style={styles.sec}>
                 <FeaturedOffer item={data.featured} now={now} onPress={() => open(data.featured!)} />
               </Reveal>
@@ -454,12 +647,11 @@ export default function OffersScreen() {
 
             {data
               ? sections.map((s, i) => (
-                  // La llave cambia con el lugar, el filtro o el término: lo nuevo vuelve a entrar con su cascada.
                   <Reveal key={`${s}|${key}`} delay={Math.min(i, 3) * 70} style={styles.sec}>
                     {s === 'near' ? (
                       <>
-                        {header('Cerca de ti', 'A menos de 3 km, la más cercana primero')}
-                        {rail(data.near)}
+                        {header('Cerca de ti', 'Ofertas y servicios de catálogo a menos de 3 km')}
+                        {rail(mergedNear)}
                       </>
                     ) : s === 'searched' ? (
                       <>
@@ -469,7 +661,7 @@ export default function OffersScreen() {
                             <Chip key={t.term} label={t.label} active={data.searched.term === t.term} soft onPress={() => setTerm(t.term)} />
                           ))}
                         </ScrollView>
-                        {data.searched.items.length ? rail(data.searched.items) : <Text style={styles.none}>Ahora no hay ofertas para esto. Si sigues negocios, te enteras cuando publiquen.</Text>}
+                        {data.searched.items.length ? rail(data.searched.items) : <Text style={styles.none}>Ahora no hay ofertas para esto. Mira abajo los servicios del catálogo.</Text>}
                       </>
                     ) : s === 'trending' ? (
                       <>
@@ -502,7 +694,14 @@ export default function OffersScreen() {
             {data || all.data ? (
               <View onLayout={(e) => setListY(e.nativeEvent.layout.y)}>
                 <Reveal key={`all|${key}|${q ? 'q' : ''}`} delay={Math.min(sections.length + (zonesOn ? 1 : 0), 3) * 70} style={styles.sec}>
-                  {header(q ? 'Resultados' : listTitle(city, zoneName), q ? `Con «${q}»${zoneName ? ` en ${zoneName}` : inCity}` : hasLoc ? 'Vigentes ahora, la más cercana primero' : 'Vigentes ahora')}
+                  {header(
+                    q ? 'Productos, servicios y ofertas' : listTitle(city, zoneName),
+                    q
+                      ? `Coincidencias con «${q}» · Toca cualquiera para consultar con Empre AI o ver si tiene oferta`
+                      : hasLoc
+                        ? 'Catálogo al día y ofertas vigentes, lo más cercano primero'
+                        : 'Catálogo al día y ofertas vigentes',
+                  )}
                   {data && data.zones.length ? (
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.terms}>
                       <Chip label={city ? `Toda ${city}` : 'Todas las zonas'} active={!zoneId} soft onPress={() => setZone(undefined)} />
@@ -520,17 +719,16 @@ export default function OffersScreen() {
                   ) : null}
                   <View style={styles.list}>
                     {items.map((o, i) => (
-                      // Solo la primera tanda entra en cascada; las siguientes aparecen al llegar, sin esperar.
                       <Reveal key={o.id} delay={i < 20 ? 60 + Math.min(i, 6) * 40 : 0} distance={6} duration={260}>
                         <OfferRow item={o} now={now} onPress={() => open(o)} />
                       </Reveal>
                     ))}
                     {all.isFetchingNextPage || (all.isLoading && !all.data) ? [0, 1].map((i) => <SkeletonBlock key={`sk${i}`} height={98} borderRadius={radius.lg} />) : null}
                     {all.data && !all.hasNextPage && items.length > 0 ? <Text style={styles.end}>{endText(city, zoneName)}</Text> : null}
-                    {all.data && items.length === 0 && !all.isFetching ? <EmptyOffers searching={Boolean(q || zoneId)} /> : null}
+                    {all.data && items.length === 0 && !all.isFetching && !askSearchQuery.isFetching ? <EmptyOffers searching={Boolean(q || zoneId)} /> : null}
                     {all.isError && all.data ? (
                       <View style={styles.empty}>
-                        <Text style={styles.emptyText}>No pudimos cargar más ofertas.</Text>
+                        <Text style={styles.emptyText}>No pudimos cargar más elementos.</Text>
                         <Button title="Reintentar" variant="secondary" onPress={() => void all.fetchNextPage()} />
                       </View>
                     ) : null}
@@ -543,7 +741,7 @@ export default function OffersScreen() {
 
         {market.isError && !data ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>No pudimos cargar las ofertas</Text>
+            <Text style={styles.emptyTitle}>No pudimos cargar la vitrina</Text>
             <Button
               title="Reintentar"
               variant="secondary"
@@ -555,6 +753,9 @@ export default function OffersScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      {/* FICHA RÁPIDA INTERACTIVA CON EMPRE AI + DETECCIÓN DE OFERTA + CHAT DIRECTO */}
+      <MarketItemSheet item={selectedItem} onClose={() => setSelectedItem(null)} />
     </View>
   );
 }
@@ -581,46 +782,39 @@ function EmptyOffers({ searching }: { searching: boolean }) {
   return (
     <View style={styles.empty}>
       <Ionicons name="pricetag-outline" size={36} color={colors.muted} />
-      <Text style={styles.emptyTitle}>{searching ? 'Nada con esa búsqueda' : 'Aún no hay ofertas aquí'}</Text>
-      <Text style={styles.emptyText}>{searching ? 'Prueba con otra palabra, otra zona o quita el filtro.' : 'Explora el mapa para ver negocios cerca.'}</Text>
-      {searching ? null : <Button title="Ver en el mapa" variant="secondary" onPress={() => router.push('/map')} />}
+      <Text style={styles.emptyTitle}>{searching ? 'Nada con esa búsqueda' : 'Aún no hay servicios ni ofertas aquí'}</Text>
+      <Text style={styles.emptyText}>{searching ? 'Prueba con otra palabra, otra zona o pregúntale a Empre AI.' : 'Explora el mapa para ver negocios cerca.'}</Text>
+      {searching ? (
+        <Button title="Preguntarle a Empre AI" variant="secondary" onPress={() => router.push('/ask')} />
+      ) : (
+        <Button title="Ver en el mapa" variant="secondary" onPress={() => router.push('/map')} />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   pad: { paddingHorizontal: 20, gap: 14 },
-  field: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 14, paddingRight: 4, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
-  fieldText: { flex: 1, minWidth: 0, fontSize: 14.5, fontFamily: fonts.ui.semibold, color: colors.faint },
+  field: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 14, paddingRight: 4, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
+  fieldText: { flex: 1, minWidth: 0, fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.faint },
+  fieldMic: { width: 40, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primarySoft },
   fieldSlot: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
   tilesLabel: { marginTop: 6, marginBottom: -6, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   screen: { flex: 1, backgroundColor: colors.bg },
-  body: { gap: 16, paddingBottom: 24 },
+  body: { gap: 16, paddingBottom: 120 },
   wash: { position: 'absolute', left: 0, right: 0, top: 0 },
   top: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingTop: 16 },
   round: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   roundDot: { position: 'absolute', top: 9, right: 9, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.brand, borderWidth: 2, borderColor: colors.surface },
   zoneWrap: { marginHorizontal: 20, marginTop: -8 },
   heroRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, paddingHorizontal: 20 },
-  hero: { flex: 1, fontSize: 28, lineHeight: 32, letterSpacing: -0.3, fontFamily: fonts.display.bold, color: colors.ink },
-  livePill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: '#FFF1E3' },
-  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
-  livePillText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#8F4300' },
-  mapCard: { height: 200, marginHorizontal: 20, borderRadius: 24, overflow: 'hidden', backgroundColor: colors.selectedSoft, borderWidth: 1, borderColor: colors.line },
-  mapBtn: { position: 'absolute', right: 10, top: 10, minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, shadowColor: colors.ink, shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
-  mapBtnText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  mapZone: { position: 'absolute', left: 12, bottom: 12, maxWidth: '70%', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
-  mapZoneDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.verified },
-  mapZoneText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.verified },
-  pinWrap: { alignItems: 'center', paddingBottom: 4 },
-  pinPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingLeft: 4, paddingRight: 9, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.accent, shadowColor: colors.ink, shadowOpacity: 0.18, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
-  pinPillOn: { backgroundColor: colors.ink, borderColor: '#fff', shadowOpacity: 0.28, elevation: 5 },
-  pinIconBubble: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF1E3' },
-  pinIconBubbleOn: { backgroundColor: colors.accent },
-  pinSaveText: { fontSize: 12, fontFamily: fonts.display.bold, color: colors.ink },
-  pinSaveTextOn: { color: '#fff' },
-  pinTip: { width: 8, height: 8, marginTop: -4, backgroundColor: colors.accent, transform: [{ rotate: '45deg' }] },
-  pinTipOn: { backgroundColor: colors.ink },
+  hero: { fontSize: 27, lineHeight: 31, letterSpacing: -0.3, fontFamily: fonts.display.bold, color: colors.ink },
+  heroSub: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
+  vitrinaPills: { gap: 8, paddingHorizontal: 20 },
+  vitrinaPill: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 13, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  vitrinaPillOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  vitrinaPillText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  vitrinaPillTextOn: { color: '#fff' },
   searchWrap: { paddingHorizontal: 20 },
   search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 52, paddingHorizontal: spacing.lg, borderRadius: 26, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, ...softShadow },
   searchInput: { flex: 1, fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink, paddingVertical: 0 },
@@ -647,8 +841,8 @@ const styles = StyleSheet.create({
   seeAll: { minHeight: 44, justifyContent: 'center' },
   seeAllText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   sh: { paddingHorizontal: 20, gap: 2 },
-  shTitle: { flexShrink: 1, fontSize: 21, lineHeight: 26, fontFamily: fonts.display.bold, color: colors.ink },
-  shWhy: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.muted },
+  shTitle: { flexShrink: 1, fontSize: 20, lineHeight: 25, fontFamily: fonts.display.bold, color: colors.ink },
+  shWhy: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
   rail: { flexDirection: 'row', gap: TILE_GAP, paddingHorizontal: 20, paddingTop: 3, paddingBottom: 12 },
   planCard: { width: 272, gap: 12, padding: 18, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.hairline, ...softShadow },
   planTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },

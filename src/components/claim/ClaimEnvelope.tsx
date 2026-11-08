@@ -12,19 +12,32 @@ const H = 200;
 /** Justo después de reclamar: el sobre cerrado con el sello de Empre. Abrirlo lleva al QR. */
 export function ClaimEnvelope({ claim, onOpen }: { claim: Claim; onOpen: () => void }) {
   const [enter] = useState(() => new Animated.Value(0));
+  const [pulse] = useState(() => new Animated.Value(0));
   useEffect(() => {
     let cancelled = false;
+    let loop: Animated.CompositeAnimation | null = null;
     AccessibilityInfo.isReduceMotionEnabled()
       .then((reduce) => {
         if (cancelled) return;
-        if (reduce) enter.setValue(1);
-        else Animated.spring(enter, { toValue: 1, useNativeDriver: true, friction: 7 }).start();
+        if (reduce) {
+          enter.setValue(1);
+          return;
+        }
+        Animated.spring(enter, { toValue: 1, useNativeDriver: true, friction: 7 }).start();
+        loop = Animated.loop(
+          Animated.sequence([
+            Animated.timing(pulse, { toValue: 1, duration: 1400, useNativeDriver: true }),
+            Animated.timing(pulse, { toValue: 0, duration: 1400, useNativeDriver: true }),
+          ]),
+        );
+        loop.start();
       })
       .catch(() => enter.setValue(1));
     return () => {
       cancelled = true;
+      loop?.stop();
     };
-  }, [enter]);
+  }, [enter, pulse]);
 
   const minutes = claim.offer?.claim_window_minutes;
   return (
@@ -35,9 +48,16 @@ export function ClaimEnvelope({ claim, onOpen }: { claim: Claim; onOpen: () => v
             <Rect width={W} height={H} rx={14} fill={colors.ink} />
             <Path d={`M0 70 L${W / 2} 140 L${W} 70 V${H - 14} A14 14 0 0 1 ${W - 14} ${H} H14 A14 14 0 0 1 0 ${H - 14} Z`} fill="#0B1A36" />
           </Svg>
-          <View style={styles.seal}>
-            <EmpreSymbol product="offers" size={50} />
-          </View>
+          <Animated.View
+            style={[
+              styles.seal,
+              {
+                transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.07] }) }],
+              },
+            ]}
+          >
+            <EmpreSymbol product="offers" size={54} />
+          </Animated.View>
         </Animated.View>
         <View style={styles.text}>
           <Text style={styles.title} accessibilityRole="header">

@@ -5,6 +5,7 @@ import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, Tex
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ledgerApi, type AdjustReason, type InventoryItem, type StockLevel, type StockMode } from '@/api/ledger';
 import { Button } from '@/components/Button';
+import { EmpreSymbol } from '@/components/EmpreSymbol';
 import type { SectionPick } from '@/api/sections';
 import { SectionChooser } from '@/components/catalog/SectionChooser';
 import { Chip } from '@/components/ledger/parts';
@@ -85,6 +86,10 @@ function SheetBody({ entityId, item, onClose, onChanged, onOpenDetail }: Props &
   const step = (d: number) => setCount(fmtQty(Math.max(0, (Number.isFinite(n) ? n : 0) + d)));
   const unit = !item.unit || item.unit === 'unidad' ? 'unidades' : item.unit;
   const isSupply = item.kind === 'supply';
+  const safeN = Number.isFinite(n) && n >= 0 ? n : 0;
+  const lowPoint = 5;
+  const rangeTone = safeN === 0 ? { color: '#F03232', ink: '#B3261E', label: 'Agotado · 0 disponibles' } : safeN <= lowPoint ? { color: '#FF8A1F', ink: colors.accentInk, label: 'Queda poco · punto de reorden' } : { color: '#14B8B0', ink: '#0A6E6A', label: 'En rango óptimo' };
+  const rangePct = Math.min(100, Math.round((safeN / (lowPoint * 2.4)) * 100));
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
@@ -92,7 +97,12 @@ function SheetBody({ entityId, item, onClose, onChanged, onOpenDetail }: Props &
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }]} accessibilityViewIsModal>
           <View style={styles.grab} />
-          <Text style={styles.title}>{item.name}</Text>
+          <View style={styles.headRow}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.eyebrow}>{isSupply ? 'INSUMO DE OPERACIÓN' : 'PRODUCTO EN INVENTARIO'}</Text>
+              <Text style={styles.title} numberOfLines={1}>{item.name}</Text>
+            </View>
+          </View>
           {isSupply ? (
             <View style={{ gap: spacing.sm }}>
               <Pressable accessibilityRole="button" accessibilityState={{ expanded: editGroup }} onPress={() => setEditGroup((v) => !v)} style={styles.groupRow}>
@@ -119,8 +129,13 @@ function SheetBody({ entityId, item, onClose, onChanged, onOpenDetail }: Props &
                     style={[styles.level, { borderColor: l.color }, on && { backgroundColor: l.color }]}
                   >
                     <View style={[styles.dot, { backgroundColor: on ? '#fff' : l.color }]} />
-                    <Text style={[styles.levelText, { color: on ? '#fff' : l.ink }]}>{l.label}</Text>
-                    {on ? <Ionicons name="checkmark" size={20} color="#fff" style={{ marginLeft: 'auto' }} /> : null}
+                    <Text style={[styles.levelText, { color: on ? '#fff' : l.ink, flex: 1 }]}>{l.label}</Text>
+                    <View style={styles.semDots} accessibilityElementsHidden>
+                      <View style={[styles.semDotSmall, { backgroundColor: on ? '#fff' : l.color }]} />
+                      <View style={[styles.semDotSmall, { backgroundColor: on ? '#fff' : l.color, opacity: l.level === 'out' ? 0.28 : 1 }]} />
+                      <View style={[styles.semDotSmall, { backgroundColor: on ? '#fff' : l.color, opacity: l.level === 'ok' ? 1 : 0.28 }]} />
+                    </View>
+                    {on ? <Ionicons name="checkmark" size={20} color="#fff" /> : null}
                   </Pressable>
                 );
               })}
@@ -150,6 +165,15 @@ function SheetBody({ entityId, item, onClose, onChanged, onOpenDetail }: Props &
                 <Pressable accessibilityRole="button" accessibilityLabel="Uno más" onPress={() => step(1)} style={styles.stepBtn}>
                   <Ionicons name="add" size={24} color={colors.ink} />
                 </Pressable>
+              </View>
+              <View style={styles.rangeCard}>
+                <View style={styles.rangeHead}>
+                  <View style={[styles.semDotSmall, { backgroundColor: rangeTone.color }]} />
+                  <Text style={[styles.rangeLabel, { color: rangeTone.ink }]}>{rangeTone.label}</Text>
+                </View>
+                <View style={styles.rangeTrack}>
+                  <View style={[styles.rangeFill, { width: `${rangePct}%`, backgroundColor: rangeTone.color }]} />
+                </View>
               </View>
               <Button
                 title={count.trim() === '' ? 'Escribe cuántos hay' : `Guardar: hay ${count.trim()}`}
@@ -207,12 +231,21 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(22,35,58,0.45)' },
   sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.md },
   grab: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.line, alignSelf: 'center' },
+  headRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  eyebrow: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.muted, letterSpacing: 0.6 },
   title: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
   meta: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.muted },
   metaSmall: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
   level: { minHeight: 56, borderRadius: radius.md, borderWidth: 2, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg },
   dot: { width: 14, height: 14, borderRadius: 7 },
   levelText: { fontSize: 16, fontFamily: fonts.ui.extrabold },
+  semDots: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  semDotSmall: { width: 7, height: 7, borderRadius: 3.5 },
+  rangeCard: { backgroundColor: colors.bg, borderRadius: 12, padding: 10, gap: 6, borderWidth: 1, borderColor: colors.line },
+  rangeHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rangeLabel: { fontSize: 12.5, fontFamily: fonts.ui.extrabold },
+  rangeTrack: { height: 8, borderRadius: 4, backgroundColor: colors.line, overflow: 'hidden' },
+  rangeFill: { height: '100%', borderRadius: 4 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   stepBtn: { width: 56, height: 56, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
   count: { fontSize: 36, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center', minWidth: 120, paddingVertical: 0 },

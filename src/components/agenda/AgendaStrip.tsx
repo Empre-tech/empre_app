@@ -56,7 +56,7 @@ export function AgendaStrip({ entityId, entityName }: Props) {
       </View>
       {data.next_slot ? (
         <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/agent/[id]', params: { id: entityId, name: entityName } })} style={styles.agent}>
-          <EmpreSymbol product="agent" size={22} />
+          <EmpreSymbol product="agent" size={24} />
           <Text style={styles.agentText}>Prefiero pedirla por chat con Empre Agent</Text>
           <Ionicons name="chevron-forward" size={16} color={colors.muted} />
         </Pressable>

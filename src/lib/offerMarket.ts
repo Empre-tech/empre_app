@@ -1,3 +1,6 @@
+import type { AskItem } from '@/api/ask';
+import type { DiscoveryItem } from '@/api/types';
+import type { ServiceItem } from '@/lib/catalog';
 import type { MarketRoute } from '@/lib/plans';
 // Vitrina de ofertas (3.38, mockup ofertas_marketplace.html): lo que muestra cada tarjeta y qué secciones se ven.
 // Las secciones las arma el servidor (sin repetir ofertas); aquí solo se decide cómo se dibujan. Sin React para
@@ -22,11 +25,26 @@ export interface MarketItem {
   distance_meters: number | null;
   reason?: string;
   trending?: boolean;
-  /** «offer» o «service» (un servicio de un negocio sin oferta). */
+  /** «offer» o «service» (un servicio o producto del catálogo de un negocio). */
   kind?: string;
+  service_id?: string;
+  service_price?: number | null;
+  price_from?: boolean;
+  duration_min?: number | null;
+  bookable?: boolean;
+  section?: string;
+  description?: string;
+  rating?: number;
+  open_until?: string;
   latitude?: number;
   longitude?: number;
   open_now?: boolean;
+  /** Si es un servicio/producto del catálogo (`kind === 'service'`), indica si su negocio tiene oferta activa hoy. */
+  has_entity_offer?: boolean;
+  /** Id de la oferta activa asociada a este servicio o a su negocio. */
+  linked_offer_id?: string;
+  /** Título de la oferta activa asociada cuando existe. */
+  linked_offer_title?: string;
 }
 
 /** Tarjeta de «Por zona» (3.39): sin conteos; `looks` son hasta 3 categorías para el mosaico. */
@@ -66,6 +84,9 @@ export interface MarketPage {
 
 export type MarketSort = 'near' | 'ends' | 'save';
 
+/** Filtro de la vitrina unificada (Catálogo + Ofertas). */
+export type VitrinaFilter = 'all' | 'offers' | 'services' | 'open';
+
 const digits = (s?: string) => {
   const d = (s ?? '').replace(/[^\d]/g, '');
   return d ? Number(d) : null;
@@ -76,15 +97,19 @@ export function pesos(n: number): string {
   return '$' + Math.round(n).toLocaleString('es-CO').replace(/,/g, '.');
 }
 
-/** Precio de la tarjeta: el especial (o el de la oferta), el habitual tachado y el ahorro, solo si es real. */
-export function priceView(o: Pick<MarketItem, 'price' | 'normal_price' | 'special_price' | 'reference_price'>): { now: string | null; was: string | null; save: string | null } {
-  const now = o.special_price ?? digits(o.price);
+/** Precio de la tarjeta: el especial (o el de la oferta o servicio del catálogo), el habitual tachado y el ahorro, solo si es real. */
+export function priceView(
+  o: Pick<MarketItem, 'price' | 'normal_price' | 'special_price' | 'reference_price' | 'service_price' | 'price_from'>,
+): { now: string | null; was: string | null; save: string | null } {
+  const offerNow = o.special_price ?? digits(o.price);
+  const now = offerNow ?? (o.service_price !== undefined && o.service_price !== null ? o.service_price : null);
   const was = o.special_price !== undefined && o.special_price !== null ? o.reference_price ?? null : digits(o.normal_price);
-  const valid = now !== null && was !== null && was > now && now >= 0;
+  const valid = offerNow !== null && was !== null && was > offerNow && offerNow >= 0;
+  const prefix = offerNow === null && o.price_from ? 'Desde ' : '';
   return {
-    now: now !== null && now > 0 ? pesos(now) : now === 0 ? 'Gratis' : null,
+    now: now !== null && now > 0 ? `${prefix}${pesos(now)}` : now === 0 ? 'Gratis' : null,
     was: valid ? pesos(was as number) : null,
-    save: valid ? `-${Math.round((1 - (now as number) / (was as number)) * 100)} %` : null,
+    save: valid ? `-${Math.round((1 - (offerNow as number) / (was as number)) * 100)} %` : null,
   };
 }
 
@@ -107,10 +132,48 @@ export function timeBadge(endsAt: string, now: number): { text: string; urgent: 
   return { text: d === 1 ? '1 día' : `${d} días`, urgent: false };
 }
 
+/** Etiqueta contextual inferior para tarjeta de Oferta vs Servicio/Producto de Catálogo (nunca muestra «Terminó» en un servicio). */
+export function itemStatusBadge(
+  o: MarketItem,
+  now: number,
+): { text: string; urgent: boolean; isService: boolean; hasEntityOffer: boolean } {
+  if (o.kind === 'service') {
+    const parts: string[] = [];
+    if (o.duration_min && o.duration_min > 0) parts.push(`${o.duration_min} min`);
+    if (o.bookable) parts.push('Reservable');
+    else if (o.section) parts.push(o.section);
+    else parts.push('Precio de catálogo');
+    return {
+      text: parts.join(' · '),
+      urgent: false,
+      isService: true,
+      hasEntityOffer: Boolean(o.has_entity_offer),
+    };
+  }
+  const clock = featuredClock(o.ends_at, now);
+  return {
+    text: clock.text,
+    urgent: clock.urgent,
+    isService: false,
+    hasEntityOffer: true,
+  };
+}
+
 /** Lo que lee el lector de pantalla en una tarjeta. */
 export function tileA11y(o: MarketItem, now: number): string {
   const p = priceView(o);
-  return [o.title, o.entity_name, distanceLabel(o.distance_meters) ? `a ${distanceLabel(o.distance_meters)}` : null, p.now, p.save ? `ahorras ${p.save.replace('-', '')}` : null, timeBadge(o.ends_at, now).text, o.trending ? 'en tendencia' : null, o.reason ?? null]
+  const status = o.kind === 'service' ? itemStatusBadge(o, now).text : timeBadge(o.ends_at, now).text;
+  return [
+    o.title,
+    o.entity_name,
+    distanceLabel(o.distance_meters) ? `a ${distanceLabel(o.distance_meters)}` : null,
+    p.now,
+    p.save ? `ahorras ${p.save.replace('-', '')}` : null,
+    o.kind === 'service' && o.has_entity_offer ? 'este negocio tiene oferta activa' : null,
+    status,
+    o.trending ? 'en tendencia' : null,
+    o.reason ?? null,
+  ]
     .filter(Boolean)
     .join(', ');
 }
@@ -251,4 +314,176 @@ export function featuredClock(endsAt: string, now: number): { text: string; urge
 /** Lo que lee el lector de pantalla en la destacada: la regla primero, para que nadie la tome por publicidad. */
 export function featuredA11y(o: MarketItem, now: number): string {
   return `Mayor ahorro de hoy: ${tileA11y(o, now)}`;
+}
+
+// ---------------------------------------------------------------------------
+// 3.55 · Vitrina Unificada: Catálogo (Servicios/Productos con precio) + Ofertas
+// ---------------------------------------------------------------------------
+
+/**
+ * Combina las ofertas vigentes de la vitrina con los servicios/productos reales del catálogo de los negocios cercanos.
+ * - Si un servicio del catálogo está incluido en la oferta activa del negocio (`active_offer.items`), o coincide con
+ *   ella, se vincula para mostrar su descuento real y anclaje de precio.
+ * - Si el negocio no tiene oferta en ese servicio (o aún hay pocas ofertas en la zona), el servicio con precio entra
+ *   como `kind: 'service'` indicando además si el negocio tiene alguna otra oferta activa (`has_entity_offer`).
+ */
+export function mergeCatalogIntoMarket(
+  offers: MarketItem[],
+  businesses: DiscoveryItem[],
+  catalogsByEntity: Record<string, ServiceItem[]>,
+  resolvePhoto?: (photoId?: string) => string | undefined,
+): MarketItem[] {
+  const out: MarketItem[] = [...offers];
+  const seenIds = new Set(offers.map((o) => o.id));
+  const seenServiceIds = new Set(offers.map((o) => o.service_id).filter(Boolean));
+
+  for (const b of businesses) {
+    const items = (catalogsByEntity[b.id] ?? []).filter(
+      (it) => !it.parent_id && !it.sold_out && it.price !== null && it.price !== undefined && it.price > 0,
+    );
+    const activeOffer = b.active_offer;
+    const offerItemIds = new Set((activeOffer?.items ?? []).map((x) => x.service_item_id).filter(Boolean));
+    const offerItemNames = new Set((activeOffer?.items ?? []).map((x) => fold(x.name)));
+
+    // Tomamos hasta 3 servicios destacados con precio por negocio para nutrir el volumen sin saturar con un solo local.
+    for (const it of items.slice(0, 3)) {
+      if (seenIds.has(it.id) || seenServiceIds.has(it.id)) continue;
+
+      const inActiveOffer =
+        Boolean(activeOffer) && (offerItemIds.has(it.id) || offerItemNames.has(fold(it.name)) || fold(activeOffer!.title).includes(fold(it.name)));
+
+      const itemPhoto = it.photos?.[0] && resolvePhoto ? resolvePhoto(it.photos[0]) : undefined;
+      const fallbackPhoto = b.photos?.[0] || b.profile_url || undefined;
+
+      if (inActiveOffer && activeOffer && !seenIds.has(activeOffer.id)) {
+        seenIds.add(activeOffer.id);
+        seenServiceIds.add(it.id);
+        out.push({
+          id: activeOffer.id,
+          entity_id: b.id,
+          title: activeOffer.title || it.name,
+          type: activeOffer.type,
+          ends_at: activeOffer.ends_at,
+          price: activeOffer.price,
+          normal_price: activeOffer.normal_price,
+          special_price: activeOffer.special_price,
+          reference_price: activeOffer.reference_price ?? it.price ?? undefined,
+          entity_name: b.name,
+          category_name: b.category_name,
+          category_color: b.category_color,
+          category_icon: b.category_icon,
+          photo: itemPhoto || fallbackPhoto,
+          distance_meters: b.distance_meters ?? null,
+          kind: 'offer',
+          service_id: it.id,
+          service_price: it.price,
+          price_from: it.price_from,
+          duration_min: it.duration_min,
+          bookable: it.bookable,
+          section: it.section,
+          description: it.description || activeOffer.conditions,
+          rating: b.avg_rating,
+          open_now: b.is_open_now,
+          open_until: b.closes_at,
+          latitude: b.latitude,
+          longitude: b.longitude,
+          has_entity_offer: true,
+          linked_offer_id: activeOffer.id,
+          linked_offer_title: activeOffer.title,
+        });
+        continue;
+      }
+
+      seenIds.add(it.id);
+      seenServiceIds.add(it.id);
+      out.push({
+        id: it.id,
+        entity_id: b.id,
+        title: it.name,
+        type: 'CATALOG',
+        ends_at: activeOffer?.ends_at ?? '',
+        entity_name: b.name,
+        category_name: b.category_name,
+        category_color: b.category_color,
+        category_icon: b.category_icon,
+        photo: itemPhoto || fallbackPhoto,
+        distance_meters: b.distance_meters ?? null,
+        kind: 'service',
+        service_id: it.id,
+        service_price: it.price,
+        price_from: it.price_from,
+        duration_min: it.duration_min,
+        bookable: it.bookable,
+        section: it.section,
+        description: it.description,
+        rating: b.avg_rating,
+        open_now: b.is_open_now,
+        open_until: b.closes_at,
+        latitude: b.latitude,
+        longitude: b.longitude,
+        has_entity_offer: Boolean(b.has_active_offer),
+        linked_offer_id: activeOffer?.id,
+        linked_offer_title: activeOffer?.title,
+      });
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Convierte resultados de búsqueda de productos/servicios de `/api/ask` en `MarketItem`s para que cuando una persona
+ * busque un producto o servicio específico en la pestaña de Ofertas/Catálogo vea todos los que coinciden y si tienen oferta.
+ */
+export function askItemsToMarketItems(
+  askItems: AskItem[],
+  businessesById: Record<string, DiscoveryItem>,
+  resolvePhoto?: (photoId?: string) => string | undefined,
+): MarketItem[] {
+  return askItems.map((it) => {
+    const b = businessesById[it.entity_id];
+    const activeOffer = b?.active_offer;
+    const itemPhoto = it.photo && resolvePhoto ? resolvePhoto(it.photo) : it.photo;
+    return {
+      id: `ask-${it.id}`,
+      entity_id: it.entity_id,
+      title: it.name,
+      type: 'CATALOG',
+      ends_at: activeOffer?.ends_at ?? '',
+      entity_name: it.entity_name,
+      category_name: b?.category_name ?? 'Negocio local',
+      category_color: b?.category_color,
+      category_icon: b?.category_icon,
+      photo: itemPhoto || b?.photos?.[0] || b?.profile_url,
+      distance_meters: b?.distance_meters ?? (it.minutes > 0 ? it.minutes * 80 : null),
+      kind: 'service',
+      service_id: it.id,
+      service_price: it.price,
+      price_from: it.price_from,
+      section: it.section,
+      rating: b?.avg_rating,
+      open_now: b?.is_open_now,
+      open_until: b?.closes_at,
+      latitude: b?.latitude,
+      longitude: b?.longitude,
+      has_entity_offer: Boolean(b?.has_active_offer),
+      linked_offer_id: activeOffer?.id,
+      linked_offer_title: activeOffer?.title,
+    };
+  });
+}
+
+/** Filtra los ítems de la vitrina según el chip activo («Todo», «Con oferta», «Catálogo», «Abierto ahora»). */
+export function filterVitrinaItems(items: MarketItem[], filter: VitrinaFilter): MarketItem[] {
+  switch (filter) {
+    case 'offers':
+      return items.filter((o) => o.kind !== 'service' || o.has_entity_offer);
+    case 'services':
+      return items.filter((o) => o.kind === 'service' || Boolean(o.service_id));
+    case 'open':
+      return items.filter((o) => o.open_now !== false);
+    case 'all':
+    default:
+      return items;
+  }
 }

@@ -3,7 +3,8 @@ import Constants from 'expo-constants';
 import { useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View, Modal } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View, Modal } from 'react-native';
+import { notifyError } from '@/components/Notice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi, usersApi } from '@/api/endpoints';
 import type { VerificationStatus } from '@/api/types';
@@ -93,7 +94,7 @@ export default function ProfileScreen() {
       // Los negocios y chats no cambian, pero por si otra pantalla muestra tu foto.
       void queryClient.invalidateQueries({ queryKey: ['conversations'] });
     } catch (error) {
-      Alert.alert('No pudimos cambiar tu foto', error instanceof Error ? error.message : 'Inténtalo de nuevo.');
+      notifyError('No pudimos cambiar tu foto', error instanceof Error ? error.message : 'Inténtalo de nuevo.');
     } finally {
       setUploadingPhoto(false);
     }
@@ -187,8 +188,8 @@ export default function ProfileScreen() {
                     </Text>
                   ) : null}
                   <View style={styles.quickRow}>
-                    <QuickAction symbol="offers" icon="scan-outline" label="Canjear" onPress={() => router.push('/business/scan')} />
-                    <QuickAction symbol="finance" icon="add-circle-outline" label="Vender" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entity.id } })} />
+                    <QuickAction icon="scan-outline" label="Canjear" onPress={() => router.push('/business/scan')} />
+                    <QuickAction icon="cash-outline" label="Vender" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entity.id } })} />
                     <QuickAction icon="calendar-outline" label="Agenda" onPress={() => router.push({ pathname: '/business/agenda/[id]', params: { id: entity.id } })} />
                   </View>
                 </>
@@ -307,7 +308,7 @@ function MenuRow({ icon, label, sub, onPress, first, danger }: { icon: keyof typ
 function QuickAction({ symbol, icon, label, onPress }: { symbol?: EmpreProduct; icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.quick, pressed && { opacity: 0.8 }]}>
-      {symbol ? <EmpreSymbol product={symbol} size={30} /> : <View style={styles.quickIcon}><Ionicons name={icon} size={18} color={colors.verified} /></View>}
+      {symbol ? <EmpreSymbol product={symbol} size={36} /> : <View style={styles.quickIcon}><Ionicons name={icon} size={18} color={colors.verified} /></View>}
       <Text style={styles.quickText}>{label}</Text>
     </Pressable>
   );
@@ -315,7 +316,7 @@ function QuickAction({ symbol, icon, label, onPress }: { symbol?: EmpreProduct; 
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  content: { paddingHorizontal: 16, paddingBottom: 28, gap: 18 },
+  content: { paddingHorizontal: 16, paddingBottom: 120, gap: 18 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   headerInfo: { flex: 1, minWidth: 0, gap: 2 },
   name: { fontSize: 22, lineHeight: 27, fontFamily: fonts.display.bold, color: colors.ink },

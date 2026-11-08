@@ -249,7 +249,7 @@ export function PayDeck({ methods, value, onChange, amount, note, party, onEdit,
       </View>
       </View>
 
-      <View style={styles.tiles} accessibilityRole="radiogroup" accessibilityLabel="Cómo te pagaron">
+      <View style={styles.tiles} accessibilityRole="radiogroup" accessibilityLabel={out ? 'Cómo lo pagaste' : 'Cómo te pagaron'}>
         {methods.map((m) => {
           const on = m === value;
           return (

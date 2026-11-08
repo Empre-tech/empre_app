@@ -2,17 +2,25 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi, type AgendaSettingsInput } from '@/api/agenda';
 import { Button } from '@/components/Button';
+import { EmpreSymbol } from '@/components/EmpreSymbol';
+import { notifyError } from '@/components/Notice';
 import { formatDuration } from '@/lib/agendaFormat';
+import { rangeWords, readDayRange, readNightRange, type RangeResult } from '@/lib/clockWords';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const SLOT_OPTIONS = [15, 30, 45, 60];
 const BUFFER_OPTIONS = [0, 5, 10, 15, 30];
 const SERVICE_DURATIONS = [15, 20, 30, 45, 60, 90, 120];
-const CLOCK_RE = /^([01]?\d|2[0-3]):[0-5]\d$/;
+const LUNCH_TIPS: { label: string; start: string; end: string }[] = [
+  { label: 'Sin descanso', start: '', end: '' },
+  { label: '12 a 1', start: '12:00', end: '13:00' },
+  { label: '12:30 a 1:30', start: '12:30', end: '13:30' },
+  { label: '1 a 2', start: '13:00', end: '14:00' },
+];
 
 const EMPTY: AgendaSettingsInput = {
   enabled: false,
@@ -50,9 +58,15 @@ const QUIET: { key: AgendaSettingsInput['quiet_mode']; label: string }[] = [
   { key: 'off', label: 'Nunca' },
 ];
 
-function pad(clock: string): string {
-  const [h, m] = clock.split(':');
-  return `${h.padStart(2, '0')}:${m}`;
+/** Debajo de dos horas: lo que se entendió, o qué falta. Se ve mientras se escribe. */
+function RangeReading({ result, empty }: { result: RangeResult; empty?: string }) {
+  if (result.ok && !result.range) return empty ? <Text style={styles.note}>{empty}</Text> : null;
+  return (
+    <View accessibilityLiveRegion="polite" style={styles.reading}>
+      <Ionicons name={result.ok ? 'checkmark-circle' : 'alert-circle-outline'} size={16} color={result.ok ? colors.verified : colors.danger} />
+      <Text style={[styles.readingText, !result.ok && styles.readingBad]}>{result.ok && result.range ? `Entendí: ${rangeWords(result.range).replace('De ', 'de ')}` : !result.ok ? result.message : ''}</Text>
+    </View>
+  );
 }
 
 export default function AgendaSettingsScreen() {
@@ -70,28 +84,35 @@ export default function AgendaSettingsScreen() {
   useEffect(() => {
     if (settings.data) {
       const { entity_id: _ignored, ...rest } = settings.data;
-      setForm(rest);
+      // Sin agenda guardada, un servidor anterior manda estos campos vacíos o en cero: van los valores recomendados.
+      setForm(
+        rest.intake_mode
+          ? rest
+          : {
+              ...rest,
+              intake_mode: EMPTY.intake_mode,
+              review_no_shows: EMPTY.review_no_shows,
+              review_notice_min: EMPTY.review_notice_min,
+              notify_every: EMPTY.notify_every,
+              quiet_mode: EMPTY.quiet_mode,
+            },
+      );
     }
   }, [settings.data]);
 
+  const lunch = readDayRange(form.lunch_start, form.lunch_end);
+  const quiet = readNightRange(form.quiet_from, form.quiet_to);
+
   const save = useMutation({
     mutationFn: () => {
-      const lunchStart = form.lunch_start.trim();
-      const lunchEnd = form.lunch_end.trim();
-      if ((lunchStart || lunchEnd) && !(CLOCK_RE.test(lunchStart) && CLOCK_RE.test(lunchEnd))) {
-        return Promise.reject(new Error('El almuerzo va en formato 12:00 a 13:00.'));
-      }
-      const qFrom = form.quiet_from.trim();
-      const qTo = form.quiet_to.trim();
-      if (form.quiet_mode === 'custom' && !(CLOCK_RE.test(qFrom) && CLOCK_RE.test(qTo) && pad(qFrom) !== pad(qTo))) {
-        return Promise.reject(new Error('El silencio va en formato 21:00 a 07:00, con horas distintas.'));
-      }
+      if (!lunch.ok) return Promise.reject(new Error(`Descanso de almuerzo: ${lunch.message}`));
+      if (form.quiet_mode === 'custom' && !quiet.ok) return Promise.reject(new Error(`Horas de silencio: ${quiet.message}`));
       return agendaApi.saveSettings(id, {
         ...form,
-        lunch_start: lunchStart ? pad(lunchStart) : '',
-        lunch_end: lunchEnd ? pad(lunchEnd) : '',
-        quiet_from: CLOCK_RE.test(qFrom) ? pad(qFrom) : '',
-        quiet_to: CLOCK_RE.test(qTo) ? pad(qTo) : '',
+        lunch_start: lunch.range?.start ?? '',
+        lunch_end: lunch.range?.end ?? '',
+        quiet_from: quiet.ok ? (quiet.range?.start ?? '') : '',
+        quiet_to: quiet.ok ? (quiet.range?.end ?? '') : '',
       });
     },
     onSuccess: () => {
@@ -100,7 +121,7 @@ export default function AgendaSettingsScreen() {
       void queryClient.invalidateQueries({ queryKey: ['agenda', id] });
       router.back();
     },
-    onError: (e: Error) => Alert.alert('No se pudo guardar', e.message),
+    onError: (e: Error) => notifyError('No se pudo guardar', e.message),
   });
 
   const addService = useMutation({
@@ -110,7 +131,7 @@ export default function AgendaSettingsScreen() {
       void queryClient.invalidateQueries({ queryKey: ['agenda-services', id] });
       void queryClient.invalidateQueries({ queryKey: ['agenda-summary', id] });
     },
-    onError: (e: Error) => Alert.alert('No se pudo agregar', e.message),
+    onError: (e: Error) => notifyError('No se pudo agregar el servicio', e.message),
   });
   const removeService = useMutation({
     mutationFn: (serviceId: string) => agendaApi.deleteService(id, serviceId),
@@ -213,11 +234,12 @@ export default function AgendaSettingsScreen() {
           </View>
           {form.quiet_mode === 'custom' ? (
             <View style={styles.lunchRow}>
-              <TextInput value={form.quiet_from} onChangeText={(v) => set('quiet_from', v)} placeholder="21:00" style={[styles.input, { flex: 1 }]} keyboardType="numbers-and-punctuation" accessibilityLabel="Silencio desde" />
+              <TextInput value={form.quiet_from} onChangeText={(v) => set('quiet_from', v)} placeholder="9 pm" placeholderTextColor={colors.muted} style={[styles.input, { flex: 1, minWidth: 0 }, form.quiet_mode === 'custom' && !quiet.ok && quiet.field === 'start' && styles.inputBad]} maxLength={14} accessibilityLabel="Silencio desde" />
               <Text style={styles.help}>a</Text>
-              <TextInput value={form.quiet_to} onChangeText={(v) => set('quiet_to', v)} placeholder="07:00" style={[styles.input, { flex: 1 }]} keyboardType="numbers-and-punctuation" accessibilityLabel="Silencio hasta" />
+              <TextInput value={form.quiet_to} onChangeText={(v) => set('quiet_to', v)} placeholder="7 am" placeholderTextColor={colors.muted} style={[styles.input, { flex: 1, minWidth: 0 }, form.quiet_mode === 'custom' && !quiet.ok && quiet.field === 'end' && styles.inputBad]} maxLength={14} accessibilityLabel="Silencio hasta" />
             </View>
           ) : null}
+          {form.quiet_mode === 'custom' ? <RangeReading result={quiet} /> : null}
           <Text style={styles.note}>
             {form.quiet_mode === 'hours'
               ? 'Usamos tu horario de atención: si lo cambias, esto cambia solo. Lo que llegue cerrado te espera en un resumen al abrir.'
@@ -266,11 +288,29 @@ export default function AgendaSettingsScreen() {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Descanso de almuerzo (opcional)</Text>
-          <View style={styles.lunchRow}>
-            <TextInput value={form.lunch_start} onChangeText={(v) => set('lunch_start', v)} placeholder="12:00" placeholderTextColor={colors.muted} style={[styles.input, { flex: 1 }]} keyboardType="numbers-and-punctuation" maxLength={5} />
-            <Text style={styles.help}>a</Text>
-            <TextInput value={form.lunch_end} onChangeText={(v) => set('lunch_end', v)} placeholder="13:00" placeholderTextColor={colors.muted} style={[styles.input, { flex: 1 }]} keyboardType="numbers-and-punctuation" maxLength={5} />
+          <Text style={styles.help}>En ese rato nadie puede pedirte cita. Toca uno o escríbelo como lo dirías.</Text>
+          <View style={styles.tips}>
+            {LUNCH_TIPS.map((tip) => {
+              const on = lunch.ok && (lunch.range?.start ?? '') === tip.start && (lunch.range?.end ?? '') === tip.end;
+              return (
+                <Pressable
+                  key={tip.label}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: on }}
+                  onPress={() => setForm((f) => ({ ...f, lunch_start: tip.start, lunch_end: tip.end }))}
+                  style={[styles.tip, on && styles.tipOn]}
+                >
+                  <Text style={styles.tipText}>{tip.label}</Text>
+                </Pressable>
+              );
+            })}
           </View>
+          <View style={styles.lunchRow}>
+            <TextInput value={form.lunch_start} onChangeText={(v) => set('lunch_start', v)} placeholder="12" placeholderTextColor={colors.muted} style={[styles.input, { flex: 1, minWidth: 0 }, !lunch.ok && lunch.field === 'start' && styles.inputBad]} maxLength={14} accessibilityLabel="El descanso empieza a las" />
+            <Text style={styles.help}>a</Text>
+            <TextInput value={form.lunch_end} onChangeText={(v) => set('lunch_end', v)} placeholder="1" placeholderTextColor={colors.muted} style={[styles.input, { flex: 1, minWidth: 0 }, !lunch.ok && lunch.field === 'end' && styles.inputBad]} maxLength={14} accessibilityLabel="El descanso termina a las" />
+          </View>
+          <RangeReading result={lunch} />
         </View>
 
         <View style={styles.card}>
@@ -341,6 +381,14 @@ const styles = StyleSheet.create({
   serviceName: { flex: 1, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
   serviceMin: { fontSize: 13.5, fontFamily: fonts.ui.medium, color: colors.muted },
   lunchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  tips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  tip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 999, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
+  tipOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
+  tipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
+  inputBad: { borderColor: colors.danger },
+  reading: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  readingText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.bold, color: colors.verified },
+  readingBad: { color: colors.danger },
   subTitle: { fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.ink },
   mode: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start', minHeight: 60, padding: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line },
   modeOn: { borderColor: colors.selected, backgroundColor: colors.selectedSoft },

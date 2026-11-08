@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ledgerApi, type PartyKind } from '@/api/ledger';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
+import { useReduceMotion } from '@/lib/useReduceMotion';
 import { amountField, formatPesos, METHOD_LABEL, newClientId, parseAmountInput, type PayMethod } from '@/lib/ledger';
 import { pesosInWords } from '@/lib/ledgerWords';
 import { queueParty } from '@/ledger/ledgerStore';
@@ -112,16 +113,56 @@ export function LedgerReceipt({
   voided: boolean;
   onVoid?: () => void;
 }) {
+  const reduce = useReduceMotion();
+  const enter = useRef(new Animated.Value(reduce ? 1 : 0)).current;
+  const travel = useRef(new Animated.Value(reduce ? 1 : 0)).current;
+
+  useEffect(() => {
+    if (reduce) {
+      enter.setValue(1);
+      travel.setValue(1);
+      return;
+    }
+    enter.setValue(0);
+    travel.setValue(0);
+    const anim = Animated.parallel([
+      Animated.spring(enter, { toValue: 1, friction: 6, tension: 80, useNativeDriver: true }),
+      Animated.timing(travel, { toValue: 1, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]);
+    anim.start();
+    return () => anim.stop();
+  }, [title, voided, reduce, enter, travel]);
+
   return (
-    <View style={[styles.rcptCard, voided && { opacity: 0.6 }]} accessibilityLiveRegion="polite">
+    <Animated.View
+      style={[
+        styles.rcptCard,
+        voided && { opacity: 0.6 },
+        !reduce && !voided && {
+          opacity: enter,
+          transform: [{ scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }],
+        },
+      ]}
+      accessibilityLiveRegion="polite"
+    >
       <View style={styles.rcptBrand}>
         <View style={styles.rcptOrigin}>
           <Ionicons name="create-outline" size={14} color={colors.muted} />
         </View>
         <View style={styles.rcptBridge}>
-          <View style={styles.rcptTravelDot} />
+          <Animated.View
+            style={[
+              styles.rcptTravelDot,
+              !reduce && {
+                transform: [
+                  { translateX: travel.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) },
+                  { scale: travel.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0.7, 1.25, 1] }) },
+                ],
+              },
+            ]}
+          />
         </View>
-        <EmpreSymbol product="finance" size={26} />
+        <EmpreSymbol product="finance" size={32} />
       </View>
       <View style={{ flex: 1, gap: 1 }}>
         <Text style={[styles.rcptTitle, voided && { textDecorationLine: 'line-through' }]}>{title}</Text>
@@ -132,7 +173,7 @@ export function LedgerReceipt({
           <Text style={styles.rcptVoidText}>Anular</Text>
         </Pressable>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -555,6 +596,7 @@ const styles = StyleSheet.create({
   amountSign: { fontSize: 30, fontFamily: fonts.display.bold, color: colors.muted, marginRight: 6 },
   amountInput: {
     flex: 1,
+    minWidth: 0,
     fontSize: 38,
     fontFamily: fonts.display.bold,
     color: colors.ink,

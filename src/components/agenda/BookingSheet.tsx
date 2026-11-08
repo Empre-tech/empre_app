@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -14,9 +13,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { notifyError } from '@/components/Notice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi, type Appointment, type AgendaSummary } from '@/api/agenda';
 import { Button } from '@/components/Button';
+import { EmpreSymbol } from '@/components/EmpreSymbol';
 import {
   dayKey,
   dayNumber,
@@ -95,15 +96,15 @@ export function BookingSheet({ visible, entityId, entityName, summary, onClose, 
         // Alguien más lo tomó (o dejó de estar libre): refrescamos las horas.
         setSlot(null);
         void slots.refetch();
-        Alert.alert('Ese horario se acaba de ocupar', 'Elige otra hora, ya actualizamos las disponibles.');
+        notifyError('Ese horario se acaba de ocupar', 'Elige otra hora, ya actualizamos las disponibles.');
       } else if (error.message === 'too_many_pending') {
-        Alert.alert('Ya tienes 3 solicitudes pendientes', 'Espera a que te respondan antes de pedir otra.');
+        notifyError('Ya tienes 3 solicitudes pendientes', 'Espera a que te respondan antes de pedir otra.');
       } else if (error.message === 'customer_busy') {
-        Alert.alert('Ya tienes una cita a esa hora', 'Elige otro horario.');
+        notifyError('Ya tienes una cita a esa hora', 'Elige otro horario.');
       } else if (error.message === 'entity_hidden') {
-        Alert.alert('Este negocio no está disponible', 'Por ahora no recibe citas nuevas.');
+        notifyError('Este negocio no está disponible', 'Por ahora no recibe citas nuevas.');
       } else {
-        Alert.alert('No pudimos pedir la cita', error.message);
+        notifyError('No pudimos pedir la cita', error.message);
       }
     },
   });
