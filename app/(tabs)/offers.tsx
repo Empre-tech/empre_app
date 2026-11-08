@@ -14,6 +14,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
@@ -29,16 +30,18 @@ import { Button } from '@/components/Button';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { ZoneButton, ZoneList } from '@/components/ZoneButton';
 import { UpdatingBar } from '@/components/explore/LoadingMotion';
+import { BizFaces, BizVitrinaSheet } from '@/components/offers/BizFaces';
+import { FilterRow, FiltersSheet, LensTabs, type FilterTag, type ShowFilter } from '@/components/offers/LensFilters';
 import { MarketItemSheet } from '@/components/offers/MarketItemSheet';
 import { Reveal } from '@/components/offers/MarketMotion';
 import { FeaturedOffer, OfferRow, OfferTile, TILE_GAP, TILE_W, ZONE_W, ZoneCard } from '@/components/offers/OfferTiles';
 import { Showcase } from '@/components/offers/Showcase';
 import { SkeletonBlock } from '@/components/Skeleton';
-import { ActionTile } from '@/components/system/parts';
 import type { ServiceItem } from '@/lib/catalog';
 import { mediaUrl } from '@/lib/image';
 import { loadLastCity, saveLastCity } from '@/lib/lastCityStore';
 import { displayIcon } from '@/lib/mapView';
+import { applyFilters, availableLenses, bizFaces, lensItems, type BizFace, type LensKey } from '@/lib/offerLenses';
 import {
   askItemsToMarketItems,
   distanceLabel,
@@ -102,10 +105,16 @@ export default function OffersScreen() {
   const [compact, setCompact] = useState(false);
   const [picked, setPicked] = useState<{ id: string; name: string; latitude: number; longitude: number } | null>(null);
   const [zonesOpen, setZonesOpen] = useState(false);
-  const [pin, setPin] = useState<string | null>(null);
+  const [, setPin] = useState<string | null>(null);
   const [listY, setListY] = useState(0);
   const [showAll, setShowAll] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MarketItem | null>(null);
+  // Ofertas por tendencias (3.61): la lente elegida, la hoja de filtros y la vitrina de un negocio.
+  const [lens, setLens] = useState<LensKey | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [openOnly, setOpenOnly] = useState(false);
+  const [face, setFace] = useState<BizFace | null>(null);
+  const win = useWindowDimensions();
 
   const { status } = useAuth();
   const claims = useQuery({ queryKey: ['claims', 'mine'], queryFn: claimsApi.mine, enabled: status === 'signedIn', retry: false, staleTime: 15_000 });
@@ -287,14 +296,7 @@ export default function OffersScreen() {
     [data?.near, nearbyBiz, catalogsByEntity, resolvePhoto],
   );
 
-  const onMap = useMemo(() => mergedNear.filter((o) => o.latitude && o.longitude).slice(0, 14), [mergedNear]);
-  const ordered = useMemo(() => {
-    const first = onMap.find((o) => o.id === pin) ?? onMap[0];
-    return first ? [first, ...onMap.filter((o) => o.id !== first.id)] : [];
-  }, [onMap, pin]);
   const sections = q ? [] : visibleSections(data);
-  const baseRailItems = ordered.length ? ordered : mergedNear.slice(0, 14);
-  const railItems = useMemo(() => filterVitrinaItems(baseRailItems, vitrinaFilter), [baseRailItems, vitrinaFilter]);
 
   // Servicios del catálogo destacados para su propia fila cuando hay tanto ofertas como catálogo
   const catalogSpotlightItems = useMemo(
@@ -306,16 +308,51 @@ export default function OffersScreen() {
   const zoneName = data?.zones.find((z) => z.id === zoneId)?.name;
   const zoneLabel = picked?.name ?? (data?.zone || (coords ? 'Cerca de ti' : city || 'Tu ciudad'));
 
-  // La vitrina superior (Showcase): solo las ofertas reales con vigencia que terminan primero.
-  const showcase = useMemo(
-    () =>
-      baseRailItems
-        .filter((o) => o.kind !== 'service' && Boolean(o.ends_at))
-        .sort((a, b) => (a.ends_at ?? '9').localeCompare(b.ends_at ?? '9'))
-        .slice(0, 3),
-    [baseRailItems],
-  );
-  const restItems = railItems.filter((o) => !showcase.some((x) => x.id === o.id));
+  const goToList = (id: string | undefined) => {
+    setZone(id);
+    setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, listY - MINI_H - 4), animated: !reduce }), reduce ? 0 : 160);
+  };
+
+  // Lentes: solo las que tienen algo. Encima van los filtros de la hoja (abiertos y orden).
+  const lenses = useMemo(() => availableLenses(data, now), [data, now]);
+  const lensKey = lens && lenses.some((l) => l.key === lens) ? lens : (lenses[0]?.key ?? null);
+  const lensMeta = lenses.find((l) => l.key === lensKey) ?? null;
+  const lensList = useMemo(() => (lensKey ? applyFilters(lensItems(lensKey, data, now), { openOnly, sort: sortNow }) : []), [lensKey, data, now, openOnly, sortNow]);
+  const lensTop = lensList.slice(0, 3);
+  const lensRest = lensList.slice(3, 7);
+  const halfW = Math.floor((win.width - 40 - 10) / 2);
+
+  // Todas las ofertas conocidas (sin servicios): para los negocios que dan la cara y su vitrina.
+  const knownOffers = useMemo(() => {
+    const d = data;
+    const raw = d ? [...(d.featured ? [d.featured] : []), ...d.near, ...d.trending, ...d.for_you.items, ...d.searched.items, ...rawAllItems] : rawAllItems;
+    const seen = new Set<string>();
+    return raw.filter((o) => o.kind !== 'service' && (seen.has(o.id) ? false : (seen.add(o.id), true)));
+  }, [data, rawAllItems]);
+  const faces = useMemo(() => bizFaces(nearbyBiz, knownOffers, catalogsByEntity), [nearbyBiz, knownOffers, catalogsByEntity]);
+  const catalogRow = useMemo(() => (openOnly ? catalogSpotlightItems.filter((o) => o.open_now !== false) : catalogSpotlightItems), [catalogSpotlightItems, openOnly]);
+
+  const pickZone = (id: string) => {
+    const z = data?.zones.find((x) => x.id === id);
+    if (!z) setPicked(null);
+    else if (z.latitude && z.longitude) setPicked({ id: z.id, name: z.name, latitude: z.latitude, longitude: z.longitude });
+    else goToList(z.id);
+    setPin(null);
+  };
+  const show: ShowFilter = vitrinaFilter === 'offers' || vitrinaFilter === 'services' ? vitrinaFilter : 'all';
+  const tags: FilterTag[] = [
+    ...(picked ? [{ key: 'zone', label: picked.name, onRemove: () => setPicked(null) }] : []),
+    ...(show !== 'all' ? [{ key: 'show', label: show === 'offers' ? 'Solo ofertas' : 'Solo catálogo', onRemove: () => setVitrinaFilter('all') }] : []),
+    ...(sort !== 'near' ? [{ key: 'sort', label: sort === 'ends' ? 'Terminan pronto' : 'Mayor ahorro', onRemove: () => setSort('near') }] : []),
+    ...(openOnly ? [{ key: 'open', label: 'Abiertos ahora', onRemove: () => setOpenOnly(false) }] : []),
+  ];
+  const clearFilters = () => {
+    setPicked(null);
+    setVitrinaFilter('all');
+    setSort('near');
+    setOpenOnly(false);
+  };
+
   const zoneTitle = picked ? `Vitrina en ${picked.name}` : coords ? 'Catálogo y ofertas cerca' : city ? `Catálogo y ofertas en ${city}` : 'Catálogo y ofertas';
 
   const [bar] = useState(() => new Animated.Value(0));
@@ -333,10 +370,6 @@ export default function OffersScreen() {
     const c = n.contentOffset.y > COMPACT_AT;
     if (c !== compact) setCompact(c);
     if (nearEnd(n) && all.hasNextPage && !all.isFetchingNextPage) void all.fetchNextPage();
-  };
-  const goToList = (id: string | undefined) => {
-    setZone(id);
-    setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, listY - MINI_H - 4), animated: !reduce }), reduce ? 0 : 160);
   };
 
   const rail = (list: MarketItem[]) => (
@@ -434,27 +467,9 @@ export default function OffersScreen() {
           </View>
         </View>
 
-        {/* PÍLDORAS DE FILTRO DE VITRINA (Inspirado en Swiggy / Shop) */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.vitrinaPills}>
-          {VITRINA_FILTERS.map((f) => {
-            const active = vitrinaFilter === f.key;
-            return (
-              <Pressable
-                key={f.key}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                onPress={() => setVitrinaFilter(f.key)}
-                style={({ pressed }) => [styles.vitrinaPill, active && styles.vitrinaPillOn, pressed && styles.chipPressed]}
-              >
-                <Ionicons name={f.icon} size={14} color={active ? '#fff' : colors.ink} />
-                <Text style={[styles.vitrinaPillText, active && styles.vitrinaPillTextOn]}>{f.label}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
         {home ? (
-          <View style={styles.pad}>
+          <>
+            <View style={styles.pad}>
             <Pressable accessibilityRole="search" accessibilityLabel="Buscar un producto, servicio u oferta" onPress={() => openAll(true)} style={styles.field}>
               <Ionicons name="search" size={20} color={colors.ink} />
               <Text style={styles.fieldText} numberOfLines={1}>
@@ -467,21 +482,41 @@ export default function OffersScreen() {
                 <Ionicons name="map-outline" size={18} color={colors.ink} />
               </Pressable>
             </Pressable>
-            {showcase.length && vitrinaFilter !== 'services' ? <Showcase items={showcase} now={now} onOpen={open} /> : null}
-            {(categories.data ?? []).length ? <Text style={styles.tilesLabel}>Por tipo de negocio</Text> : null}
-          </View>
-        ) : null}
+            </View>
+            {/* 1 · Lentes de tendencia y 2 · un solo sistema de filtros (3.61) */}
+            <View style={styles.lensBar}>
+              <LensTabs lenses={lenses} active={lensKey} onPick={setLens} />
+              <FilterRow cats={categories.data ?? []} catId={catId} onCat={setCatId} tags={tags} onOpen={() => setFiltersOpen(true)} />
+            </View>
+          </>
+        ) : (
+          <>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.vitrinaPills}>
+              {VITRINA_FILTERS.map((f) => {
+                const active = vitrinaFilter === f.key;
+                return (
+                  <Pressable
+                    key={f.key}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    onPress={() => setVitrinaFilter(f.key)}
+                    style={({ pressed }) => [styles.vitrinaPill, active && styles.vitrinaPillOn, pressed && styles.chipPressed]}
+                  >
+                    <Ionicons name={f.icon} size={14} color={active ? '#fff' : colors.ink} />
+                    <Text style={[styles.vitrinaPillText, active && styles.vitrinaPillTextOn]}>{f.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats} accessibilityLabel="Categorías">
-          {home ? null : <Chip label="Todas" active={!catId} onPress={() => setCatId(undefined)} />}
-          {(categories.data ?? []).map((c) =>
-            home ? (
-              <ActionTile key={c.id} width={108} icon={displayIcon(c.icon) as keyof typeof Ionicons.glyphMap} label={c.name} selected={catId === c.id} onPress={() => setCatId(catId === c.id ? undefined : c.id)} />
-            ) : (
-              <Chip key={c.id} label={c.name} icon={c.icon} active={catId === c.id} onPress={() => setCatId(catId === c.id ? undefined : c.id)} />
-            ),
-          )}
-        </ScrollView>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats} accessibilityLabel="Categorías">
+              <Chip label="Todas" active={!catId} onPress={() => setCatId(undefined)} />
+              {(categories.data ?? []).map((c) => (
+                <Chip key={c.id} label={c.name} icon={c.icon} active={catId === c.id} onPress={() => setCatId(catId === c.id ? undefined : c.id)} />
+              ))}
+            </ScrollView>
+          </>
+        )}
 
         {!showAll && !hasLoc && ready ? (
           <View style={styles.loc}>
@@ -493,28 +528,10 @@ export default function OffersScreen() {
         ) : null}
 
         {home ? (
-          <View style={styles.sec}>
-            <View style={styles.railHead}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.shTitle} accessibilityRole="header">
-                  {vitrinaFilter === 'services'
-                    ? 'Servicios y productos del catálogo'
-                    : vitrinaFilter === 'offers'
-                      ? 'Ofertas activas ahora'
-                      : ordered.length && zoneLabel
-                        ? zoneLabel === 'Cerca de ti'
-                          ? 'Destacados cerca de ti'
-                          : `En ${zoneLabel}, ahora`
-                        : city
-                          ? `En ${city}, ahora`
-                          : 'Destacados ahora'}
-                </Text>
-                <Text style={styles.shWhy}>Toca cualquiera para preguntar con Empre AI o ver si tiene oferta</Text>
-              </View>
-              <Pressable accessibilityRole="link" onPress={() => openAll(false)} style={styles.seeAll}>
-                <Text style={styles.seeAllText}>{restItems.length ? 'Ver todo' : 'Explorar todo'}</Text>
-              </Pressable>
-            </View>
+          <>
+            {/* 3 · Los negocios dan la cara */}
+            {show !== 'services' || faces.some((f) => !f.hasOffer) ? <BizFaces faces={show === 'services' ? faces.filter((f) => !f.hasOffer) : faces} onOpen={setFace} /> : null}
+
             {!data && (market.isLoading || !ready) ? (
               <View style={styles.rail}>
                 {[0, 1].map((i) => (
@@ -522,47 +539,71 @@ export default function OffersScreen() {
                 ))}
               </View>
             ) : null}
-            {data && !restItems.length && !railItems.length ? (
-              <Text style={styles.none}>{`Hoy no hay resultados con este filtro${catId ? ' en esta categoría' : ''}. Prueba «Todo» o explora todas las zonas.`}</Text>
-            ) : null}
-            {(restItems.length ? restItems : railItems).length ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail} snapToInterval={TILE_W + TILE_GAP} decelerationRate="fast" snapToAlignment="start">
-                {(restItems.length ? restItems : railItems).map((o, i) => (
-                  <Reveal key={o.id} delay={80 + Math.min(i, 5) * 50} distance={6} duration={280}>
-                    <OfferTile item={o} now={now} onPress={() => open(o)} />
-                  </Reveal>
-                ))}
-              </ScrollView>
-            ) : null}
-          </View>
-        ) : null}
 
-        {/* FILA DEDICADA DE CATÁLOGO DE SERVICIOS Y PRODUCTOS (Para garantizar volumen y descubrimiento por precio) */}
-        {home && vitrinaFilter === 'all' && catalogSpotlightItems.length > 0 ? (
-          <View style={styles.sec}>
-            <View style={styles.railHead}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.shTitle} accessibilityRole="header">
-                  Del catálogo de los negocios
-                </Text>
-                <Text style={styles.shWhy}>Precios publicados por cada local · Mira al instante si tienen oferta</Text>
+            {/* 4 · Lo de la lente elegida: la vitrina que rota con las tres más fuertes y las demás en tarjetas */}
+            {data && show !== 'services' && lensMeta ? (
+              <Reveal key={`lens|${key}|${lensKey}`} style={styles.sec}>
+                {header(lensMeta.title, lensKey === 'buscado' || lensKey === 'canjea' ? `${lensMeta.why}${inCity}` : lensMeta.why)}
+                {lensKey === 'buscado' && data.searched.terms.length ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.terms}>
+                    {data.searched.terms.map((t) => (
+                      <Chip key={t.term} label={t.label} active={data.searched.term === t.term} soft onPress={() => setTerm(t.term)} />
+                    ))}
+                  </ScrollView>
+                ) : null}
+                {lensTop.length ? (
+                  <View style={styles.pad}>
+                    <Showcase key={lensKey} items={lensTop} now={now} onOpen={open} />
+                  </View>
+                ) : (
+                  <Text style={styles.none}>{openOnly ? 'Nada abierto ahora en esta lente. Quita «Abiertos ahora» para ver el resto.' : 'Ahora no hay ofertas para esto. Mira abajo el catálogo.'}</Text>
+                )}
+                {lensRest.length ? (
+                  <View style={styles.grid}>
+                    {lensRest.map((o, i) => (
+                      <OfferTile key={o.id} item={o} now={now} width={lensRest.length % 2 === 1 && i === lensRest.length - 1 ? halfW * 2 + 10 : halfW} onPress={() => open(o)} />
+                    ))}
+                  </View>
+                ) : null}
+              </Reveal>
+            ) : null}
+
+            {data && !lenses.length && show !== 'services' ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyTitle}>{`Hoy no hay ofertas ${picked ? `en ${picked.name}` : data.zone ? `en ${data.zone}` : 'cerca'}`}</Text>
+                <Text style={styles.emptyText}>Cuando un negocio de tu zona publique una, sale aquí. Mientras tanto, mira lo que ofrecen en su catálogo o busca en toda la ciudad.</Text>
+                <Button title={city ? `Ver toda ${city}` : 'Ver todas'} variant="secondary" onPress={() => openAll(false)} />
               </View>
-              <Pressable
-                accessibilityRole="link"
-                onPress={() => {
-                  setVitrinaFilter('services');
-                  openAll(false);
-                }}
-                style={styles.seeAll}
-              >
-                <Text style={styles.seeAllText}>Ver catálogo</Text>
-              </Pressable>
-            </View>
-            {rail(catalogSpotlightItems)}
-          </View>
+            ) : null}
+
+            {/* Del catálogo: siempre aparte de las ofertas */}
+            {show !== 'offers' && catalogRow.length > 0 ? (
+              <View style={styles.sec}>
+                <View style={styles.railHead}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.shTitle} accessibilityRole="header">
+                      Del catálogo de los negocios
+                    </Text>
+                    <Text style={styles.shWhy}>Precios publicados por cada local · Mira al instante si tienen oferta</Text>
+                  </View>
+                  <Pressable
+                    accessibilityRole="link"
+                    onPress={() => {
+                      setVitrinaFilter('services');
+                      openAll(false);
+                    }}
+                    style={styles.seeAll}
+                  >
+                    <Text style={styles.seeAllText}>Ver catálogo</Text>
+                  </Pressable>
+                </View>
+                {rail(catalogRow)}
+              </View>
+            ) : null}
+          </>
         ) : null}
 
-        {home && data?.routes.length ? (
+        {home && show !== 'services' && data?.routes.length ? (
           <View style={styles.sec}>
             <View style={styles.sh}>
               <Text style={styles.shTitle} accessibilityRole="header">
@@ -756,6 +797,35 @@ export default function OffersScreen() {
 
       {/* FICHA RÁPIDA INTERACTIVA CON EMPRE AI + DETECCIÓN DE OFERTA + CHAT DIRECTO */}
       <MarketItemSheet item={selectedItem} onClose={() => setSelectedItem(null)} />
+      <FiltersSheet
+        visible={filtersOpen}
+        zones={[...(coords ? [{ id: '', name: 'Cerca de ti', on: !picked }] : []), ...(data?.zones ?? []).map((z) => ({ id: z.id, name: z.name, on: picked?.id === z.id }))]}
+        onZone={pickZone}
+        show={show}
+        onShow={setVitrinaFilter}
+        sorts={sortOptions(hasLoc)}
+        sort={sortNow}
+        onSort={setSort}
+        openOnly={openOnly}
+        onOpenOnly={setOpenOnly}
+        onClear={clearFilters}
+        onClose={() => setFiltersOpen(false)}
+      />
+      <BizVitrinaSheet
+        face={face}
+        offers={face ? knownOffers.filter((o) => o.entity_id === face.id) : []}
+        catalog={face ? (catalogsByEntity[face.id] ?? []) : []}
+        now={now}
+        onOffer={(o) => {
+          setFace(null);
+          open(o);
+        }}
+        onBusiness={(id) => {
+          setFace(null);
+          router.push({ pathname: '/business/[id]', params: { id } });
+        }}
+        onClose={() => setFace(null)}
+      />
     </View>
   );
 }
@@ -794,6 +864,9 @@ function EmptyOffers({ searching }: { searching: boolean }) {
 }
 
 const styles = StyleSheet.create({
+  lensBar: { gap: 10 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 20 },
+  emptyCard: { marginHorizontal: 20, padding: 18, gap: 10, borderRadius: 20, backgroundColor: colors.surface },
   pad: { paddingHorizontal: 20, gap: 14 },
   field: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 14, paddingRight: 4, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
   fieldText: { flex: 1, minWidth: 0, fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.faint },
