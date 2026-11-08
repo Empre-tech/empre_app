@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Chispa, type ChispaMood } from '@/components/ai/Chispa';
 import { FadeIn } from '@/components/explore/LoadingMotion';
 import { answer, detectIntent, followUps, priceLabel, suggestQuestions, type Action, type Answer, type AnswerData, type Block, type Intent } from '@/lib/answers';
 import { formatEndsWhen } from '@/lib/offer';
@@ -81,9 +82,12 @@ function SheetBody({ data, start, onClose, handlers }: { data: AnswerData; start
   const older = turns.slice(0, -1);
   const follow = last ? followUps(data, last.answer.intent, asked) : suggestQuestions(data, asked, 3);
 
+  const [mood, setMood] = useState<ChispaMood>('reposo');
   const push = (t: Turn) => {
     setTurns((all) => [...all, t]);
     setShowOld(false);
+    setMood(t.answer.unanswered ? 'nosabe' : 'responde');
+    setTimeout(() => setMood('reposo'), 1400);
   };
   const onAction = (a: Action) => {
     if (a.kind === 'see_slots') handlers.onSeeSlots(a.serviceId);
@@ -103,6 +107,7 @@ function SheetBody({ data, start, onClose, handlers }: { data: AnswerData; start
       <View style={[styles.sheet, { paddingBottom: insets.bottom }]} accessibilityViewIsModal>
         <View style={styles.handle} />
         <View style={styles.top}>
+          <Chispa size={36} mood={mood} />
           <View style={{ flex: 1 }}>
             <Text style={styles.title} accessibilityRole="header">
               Respuestas al instante
@@ -270,7 +275,7 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(22,35,58,0.45)' },
   sheet: { height: '86%', backgroundColor: colors.bg, borderTopLeftRadius: radius.lg + 2, borderTopRightRadius: radius.lg + 2, overflow: 'hidden' },
   handle: { width: 38, height: 5, borderRadius: 3, backgroundColor: colors.line, alignSelf: 'center', marginTop: spacing.sm },
-  top: { flexDirection: 'row', alignItems: 'center', paddingLeft: spacing.lg, paddingRight: spacing.xs, paddingTop: spacing.xs, paddingBottom: spacing.sm },
+  top: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: spacing.lg, paddingRight: spacing.xs, paddingTop: spacing.xs, paddingBottom: spacing.sm },
   title: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
   subRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
   auto: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, letterSpacing: 0.4, color: colors.primaryDark, backgroundColor: colors.primarySoft, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden' },

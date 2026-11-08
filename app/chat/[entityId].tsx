@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { track } from '@/analytics/track';
 import { answersApi, replyLabel } from '@/api/answers';
 import { AiAnswerBubble, AiAnswerOwnerRow, AiStatusLine, TeachLink } from '@/components/chat/AiAnswerBubble';
+import type { ChispaMood } from '@/components/ai/Chispa';
 import { ChatVoices, HandoffLine, OwnerAvatar } from '@/components/chat/ChatVoices';
 import { useAnswerData } from '@/components/chat/useAnswerData';
 import { answer as buildAnswer, detectIntent, suggestQuestions, type Action, type Answer, type Intent } from '@/lib/answers';
@@ -78,6 +79,17 @@ export default function ChatScreen() {
   // Empre AI (3.62): lo que respondió, las preguntas en espera y qué intenciones ya respondió.
   const [aiRows, setAiRows] = useState<AiRow[]>([]);
   const [pending, setPending] = useState<PendingQuestion[]>([]);
+  // La Chispa (3.63) cuenta lo que pasa: buscando, respondió, se lo pasó al dueño o te sirvió; luego vuelve al reposo.
+  const [mood, setMood] = useState<ChispaMood>('reposo');
+  const moodTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showMood = useCallback((m: ChispaMood, ms?: number) => {
+    if (moodTimer.current) clearTimeout(moodTimer.current);
+    setMood(m);
+    moodTimer.current = ms ? setTimeout(() => setMood('reposo'), ms) : null;
+  }, []);
+  useEffect(() => () => {
+    if (moodTimer.current) clearTimeout(moodTimer.current);
+  }, []);
   // La hora con que se arman las respuestas guardadas (si una oferta ya venció, no se presenta como vigente).
   const [openedAt] = useState(() => Date.now());
 
@@ -258,13 +270,16 @@ export default function ChatScreen() {
     }
     setPending(keep);
     if (add.length) setAiRows((prev) => [...add, ...prev]);
+    if (saveToServer.length || add.some((r) => r.ai === 'answer')) showMood('responde', 1400);
+    else if (add.some((r) => r.ai === 'status')) showMood('nosabe', 2200);
+    else if (keep.length) showMood('reposo');
     for (const q of saveToServer) {
       chatApi
         .aiAnswer(entityId, q.intent, q.serviceId, q.taughtId)
         .then((m) => setLive((prev) => (prev.some((x) => x.id === m.id) ? prev : [m, ...prev])))
         .catch(() => setAiRows((prev) => [{ id: `ai-${q.id}`, created_at: new Date().toISOString(), ai: 'answer', intent: q.intent, answer: q.answer }, ...prev]));
     }
-  }, [answerData?.name, name, entityId, user?.id]);
+  }, [answerData?.name, name, entityId, user?.id, showMood]);
 
   // Mientras haya preguntas en espera, se revisa cada segundo (el dueño puede contestar o pasar los 45 s).
   useEffect(() => {
@@ -276,6 +291,7 @@ export default function ChatScreen() {
   /** Después de enviar una pregunta del cliente: Empre AI prepara la respuesta con los datos del negocio. */
   const askEmpreAI = async (content: string, preset?: Intent) => {
     if (sentByEntity || !answerData || answerData.aiChatOff || !entityId) return;
+    showMood('pensando');
     let found: { intent: Intent; services: { id: string }[]; taughtId?: string } = preset ? { intent: preset, services: [] } : detectIntent(content, answerData.services, answerData.taught);
     // F4: si las reglas no la entienden, el servidor la clasifica (solo la intención; la respuesta sale de lo publicado).
     if (found.intent === 'unknown') {
@@ -440,7 +456,7 @@ export default function ChatScreen() {
           </Text>
         </View>
       ) : null}
-      {!sentByEntity && aiOn ? <ChatVoices avatar={avatar} businessName={businessName} online={connected && otherOnline} ownerSub={connected && otherOnline ? 'En línea ahora' : replyText ?? 'Te responde por aquí'} /> : null}
+      {!sentByEntity && aiOn ? <ChatVoices avatar={avatar} businessName={businessName} online={connected && otherOnline} ownerSub={connected && otherOnline ? 'En línea ahora' : replyText ?? 'Te responde por aquí'} mood={mood} /> : null}
 
       {authStatus !== 'signedIn' ? (
         <View style={styles.center}>
@@ -478,7 +494,10 @@ export default function ChatScreen() {
                   businessName={answerData?.name ?? name ?? 'el negocio'}
                   onAction={onAiAction}
                   onChoose={onAiChoose(row.intent)}
-                  onFeedback={(useful) => track('ai_answer_feedback', entityId, { intent: row.intent, useful })}
+                  onFeedback={(useful) => {
+                    track('ai_answer_feedback', entityId, { intent: row.intent, useful });
+                    if (useful) showMood('contento', 1400);
+                  }}
                 />
               ) : (
                 <AiStatusLine text={row.text} />
@@ -496,7 +515,10 @@ export default function ChatScreen() {
                   businessName={answerData?.name ?? name ?? 'el negocio'}
                   onAction={onAiAction}
                   onChoose={onAiChoose(intent)}
-                  onFeedback={(useful) => track('ai_answer_feedback', entityId, { intent, useful })}
+                  onFeedback={(useful) => {
+                    track('ai_answer_feedback', entityId, { intent, useful });
+                    if (useful) showMood('contento', 1400);
+                  }}
                 />
               ) : null;
             }

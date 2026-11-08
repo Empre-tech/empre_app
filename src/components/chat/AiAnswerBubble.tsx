@@ -51,6 +51,7 @@ export function AiAnswerBubble({ answer, businessName, onAction, onChoose, onFee
                   setFeedback('yes');
                   onFeedback?.(true);
                 }}
+                accessibilityLabel="Sí, me sirvió"
                 style={styles.chip}
               >
                 <Text style={styles.chipText}>Sí</Text>
