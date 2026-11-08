@@ -301,6 +301,9 @@ export const chatApi = {
     request<ChatMessage>(`/api/chat/ai-answer/${entityId}`, { method: 'POST', body: { intent, ...(serviceId ? { service_id: serviceId } : {}), ...(answerId ? { answer_id: answerId } : {}) } }),
 
   /** Empre AI no supo responder esta pregunta del cliente: el dueño la ve para enseñarle (3.62, F3). */
+  /** F4: el servidor clasifica una pregunta que las reglas no entendieron (solo la intención, nunca una respuesta). */
+  classify: (entityId: string, text: string) => request<{ intent: string; answer_id?: string }>(`/api/chat/classify/${entityId}`, { method: 'POST', body: { text } }),
+
   aiUnknown: (entityId: string, messageId: string) => request<void>(`/api/chat/ai-unknown/${entityId}`, { method: 'POST', body: { message_id: messageId } }),
 
   presence: (entityId: string, userId?: string, ownerId?: string) =>

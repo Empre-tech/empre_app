@@ -273,9 +273,14 @@ export default function ChatScreen() {
   }, [pending.length, resolvePending]);
 
   /** Después de enviar una pregunta del cliente: Empre AI prepara la respuesta con los datos del negocio. */
-  const askEmpreAI = (content: string, preset?: Intent) => {
+  const askEmpreAI = async (content: string, preset?: Intent) => {
     if (sentByEntity || !answerData || answerData.aiChatOff || !entityId) return;
-    const found: { intent: Intent; services: { id: string }[]; taughtId?: string } = preset ? { intent: preset, services: [] } : detectIntent(content, answerData.services, answerData.taught);
+    let found: { intent: Intent; services: { id: string }[]; taughtId?: string } = preset ? { intent: preset, services: [] } : detectIntent(content, answerData.services, answerData.taught);
+    // F4: si las reglas no la entienden, el servidor la clasifica (solo la intención; la respuesta sale de lo publicado).
+    if (found.intent === 'unknown') {
+      const c = await chatApi.classify(entityId, content).catch(() => null);
+      if (c && c.intent !== 'unknown') found = { intent: c.intent as Intent, services: [], taughtId: c.answer_id };
+    }
     const now = new Date();
     const ans = buildAnswer(answerData, found.intent, { serviceId: found.services.length === 1 ? found.services[0].id : undefined, taughtId: found.taughtId, text: content, weekday: now.getDay(), now: now.getTime() });
     track('question_asked', entityId, { intent: found.intent, answered: !ans.unanswered });
@@ -355,7 +360,7 @@ export default function ChatScreen() {
     setText('');
     setError(null);
     void queryClient.invalidateQueries({ queryKey: ['conversations'] });
-    askEmpreAI(content);
+    void askEmpreAI(content);
   };
 
   const connected = chat.status === 'open';
@@ -537,7 +542,7 @@ export default function ChatScreen() {
               key={label}
               accessibilityRole="button"
               onPress={() => {
-                if (sendQuick(label)) askEmpreAI(label, intent);
+                if (sendQuick(label)) void askEmpreAI(label, intent);
               }}
               disabled={!connected}
               style={({ pressed }) => [styles.quickReplyChip, (pressed || !connected) && { opacity: 0.6 }]}
