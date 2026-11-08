@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { BlockView } from '@/components/profile/AskEmpre';
+import { AiAvatar } from './ChatVoices';
 import type { Action, Answer } from '@/lib/answers';
 import { chatActions } from '@/lib/chatAutoAnswer';
 import { colors, fonts, radius } from '@/theme';
@@ -16,11 +17,15 @@ export function AiAnswerBubble({ answer, businessName, onAction, onChoose, onFee
   const actions = chatActions(answer.actions);
   return (
     <View style={styles.row}>
-      <View style={styles.bubble} accessibilityLabel={`Respuesta de Empre AI con lo que publicó ${businessName}`}>
+      <AiAvatar />
+      <View style={styles.bubble} accessibilityLabel={`Respuesta automática de Empre AI con lo que publicó ${businessName}`}>
         <View style={styles.head}>
-          <EmpreSymbol product="ai" size={18} animated={false} />
+          <Text style={styles.headName}>Empre AI</Text>
+          <View style={styles.autoChip}>
+            <Text style={styles.autoText}>Automático</Text>
+          </View>
           <Text style={styles.headText} numberOfLines={1}>
-            Empre AI · con lo que publicó {businessName}
+            con lo que publicó el negocio
           </Text>
         </View>
         {answer.blocks.map((b, i) => (
@@ -33,6 +38,7 @@ export function AiAnswerBubble({ answer, businessName, onAction, onChoose, onFee
             <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
           </Pressable>
         ) : null}
+        <Text style={styles.reached}>Tu mensaje también le llegó al dueño.</Text>
         <View style={styles.foot}>
           {feedback ? (
             <Text style={styles.footText}>{feedback === 'yes' ? 'Gracias. El negocio igual ve tu mensaje.' : `Listo, ${businessName} te responde por aquí.`}</Text>
@@ -119,9 +125,13 @@ export function AiStatusLine({ text }: { text: string }) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', justifyContent: 'flex-start', marginVertical: 4 },
-  bubble: { maxWidth: '88%', gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12, borderRadius: 18, borderBottomLeftRadius: 4, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  row: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, justifyContent: 'flex-start', marginVertical: 4 },
+  bubble: { maxWidth: '84%', gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12, borderRadius: 18, borderBottomLeftRadius: 4, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
+  head: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  headName: { fontSize: 12.5, fontFamily: fonts.display.bold, color: colors.ink },
+  autoChip: { paddingHorizontal: 8, paddingVertical: 1, borderRadius: radius.pill, backgroundColor: colors.selectedSoft },
+  autoText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
+  reached: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
   headText: { flexShrink: 1, fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.muted },
   source: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.faint },
   cta: { alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.ink },

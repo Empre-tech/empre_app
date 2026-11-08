@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { track } from '@/analytics/track';
 import { answersApi, replyLabel } from '@/api/answers';
 import { AiAnswerBubble, AiAnswerOwnerRow, AiStatusLine, TeachLink } from '@/components/chat/AiAnswerBubble';
+import { ChatVoices, HandoffLine, OwnerAvatar } from '@/components/chat/ChatVoices';
 import { useAnswerData } from '@/components/chat/useAnswerData';
 import { answer as buildAnswer, detectIntent, suggestQuestions, type Action, type Answer, type Intent } from '@/lib/answers';
 import { autoAnswerStep, ownerRepliedSince } from '@/lib/chatAutoAnswer';
@@ -251,7 +252,7 @@ export default function ChatScreen() {
           if (asked) void chatApi.aiUnknown(entityId, asked.id).catch(() => undefined);
           if (hasStatus || add.some((r) => r.ai === 'status')) continue;
           const who = answerData?.name ?? name ?? 'El negocio';
-          add.push({ id: `ai-${q.id}`, created_at: new Date().toISOString(), ai: 'status', text: online ? `${who} está en línea; seguro te responde pronto.` : `${who} aún no responde. Te llega un aviso cuando conteste.` });
+          add.push({ id: `ai-${q.id}`, created_at: new Date().toISOString(), ai: 'status', text: online ? `Empre AI no sabe esto. Se lo pasó al dueño de ${who}, que está en línea.` : `Empre AI no sabe esto. Se lo pasó al dueño de ${who}; te llega un aviso cuando conteste.` });
         }
       }
     }
@@ -307,6 +308,26 @@ export default function ChatScreen() {
     () => (aiRows.length ? [...aiRows, ...messages].sort((a, b) => b.created_at.localeCompare(a.created_at)) : messages),
     [aiRows, messages],
   );
+  // «Dos voces» (3.62): dónde empieza un grupo de mensajes del dueño (para su avatar y nombre) y dónde entra el dueño
+  // después de una respuesta de Empre AI (el relevo).
+  const voices = useMemo(() => {
+    const ownerStart = new Set<string>();
+    const handoff = new Set<string>();
+    let prevOwner = false;
+    let sawAi = false;
+    for (const r of [...rows].reverse()) {
+      const isAi = 'ai' in r ? r.ai === 'answer' : r.kind === 'ai_answer';
+      const isOwner = !('ai' in r) && r.sent_by_entity && r.kind !== 'ai_answer';
+      if (isOwner && !prevOwner) ownerStart.add(r.id);
+      if (isOwner && sawAi) handoff.add(r.id);
+      if (isAi) sawAi = true;
+      if (isOwner) sawAi = false;
+      prevOwner = isOwner;
+    }
+    return { ownerStart, handoff };
+  }, [rows]);
+  const businessName = answerData?.name ?? name ?? 'el negocio';
+
   const suggestions = useMemo(() => (answerData && aiOn ? suggestQuestions(answerData, answeredIntents as ReadonlySet<Intent>, 3) : []), [answerData, aiOn, answeredIntents]);
   const teach = (params: { intent?: string; question?: string }) => router.push({ pathname: '/business/teach/[id]', params: { id: entityId, ...params } });
 
@@ -411,14 +432,15 @@ export default function ChatScreen() {
         ) : null}
       </View>
 
-      {!sentByEntity && (todayHours || replyText) ? (
+      {!sentByEntity && (todayHours || (!aiOn && replyText)) ? (
         <View style={styles.infoBar}>
           <Ionicons name="time-outline" size={13} color={colors.muted} />
           <Text style={styles.infoBarText} numberOfLines={1}>
-            {[todayHours, replyText].filter(Boolean).join(' · ')}
+            {[todayHours, aiOn ? null : replyText].filter(Boolean).join(' · ')}
           </Text>
         </View>
       ) : null}
+      {!sentByEntity && aiOn ? <ChatVoices avatar={avatar} businessName={businessName} online={connected && otherOnline} ownerSub={connected && otherOnline ? 'En línea ahora' : replyText ?? 'Te responde por aquí'} /> : null}
 
       {authStatus !== 'signedIn' ? (
         <View style={styles.center}>
@@ -479,6 +501,7 @@ export default function ChatScreen() {
               ) : null;
             }
             const mine = item.sender_id === user?.id;
+            const ownerVoice = !sentByEntity && aiOn && !mine && item.sent_by_entity;
             return (
               <View>
                 {dayStarts.has(item.id) ? (
@@ -486,13 +509,16 @@ export default function ChatScreen() {
                     <Text style={styles.daySeparatorText}>{formatDayLabel(item.created_at)}</Text>
                   </View>
                 ) : null}
+                {!sentByEntity && voices.handoff.has(item.id) ? <HandoffLine /> : null}
                 {FEATURES.agenda && item.kind === 'appointment' && item.appointment_id ? (
                   <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
                     <AppointmentCard appointmentId={item.appointment_id} />
                   </View>
                 ) : (
-                <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
-                  <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs, item.item && styles.bubbleWithItem]}>
+                <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs, ownerVoice && styles.ownerRow]}>
+                  {ownerVoice ? <View style={styles.ownerAvatarSlot}>{voices.ownerStart.has(item.id) ? <OwnerAvatar uri={avatar} name={businessName} /> : null}</View> : null}
+                  <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs, item.item && styles.bubbleWithItem, ownerVoice && styles.ownerBubble]}>
+                    {ownerVoice && voices.ownerStart.has(item.id) ? <Text style={styles.ownerLabel}>{`El dueño · ${businessName}`}</Text> : null}
                     {item.item ? (
                       <ChatItemCard
                         item={item.item}
@@ -530,6 +556,7 @@ export default function ChatScreen() {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
+      {authStatus === 'signedIn' && !sentByEntity && suggestions.length ? <Text style={styles.faqLabel}>Preguntas frecuentes · respuesta al instante</Text> : null}
       {authStatus === 'signedIn' && !sentByEntity ? (
         <ScrollView
           horizontal
@@ -547,6 +574,7 @@ export default function ChatScreen() {
               disabled={!connected}
               style={({ pressed }) => [styles.quickReplyChip, (pressed || !connected) && { opacity: 0.6 }]}
             >
+              {intent ? <Ionicons name="sparkles" size={12} color={colors.ink} /> : null}
               <Text style={styles.quickReplyText}>{label}</Text>
             </Pressable>
           ))}
@@ -568,7 +596,7 @@ export default function ChatScreen() {
               setText(value);
               if (error) setError(null);
             }}
-            placeholder="Escribe un mensaje"
+            placeholder={!sentByEntity && aiOn ? 'Escríbele al dueño o pregunta' : 'Escribe un mensaje'}
             placeholderTextColor={colors.muted}
             style={styles.input}
             multiline
@@ -627,16 +655,25 @@ const styles = StyleSheet.create({
   },
   infoBarText: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
   quickRepliesScroll: { flexGrow: 0, flexShrink: 0 },
+  faqLabel: { paddingHorizontal: spacing.lg, paddingTop: 6, fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.muted },
+  ownerRow: { alignItems: 'flex-end', gap: 8 },
+  ownerAvatarSlot: { width: 28 },
+  ownerBubble: { shadowColor: '#0E2346', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+  ownerLabel: { marginBottom: 2, fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.verified },
   quickReplies: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.sm },
+  // Preguntas frecuentes (3.62): blancas, en tinta y de 44 px; el destello marca las que responde Empre AI.
   quickReplyChip: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: spacing.md,
-    paddingVertical: 7,
     borderRadius: radius.pill,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
   },
-  quickReplyText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.primary },
+  quickReplyText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, padding: spacing.xl },
   muted: { color: colors.muted, textAlign: 'center' },
   // El FlatList de mensajes debe ocupar todo el espacio disponible entre el
