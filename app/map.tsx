@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -34,6 +34,7 @@ import { useRevealedMarkers } from '@/components/explore/useRevealedMarkers';
 import { useZoneName, useZones } from '@/components/explore/useZoneName';
 import { track } from '@/analytics/track';
 import { ContextRow } from '@/components/explore/ContextRow';
+import { FinderWelcome } from '@/components/explore/FinderWelcome';
 import { LoadingChip } from '@/components/explore/LoadingChip';
 import { LocationStrip } from '@/components/explore/LocationStrip';
 import { PlaceSheet } from '@/components/explore/PlaceSheet';
@@ -56,6 +57,7 @@ import { shouldAutoStart } from '@/lib/exploreGuide';
 import { loadGuideSeen, saveGuideSeen } from '@/lib/exploreGuideStore';
 import { snippetLines } from '@/lib/reviewSnippet';
 import { effectiveClaimStatus } from '@/lib/claims';
+import { openLine as welcomeOpenLine } from '@/lib/finderWelcome';
 import { boxAround, EXTRAS_MAX, ZONE_FICHA_MAX, openLine, pickExtras, reasonPill, relatedFrom, SEARCH_NEAR_KM, sectionsInView, sheetHeader, snippetIdsToFetch, type SearchScope } from '@/lib/discover';
 import type { ReviewSnippetData } from '@/lib/reviewSnippet';
 import { onFootOrDistance } from '@/lib/format';
@@ -198,6 +200,16 @@ export default function MapScreen() {
   // un mensaje útil en vez de repetir "necesitamos tu ubicación" sin explicar qué pasó.
   const [locationError, setLocationError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  // Bienvenida a Empre Finder mientras llega el mapa (3.60). No sale si llegas con una búsqueda ya escrita.
+  const [welcome, setWelcome] = useState(() => typeof entry.q !== 'string');
+  const queryClient = useQueryClient();
+  // Lo que el inicio ya trajo: la bienvenida lo cuenta sin esperar al mapa.
+  const [homeNear] = useState(() => {
+    const cached = queryClient.getQueriesData<{ items?: DiscoveryItem[] }>({ queryKey: ['home-near'] });
+    const items = cached.map(([, d]) => d?.items ?? []).find((x) => x.length) ?? [];
+    const open = items.filter((b) => b.is_open_now);
+    return welcomeOpenLine(open.filter((b) => b.distance_meters <= 400).length, open.length);
+  });
   // Evita volver a centrar automáticamente cada vez que se remonta el MapView
   // (p. ej. al alternar entre mapa y lista); solo centramos la primera vez.
   const didCenterRef = useRef(false);
@@ -567,6 +579,9 @@ export default function MapScreen() {
   // Sin pines todavía y pidiendo la zona: el mapa lo dice en vez de verse vacío (con búsqueda ya lo
   // dice el panel: «Buscando…»).
   const mapLoading = !searching && startupRegion !== null && markers.length === 0 && (entities.isFetching || cellsQuery.isFetching);
+  // El mapa está «listo» para la bienvenida cuando ya se dibujó y llegaron los negocios (o se sabe que no hay).
+  const welcomeReady = mapReady && (markers.length > 0 || (!entities.isFetching && !cellsQuery.isFetching));
+  const endWelcome = useCallback(() => setWelcome(false), []);
 
   // En qué zona está la persona (o qué zona mira el mapa): nombre del encabezado del panel.
   const viewPoint = useMemo(() => ({ latitude: region.latitude, longitude: region.longitude }), [region.latitude, region.longitude]);
@@ -990,7 +1005,7 @@ export default function MapScreen() {
       alive = false;
     };
   }, []);
-  const guideBusy = searching || selectedEntity !== null || placeItems !== null || !mapReady || topH === 0;
+  const guideBusy = welcome || searching || selectedEntity !== null || placeItems !== null || !mapReady || topH === 0;
   useEffect(() => {
     if (!shouldAutoStart(guideSeen, guideBusy) || guideStep !== null) return;
     const t = setTimeout(() => setGuideStep(0), 800);
@@ -1091,9 +1106,7 @@ export default function MapScreen() {
         <View style={styles.mapWrap}>
           {startupRegion === null ? (
             // Resolviendo si ya había permiso/posición para arrancar centrados de una.
-            <View style={[styles.map, styles.mapStartupLoading]}>
-              <ActivityIndicator color={colors.primary} />
-            </View>
+            <View style={[styles.map, styles.mapStartupLoading]}>{welcome ? null : <ActivityIndicator color={colors.primary} />}</View>
           ) : (
             <MapView
               ref={mapRef}
@@ -1404,6 +1417,8 @@ export default function MapScreen() {
 
       </View>
 
+      {welcome ? <FinderWelcome ready={welcomeReady} zoneName={zoneName?.title ?? null} openLine={homeNear} onDone={endWelcome} /> : null}
+
       {guideStep !== null ? <ExploreGuide step={guideStep} rects={[stripRect, usefulRect]} size={mapSize} onStep={onGuideStep} /> : null}
 
       <PhotoViewer
@@ -1485,7 +1500,7 @@ const styles = StyleSheet.create({
   content: { flex: 1, position: 'relative' },
   mapWrap: { flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#EEF2F7' },
   map: { flex: 1 },
-  mapStartupLoading: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
+  mapStartupLoading: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
   activeChips: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   clearChip: { paddingHorizontal: spacing.xs, paddingVertical: 6 },
   clearChipText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.primary },

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Text, View, type View as ViewType } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import type { DiscoveryItem } from '@/api/types';
 import { HomeMap } from '@/components/explore/HomeMap';
@@ -8,6 +8,14 @@ import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, softShadow } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
+
+/** Dónde está la puerta Explorar en la pantalla: desde ahí se abre hacia el mapa. */
+export interface DoorRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 export interface SmallDoor {
   key: string;
@@ -74,14 +82,20 @@ export function HomeDoors({
   mapSub: string;
   hasOpen: boolean;
   offersSub: string;
-  onExplore: () => void;
+  onExplore: (rect: DoorRect | null) => void;
   onOffers: () => void;
   doors: SmallDoor[];
 }) {
+  const exploreRef = useRef<ViewType>(null);
+  const openExplore = () => {
+    const node = exploreRef.current;
+    if (!node) return onExplore(null);
+    node.measureInWindow((x, y, w, h) => onExplore(w > 0 ? { x, y, w, h } : null));
+  };
   return (
     <View style={styles.wrap}>
       <View style={styles.bigRow}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Explorar el mapa. ${mapSub}`} onPress={onExplore} style={({ pressed }) => [styles.explore, pressed && styles.pressed]}>
+        <Pressable ref={exploreRef} accessibilityRole="button" accessibilityLabel={`Explorar el mapa. ${mapSub}`} onPress={openExplore} style={({ pressed }) => [styles.explore, pressed && styles.pressed]}>
           <View pointerEvents="none" style={StyleSheet.absoluteFill}>
             {center ? (
               <HomeMap center={center} items={mapItems} selectedId={null} onPick={() => undefined} showUser />

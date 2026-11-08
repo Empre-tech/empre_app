@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi } from '@/api/agenda';
 import { catalogApi } from '@/api/catalog';
@@ -17,7 +17,7 @@ import { BusinessCardModal } from '@/components/explore/BusinessCardModal';
 import type { WithDistance } from '@/components/explore/FeaturedCard';
 import { useZones } from '@/components/explore/useZoneName';
 import { BAND, dayPart, HomeBand } from '@/components/home/HomeBand';
-import { HomeDoors, type SmallDoor } from '@/components/home/HomeDoors';
+import { HomeDoors, type DoorRect, type SmallDoor } from '@/components/home/HomeDoors';
 import { ParaTiCarousel, type ParaTiSlide } from '@/components/home/ParaTiCarousel';
 import { MarketItemSheet } from '@/components/offers/MarketItemSheet';
 import { SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
@@ -32,6 +32,7 @@ import { pickParaTi, type ParaTiCandidate } from '@/lib/paraTi';
 import { topHabits, type SearchHabit } from '@/lib/searchHabits';
 import { loadHabits } from '@/lib/searchHabitsStore';
 import { useCoords } from '@/lib/useCoords';
+import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, softShadow } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -82,6 +83,11 @@ export default function HomeScreen() {
   const [habits, setHabits] = useState<SearchHabit[]>([]);
   // La hora del inicio: se fija al entrar y se renueva cada vez que vuelves a él (de ella salen la franja y «Para ti»).
   const [now, setNow] = useState(() => Date.now());
+  // La puerta Explorar se abre hasta llenar la pantalla y ahí empieza el mapa (3.60).
+  const reduce = useReduceMotion();
+  const win = useWindowDimensions();
+  const [door, setDoor] = useState<DoorRect | null>(null);
+  const [grow] = useState(() => new Animated.Value(0));
   const newsY = useRef(0);
   const scrollRef = useRef<ScrollView>(null);
   const zone = zones.find((z) => z.id === zoneId) ?? null;
@@ -93,6 +99,7 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       setNow(Date.now());
+      setDoor(null);
       void loadHabits().then(setHabits);
     }, []),
   );
@@ -223,6 +230,18 @@ export default function HomeScreen() {
     };
   });
 
+  const openExplore = (rect: DoorRect | null) => {
+    if (!rect || reduce) {
+      router.push('/map');
+      return;
+    }
+    setDoor(rect);
+    grow.setValue(0);
+    Animated.timing(grow, { toValue: 1, duration: 380, easing: Easing.inOut(Easing.cubic), useNativeDriver: false }).start(({ finished }) => {
+      if (finished) router.push('/map');
+    });
+  };
+
   const ask = (q?: string, voice = false) => router.push({ pathname: '/ask', params: { ...(q ? { q } : {}), ...(voice ? { voice: '1' } : {}) } });
   const openNews = (n: NovedadItem) => {
     if (n.kind === 'offer') router.push({ pathname: '/offer/[id]', params: { id: n.id, entityId: n.entity_id } });
@@ -316,7 +335,7 @@ export default function HomeScreen() {
             mapSub={mapSub}
             hasOpen={openNear.length > 0}
             offersSub={marketItems.length ? 'Las de hoy, cerca' : 'En toda la ciudad'}
-            onExplore={() => router.push('/map')}
+            onExplore={openExplore}
             onOffers={() => router.push('/(tabs)/offers')}
             doors={doors}
           />
@@ -399,12 +418,28 @@ export default function HomeScreen() {
         <BusinessCardModal entity={card} onClose={() => setCard(null)} origin="home" />
         <MarketItemSheet item={previewItem} onClose={() => setPreviewItem(null)} />
       </ScrollView>
+      {door ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.door,
+            {
+              left: grow.interpolate({ inputRange: [0, 1], outputRange: [door.x, 0] }),
+              top: grow.interpolate({ inputRange: [0, 1], outputRange: [door.y, 0] }),
+              width: grow.interpolate({ inputRange: [0, 1], outputRange: [door.w, win.width] }),
+              height: grow.interpolate({ inputRange: [0, 1], outputRange: [door.h, win.height] }),
+              borderRadius: grow.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }),
+            },
+          ]}
+        />
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
+  door: { position: 'absolute', zIndex: 20, backgroundColor: colors.selectedSoft },
   content: { paddingBottom: 120 },
   body: { paddingHorizontal: 20, paddingTop: 16, gap: 26 },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
