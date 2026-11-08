@@ -11,7 +11,7 @@ import { colors, fonts, radius } from '@/theme';
  * La respuesta de Empre AI dentro del chat (3.62, F1). Se ve distinta a la del negocio, dice de dónde sale el dato
  * («Según su horario publicado»), lleva una acción directa y pregunta si sirvió. Nunca se hace pasar por el dueño.
  */
-export function AiAnswerBubble({ answer, businessName, onAction, onChoose }: { answer: Answer; businessName: string; onAction: (a: Action) => void; onChoose: (serviceId: string, label: string) => void }) {
+export function AiAnswerBubble({ answer, businessName, onAction, onChoose, onFeedback }: { answer: Answer; businessName: string; onAction: (a: Action) => void; onChoose: (serviceId: string, label: string) => void; onFeedback?: (useful: boolean) => void }) {
   const [feedback, setFeedback] = useState<'yes' | 'wait' | null>(null);
   const actions = chatActions(answer.actions);
   return (
@@ -39,16 +39,57 @@ export function AiAnswerBubble({ answer, businessName, onAction, onChoose }: { a
           ) : (
             <>
               <Text style={styles.footText}>¿Te sirvió?</Text>
-              <Pressable accessibilityRole="button" onPress={() => setFeedback('yes')} style={styles.chip}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setFeedback('yes');
+                  onFeedback?.(true);
+                }}
+                style={styles.chip}
+              >
                 <Text style={styles.chipText}>Sí</Text>
               </Pressable>
-              <Pressable accessibilityRole="button" onPress={() => setFeedback('wait')} style={styles.chip}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setFeedback('wait');
+                  onFeedback?.(false);
+                }}
+                style={styles.chip}
+              >
                 <Text style={styles.chipText}>Prefiero esperar al negocio</Text>
               </Pressable>
             </>
           )}
         </View>
       </View>
+    </View>
+  );
+}
+
+/**
+ * Lo que ve el dueño (3.62, F2): plegado, para que sepa qué ya se respondió y qué falta. Al abrirlo ve la respuesta
+ * tal como la vio el cliente, armada con lo que su negocio tiene publicado.
+ */
+export function AiAnswerOwnerRow({ summary, answer }: { summary: string; answer: Answer | null }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={styles.ownerWrap}>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${summary}. ${open ? 'Ocultar' : 'Ver'} la respuesta`} onPress={() => setOpen((v) => !v)} style={styles.ownerRow}>
+        <EmpreSymbol product="ai" size={16} animated={false} />
+        <Text style={styles.ownerText} numberOfLines={2}>
+          {summary.replace('Empre AI respondió con su', 'Empre AI le respondió con tu').replace('Empre AI respondió', 'Empre AI le respondió')}
+        </Text>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} />
+      </Pressable>
+      {open && answer ? (
+        <View style={[styles.bubble, styles.ownerBubble]}>
+          {answer.blocks.map((b, i) => (
+            <BlockView key={i} b={b} />
+          ))}
+          {answer.source ? <Text style={styles.source}>{answer.source}</Text> : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -74,6 +115,10 @@ const styles = StyleSheet.create({
   footText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   chip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   chipText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  ownerWrap: { alignItems: 'center', gap: 6, marginVertical: 6 },
+  ownerRow: { minHeight: 44, maxWidth: '92%', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.selectedSoft },
+  ownerText: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  ownerBubble: { alignSelf: 'stretch', maxWidth: '100%' },
   statusRow: { alignItems: 'center', marginVertical: 6 },
   status: { maxWidth: '88%', textAlign: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.selectedSoft, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
 });

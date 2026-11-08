@@ -296,6 +296,10 @@ export const chatApi = {
    * cliente ya lo tiene (por el detalle del negocio que ya cargó), evita que
    * el backend tenga que consultarlo en cada sondeo.
    */
+  /** Guarda que Empre AI respondió `intent` (3.62, F2); el dueño lo ve en su hilo. Solo el cliente de la conversación. */
+  aiAnswer: (entityId: string, intent: string, serviceId?: string) =>
+    request<ChatMessage>(`/api/chat/ai-answer/${entityId}`, { method: 'POST', body: { intent, ...(serviceId ? { service_id: serviceId } : {}) } }),
+
   presence: (entityId: string, userId?: string, ownerId?: string) =>
     request<{ online: boolean }>(`/api/chat/presence/${entityId}`, {
       query: { user_id: userId, owner_id: userId ? undefined : ownerId },

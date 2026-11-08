@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { track } from '@/analytics/track';
-import { AiAnswerBubble, AiStatusLine } from '@/components/chat/AiAnswerBubble';
+import { AiAnswerBubble, AiAnswerOwnerRow, AiStatusLine } from '@/components/chat/AiAnswerBubble';
 import { useAnswerData } from '@/components/chat/useAnswerData';
 import { answer as buildAnswer, detectIntent, suggestQuestions, type Action, type Answer, type Intent } from '@/lib/answers';
 import { autoAnswerStep, ownerRepliedSince } from '@/lib/chatAutoAnswer';
@@ -47,6 +47,7 @@ interface PendingQuestion {
   id: string;
   askedAt: string;
   intent: Intent;
+  serviceId?: string;
   answer: Answer;
 }
 
@@ -73,6 +74,8 @@ export default function ChatScreen() {
   // Empre AI (3.62): lo que respondió, las preguntas en espera y qué intenciones ya respondió.
   const [aiRows, setAiRows] = useState<AiRow[]>([]);
   const [pending, setPending] = useState<PendingQuestion[]>([]);
+  // La hora con que se arman las respuestas guardadas (si una oferta ya venció, no se presenta como vigente).
+  const [openedAt] = useState(() => Date.now());
 
   const history = useQuery({
     queryKey: ['history', entityId, customerId],
@@ -102,7 +105,7 @@ export default function ChatScreen() {
     refetchIntervalInBackground: false,
   });
   const otherOnline = presence.data?.online ?? false;
-  const answerData = useAnswerData(entityId, !sentByEntity, authStatus === 'signedIn');
+  const answerData = useAnswerData(entityId, true, authStatus === 'signedIn');
 
   const todayHours = useMemo(() => {
     const hours = business.data?.hours;
@@ -205,15 +208,24 @@ export default function ChatScreen() {
   useEffect(() => {
     latest.current = { messages, otherOnline, aiRows, pending };
   }, [messages, otherOnline, aiRows, pending]);
-  const answeredIntents = useMemo(() => new Set<string>(aiRows.flatMap((r) => (r.ai === 'answer' ? [r.intent] : []))), [aiRows]);
+  const answeredIntents = useMemo(() => {
+    const today = new Date().toDateString();
+    const saved = messages.filter((m) => m.kind === 'ai_answer' && m.ai_intent && new Date(m.created_at).toDateString() === today).map((m) => m.ai_intent!);
+    return new Set<string>([...saved, ...aiRows.flatMap((r) => (r.ai === 'answer' ? [r.intent] : []))]);
+  }, [aiRows, messages]);
 
   const resolvePending = useCallback(() => {
     const { messages: msgs, otherOnline: online, aiRows: rows, pending: list } = latest.current;
     if (!list.length) return;
-    const answered = new Set<string>(rows.flatMap((r) => (r.ai === 'answer' ? [r.intent] : [])));
+    const today = new Date().toDateString();
+    const answered = new Set<string>([
+      ...msgs.filter((m) => m.kind === 'ai_answer' && m.ai_intent && new Date(m.created_at).toDateString() === today).map((m) => m.ai_intent!),
+      ...rows.flatMap((r) => (r.ai === 'answer' ? [r.intent] : [])),
+    ]);
     const hasStatus = rows.some((r) => r.ai === 'status');
     const keep: PendingQuestion[] = [];
     const add: AiRow[] = [];
+    const saveToServer: PendingQuestion[] = [];
     {
       for (const q of list) {
         const step = autoAnswerStep({
@@ -227,7 +239,7 @@ export default function ChatScreen() {
         if (step === 'wait') keep.push(q);
         else if (step === 'answer') {
           answered.add(q.intent);
-          add.push({ id: `ai-${q.id}`, created_at: new Date().toISOString(), ai: 'answer', intent: q.intent, answer: q.answer });
+          saveToServer.push(q);
         } else if (step === 'status' && !hasStatus && !add.some((r) => r.ai === 'status')) {
           const who = answerData?.name ?? name ?? 'El negocio';
           add.push({ id: `ai-${q.id}`, created_at: new Date().toISOString(), ai: 'status', text: online ? `${who} está en línea; seguro te responde pronto.` : `${who} aún no responde. Te llega un aviso cuando conteste.` });
@@ -236,7 +248,13 @@ export default function ChatScreen() {
     }
     setPending(keep);
     if (add.length) setAiRows((prev) => [...add, ...prev]);
-  }, [answerData?.name, name]);
+    for (const q of saveToServer) {
+      chatApi
+        .aiAnswer(entityId, q.intent, q.serviceId)
+        .then((m) => setLive((prev) => (prev.some((x) => x.id === m.id) ? prev : [m, ...prev])))
+        .catch(() => setAiRows((prev) => [{ id: `ai-${q.id}`, created_at: new Date().toISOString(), ai: 'answer', intent: q.intent, answer: q.answer }, ...prev]));
+    }
+  }, [answerData?.name, name, entityId]);
 
   // Mientras haya preguntas en espera, se revisa cada segundo (el dueño puede contestar o pasar los 45 s).
   useEffect(() => {
@@ -252,7 +270,8 @@ export default function ChatScreen() {
     const now = new Date();
     const ans = buildAnswer(answerData, found.intent, { serviceId: found.services.length === 1 ? found.services[0].id : undefined, text: content, weekday: now.getDay(), now: now.getTime() });
     track('question_asked', entityId, { intent: found.intent, answered: !ans.unanswered });
-    const q = { id: String(now.getTime()), askedAt: now.toISOString(), intent: found.intent, answer: ans };
+    const serviceId = found.services.length === 1 ? found.services[0].id : undefined;
+    const q: PendingQuestion = { id: String(now.getTime()), askedAt: now.toISOString(), intent: found.intent, serviceId, answer: ans };
     latest.current = { ...latest.current, pending: [...latest.current.pending, q] };
     setPending((list) => [...list, q]);
     // Un momento de «escribiendo», no un salto instantáneo.
@@ -417,12 +436,33 @@ export default function ChatScreen() {
             renderItem={({ item: row }) => {
             if ('ai' in row) {
               return row.ai === 'answer' ? (
-                <AiAnswerBubble answer={row.answer} businessName={answerData?.name ?? name ?? 'el negocio'} onAction={onAiAction} onChoose={onAiChoose(row.intent)} />
+                <AiAnswerBubble
+                  answer={row.answer}
+                  businessName={answerData?.name ?? name ?? 'el negocio'}
+                  onAction={onAiAction}
+                  onChoose={onAiChoose(row.intent)}
+                  onFeedback={(useful) => track('ai_answer_feedback', entityId, { intent: row.intent, useful })}
+                />
               ) : (
                 <AiStatusLine text={row.text} />
               );
             }
             const item = row;
+            if (item.kind === 'ai_answer' && item.ai_intent) {
+              const intent = item.ai_intent as Intent;
+              const when = new Date(item.created_at);
+              const built = answerData ? buildAnswer(answerData, intent, { serviceId: item.ai_service_id, weekday: when.getDay(), now: openedAt }) : null;
+              if (sentByEntity) return <AiAnswerOwnerRow summary={item.content} answer={built} />;
+              return built ? (
+                <AiAnswerBubble
+                  answer={built}
+                  businessName={answerData?.name ?? name ?? 'el negocio'}
+                  onAction={onAiAction}
+                  onChoose={onAiChoose(intent)}
+                  onFeedback={(useful) => track('ai_answer_feedback', entityId, { intent, useful })}
+                />
+              ) : null;
+            }
             const mine = item.sender_id === user?.id;
             return (
               <View>

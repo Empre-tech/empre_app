@@ -174,8 +174,11 @@ export interface ChatMessage {
   content: string;
   is_read: boolean;
   created_at: string;
-  /** "appointment" = tarjeta de una cita dentro del hilo (ver appointment_id). */
-  kind?: 'text' | 'appointment';
+  /** "appointment" = tarjeta de una cita dentro del hilo (ver appointment_id). "ai_answer" = Empre AI respondió con lo
+   * que publicó el negocio (3.62): solo trae la intención; cada app arma la respuesta con los datos publicados. */
+  kind?: 'text' | 'appointment' | 'ai_answer';
+  ai_intent?: string;
+  ai_service_id?: string;
   appointment_id?: string;
   /** El producto o servicio por el que se pregunta (tarjeta arriba del texto). */
   item_id?: string;
