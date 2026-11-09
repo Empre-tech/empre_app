@@ -294,13 +294,19 @@ export default function ChatScreen() {
     showMood('pensando');
     let found: { intent: Intent; services: { id: string }[]; taughtId?: string } = preset ? { intent: preset, services: [] } : detectIntent(content, answerData.services, answerData.taught);
     // F4: si las reglas no la entienden, el servidor la clasifica (solo la intención; la respuesta sale de lo publicado).
+    // Modelo de uso (3.64): de dónde sale la respuesta, para medir cuánto se responde sin IA.
+    let source = found.taughtId ? 'taught' : 'rule';
     if (found.intent === 'unknown') {
       const c = await chatApi.classify(entityId, content).catch(() => null);
-      if (c && c.intent !== 'unknown') found = { intent: c.intent as Intent, services: [], taughtId: c.answer_id };
+      if (c && c.intent !== 'unknown') {
+        found = { intent: c.intent as Intent, services: [], taughtId: c.answer_id };
+        source = 'classify';
+      }
     }
     const now = new Date();
     const ans = buildAnswer(answerData, found.intent, { serviceId: found.services.length === 1 ? found.services[0].id : undefined, taughtId: found.taughtId, text: content, weekday: now.getDay(), now: now.getTime() });
     track('question_asked', entityId, { intent: found.intent, answered: !ans.unanswered });
+    track('ai_answer_source', entityId, { intent: found.intent, source: ans.unanswered ? 'owner' : source, businesses: 1 });
     const serviceId = found.services.length === 1 ? found.services[0].id : undefined;
     const q: PendingQuestion = { id: String(now.getTime()), askedAt: now.toISOString(), text: content, intent: found.intent, serviceId, taughtId: found.taughtId, answer: ans };
     latest.current = { ...latest.current, pending: [...latest.current.pending, q] };

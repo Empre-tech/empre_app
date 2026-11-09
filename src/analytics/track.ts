@@ -25,7 +25,8 @@ export type EventName =
   | 'follow_toggled'
   | 'question_asked'
   | 'booking_started'
-  | 'ai_answer_feedback';
+  | 'ai_answer_feedback'
+  | 'ai_answer_source';
 
 interface Saved {
   id: string;

@@ -23,7 +23,9 @@ import { offersApi, statusApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
 import { Avatar } from '@/components/Avatar';
 import { Cover } from '@/components/Cover';
+import { Chispa } from '@/components/ai/Chispa';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
+import { AskManySheet } from '@/components/offers/AskManySheet';
 import { FEATURES } from '@/config';
 import {
   answer,
@@ -35,6 +37,7 @@ import {
   type Block,
   type Intent,
 } from '@/lib/answers';
+import { sameItemPeers } from '@/lib/askMany';
 import { askMessage, catalogCopy, formatPesos } from '@/lib/catalog';
 import { chatItemParam } from '@/lib/chatItem';
 import { displayIcon } from '@/lib/mapView';
@@ -49,6 +52,8 @@ type IconName = keyof typeof Ionicons.glyphMap;
 interface Props {
   item: MarketItem | null;
   onClose: () => void;
+  /** La Vitrina ya cargada: de aquí salen los otros negocios que ofrecen lo mismo («Pregúntales a los N», 3.64). */
+  pool?: MarketItem[];
 }
 
 /**
@@ -57,16 +62,16 @@ interface Props {
  * - Integra «Pregúntale a Empre AI» para responder al instante con lo que publicó el negocio.
  * - Permite escribirle directo al negocio adjuntando la tarjeta del producto/servicio o reclamar la oferta.
  */
-export function MarketItemSheet({ item, onClose }: Props) {
+export function MarketItemSheet({ item, onClose, pool = [] }: Props) {
   const reduce = useReduceMotion();
   return (
     <Modal visible={item !== null} transparent animationType={reduce ? 'none' : 'slide'} onRequestClose={onClose}>
-      {item !== null ? <SheetContent key={item.id} item={item} onClose={onClose} /> : null}
+      {item !== null ? <SheetContent key={item.id} item={item} onClose={onClose} pool={pool} /> : null}
     </Modal>
   );
 }
 
-function SheetContent({ item, onClose }: { item: MarketItem; onClose: () => void }) {
+function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () => void; pool: MarketItem[] }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const now = useNow(60_000);
@@ -183,6 +188,10 @@ function SheetContent({ item, onClose }: { item: MarketItem; onClose: () => void
     }),
     [biz, item, copy.noun, catalogItems, activeOffers, bizStatusQuery.data?.availability, agendaQuery.data?.enabled],
   );
+
+  // Otros negocios cercanos con el mismo producto: si hay, una pregunta les llega a todos (3.64).
+  const peers = useMemo(() => sameItemPeers(item, pool), [item, pool]);
+  const [askMany, setAskMany] = useState(false);
 
   const [aiQuestion, setAiQuestion] = useState('');
   const [aiTurn, setAiTurn] = useState<{ q: string; a: Answer } | null>(null);
@@ -430,6 +439,25 @@ function SheetContent({ item, onClose }: { item: MarketItem; onClose: () => void
               </View>
             </Pressable>
 
+            {/* PREGÚNTALES A LOS N: la misma pregunta a varios negocios con Empre AI */}
+            {peers.length > 1 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Pregúntales a los ${peers.length} negocios que ofrecen ${item.title}`}
+                onPress={() => setAskMany(true)}
+                style={({ pressed }) => [styles.manyCard, pressed && styles.pressed]}
+              >
+                <Chispa size={40} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.manyTitle}>{`Pregúntales a los ${peers.length} de una vez`}</Text>
+                  <Text style={styles.manySub} numberOfLines={2}>
+                    {`Precio, horario y ofertas de ${item.title} en ${peers.length} negocios cercanos, al instante.`}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
+              </Pressable>
+            ) : null}
+
             {/* MÓDULO EMPRE AI: RESPUESTAS RÁPIDAS AL INSTANTE */}
             <View style={styles.aiCard}>
               <View style={styles.aiHeader}>
@@ -508,6 +536,13 @@ function SheetContent({ item, onClose }: { item: MarketItem; onClose: () => void
           </View>
         </ScrollView>
 
+        <AskManySheet
+          visible={askMany}
+          product={item.title}
+          items={peers}
+          onClose={() => setAskMany(false)}
+        />
+
         {/* BARRA DE ACCIÓN INFERIOR: ESCRIBIR DIRECTO + RECLAMAR / VER DETALLE */}
         <View style={styles.footerBar}>
           <Pressable
@@ -573,6 +608,9 @@ function AIBlockView({ b }: { b: Block }) {
 }
 
 const styles = StyleSheet.create({
+  manyCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 20, backgroundColor: colors.ink },
+  manyTitle: { fontFamily: fonts.display.bold, fontSize: 16, color: '#FFFFFF' },
+  manySub: { marginTop: 2, fontFamily: fonts.ui.semibold, fontSize: 12.5, lineHeight: 17, color: '#C9D4E5' },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(14,35,70,0.52)' },
   sheet: { maxHeight: '90%', backgroundColor: colors.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden', ...softShadow },
   handleWrap: { alignItems: 'center', paddingTop: 10, paddingBottom: 6, backgroundColor: colors.surface },

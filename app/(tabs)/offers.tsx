@@ -296,6 +296,9 @@ export default function OffersScreen() {
     [data?.near, nearbyBiz, catalogsByEntity, resolvePhoto],
   );
 
+  // Todo lo que la Vitrina ya cargó: de aquí salen los negocios que ofrecen lo mismo (3.64). Sin otra consulta.
+  const askPool = useMemo(() => [...mergedNear, ...items], [mergedNear, items]);
+
   const sections = q ? [] : visibleSections(data);
 
   // Servicios del catálogo destacados para su propia fila cuando hay tanto ofertas como catálogo
@@ -796,7 +799,7 @@ export default function OffersScreen() {
       </ScrollView>
 
       {/* FICHA RÁPIDA INTERACTIVA CON EMPRE AI + DETECCIÓN DE OFERTA + CHAT DIRECTO */}
-      <MarketItemSheet item={selectedItem} onClose={() => setSelectedItem(null)} />
+      <MarketItemSheet item={selectedItem} onClose={() => setSelectedItem(null)} pool={askPool} />
       <FiltersSheet
         visible={filtersOpen}
         zones={[...(coords ? [{ id: '', name: 'Cerca de ti', on: !picked }] : []), ...(data?.zones ?? []).map((z) => ({ id: z.id, name: z.name, on: picked?.id === z.id }))]}
