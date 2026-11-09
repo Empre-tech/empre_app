@@ -18,18 +18,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { track } from '@/analytics/track';
 import { agendaApi } from '@/api/agenda';
 import { catalogApi } from '@/api/catalog';
-import { entitiesApi } from '@/api/endpoints';
+import { answersApi } from '@/api/answers';
+import { chatApi, entitiesApi } from '@/api/endpoints';
 import { offersApi, statusApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
 import { Avatar } from '@/components/Avatar';
 import { Cover } from '@/components/Cover';
-import { Chispa } from '@/components/ai/Chispa';
-import { EmpreSymbol } from '@/components/EmpreSymbol';
+import { Chispa, type ChispaMood } from '@/components/ai/Chispa';
 import { AskManySheet } from '@/components/offers/AskManySheet';
 import { FEATURES } from '@/config';
 import {
   answer,
   detectIntent,
+  followUps,
   priceLabel,
   suggestQuestions,
   type Answer,
@@ -45,7 +46,7 @@ import { formatEndsWhen } from '@/lib/offer';
 import { distanceLabel, itemStatusBadge, priceView, type MarketItem } from '@/lib/offerMarket';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { colors, fonts, radius, softShadow, spacing } from '@/theme';
+import { colors, fonts, softShadow } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -107,6 +108,13 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
     queryFn: () => agendaApi.summary(entityId),
     enabled: FEATURES.agenda && status === 'signedIn' && Boolean(entityId),
     staleTime: 30_000,
+  });
+
+  const taughtQuery = useQuery({
+    queryKey: ['business-answers', entityId],
+    queryFn: () => answersApi.list(entityId),
+    enabled: Boolean(entityId),
+    staleTime: 60_000,
   });
 
   const biz = entityQuery.data;
@@ -185,8 +193,9 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
       availability: bizStatusQuery.data?.availability ?? null,
       serviceMode: biz?.service_mode ?? '',
       agendaOn: Boolean(agendaQuery.data?.enabled),
+      taught: taughtQuery.data?.data ?? [],
     }),
-    [biz, item, copy.noun, catalogItems, activeOffers, bizStatusQuery.data?.availability, agendaQuery.data?.enabled],
+    [biz, item, copy.noun, catalogItems, activeOffers, bizStatusQuery.data?.availability, agendaQuery.data?.enabled, taughtQuery.data?.data],
   );
 
   // Otros negocios cercanos con el mismo producto: si hay, una pregunta les llega a todos (3.64).
@@ -195,42 +204,51 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
 
   const [aiQuestion, setAiQuestion] = useState('');
   const [aiTurn, setAiTurn] = useState<{ q: string; a: Answer } | null>(null);
+  const [asked, setAsked] = useState<Intent[]>([]);
+  const [mood, setMood] = useState<ChispaMood>('reposo');
+  const [thinking, setThinking] = useState(false);
 
+  // Solo preguntas que se pueden responder con lo publicado (3.67): si no hay ninguna, no se inventan. Después de una
+  // respuesta, las que suelen venir.
   const suggested = useMemo(() => {
-    const base = suggestQuestions(answerData, new Set(), 4);
-    if (base.length > 0) return base;
-    return [
-      { intent: 'offers' as Intent, label: '¿Tiene alguna oferta hoy?' },
-      { intent: 'hours' as Intent, label: '¿Hasta qué hora atienden?' },
-      { intent: 'delivery' as Intent, label: '¿Hacen domicilio?' },
-    ];
-  }, [answerData]);
+    const done = new Set(asked);
+    return aiTurn ? followUps(answerData, aiTurn.a.intent, done, 3) : suggestQuestions(answerData, done, 4);
+  }, [answerData, aiTurn, asked]);
 
-  const askQuick = (intent: Intent, label: string) => {
-    const t = Date.now();
-    const targetSvcId = item.service_id ?? (isService ? item.id : undefined);
-    const res = answer(answerData, intent, {
-      serviceId: intent === 'duration' || intent === 'price' || intent === 'book' ? targetSvcId : undefined,
-      text: label,
-      weekday: new Date(t).getDay(),
-      now: t,
-    });
-    setAiTurn({ q: label, a: res });
+  const reply = (q: string, intent: Intent, serviceId: string | undefined, taughtId: string | undefined, source: 'rule' | 'taught' | 'classify') => {
+    // `now` viene de useNow: la hora del minuto basta para horarios y ofertas.
+    const res = answer(answerData, intent, { serviceId, taughtId, text: q, weekday: new Date(now).getDay(), now });
+    setAiTurn({ q, a: res });
+    setAsked((list) => (list.includes(intent) ? list : [...list, intent]));
+    setMood(res.unanswered ? 'nosabe' : 'responde');
+    track('ai_answer_source', entityId, { intent, source: res.unanswered ? 'owner' : source, businesses: 1 });
   };
 
-  const submitCustomQuestion = () => {
+  const askQuick = (intent: Intent, label: string) => {
+    const targetSvcId = item.service_id ?? (isService ? item.id : undefined);
+    reply(label, intent, intent === 'duration' || intent === 'price' || intent === 'book' ? targetSvcId : undefined, undefined, 'rule');
+  };
+
+  // Texto libre: reglas y lo enseñado primero (sin costo); si nadie lo entiende, el servidor solo clasifica, una vez.
+  const submitCustomQuestion = async () => {
     const clean = aiQuestion.trim();
-    if (!clean) return;
+    if (!clean || thinking) return;
     setAiQuestion('');
-    const d = detectIntent(clean, answerData.services);
-    const t = Date.now();
-    const res = answer(answerData, d.intent, {
-      serviceId: d.services.length === 1 ? d.services[0].id : item.service_id,
-      text: clean,
-      weekday: new Date(t).getDay(),
-      now: t,
-    });
-    setAiTurn({ q: clean, a: res });
+    let d = detectIntent(clean, answerData.services, answerData.taught);
+    let source: 'rule' | 'taught' | 'classify' = d.taughtId ? 'taught' : 'rule';
+    if (d.intent === 'unknown' && status === 'signedIn') {
+      setThinking(true);
+      setMood('pensando');
+      const key = `${entityId}|${clean.toLocaleLowerCase('es')}`;
+      const c = classified.has(key) ? classified.get(key) : await chatApi.classify(entityId, clean).catch(() => null);
+      if (c) classified.set(key, c);
+      setThinking(false);
+      if (c && c.intent !== 'unknown') {
+        d = { intent: c.intent as Intent, services: [], taughtId: c.answer_id };
+        source = 'classify';
+      }
+    }
+    reply(clean, d.intent, d.services.length === 1 ? d.services[0].id : item.service_id, d.taughtId, source);
   };
 
   const openBusiness = () => {
@@ -439,32 +457,13 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
               </View>
             </Pressable>
 
-            {/* PREGÚNTALES A LOS N: la misma pregunta a varios negocios con Empre AI */}
-            {peers.length > 1 ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Pregúntales a los ${peers.length} negocios que ofrecen ${item.title}`}
-                onPress={() => setAskMany(true)}
-                style={({ pressed }) => [styles.manyCard, pressed && styles.pressed]}
-              >
-                <Chispa size={40} />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.manyTitle}>{`Pregúntales a los ${peers.length} de una vez`}</Text>
-                  <Text style={styles.manySub} numberOfLines={2}>
-                    {`Precio, horario y ofertas de ${item.title} en ${peers.length} negocios cercanos, al instante.`}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
-              </Pressable>
-            ) : null}
-
             {/* MÓDULO EMPRE AI: RESPUESTAS RÁPIDAS AL INSTANTE */}
             <View style={styles.aiCard}>
               <View style={styles.aiHeader}>
-                <EmpreSymbol product="ai" size={24} />
+                <Chispa size={34} mood={mood} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.aiTitle}>Pregúntale a Empre AI</Text>
-                  <Text style={styles.aiSub}>Respuestas rápidas con lo que publicó {biz?.name ?? item.entity_name}</Text>
+                  <Text style={styles.aiSub}>{thinking ? 'Entendiendo tu pregunta…' : `Responde al instante con lo que publicó ${biz?.name ?? item.entity_name}`}</Text>
                 </View>
                 <View style={styles.aiAutoBadge}>
                   <Text style={styles.aiAutoText}>AL INSTANTE</Text>
@@ -473,6 +472,17 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
 
               {/* Chips de preguntas sugeridas */}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.aiChipsRow} keyboardShouldPersistTaps="handled">
+                {peers.length > 1 ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Comparar ${item.title} en los ${peers.length} negocios cercanos que lo tienen`}
+                    onPress={() => setAskMany(true)}
+                    style={({ pressed }) => [styles.aiChip, styles.aiChipCompare, pressed && styles.pressed]}
+                  >
+                    <Ionicons name="git-compare-outline" size={13} color="#fff" />
+                    <Text style={[styles.aiChipText, styles.aiChipTextActive]}>{`Comparar en los ${peers.length}`}</Text>
+                  </Pressable>
+                ) : null}
                 {suggested.map((q) => (
                   <Pressable
                     key={q.intent}
@@ -516,7 +526,7 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
                 <TextInput
                   value={aiQuestion}
                   onChangeText={setAiQuestion}
-                  onSubmitEditing={submitCustomQuestion}
+                  onSubmitEditing={() => void submitCustomQuestion()}
                   returnKeyType="send"
                   placeholder="Haz una pregunta rápida (ej. ¿tienen turno hoy?)..."
                   placeholderTextColor={colors.muted}
@@ -525,9 +535,9 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Preguntar a Empre AI"
-                  disabled={!aiQuestion.trim()}
-                  onPress={submitCustomQuestion}
-                  style={[styles.aiSendBtn, !aiQuestion.trim() && styles.aiSendBtnDisabled]}
+                  disabled={!aiQuestion.trim() || thinking}
+                  onPress={() => void submitCustomQuestion()}
+                  style={[styles.aiSendBtn, (!aiQuestion.trim() || thinking) && styles.aiSendBtnDisabled]}
                 >
                   <Ionicons name="arrow-up" size={18} color="#fff" />
                 </Pressable>
@@ -607,10 +617,11 @@ function AIBlockView({ b }: { b: Block }) {
   }
 }
 
+// Lo que el servidor ya clasificó en esta sesión: la misma pregunta no se paga dos veces (3.64).
+const classified = new Map<string, { intent: string; answer_id?: string }>();
+
 const styles = StyleSheet.create({
-  manyCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 20, backgroundColor: colors.ink },
-  manyTitle: { fontFamily: fonts.display.bold, fontSize: 16, color: '#FFFFFF' },
-  manySub: { marginTop: 2, fontFamily: fonts.ui.semibold, fontSize: 12.5, lineHeight: 17, color: '#C9D4E5' },
+  aiChipCompare: { backgroundColor: colors.ink, borderColor: colors.ink },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(14,35,70,0.52)' },
   sheet: { maxHeight: '90%', backgroundColor: colors.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden', ...softShadow },
   handleWrap: { alignItems: 'center', paddingTop: 10, paddingBottom: 6, backgroundColor: colors.surface },
@@ -665,7 +676,7 @@ const styles = StyleSheet.create({
   aiAutoBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: '#E3F5F3' },
   aiAutoText: { fontSize: 10, fontFamily: fonts.ui.extrabold, color: colors.verified, letterSpacing: 0.4 },
   aiChipsRow: { gap: 6, paddingVertical: 2 },
-  aiChip: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line },
+  aiChip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line },
   aiChipActive: { backgroundColor: colors.ink, borderColor: colors.ink },
   aiChipText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
   aiChipTextActive: { color: '#fff' },

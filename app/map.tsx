@@ -750,6 +750,9 @@ export default function MapScreen() {
     setExtra({ offer: next.offer, delivery: next.delivery, verified: next.verified, sort: next.sort });
   };
 
+  // Sobre el mapa, lo justo (3.67): la fila de filtros aparece al buscar o con algún filtro puesto; si no, basta el
+  // botón de filtros de la barra. Mientras sale la bienvenida, nada.
+  const showFilterRow = !welcome && (searching || activeCount(searchFilters) > 0);
   const activeFilterCount = activeCount(searchFilters) + (subcategoryId ? 1 : 0) + (categoryId && !groupId ? 1 : 0);
   const selectedCategory = (categories.data ?? []).find((c) => c.id === categoryId) ?? null;
   const selectedGroup = groups.find((g) => g.id === groupId) ?? null;
@@ -1380,9 +1383,9 @@ export default function MapScreen() {
             )}
           </View>
           <Animated.View style={[styles.topRows, { opacity: topFade }]} pointerEvents={mapMoving ? 'none' : 'box-none'}>
-          <SearchBar value={search} onChangeText={setSearch} onOpenFilters={() => setSearchOpen(true)} filterCount={activeFilterCount} compact hideFilters onFocusChange={(f) => f && setSearchOpen(true)} />
+          <SearchBar value={search} onChangeText={setSearch} onOpenFilters={() => setFiltersOpen(true)} filterCount={activeFilterCount} compact hideFilters={showFilterRow} onFocusChange={(f) => f && setSearchOpen(true)} />
 
-          {tall || selectedEntity || searchOpen ? null : (
+          {tall || selectedEntity || searchOpen || !showFilterRow ? null : (
             <View style={styles.filterBleed}>
               <FilterRow value={searchFilters} onChange={changeFilters} caps={filterCaps} groupName={selectedGroup?.name} onOpenSheet={() => setFiltersOpen(true)} tone="map" />
             </View>
@@ -1406,7 +1409,7 @@ export default function MapScreen() {
               {selectedSubcategory ? <ActiveChip icon="pricetag-outline" label={selectedSubcategory.name} onRemove={() => setSubcategoryId(undefined)} /> : null}
             </View>
           ) : null}
-          {mapLoading && !tall && !selectedEntity ? <LoadingChip /> : null}
+          {mapLoading && !tall && !selectedEntity && !welcome ? <LoadingChip /> : null}
           </Animated.View>
         </View>
 

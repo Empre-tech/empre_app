@@ -10,6 +10,7 @@ import { askApi, type AskFilters, type AskResponse } from '@/api/ask';
 import { categoriesApi } from '@/api/endpoints';
 import { discoveryApi } from '@/api/offers';
 import type { DiscoveryItem } from '@/api/types';
+import { Chispa } from '@/components/ai/Chispa';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { FilterRow, FiltersSheet } from '@/components/search/SearchFilters';
 import { BusinessCardModal } from '@/components/explore/BusinessCardModal';
@@ -20,6 +21,7 @@ import { hourIdeas, howFar, suggestionAction } from '@/lib/askChips';
 import { buildGroups, groupIdOf } from '@/lib/categoryGroups';
 import { activeCount, applyFilters, fromAsk, NO_FILTERS as NO_SEARCH, resultsTitle, toAsk, type FilterCaps, type SearchFilters } from '@/lib/searchFilters';
 import { hourCO } from '@/lib/finance';
+import { isRecommendAsk, pickRecommendations, recommendLead } from '@/lib/recommend';
 import { formatPesos } from '@/lib/catalog';
 import { resolveImageUrl } from '@/lib/image';
 import { displayIcon } from '@/lib/mapView';
@@ -71,12 +73,28 @@ export default function AskScreen() {
   // Un solo buscador (3.66): lo que el servidor filtra (abierto, oferta, domicilio, más barato) va en `filters`; lo que
   // se filtra aquí con lo que ya llegó (a pie, verificado, tipo) va en `local`.
   const [local, setLocal] = useState<SearchFilters>(NO_SEARCH);
+  // Pidió una recomendación sin decir de qué (3.67).
+  const [rec, setRec] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const groups = useMemo(() => buildGroups(categories.data ?? []), [categories.data]);
 
   const run = async (q: string, nextFilters: AskFilters) => {
     const clean = q.trim();
     if (!clean) return;
+    // «¿Me recomiendas algún negocio?» (3.67): no se busca la palabra «negocio»; Empre AI recomienda de lo cercano.
+    if (isRecommendAsk(clean)) {
+      seq.current += 1;
+      setText(clean);
+      setEditing(false);
+      setQuestion(clean);
+      setAnswer(null);
+      setError(null);
+      setLoading(false);
+      setRec(clean);
+      setRecents((list) => addRecent(list, clean));
+      return;
+    }
+    setRec(null);
     const id = ++seq.current;
     setText(clean);
     setEditing(false);
@@ -123,6 +141,7 @@ export default function AskScreen() {
     setLoading(false);
     setFilters(NO_FILTERS);
     setLocal(NO_SEARCH);
+    setRec(null);
     setEditing(true);
   };
 
@@ -172,7 +191,17 @@ export default function AskScreen() {
   const typed = plain(text.trim());
   const live = useMemo(() => liveParse(text), [text]);
   const hasLiveFilters = live.searchFilters.open_now || live.searchFilters.with_offer || live.searchFilters.delivery || live.searchFilters.cheapest;
-  const showResults = !editing && (loading || Boolean(answer) || Boolean(error));
+  const showResults = !editing && (loading || Boolean(answer) || Boolean(error) || Boolean(rec));
+  const recQuery = useQuery({
+    queryKey: ['ask-recommend', coords?.latitude.toFixed(2), coords?.longitude.toFixed(2)],
+    queryFn: () => discoveryApi.discover({ ...(coords ? { ...areaAround(coords.latitude, coords.longitude), lat: coords.latitude, long: coords.longitude } : {}), limit: 60 }),
+    enabled: Boolean(rec),
+    staleTime: 60_000,
+  });
+  const recs = useMemo(
+    () => pickRecommendations((recQuery.data?.items ?? []).map((i) => ({ ...i, is_open_now: Boolean(i.is_open_now), active_offer_title: i.active_offer?.title }))),
+    [recQuery.data],
+  );
   const catHits = typed ? (categories.data ?? []).filter((c) => plain(c.name).includes(typed)).slice(0, 5) : [];
   const recentHits = typed ? recents.filter((r) => plain(r).includes(typed) && plain(r) !== typed).slice(0, 3) : recents;
 
@@ -202,8 +231,8 @@ export default function AskScreen() {
     return { offers: lists.offers.map(placeFrom), rest: lists.rest.map(placeFrom) };
   }, [family, nearby.data, filters]);
   const hasAlts = alts.offers.length + alts.rest.length > 0;
-  const ideas = isNone ? hourIdeas(hourCO(new Date().toISOString())) : [];
-  const onMap = (biz.length ? (biz as AskPlace[]) : [...alts.offers, ...alts.rest]).filter((b) => b.latitude && b.longitude);
+  const ideas = isNone || rec ? hourIdeas(hourCO(new Date().toISOString())) : [];
+  const onMap = (rec ? recs.map((r) => placeFrom(r.place)) : biz.length ? (biz as AskPlace[]) : [...alts.offers, ...alts.rest]).filter((b) => b.latitude && b.longitude);
   const region = regionFor(onMap, coords);
   const count = resultsTitle(biz.length, searchFilters, caps);
 
@@ -240,6 +269,53 @@ export default function AskScreen() {
         </View>
 
         <ScrollView style={styles.sheet} contentContainerStyle={[styles.sheetIn, { paddingBottom: insets.bottom + 20 }]} keyboardShouldPersistTaps="handled">
+          {rec ? (
+            <View style={styles.group} accessibilityLiveRegion="polite">
+              <View style={styles.recHead}>
+                <Chispa size={32} mood={recQuery.isLoading ? 'pensando' : 'responde'} />
+                <Text style={styles.recName}>Empre AI</Text>
+              </View>
+              {recQuery.isLoading ? (
+                <Text style={styles.hint}>Mirando qué hay cerca de ti…</Text>
+              ) : (
+                <>
+                  <Text style={styles.recLead}>{recommendLead(recs)}</Text>
+                  {recs.map((r, i) => {
+                    const b = placeFrom(r.place);
+                    return (
+                      <Pressable key={b.id} accessibilityRole="button" accessibilityLabel={`${b.name}. ${r.reasons.join(', ')}`} onPress={() => setCard(b)} style={({ pressed }) => [styles.recRow, pressed && styles.pressed]}>
+                        <View style={[styles.recIcon, { backgroundColor: photoTone(i) }]}>
+                          <Ionicons name={displayIcon(b.category_icon) as keyof typeof Ionicons.glyphMap} size={22} color="#fff" />
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={styles.resultName} numberOfLines={1}>
+                            {b.name}
+                          </Text>
+                          <Text style={styles.resultSub} numberOfLines={1}>
+                            {b.category_name}
+                          </Text>
+                          <Text style={styles.recWhy} numberOfLines={2}>
+                            {r.reasons.join(' · ')}
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+                      </Pressable>
+                    );
+                  })}
+                  <Text style={styles.note}>Elegidos por estar abiertos, cerca y con oferta. Nadie paga por salir aquí.</Text>
+                  <Text style={styles.altHead}>¿Algo en especial?</Text>
+                  <View style={styles.chips}>
+                    {ideas.map((idea) => (
+                      <Pressable key={idea.ask} accessibilityRole="button" onPress={() => void run(idea.ask, NO_FILTERS)} style={({ pressed }) => [styles.chipAdd, pressed && styles.pressed]}>
+                        <Text style={styles.chipAddText}>{idea.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              )}
+            </View>
+          ) : (
+          <>
           <View style={styles.filterBleed}>
             <FilterRow value={searchFilters} onChange={changeFilters} caps={caps} groupName={groups.find((g) => g.id === searchFilters.group)?.name} onOpenSheet={() => setSheetOpen(true)} />
           </View>
@@ -353,6 +429,8 @@ export default function AskScreen() {
               )}
             </>
           ) : null}
+          </>
+          )}
         </ScrollView>
 
         <BusinessCardModal entity={card ? ({ ...card, distance_meters: card.distance_km * 1000, distanceKm: card.distance_km } as unknown as WithDistance) : null} onClose={() => setCard(null)} origin="ask" />
@@ -620,6 +698,12 @@ const styles = StyleSheet.create({
   sheet: { flex: 1, marginTop: -20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 30, shadowOffset: { width: 0, height: -10 }, elevation: 8 },
   sheetIn: { paddingTop: 14, paddingHorizontal: 14, gap: 12 },
   filterBleed: { marginHorizontal: -14 },
+  recHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  recName: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  recLead: { fontSize: 15.5, lineHeight: 22, fontFamily: fonts.ui.semibold, color: colors.ink },
+  recRow: { minHeight: 72, padding: 12, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.hairline, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  recIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  recWhy: { marginTop: 2, fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.verified },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chipOn: { minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 12, paddingRight: 10, borderRadius: 999, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
   chipOnText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
