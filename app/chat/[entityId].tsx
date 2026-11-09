@@ -22,7 +22,8 @@ import { AiAnswerBubble, AiAnswerOwnerRow, AiStatusLine, TeachLink, TypingBubble
 import { useAnswerData } from '@/components/chat/useAnswerData';
 import { answer as buildAnswer, detectIntent, suggestQuestions, type Action, type Answer, type Intent } from '@/lib/answers';
 import { autoAnswerStep, ownerRepliedSince } from '@/lib/chatAutoAnswer';
-import { groupAiAnswers, splitQuestions } from '@/lib/chatTurns';
+import { groupAiAnswers, isGreetingOnly, splitQuestions, unansweredTail, waitNotice } from '@/lib/chatTurns';
+import { openingFromHours, statusLine } from '@/lib/placeCard';
 import { chatApi, entitiesApi } from '@/api/endpoints';
 import type { ChatMessage } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
@@ -53,6 +54,8 @@ interface PendingQuestion {
   serviceId?: string;
   taughtId?: string;
   answer: Answer;
+  /** Llegó desde otra pantalla y se responde al abrir el chat: no se vuelve a clasificar ni a marcar en el servidor. */
+  catchUp?: boolean;
 }
 
 export default function ChatScreen() {
@@ -125,6 +128,13 @@ export default function ChatScreen() {
     if (today.is_24h) return 'Hoy: abierto 24 horas';
     return `Hoy: ${today.open_time} - ${today.close_time}`;
   }, [business.data?.hours]);
+
+  // Cuándo abre, para el aviso de espera («Abre mañana 11:00 am; te avisamos cuando conteste»).
+  const opening = useMemo(() => {
+    const b = business.data;
+    if (!b?.hours?.length) return null;
+    return statusLine({ has_hours: true, is_open_now: Boolean(b.is_open_now), ...openingFromHours(b.hours, new Date(), Boolean(b.is_open_now)) });
+  }, [business.data]);
 
   const contact = business.data?.contact_info?.trim();
   const hasPhone = Boolean(contact && PHONE_RE.test(contact));
@@ -213,10 +223,10 @@ export default function ChatScreen() {
   }, [live, history.data]);
 
   // Empre AI responde con lo que publicó el negocio (3.62, F1). Las reglas viven en `lib/chatAutoAnswer`.
-  const latest = useRef({ messages, otherOnline, aiRows, pending });
+  const latest = useRef({ messages, otherOnline, aiRows, pending, opening });
   useEffect(() => {
-    latest.current = { messages, otherOnline, aiRows, pending };
-  }, [messages, otherOnline, aiRows, pending]);
+    latest.current = { messages, otherOnline, aiRows, pending, opening };
+  }, [messages, otherOnline, aiRows, pending, opening]);
   const answeredIntents = useMemo(() => {
     const today = new Date().toDateString();
     const saved = messages.filter((m) => m.kind === 'ai_answer' && m.ai_intent && new Date(m.created_at).toDateString() === today).map((m) => m.ai_intent!);
@@ -224,7 +234,7 @@ export default function ChatScreen() {
   }, [aiRows, messages]);
 
   const resolvePending = useCallback(() => {
-    const { messages: msgs, otherOnline: online, aiRows: rows, pending: list } = latest.current;
+    const { messages: msgs, otherOnline: online, aiRows: rows, pending: list, opening: open } = latest.current;
     if (!list.length) return;
     const today = new Date().toDateString();
     const answered = new Set<string>([
@@ -251,13 +261,16 @@ export default function ChatScreen() {
           saveToServer.push(q);
         } else if (step === 'status') {
           const asked = msgs.find((m) => m.sender_id === user?.id && m.content === q.text && !m.id.startsWith(LOCAL_PREFIX) && Date.parse(m.created_at) >= Date.parse(q.askedAt) - 60_000);
-          if (asked) void chatApi.aiUnknown(entityId, asked.id).catch(() => undefined);
+          if (asked && !q.catchUp) void chatApi.aiUnknown(entityId, asked.id).catch(() => undefined);
+          // Un solo aviso por conversación mientras el negocio no conteste.
           if (hasStatus || add.some((r) => r.ai === 'status')) continue;
           const who = answerData?.name ?? name ?? 'El negocio';
-          add.push({ id: `ai-${q.id}`, created_at: new Date().toISOString(), ai: 'status', text: online ? `Esto lo responde ${who}, que está en línea.` : `Esto lo responde ${who}. Te avisamos cuando conteste.` });
+          add.push({ id: `ai-${q.id}`, created_at: new Date().toISOString(), ai: 'status', text: waitNotice(who, online, open) });
         }
       }
     }
+    // Se anota ya (no al volver a dibujar): el reloj de 1 s y el de 1,1 s no pueden procesar dos veces lo mismo.
+    latest.current = { ...latest.current, pending: keep, aiRows: add.length ? [...add, ...rows] : rows };
     setPending(keep);
     if (add.length) setAiRows((prev) => [...add, ...prev]);
     setTyping(false);
@@ -280,16 +293,32 @@ export default function ChatScreen() {
    * Después de enviar un mensaje del cliente: Empre AI prepara la respuesta con los datos del negocio. Un mensaje con
    * varias preguntas (3.68) se responde pregunta por pregunta y la pantalla lo junta en una sola burbuja.
    */
-  const askEmpreAI = async (content: string, preset?: Intent) => {
+  const askEmpreAI = async (content: string, preset?: Intent, catchUp = false) => {
     if (sentByEntity || !answerData || answerData.aiChatOff || !entityId) return;
     setTyping(true);
+    // Un saludo solo se contesta con un saludo de Empre AI, no con «esto lo responde el negocio».
+    if (!preset && isGreetingOnly(content)) {
+      const at = new Date();
+      const greet: Answer = {
+        intent: 'unknown',
+        unanswered: false,
+        source: `con lo que publicó ${answerData.name}`,
+        blocks: [{ kind: 'text', title: '¡Hola! Te ayudo mientras tanto', body: `Respondo al instante con lo que publicó ${answerData.name}: toca una pregunta de abajo o escribe la tuya. Lo que no sepa se lo paso al negocio.` }],
+        actions: [],
+      };
+      setTimeout(() => {
+        setTyping(false);
+        setAiRows((prev) => [{ id: `ai-hola-${at.getTime()}`, created_at: new Date().toISOString(), ai: 'answer', intent: 'unknown', answer: greet }, ...prev]);
+      }, 900);
+      return;
+    }
     type Found = { intent: Intent; services: { id: string }[]; taughtId?: string };
     const parts = preset ? [content] : splitQuestions(content);
     let found: Found[] = preset ? [{ intent: preset, services: [] }] : parts.map((part) => detectIntent(part, answerData.services, answerData.taught));
     // Modelo de uso (3.64): de dónde sale la respuesta, para medir cuánto se responde sin IA.
     let source = found.some((f) => f.taughtId) ? 'taught' : 'rule';
     // F4: si las reglas no entienden nada del mensaje, el servidor lo clasifica una vez (solo la intención).
-    if (found.every((f) => f.intent === 'unknown')) {
+    if (!catchUp && found.every((f) => f.intent === 'unknown')) {
       const c = await chatApi.classify(entityId, content).catch(() => null);
       if (c && c.intent !== 'unknown') {
         found = [{ intent: c.intent as Intent, services: [], taughtId: c.answer_id }];
@@ -305,13 +334,27 @@ export default function ChatScreen() {
       const ans = buildAnswer(answerData, f.intent, { serviceId, taughtId: f.taughtId, text: content, weekday: now.getDay(), now: now.getTime() });
       track('question_asked', entityId, { intent: f.intent, answered: !ans.unanswered });
       track('ai_answer_source', entityId, { intent: f.intent, source: ans.unanswered ? 'owner' : source, businesses: 1 });
-      return { id: `${now.getTime()}-${i}`, askedAt: now.toISOString(), text: content, intent: f.intent, serviceId, taughtId: f.taughtId, answer: ans };
+      return { id: `${now.getTime()}-${i}`, askedAt: now.toISOString(), text: content, intent: f.intent, serviceId, taughtId: f.taughtId, answer: ans, catchUp };
     });
     latest.current = { ...latest.current, pending: [...latest.current.pending, ...qs] };
     setPending((prev) => [...prev, ...qs]);
     // Un momento de «escribiendo», no un salto instantáneo.
     setTimeout(resolvePending, 1100);
   };
+
+  // Lo que llegó desde otra pantalla («Pregúntales a varios», una oferta) y nadie contestó: Empre AI lo responde al
+  // abrir el chat, igual que si se hubiera escrito aquí. Una vez por apertura, sin volver a clasificar en el servidor.
+  const caughtUp = useRef(false);
+  useEffect(() => {
+    if (caughtUp.current || sentByEntity || !user?.id || !answerData || !history.data) return;
+    caughtUp.current = true;
+    const tail = unansweredTail(history.data, user.id, Date.now()).filter((m) => !isGreetingOnly(m.content));
+    if (!tail.length) return;
+    const joined = tail.map((m) => m.content.trim().replace(/[^?.!]$/, '$&.')).join(' ');
+    // Fuera del efecto: «escribiendo…» empieza en el siguiente ciclo, no dentro del render.
+    setTimeout(() => void askEmpreAI(joined, undefined, true), 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [answerData, history.data, sentByEntity, user?.id]);
 
   const onAiAction = (a: Action) => {
     if (a.kind === 'open_offer') router.push({ pathname: '/offer/[id]', params: { id: a.offerId, entityId } });
@@ -336,7 +379,19 @@ export default function ChatScreen() {
   const rowById = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows]);
   const businessName = answerData?.name ?? name ?? 'el negocio';
 
-  const suggestions = useMemo(() => (answerData && aiOn ? suggestQuestions(answerData, answeredIntents as ReadonlySet<Intent>, 3) : []), [answerData, aiOn, answeredIntents]);
+  // Las sugerencias no repiten lo que ya se respondió ni lo que el cliente ya preguntó hoy.
+  const meId = user?.id;
+  const askedIntents = useMemo(() => {
+    const set = new Set<string>(answeredIntents);
+    if (!answerData || !meId) return set;
+    const today = new Date().toDateString();
+    for (const m of messages) {
+      if (m.sender_id !== meId || m.sent_by_entity || new Date(m.created_at).toDateString() !== today) continue;
+      for (const part of splitQuestions(m.content)) set.add(detectIntent(part, answerData.services, answerData.taught).intent);
+    }
+    return set;
+  }, [answeredIntents, messages, answerData, meId]);
+  const suggestions = useMemo(() => (answerData && aiOn ? suggestQuestions(answerData, askedIntents as ReadonlySet<Intent>, 3) : []), [answerData, aiOn, askedIntents]);
   const teach = (params: { intent?: string; question?: string }) => router.push({ pathname: '/business/teach/[id]', params: { id: entityId, ...params } });
 
   // Ids del mensaje más antiguo de cada día (separador "Hoy"/"Ayer" arriba de ese mensaje).

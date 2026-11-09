@@ -13,6 +13,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { Avatar } from '@/components/Avatar';
 import { EmptyState } from '@/components/EmptyState';
 import { formatPesos } from '@/lib/catalog';
+import { chatItemParam } from '@/lib/chatItem';
 import { effectiveClaimStatus } from '@/lib/claims';
 import { offerIndications } from '@/lib/discover';
 import { resolveImageUrl } from '@/lib/image';
@@ -44,6 +45,21 @@ export default function OfferScreen() {
 
   const offer = (offers.data ?? []).find((o) => o.id === id);
   const biz = entity.data;
+  // Escribir desde la oferta: el chat abre con el mensaje ya escrito y la tarjeta de lo que incluye (3.68).
+  const openChat = () => {
+    if (!entityId) return;
+    const it = offer?.items?.find((x) => x.service_item_id);
+    const card = it?.service_item_id ? chatItemParam({ id: it.service_item_id, name: it.name, price: it.price ?? null, price_from: false }) : undefined;
+    router.push({
+      pathname: '/chat/[entityId]',
+      params: {
+        entityId,
+        ...(biz ? { name: biz.name, avatar: biz.profile_url ?? '' } : {}),
+        ...(offer ? { draft: `Hola, vi la oferta «${offer.title}» y quiero preguntar por ella.` } : {}),
+        ...(card ? { item: card } : {}),
+      },
+    });
+  };
   const claim = (claims.data ?? []).find((c) => c.offer_id === id && effectiveClaimStatus(c, now) !== 'EXPIRADO' && c.status !== 'CANCELADO');
 
   const counted = useRef(false);
@@ -219,7 +235,7 @@ export default function OfferScreen() {
         <Ionicons name="share-outline" size={19} color={colors.ink} />
       </Pressable>
       <View style={[styles.bar, { paddingBottom: insets.bottom + 16 }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Escribirle a ${biz?.name ?? 'el negocio'}`} onPress={() => router.push({ pathname: '/chat/[entityId]', params: { entityId: entityId! } })} style={styles.barBtn}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Escribirle a ${biz?.name ?? 'el negocio'}`} onPress={openChat} style={styles.barBtn}>
           <Ionicons name="chatbubble-outline" size={20} color={colors.ink} />
         </Pressable>
         {phone ? (

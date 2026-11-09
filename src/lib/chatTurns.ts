@@ -29,6 +29,43 @@ export function splitQuestions(text: string): string[] {
   return parts.length ? parts : [text.trim()];
 }
 
+/** «Hola», «Buenas tardes», «Hola!»: un saludo sin pregunta. Empre AI lo contesta con un saludo, no con un aviso. */
+export function isGreetingOnly(text: string): boolean {
+  const p = plain(text);
+  return p.length > 0 && GREETING.test(p);
+}
+
+/**
+ * Lo que el cliente escribió al final de la conversación y nadie ha contestado (ni el negocio ni Empre AI), de lo más
+ * viejo a lo más nuevo. Sirve para que Empre AI responda también lo que llegó desde otra pantalla («Pregúntales a
+ * varios», una oferta). `messages` viene del más nuevo al más viejo; solo cuenta lo de las últimas `maxAgeMs`.
+ */
+export function unansweredTail<M extends { sender_id: string; sent_by_entity: boolean; kind?: string; content: string; created_at: string }>(
+  messages: M[],
+  meId: string,
+  now: number,
+  maxAgeMs = 24 * 60 * 60 * 1000,
+): M[] {
+  const out: M[] = [];
+  for (const m of messages) {
+    if (m.sent_by_entity || m.kind === 'ai_answer' || m.sender_id !== meId) break;
+    if (now - Date.parse(m.created_at) > maxAgeMs) break;
+    if (m.kind && m.kind !== 'text') continue;
+    if (m.content.trim()) out.push(m);
+  }
+  return out.reverse();
+}
+
+/** El aviso cuando Empre AI no tiene el dato: dice cuándo puede contestar el negocio si se sabe. */
+export function waitNotice(who: string, online: boolean, opening: { text: string; tone: 'open' | 'closed' } | null): string {
+  if (online) return `Esto lo responde ${who}, que está en línea.`;
+  if (opening?.tone === 'closed' && opening.text.startsWith('Cerrado · abre ')) {
+    const when = opening.text.slice('Cerrado · abre '.length);
+    return `Esto lo responde ${who}. Abre ${when}; te avisamos cuando conteste.`;
+  }
+  return `Esto lo responde ${who}. Te avisamos cuando conteste.`;
+}
+
 /** Lo que se necesita saber de cada fila de la conversación (la más nueva primero, como la lista invertida). */
 export interface TurnRow {
   id: string;

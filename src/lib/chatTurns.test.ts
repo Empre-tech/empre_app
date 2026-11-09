@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { detectIntent } from './answers.ts';
-import { groupAiAnswers, splitQuestions } from './chatTurns.ts';
+import { groupAiAnswers, isGreetingOnly, splitQuestions, unansweredTail, waitNotice } from './chatTurns.ts';
 
 test('el mensaje de la captura: cada pregunta con su intención', () => {
   const services = [{ id: 's1', name: 'Corrientazo del día', price: 16000, price_from: false }];
@@ -45,4 +45,29 @@ test('dos respuestas separadas por más de 2 minutos no se juntan', () => {
   assert.deepEqual(g.lead.get('a'), ['a']);
   assert.equal(g.hidden.size, 0);
   assert.equal(groupAiAnswers([{ id: 'x', created_at: at(1), ai: false }]).first, null);
+});
+
+test('un saludo solo no es una pregunta', () => {
+  assert.equal(isGreetingOnly('Hola'), true);
+  assert.equal(isGreetingOnly('Buenas tardes!'), true);
+  assert.equal(isGreetingOnly('Hola, ¿hacen domicilio?'), false);
+  assert.equal(isGreetingOnly(''), false);
+});
+
+test('lo que quedó sin contestar al final de la conversación, aunque llegó desde otra pantalla', () => {
+  const now = Date.parse('2026-11-09T20:00:00Z');
+  const m = (id: string, mine: boolean, min: number, extra: object = {}) => ({ id, sender_id: mine ? 'yo' : 'dueno', sent_by_entity: !mine, content: id, created_at: new Date(now - min * 60_000).toISOString(), ...extra });
+  // Más nuevo primero, como llega el historial.
+  const rows = [m('hola', true, 1), m('disponibilidad', true, 90), m('domicilio', true, 90), m('respuesta', false, 600), m('vieja', true, 700)];
+  assert.deepEqual(unansweredTail(rows, 'yo', now).map((x) => x.id), ['domicilio', 'disponibilidad', 'hola']);
+  // Si Empre AI ya respondió después, no hay nada pendiente.
+  assert.deepEqual(unansweredTail([m('ai', true, 1, { kind: 'ai_answer' }), m('hola', true, 2)], 'yo', now), []);
+  // Más de un día: no se responde tarde.
+  assert.deepEqual(unansweredTail([m('ayer', true, 25 * 60)], 'yo', now), []);
+});
+
+test('el aviso dice cuándo abre el negocio', () => {
+  assert.equal(waitNotice('La 22', false, { text: 'Cerrado · abre mañana 11:00 am', tone: 'closed' }), 'Esto lo responde La 22. Abre mañana 11:00 am; te avisamos cuando conteste.');
+  assert.equal(waitNotice('La 22', true, null), 'Esto lo responde La 22, que está en línea.');
+  assert.equal(waitNotice('La 22', false, { text: 'Abierto · cierra 3:30 pm', tone: 'open' }), 'Esto lo responde La 22. Te avisamos cuando conteste.');
 });
