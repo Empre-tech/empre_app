@@ -145,7 +145,7 @@ export function AiTurn({
   const actions = chatActions(answers.flatMap((x) => x.answer.actions));
   const sources = [...new Set(answers.map((x) => x.answer.source).filter(Boolean) as string[])];
   const source = sources.length ? sources[0].replace(/^Según/, 'según') : `con lo que publicó ${businessName}`;
-  const closing = [sources.length ? sources.join(' · ') : `Con lo que publicó ${businessName}`, alsoSent ? 'también le llegó al negocio' : ''].filter(Boolean).join(' · ');
+  const closing = [sources.length ? sources[0].replace(/\s*\(.*\)$/, '') : `Con lo que publicó ${businessName}`, alsoSent ? 'también le llegó al negocio' : ''].filter(Boolean).join(' · ');
   const voiced = answers.map((x) => ({ ...voice(x.answer), intent: x.intent }));
   return (
     <View style={styles.turn}>

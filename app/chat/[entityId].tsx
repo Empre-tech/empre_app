@@ -58,6 +58,8 @@ interface PendingQuestion {
   answer: Answer;
   /** Llegó desde otra pantalla y se responde al abrir el chat: no se vuelve a clasificar ni a marcar en el servidor. */
   catchUp?: boolean;
+  /** Dónde va la respuesta en la conversación: justo después de su pregunta (no al final, con la hora de ahora). */
+  anchor?: string;
 }
 
 export default function ChatScreen() {
@@ -260,14 +262,16 @@ export default function ChatScreen() {
         if (step === 'wait') keep.push(q);
         else if (step === 'answer') {
           answered.add(q.intent);
-          saveToServer.push(q);
+          // Lo que se responde al abrir el chat va debajo de su pregunta y no se guarda de nuevo en el servidor.
+          if (q.catchUp) add.push({ id: `ai-${q.id}`, created_at: q.anchor ?? new Date().toISOString(), ai: 'answer', intent: q.intent, answer: q.answer });
+          else saveToServer.push(q);
         } else if (step === 'status') {
           const asked = msgs.find((m) => m.sender_id === user?.id && m.content === q.text && !m.id.startsWith(LOCAL_PREFIX) && Date.parse(m.created_at) >= Date.parse(q.askedAt) - 60_000);
           if (asked && !q.catchUp) void chatApi.aiUnknown(entityId, asked.id).catch(() => undefined);
           // Un solo aviso por conversación mientras el negocio no conteste.
           if (hasStatus || add.some((r) => r.ai === 'status')) continue;
           const who = answerData?.name ?? name ?? 'El negocio';
-          add.push({ id: `ai-${q.id}`, created_at: new Date().toISOString(), ai: 'status', text: waitNotice(who, online, open) });
+          add.push({ id: `ai-${q.id}`, created_at: q.anchor ?? new Date().toISOString(), ai: 'status', text: waitNotice(who, online, open) });
         }
       }
     }
@@ -295,11 +299,17 @@ export default function ChatScreen() {
    * Después de enviar un mensaje del cliente: Empre AI prepara la respuesta con los datos del negocio. Un mensaje con
    * varias preguntas (3.68) se responde pregunta por pregunta y la pantalla lo junta en una sola burbuja.
    */
-  const askEmpreAI = async (content: string, preset?: Intent, catchUp = false) => {
+  const greeted = useRef(false);
+  const askEmpreAI = async (content: string, preset?: Intent, opts: { catchUp?: boolean; anchor?: string } = {}) => {
+    const { catchUp = false, anchor } = opts;
     if (sentByEntity || !answerData || answerData.aiChatOff || !entityId) return;
-    setTyping(true);
-    // Un saludo solo se contesta con un saludo de Empre AI, no con «esto lo responde el negocio».
+    // Un saludo solo se contesta con un saludo de Empre AI, una vez por conversación; si ya hablaron, no se repite.
     if (!preset && isGreetingOnly(content)) {
+      const already = greeted.current || latest.current.aiRows.some((r) => r.id.startsWith('ai-hola')) || latest.current.messages.some((m) => m.kind === 'ai_answer');
+      if (already) return;
+      // Se anota ya: dos «Hola» seguidos no alcanzan a saludar dos veces.
+      greeted.current = true;
+      setTyping(true);
       const at = new Date();
       const greet: Answer = {
         intent: 'unknown',
@@ -320,6 +330,7 @@ export default function ChatScreen() {
     // Modelo de uso (3.64): de dónde sale la respuesta, para medir cuánto se responde sin IA.
     let source = found.some((f) => f.taughtId) ? 'taught' : 'rule';
     // F4: si las reglas no entienden nada del mensaje, el servidor lo clasifica una vez (solo la intención).
+    setTyping(true);
     if (!catchUp && found.every((f) => f.intent === 'unknown')) {
       const c = await chatApi.classify(entityId, content).catch(() => null);
       if (c && c.intent !== 'unknown') {
@@ -336,7 +347,7 @@ export default function ChatScreen() {
       const ans = buildAnswer(answerData, f.intent, { serviceId, taughtId: f.taughtId, text: content, weekday: now.getDay(), now: now.getTime() });
       track('question_asked', entityId, { intent: f.intent, answered: !ans.unanswered });
       track('ai_answer_source', entityId, { intent: f.intent, source: ans.unanswered ? 'owner' : source, businesses: 1 });
-      return { id: `${now.getTime()}-${i}`, askedAt: now.toISOString(), text: content, intent: f.intent, serviceId, taughtId: f.taughtId, answer: ans, catchUp };
+      return { id: `${now.getTime()}-${Math.random().toString(36).slice(2, 6)}-${i}`, askedAt: now.toISOString(), text: content, intent: f.intent, serviceId, taughtId: f.taughtId, answer: ans, catchUp, anchor };
     });
     latest.current = { ...latest.current, pending: [...latest.current.pending, ...qs] };
     setPending((prev) => [...prev, ...qs]);
@@ -352,9 +363,11 @@ export default function ChatScreen() {
     caughtUp.current = true;
     const tail = unansweredTail(history.data, user.id, Date.now()).filter((m) => !isGreetingOnly(m.content));
     if (!tail.length) return;
-    const joined = tail.map((m) => m.content.trim().replace(/[^?.!]$/, '$&.')).join(' ');
+    // Cada mensaje se responde por su lado y su respuesta queda justo debajo de él (1 ms después de su hora).
     // Fuera del efecto: «escribiendo…» empieza en el siguiente ciclo, no dentro del render.
-    setTimeout(() => void askEmpreAI(joined, undefined, true), 0);
+    setTimeout(() => {
+      for (const m of tail) void askEmpreAI(m.content, undefined, { catchUp: true, anchor: new Date(Date.parse(m.created_at) + 1).toISOString() });
+    }, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [answerData, history.data, sentByEntity, user?.id]);
 
@@ -777,7 +790,7 @@ const styles = StyleSheet.create({
   bubbleRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   bubbleRowMine: { justifyContent: 'flex-end' },
   bubbleRowTheirs: { justifyContent: 'flex-start' },
-  bubble: { maxWidth: '80%', borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: 2 },
+  bubble: { minWidth: 96, maxWidth: '80%', borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: 2 },
   // Tu mensaje en tinta, como en Empre AI: el rojo queda para la acción principal (3.70).
   bubbleMine: { backgroundColor: colors.ink, borderRadius: 20, borderBottomRightRadius: 6 },
   bubbleTheirs: { backgroundColor: colors.surface, borderRadius: 20, borderBottomLeftRadius: 6, borderWidth: 1, borderColor: colors.hairline },
