@@ -2,9 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { entitiesApi } from '@/api/endpoints';
 import { useAuth } from '@/auth/AuthContext';
+import { Chispa } from '@/components/ai/Chispa';
+import { VoiceSheet } from '@/components/ledger/VoiceSheet';
 import { getPhoneFlag } from '@/lib/phoneFlags';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, softShadow } from '@/theme';
@@ -17,6 +19,8 @@ interface QuickAction {
   title: string;
   /** La acción principal: la única en rojo. */
   main?: boolean;
+  /** Empre AI: va con la Chispa en vez de un ícono (3.66). */
+  ai?: boolean;
   go: () => void;
 }
 
@@ -24,10 +28,14 @@ const FADE_MS = 120;
 const STAGGER_MS = 32;
 
 /**
- * Acciones rápidas del (+): salen del mismo botón, sobre la pantalla oscurecida, y la X queda donde estaba el +.
- * Con negocio, lo de todos los días sin pasar por el perfil; la más usada queda más cerca del pulgar.
+ * Acciones rápidas del (+) del centro de la barra: salen del mismo botón, sobre la pantalla oscurecida, y la X queda
+ * donde estaba el +. Con negocio, lo de todos los días sin pasar por el perfil; la más usada queda más cerca del pulgar
+ * y Empre AI arriba de todo (3.66).
  */
-export function QuickActionSheet({ visible, onClose, anchorBottom }: { visible: boolean; onClose: () => void; anchorBottom: number }) {
+export function QuickActionSheet({ visible, onClose, anchorBottom, anchorX }: { visible: boolean; onClose: () => void; anchorBottom: number; anchorX?: number }) {
+  const win = useWindowDimensions();
+  const cx = anchorX ?? win.width - SIDE - BUTTON / 2;
+  const [voiceFor, setVoiceFor] = useState<string | null>(null);
   const router = useRouter();
   const reduce = useReduceMotion();
   const { status } = useAuth();
@@ -64,6 +72,7 @@ export function QuickActionSheet({ visible, onClose, anchorBottom }: { visible: 
   // De arriba hacia abajo, tal como se ven.
   const actions: QuickAction[] = active
     ? [
+        { key: 'ai', icon: 'sparkles', title: 'Hablar con Empre AI', ai: true, go: () => setVoiceFor(active.id) },
         { key: 'finance', icon: 'wallet-outline', title: 'Finanzas', go: () => router.push({ pathname: '/business/ledger/[id]', params }) },
         { key: 'inventory', icon: 'cube-outline', title: 'Inventario', go: () => router.push({ pathname: '/business/products/[id]', params }) },
         { key: 'scan', icon: 'qr-code-outline', title: 'Canjear oferta', go: () => router.push('/business/scan') },
@@ -81,10 +90,11 @@ export function QuickActionSheet({ visible, onClose, anchorBottom }: { visible: 
       ];
 
   return (
+    <>
     <Modal visible={visible} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => dismiss()}>
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: fade }]}>
         <Pressable accessibilityRole="button" accessibilityLabel="Cerrar acciones rápidas" onPress={() => dismiss()} style={styles.scrim} />
-        <View pointerEvents="box-none" style={[styles.stack, { bottom: anchorBottom + BUTTON + 12 }]}>
+        <View pointerEvents="box-none" style={[styles.stack, { bottom: anchorBottom + BUTTON + 12, right: Math.max(SIDE, win.width - cx - 27) }]}>
           {active && entities.length > 1 ? (
             <Text style={styles.business} numberOfLines={1}>
               {active.name}
@@ -99,19 +109,21 @@ export function QuickActionSheet({ visible, onClose, anchorBottom }: { visible: 
                   <Text style={styles.label} numberOfLines={1}>
                     {a.title}
                   </Text>
-                  <View style={[styles.circle, a.main && styles.circleMain]}>
-                    <Ionicons name={a.icon} size={a.key === 'sale' || a.key === 'expense' ? 24 : 20} color={a.main ? '#fff' : colors.ink} />
+                  <View style={[styles.circle, a.main && styles.circleMain, a.ai && styles.circleAi]}>
+                    {a.ai ? <Chispa size={36} animated={false} /> : <Ionicons name={a.icon} size={a.key === 'sale' || a.key === 'expense' ? 24 : 20} color={a.main ? '#fff' : colors.ink} />}
                   </View>
                 </Pressable>
               </Animated.View>
             );
           })}
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={() => dismiss()} style={[styles.close, { bottom: anchorBottom }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={() => dismiss()} style={[styles.close, { bottom: anchorBottom, left: cx - BUTTON / 2 }]}>
           <Ionicons name="close" size={24} color={colors.ink} />
         </Pressable>
       </Animated.View>
     </Modal>
+    <VoiceSheet entityId={voiceFor ?? ''} visible={voiceFor !== null} onClose={() => setVoiceFor(null)} hints={[]} defaultMode="finance" />
+    </>
   );
 }
 
@@ -128,5 +140,6 @@ const styles = StyleSheet.create({
   label: { flexShrink: 1, fontSize: 15.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
   circle: { width: 48, height: 48, marginRight: 3, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   circleMain: { backgroundColor: colors.primary },
-  close: { position: 'absolute', right: SIDE, width: BUTTON, height: BUTTON, borderRadius: BUTTON / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, ...softShadow },
+  circleAi: { backgroundColor: colors.ink },
+  close: { position: 'absolute', width: BUTTON, height: BUTTON, borderRadius: BUTTON / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, ...softShadow },
 });

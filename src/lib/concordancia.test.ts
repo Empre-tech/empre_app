@@ -15,7 +15,16 @@ const THEME = new Set([...read('theme.ts').matchAll(/#[0-9A-Fa-f]{6}\b/g)].map((
 const LOGO = ['#14B8B0', '#F03232', '#FF8A1F', '#FFFFFF', '#C7D2E0', '#CFE9EC'];
 const PALETTE = new Set([...THEME, ...LOGO]);
 
-const SCREENS = ['components/ai/Chispa.tsx', 'components/ai/VoiceOrb.tsx', 'components/ledger/VoiceSheet.tsx', 'components/offers/AskManySheet.tsx', 'components/chat/ChatVoices.tsx'];
+const SCREENS = [
+  'components/ai/Chispa.tsx',
+  'components/ai/VoiceOrb.tsx',
+  'components/ai/EmpreAISheet.tsx',
+  'components/ledger/VoiceSheet.tsx',
+  'components/offers/AskManySheet.tsx',
+  'components/chat/ChatVoices.tsx',
+  'components/search/SearchFilters.tsx',
+  'components/QuickActionSheet.tsx',
+];
 
 for (const f of SCREENS) {
   test(`${f}: solo colores de la paleta`, () => {

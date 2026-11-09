@@ -11,11 +11,14 @@ import { categoriesApi } from '@/api/endpoints';
 import { discoveryApi } from '@/api/offers';
 import type { DiscoveryItem } from '@/api/types';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
+import { FilterRow, FiltersSheet } from '@/components/search/SearchFilters';
 import { BusinessCardModal } from '@/components/explore/BusinessCardModal';
 import type { WithDistance } from '@/components/explore/FeaturedCard';
 import { speechAvailable, startDictation } from '@/ledger/speech';
 import { areaAround, familyFor, noneTitle, pickAlternatives } from '@/lib/askAlternatives';
-import { filterChips, hourIdeas, howFar, suggestionAction } from '@/lib/askChips';
+import { hourIdeas, howFar, suggestionAction } from '@/lib/askChips';
+import { buildGroups, groupIdOf } from '@/lib/categoryGroups';
+import { activeCount, applyFilters, fromAsk, NO_FILTERS as NO_SEARCH, resultsTitle, toAsk, type FilterCaps, type SearchFilters } from '@/lib/searchFilters';
 import { hourCO } from '@/lib/finance';
 import { formatPesos } from '@/lib/catalog';
 import { resolveImageUrl } from '@/lib/image';
@@ -65,6 +68,11 @@ export default function AskScreen() {
   const started = useRef(false);
 
   const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 10 * 60_000 });
+  // Un solo buscador (3.66): lo que el servidor filtra (abierto, oferta, domicilio, más barato) va en `filters`; lo que
+  // se filtra aquí con lo que ya llegó (a pie, verificado, tipo) va en `local`.
+  const [local, setLocal] = useState<SearchFilters>(NO_SEARCH);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const groups = useMemo(() => buildGroups(categories.data ?? []), [categories.data]);
 
   const run = async (q: string, nextFilters: AskFilters) => {
     const clean = q.trim();
@@ -99,6 +107,12 @@ export default function AskScreen() {
   };
 
   const toggle = (key: keyof AskFilters) => void run(question, { ...filters, [key]: !filters[key] });
+  const searchFilters = fromAsk(filters, local);
+  const changeFilters = (next: SearchFilters) => {
+    setLocal(next);
+    const a = toAsk(next);
+    if (a.open_now !== filters.open_now || a.with_offer !== filters.with_offer || a.delivery !== filters.delivery || a.cheapest !== filters.cheapest) void run(question, a);
+  };
 
   const clear = () => {
     seq.current += 1;
@@ -108,6 +122,7 @@ export default function AskScreen() {
     setError(null);
     setLoading(false);
     setFilters(NO_FILTERS);
+    setLocal(NO_SEARCH);
     setEditing(true);
   };
 
@@ -160,9 +175,18 @@ export default function AskScreen() {
   const showResults = !editing && (loading || Boolean(answer) || Boolean(error));
   const catHits = typed ? (categories.data ?? []).filter((c) => plain(c.name).includes(typed)).slice(0, 5) : [];
   const recentHits = typed ? recents.filter((r) => plain(r).includes(typed) && plain(r) !== typed).slice(0, 3) : recents;
-  const chips = filterChips(filters);
 
-  const biz = answer?.businesses ?? [];
+  const caps: FilterCaps = { rating: false, cheap: true, distance: Boolean(coords) };
+  const biz = applyFilters(answer?.businesses ?? [], searchFilters, (b) => ({
+    open: b.has_hours ? b.is_open_now : null,
+    meters: coords ? b.distance_km * 1000 : null,
+    offer: b.has_active_offer,
+    delivery: b.delivery,
+    verified: b.is_verified,
+    group: groupIdOf(b.category_id, groups) ?? null,
+    price: b.item?.price ?? null,
+  }));
+  const filtersOn = activeCount(searchFilters) > 0;
   const asked = answer?.terms || question;
   const isNone = !loading && !error && Boolean(answer) && biz.length === 0;
   const family = isNone ? familyFor(asked) : null;
@@ -181,7 +205,7 @@ export default function AskScreen() {
   const ideas = isNone ? hourIdeas(hourCO(new Date().toISOString())) : [];
   const onMap = (biz.length ? (biz as AskPlace[]) : [...alts.offers, ...alts.rest]).filter((b) => b.latitude && b.longitude);
   const region = regionFor(onMap, coords);
-  const count = biz.length === 1 ? '1 lugar que cumple' : `${biz.length} lugares que cumplen`;
+  const count = resultsTitle(biz.length, searchFilters, caps);
 
   if (showResults) {
     return (
@@ -216,20 +240,12 @@ export default function AskScreen() {
         </View>
 
         <ScrollView style={styles.sheet} contentContainerStyle={[styles.sheetIn, { paddingBottom: insets.bottom + 20 }]} keyboardShouldPersistTaps="handled">
+          <View style={styles.filterBleed}>
+            <FilterRow value={searchFilters} onChange={changeFilters} caps={caps} groupName={groups.find((g) => g.id === searchFilters.group)?.name} onOpenSheet={() => setSheetOpen(true)} />
+          </View>
           <View style={styles.group}>
-            {isNone ? null : <Text style={styles.eyebrow}>ENTENDÍ ESTO · TOCA PARA QUITAR</Text>}
             <View style={styles.chips}>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Quitar: ${answer?.terms || question}`} onPress={clear} style={styles.chipOn}>
-                <Text style={styles.chipOnText}>{answer?.terms || question}</Text>
-                <Text style={styles.chipOnText}>×</Text>
-              </Pressable>
-              {chips.map((c) => (
-                <Pressable key={c.key} accessibilityRole="button" accessibilityLabel={`Quitar: ${c.label}`} onPress={() => toggle(c.key)} style={styles.chipOn}>
-                  <Text style={styles.chipOnText}>{c.label}</Text>
-                  <Text style={styles.chipOnText}>×</Text>
-                </Pressable>
-              ))}
-              {answer?.suggestions.filter((x) => suggestionAction(x).kind !== 'map').map((x) => (
+              {answer?.suggestions.filter((x) => { const k = suggestionAction(x).kind; return k !== 'map' && k !== 'filter'; }).map((x) => (
                 <Pressable key={x} accessibilityRole="button" onPress={() => onSuggestion(x, answer)} style={styles.chipAdd}>
                   <Text style={styles.chipAddText}>{x}</Text>
                 </Pressable>
@@ -297,7 +313,7 @@ export default function AskScreen() {
                 <>
                   <View style={styles.none} accessibilityLiveRegion="polite">
                     <Text style={styles.noneTitle}>{noneTitle(asked, family)}</Text>
-                    <Text style={styles.hint}>{hasAlts && family ? `Pero hay esto parecido. No son ${family.plural}.` : chips.length ? 'Prueba quitando una condición.' : 'Todavía no hay nada parecido en Empre.'}</Text>
+                    <Text style={styles.hint}>{hasAlts && family ? `Pero hay esto parecido. No son ${family.plural}.` : filtersOn ? 'Prueba quitando un filtro.' : 'Todavía no hay nada parecido en Empre.'}</Text>
                   </View>
                   {family && nearby.isLoading ? <ActivityIndicator color={colors.primary} /> : null}
                   {alts.offers.length ? (
@@ -340,6 +356,15 @@ export default function AskScreen() {
         </ScrollView>
 
         <BusinessCardModal entity={card ? ({ ...card, distance_meters: card.distance_km * 1000, distanceKm: card.distance_km } as unknown as WithDistance) : null} onClose={() => setCard(null)} origin="ask" />
+        <FiltersSheet
+          visible={sheetOpen}
+          value={searchFilters}
+          onChange={changeFilters}
+          onClose={() => setSheetOpen(false)}
+          caps={caps}
+          groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+          resultCount={biz.length}
+        />
       </View>
     );
   }
@@ -594,6 +619,7 @@ const styles = StyleSheet.create({
   pinDot: { position: 'absolute', right: 0, bottom: 0, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: colors.surface },
   sheet: { flex: 1, marginTop: -20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 30, shadowOffset: { width: 0, height: -10 }, elevation: 8 },
   sheetIn: { paddingTop: 14, paddingHorizontal: 14, gap: 12 },
+  filterBleed: { marginHorizontal: -14 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chipOn: { minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 12, paddingRight: 10, borderRadius: 999, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
   chipOnText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },

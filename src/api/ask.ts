@@ -35,6 +35,8 @@ export interface AskBusiness {
   distance_km: number;
   minutes: number;
   delivery: boolean;
+  /** Verificado por Empre (3.66; un backend viejo no lo manda). */
+  is_verified?: boolean;
   item?: AskItem;
 }
 

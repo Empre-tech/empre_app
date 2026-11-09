@@ -45,6 +45,8 @@ import { hourIdeas } from '@/lib/askChips';
 import { ExploreGuide, type GuideRect } from '@/components/explore/ExploreGuide';
 import { StackMarker } from '@/components/explore/StackMarker';
 import { SearchBar } from '@/components/explore/SearchBar';
+import { FilterRow, FiltersSheet } from '@/components/search/SearchFilters';
+import { activeCount, applyFilters, NO_FILTERS as NO_SEARCH, walkMeters, type FilterCaps, type SearchFilters, type WalkMin } from '@/lib/searchFilters';
 import { useFeaturedSheet } from '@/components/explore/useFeaturedSheet';
 import { DEFAULT_REGION } from '@/config';
 import { categoryColor } from '@/lib/categoryColor';
@@ -76,12 +78,6 @@ import { NEAR_ME_M, zoneAt } from '@/lib/zoneName';
 import { cameraTargets, emphasize, isFarResult } from '@/lib/proximity';
 import { MAP_STYLE } from '@/lib/mapStyle';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
-
-/** Opciones del filtro "cerca de mí". `null` = sin límite de distancia. */
-// La distancia en lo que la gente piensa: minutos caminando, a 80 m por minuto.
-const WALK_LIMITS = [5, 10].map((min) => ({ min, km: (min * 80) / 1000 }));
-/** Más allá de lo que se camina: para quien va en moto, carro o bus. */
-const FAR_KM = 3;
 
 /** Alto estimado de la ficha del negocio mientras no se mide (para encuadrar el mapa sin esperar). */
 const SHEET_ESTIMATE = 300;
@@ -194,6 +190,9 @@ export default function MapScreen() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [radiusKm, setRadiusKm] = useState<number | null>(null);
   const [openNow, setOpenNow] = useState(false);
+  // Un solo buscador (3.66): lo que la fila de filtros suma a «abierto», distancia y tipo.
+  const [extra, setExtra] = useState<Pick<SearchFilters, 'offer' | 'delivery' | 'verified' | 'sort'>>({ offer: false, delivery: false, verified: false, sort: 'near' });
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
   // Distingue "sin permiso" de "tardó/falló obteniendo el GPS", para poder mostrar
@@ -459,7 +458,7 @@ export default function MapScreen() {
   // llegan agrupados en casillas con su conteo en vez de uno por uno. Con «abiertos ahora» o un radio
   // el conteo del servidor no coincidiría, así que se vuelve a los pines.
   const level = useMapLevel(region.latitudeDelta);
-  const bubbleMode = !searching && isBubbleLevel(level) && radiusKm === null && !openNow;
+  const bubbleMode = !searching && isBubbleLevel(level) && radiusKm === null && !openNow && !extra.offer && !extra.delivery && !extra.verified;
   const cellsQuery = useQuery({
     queryKey: ['cells', catFilter ?? 'all', subcategoryId ?? 'all', bbox.min_lat, bbox.min_lng, bbox.max_lat, bbox.max_lng, Math.round(Math.log2(region.latitudeDelta) * 4)],
     queryFn: () => discoveryApi.cells({ ...bbox, lat_delta: region.latitudeDelta, category: catFilter, subcategory: subcategoryId }),
@@ -508,14 +507,21 @@ export default function MapScreen() {
         : withDistance;
     // El "abiertos ahora" se aplica acá (el descubrimiento ya los pone primero).
     const openFiltered = openNow ? filtered.filter((e) => e.is_open_now) : filtered;
-    // Sin reordenar: el backend devuelve el orden correcto (ranking + diversificación).
-    return openFiltered;
-  }, [entities.data, reference, radiusKm, openNow]);
+    // Oferta, domicilio, verificado y «Mejor valorados» (3.66). Sin eso, el orden del backend (ranking + diversificación).
+    return applyFilters(openFiltered, { ...NO_SEARCH, ...extra }, (e) => ({
+      open: e.is_open_now,
+      meters: e.distance_meters > 0 ? e.distance_meters : null,
+      offer: e.has_active_offer,
+      delivery: e.service_mode === 'delivery' || e.service_mode === 'both',
+      verified: e.is_verified,
+      rating: e.review_count > 0 ? e.avg_rating : null,
+    }));
+  }, [entities.data, reference, radiusKm, openNow, extra]);
 
   // Pines acumulados (sin búsqueda): cada respuesta SUMA negocios a los que ya estaban y solo se
   // quitan los que quedaron muy lejos; así una consulta nunca hace desaparecer un pin que se ve.
   // Cambiar de categoría o de filtros empieza de cero.
-  const filterKey = `${catFilter}|${subcategoryId}|${radiusKm}|${openNow}|${refKey}`;
+  const filterKey = `${catFilter}|${subcategoryId}|${radiusKm}|${openNow}|${extra.offer}|${extra.delivery}|${extra.verified}|${refKey}`;
   const [pins, setPins] = useState<{ key: string; data: unknown; store: Map<string, WithDistance> }>(() => ({ key: '', data: null, store: new Map() }));
   if (!searching && entities.data && !entities.isPlaceholderData && (pins.data !== entities.data || pins.key !== filterKey)) {
     const base = pins.key === filterKey ? pins.store : new Map<string, WithDistance>();
@@ -726,23 +732,34 @@ export default function MapScreen() {
     setSubcategoryId(undefined);
     setRadiusKm(null);
     setOpenNow(false);
+    setExtra({ offer: false, delivery: false, verified: false, sort: 'near' });
   };
 
-  const activeFilterCount = (categoryId || groupId ? 1 : 0) + (subcategoryId ? 1 : 0) + (radiusKm !== null ? 1 : 0) + (openNow ? 1 : 0);
+  // Los filtros como los ve el buscador único: «abierto», distancia y tipo siguen siendo los de siempre del mapa.
+  const walkOf = (km: number | null): WalkMin | null => ([5, 10, 15] as WalkMin[]).find((m) => km !== null && Math.abs(walkMeters(m) / 1000 - km) < 1e-6) ?? null;
+  const searchFilters: SearchFilters = { open: openNow, walk: walkOf(radiusKm), group: groupId ?? null, ...extra };
+  const filterCaps: FilterCaps = { rating: true, cheap: false, distance: userCoords !== null };
+  const changeFilters = (next: SearchFilters) => {
+    setOpenNow(next.open);
+    const km = next.walk ? walkMeters(next.walk) / 1000 : null;
+    if (km !== radiusKm) {
+      setRadiusKm(km);
+      if (km !== null && userCoords) focusRadius(userCoords, km);
+    }
+    if ((next.group ?? undefined) !== groupId) chooseGroup(next.group ?? undefined);
+    setExtra({ offer: next.offer, delivery: next.delivery, verified: next.verified, sort: next.sort });
+  };
+
+  const activeFilterCount = activeCount(searchFilters) + (subcategoryId ? 1 : 0) + (categoryId && !groupId ? 1 : 0);
   const selectedCategory = (categories.data ?? []).find((c) => c.id === categoryId) ?? null;
   const selectedGroup = groups.find((g) => g.id === groupId) ?? null;
   const selectedSubcategory = (selectedCategory?.subcategories ?? []).find((s) => s.id === subcategoryId) ?? null;
   const selectedCategoryName = selectedSubcategory ? null : selectedCategory?.name ?? null;
-  const walkPick = WALK_LIMITS.find((w) => w.km === radiusKm);
-  const radiusLabel = radiusKm ? (walkPick ? `A ${walkPick.min} min a pie` : `A menos de ${radiusKm} km`) : null;
 
   // Fila de contexto (F12): zona, alcance y filtros activos, cada uno con su ✕.
   const contextFilters: { id: FilterId; label: string }[] = [];
   if (selectedCategory) contextFilters.push({ id: 'category', label: selectedCategory.name });
-  else if (selectedGroup) contextFilters.push({ id: 'category', label: selectedGroup.name });
   if (selectedSubcategory) contextFilters.push({ id: 'subcategory', label: selectedSubcategory.name });
-  if (radiusLabel) contextFilters.push({ id: 'radius', label: radiusLabel });
-  if (openNow) contextFilters.push({ id: 'open', label: 'Abiertos ahora' });
   const contextRow = contextChips({
     searching,
     scope: searchScope,
@@ -1284,31 +1301,7 @@ export default function MapScreen() {
                   </View>
                 </View>
               )}
-              {userCoords ? (
-                <View style={styles.panelGroup}>
-                  <Text style={styles.panelLabel}>Qué tan cerca</Text>
-                  <View style={styles.panelWalk}>
-                    {[...WALK_LIMITS.map((w) => ({ key: String(w.min), label: `${w.min} min`, km: w.km as number | null, a11y: `Hasta ${w.min} minutos a pie` })), { key: 'km', label: `${FAR_KM} km`, km: FAR_KM as number | null, a11y: `Hasta ${FAR_KM} kilómetros` }, { key: 'all', label: 'Sin límite', km: null as number | null, a11y: 'Sin límite de distancia' }].map((w) => {
-                      const on = radiusKm === w.km;
-                      return (
-                        <Pressable
-                          key={w.key}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected: on }}
-                          accessibilityLabel={w.a11y}
-                          onPress={() => {
-                            setRadiusKm(w.km);
-                            if (w.km !== null) focusRadius(userCoords, w.km);
-                          }}
-                          style={[styles.walkChoice, on && styles.walkChoiceOn]}
-                        >
-                          <Text style={styles.walkChoiceText}>{w.label}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              ) : (
+              {userCoords ? null : (
                 <Pressable
                   accessibilityRole="button"
                   disabled={locationDenied || locating}
@@ -1319,12 +1312,6 @@ export default function MapScreen() {
                   {locating ? <ActivityIndicator size="small" color={colors.primary} /> : locationDenied ? null : <Ionicons name="navigate" size={18} color={colors.ink} />}
                 </Pressable>
               )}
-              <Pressable accessibilityRole="switch" accessibilityState={{ checked: openNow }} onPress={() => setOpenNow(!openNow)} style={styles.panelSwitch}>
-                <Text style={styles.panelSwitchText}>Solo abiertos ahora</Text>
-                <View style={[styles.switchTrack, openNow && styles.switchTrackOn]}>
-                  <View style={[styles.switchKnob, openNow && styles.switchKnobOn]} />
-                </View>
-              </Pressable>
               <View style={styles.panelGroup}>
                 <Text style={styles.panelLabel}>Qué tipo de negocio</Text>
                 <GroupRow
@@ -1365,6 +1352,16 @@ export default function MapScreen() {
           </View>
         ) : null}
 
+        <FiltersSheet
+          visible={filtersOpen}
+          value={searchFilters}
+          onChange={changeFilters}
+          onClose={() => setFiltersOpen(false)}
+          caps={filterCaps}
+          groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+          resultCount={fetched.length}
+        />
+
         {/* Arriba, dónde estás (o qué zona mira el mapa); debajo, el buscador con el filtro y las categorías. Flotan sobre el
             mapa: mientras el dedo lo mueve, la franja se atenúa y el resto se desvanece. */}
         <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]} pointerEvents="box-none"
@@ -1385,6 +1382,11 @@ export default function MapScreen() {
           <Animated.View style={[styles.topRows, { opacity: topFade }]} pointerEvents={mapMoving ? 'none' : 'box-none'}>
           <SearchBar value={search} onChangeText={setSearch} onOpenFilters={() => setSearchOpen(true)} filterCount={activeFilterCount} compact hideFilters onFocusChange={(f) => f && setSearchOpen(true)} />
 
+          {tall || selectedEntity || searchOpen ? null : (
+            <View style={styles.filterBleed}>
+              <FilterRow value={searchFilters} onChange={changeFilters} caps={filterCaps} groupName={selectedGroup?.name} onOpenSheet={() => setFiltersOpen(true)} tone="map" />
+            </View>
+          )}
           {tall || selectedEntity || searchOpen ? null : searching ? (
             <ContextRow
               chips={contextRow}
@@ -1398,17 +1400,10 @@ export default function MapScreen() {
                 AccessibilityInfo.announceForAccessibility('Buscando en esta zona');
               }}
             />
-          ) : selectedSubcategory || radiusLabel || openNow || categoryId ? (
+          ) : selectedSubcategory || (selectedCategoryName && !groupId) ? (
             <View style={styles.activeChips}>
               {selectedCategoryName ? <ActiveChip icon="pricetag-outline" label={selectedCategoryName} onRemove={() => { setCategoryId(undefined); setSubcategoryId(undefined); }} /> : null}
               {selectedSubcategory ? <ActiveChip icon="pricetag-outline" label={selectedSubcategory.name} onRemove={() => setSubcategoryId(undefined)} /> : null}
-              {radiusLabel ? <ActiveChip icon="navigate" label={radiusLabel} onRemove={() => setRadiusKm(null)} /> : null}
-              {openNow ? <ActiveChip icon="time-outline" label="Abiertos ahora" onRemove={() => setOpenNow(false)} /> : null}
-              {activeFilterCount >= 2 ? (
-                <Pressable accessibilityRole="button" accessibilityLabel="Limpiar todos los filtros" onPress={clearAllFilters} hitSlop={8} style={styles.clearChip}>
-                  <Text style={styles.clearChipText}>Limpiar</Text>
-                </Pressable>
-              ) : null}
             </View>
           ) : null}
           {mapLoading && !tall && !selectedEntity ? <LoadingChip /> : null}
@@ -1468,6 +1463,7 @@ function ActiveChip({
 }
 
 const styles = StyleSheet.create({
+  filterBleed: { marginHorizontal: -spacing.md },
   whereRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   searchPanel: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: 5, backgroundColor: colors.bg },
   panelBody: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 20, gap: 20 },

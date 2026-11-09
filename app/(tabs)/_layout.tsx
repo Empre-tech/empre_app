@@ -2,11 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Tabs } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi } from '@/api/endpoints';
 import { useAuth } from '@/auth/AuthContext';
 import { useInboxSummary } from '@/chat/useInboxSummary';
+import { Chispa } from '@/components/ai/Chispa';
+import { EmpreAISheet } from '@/components/ai/EmpreAISheet';
 import { BUTTON, QuickActionSheet } from '@/components/QuickActionSheet';
 import { badgeText, messagesA11y } from '@/lib/inbox';
 import { useReduceMotion } from '@/lib/useReduceMotion';
@@ -16,7 +18,7 @@ type IconName = keyof typeof Ionicons.glyphMap;
 
 function TabPillIcon({ name, focused }: { name: IconName; focused: boolean }) {
   const reduce = useReduceMotion();
-  const scale = useRef(new Animated.Value(focused ? 1 : 0.94)).current;
+  const [scale] = useState(() => new Animated.Value(focused ? 1 : 0.94));
 
   useEffect(() => {
     if (reduce) {
@@ -50,7 +52,11 @@ export default function TabsLayout() {
   const inbox = useInboxSummary();
   const insets = useSafeAreaInsets();
   const [quickOpen, setQuickOpen] = useState(false);
-  const [capsuleHeight, setCapsuleHeight] = useState(66);
+  const [aiOpen, setAiOpen] = useState(false);
+  // Dónde quedó el botón del centro, para que la X del menú caiga justo encima (3.66).
+  const [anchor, setAnchor] = useState<{ bottom: number; x: number } | null>(null);
+  const centerRef = useRef<View>(null);
+  const win = useWindowDimensions();
   const dockBottom = Math.max(insets.bottom, 10);
   const msgBadge = badgeText(inbox.messages);
   const { status } = useAuth();
@@ -66,10 +72,37 @@ export default function TabsLayout() {
         }}
         tabBar={({ state, navigation }) => (
           <View pointerEvents="box-none" style={[styles.dock, { paddingBottom: dockBottom }]}>
-            <View style={styles.capsule} onLayout={(e) => setCapsuleHeight(e.nativeEvent.layout.height)}>
+            <View style={styles.capsule}>
               {state.routes.map((route, index) => {
                 const meta = TAB_META[route.name];
                 if (!meta) return null;
+                // Al centro, la acción principal (3.66): Empre AI para quien no tiene negocio; «Registrar» para el dueño.
+                const center =
+                  route.name === 'chats' ? (
+                    <View key="center" style={styles.centerSlot}>
+                      <Pressable
+                        ref={centerRef}
+                        accessibilityRole="button"
+                        accessibilityLabel={hasBusiness ? 'Registrar y acciones de tu negocio' : 'Empre AI'}
+                        onPress={() => {
+                          if (!hasBusiness) {
+                            setAiOpen(true);
+                            return;
+                          }
+                          centerRef.current?.measureInWindow((x, y, w, h) => {
+                            setAnchor({ bottom: win.height - y - h, x: x + w / 2 });
+                            setQuickOpen(true);
+                          });
+                        }}
+                        style={({ pressed }) => [styles.centerBtn, hasBusiness && styles.centerBtnBiz, pressed && styles.plusPressed]}
+                      >
+                        {hasBusiness ? <Ionicons name="add" size={28} color="#fff" /> : <Chispa size={44} animated={false} />}
+                      </Pressable>
+                      <Text style={[styles.label, styles.labelOn]} numberOfLines={1}>
+                        {hasBusiness ? 'Registrar' : 'Empre AI'}
+                      </Text>
+                    </View>
+                  ) : null;
                 const focused = state.index === index;
                 const onPress = () => {
                   const event = navigation.emit({
@@ -88,7 +121,8 @@ export default function TabsLayout() {
                       ? `Perfil, ${inbox.requests} solicitudes por revisar`
                       : meta.label;
 
-                return (
+                return [
+                  center,
                   <Pressable
                     key={route.key}
                     accessibilityRole="tab"
@@ -109,19 +143,10 @@ export default function TabsLayout() {
                     <Text style={[styles.label, focused && styles.labelOn]} numberOfLines={1}>
                       {meta.label}
                     </Text>
-                  </Pressable>
-                );
+                  </Pressable>,
+                ];
               })}
             </View>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={hasBusiness ? 'Abrir acciones rápidas de tu negocio' : 'Abrir acciones rápidas'}
-              onPress={() => setQuickOpen(true)}
-              style={({ pressed }) => [styles.plusBtn, pressed && styles.plusPressed]}
-            >
-              <Ionicons name={hasBusiness ? 'add' : 'sparkles'} size={hasBusiness ? 26 : 22} color="#fff" />
-            </Pressable>
           </View>
         )}
       >
@@ -131,12 +156,16 @@ export default function TabsLayout() {
         <Tabs.Screen name="profile" options={{ title: 'Perfil' }} />
       </Tabs>
 
-      <QuickActionSheet visible={quickOpen} onClose={() => setQuickOpen(false)} anchorBottom={dockBottom + (capsuleHeight - BUTTON) / 2} />
+      <QuickActionSheet visible={quickOpen} onClose={() => setQuickOpen(false)} anchorBottom={anchor?.bottom ?? dockBottom + 40} anchorX={anchor?.x ?? win.width / 2} />
+      <EmpreAISheet visible={aiOpen} onClose={() => setAiOpen(false)} />
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  centerSlot: { flex: 1.1, alignItems: 'center', justifyContent: 'flex-end' },
+  centerBtn: { width: BUTTON + 6, height: BUTTON + 6, marginTop: -28, borderRadius: (BUTTON + 6) / 2, borderWidth: 4, borderColor: colors.surface, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', shadowColor: colors.ink, shadowOpacity: 0.22, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 6 },
+  centerBtnBiz: { backgroundColor: colors.primary },
   dock: {
     flexDirection: 'row',
     alignItems: 'center',
