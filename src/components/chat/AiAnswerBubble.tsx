@@ -1,75 +1,108 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { BlockView } from '@/components/profile/AskEmpre';
-import { AiAvatar } from './ChatVoices';
 import type { Action, Answer } from '@/lib/answers';
 import { chatActions } from '@/lib/chatAutoAnswer';
-import { colors, fonts, radius } from '@/theme';
+import { useReduceMotion } from '@/lib/useReduceMotion';
+import { colors, fonts } from '@/theme';
 
 /**
- * La respuesta de Empre AI dentro del chat (3.62, F1). Se ve distinta a la del negocio, dice de dónde sale el dato
- * («Según su horario publicado»), lleva una acción directa y pregunta si sirvió. Nunca se hace pasar por el dueño.
+ * La respuesta automática dentro del chat (3.68): una burbuja normal del negocio, como la de cualquier mensaje. Si el
+ * mensaje traía varias preguntas, una sola burbuja las contesta en orden. Debajo, solo una nota pequeña («Respuesta
+ * automática · según su carta») y 👍/👎. Nunca se hace pasar por el dueño: la nota lo dice.
  */
-export function AiAnswerBubble({ answer, businessName, onAction, onChoose, onFeedback }: { answer: Answer; businessName: string; onAction: (a: Action) => void; onChoose: (serviceId: string, label: string) => void; onFeedback?: (useful: boolean) => void }) {
-  const [feedback, setFeedback] = useState<'yes' | 'wait' | null>(null);
-  const actions = chatActions(answer.actions);
+export function AiAnswerBubble({
+  answers,
+  businessName,
+  onAction,
+  onChoose,
+  onFeedback,
+}: {
+  answers: { answer: Answer; intent: string }[];
+  businessName: string;
+  onAction: (a: Action) => void;
+  onChoose: (intent: string, serviceId: string, label: string) => void;
+  onFeedback?: (useful: boolean) => void;
+}) {
+  const [feedback, setFeedback] = useState<'yes' | 'no' | null>(null);
+  const actions = chatActions(answers.flatMap((x) => x.answer.actions));
+  const sources = [...new Set(answers.map((x) => x.answer.source).filter(Boolean) as string[])];
+  const note = sources.length ? sources.join(' · ').replace(/^Según/, 'según') : 'con lo que publicó el negocio';
   return (
-    <View style={styles.row}>
-      <AiAvatar />
-      <View style={styles.bubble} accessibilityLabel={`Respuesta automática de Empre AI con lo que publicó ${businessName}`}>
-        <View style={styles.head}>
-          <Text style={styles.headName}>Empre AI</Text>
-          <View style={styles.autoChip}>
-            <Text style={styles.autoText}>Automático</Text>
+    <View style={styles.wrap}>
+      <View style={styles.bubble} accessibilityLabel={`Respuesta automática con lo que publicó ${businessName}`}>
+        {answers.map((x, i) => (
+          <View key={i} style={styles.part}>
+            {x.answer.blocks.map((b, k) => (
+              <BlockView key={k} b={b} onChoose={(id, label) => onChoose(x.intent, id, label)} />
+            ))}
           </View>
-          <Text style={styles.headText} numberOfLines={1}>
-            con lo que publicó el negocio
-          </Text>
-        </View>
-        {answer.blocks.map((b, i) => (
-          <BlockView key={i} b={b} onChoose={onChoose} />
         ))}
-        {answer.source ? <Text style={styles.source}>{answer.source}</Text> : null}
         {actions[0] ? (
           <Pressable accessibilityRole="button" onPress={() => onAction(actions[0])} style={({ pressed }) => [styles.cta, pressed && { opacity: 0.85 }]}>
             <Text style={styles.ctaText}>{actions[0].label}</Text>
             <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
           </Pressable>
         ) : null}
-        <Text style={styles.reached}>Tu mensaje también le llegó al dueño.</Text>
-        <View style={styles.foot}>
-          {feedback ? (
-            <Text style={styles.footText}>{feedback === 'yes' ? 'Gracias. El negocio igual ve tu mensaje.' : `Listo, ${businessName} te responde por aquí.`}</Text>
-          ) : (
-            <>
-              <Text style={styles.footText}>¿Te sirvió?</Text>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  setFeedback('yes');
-                  onFeedback?.(true);
-                }}
-                accessibilityLabel="Sí, me sirvió"
-                style={styles.chip}
-              >
-                <Text style={styles.chipText}>Sí</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  setFeedback('wait');
-                  onFeedback?.(false);
-                }}
-                style={styles.chip}
-              >
-                <Text style={styles.chipText}>Prefiero esperar al negocio</Text>
-              </Pressable>
-            </>
-          )}
-        </View>
       </View>
+      <View style={styles.note}>
+        <Ionicons name="sparkles" size={11} color={colors.faint} />
+        <Text style={styles.noteText} numberOfLines={2}>{`Respuesta automática · ${note}`}</Text>
+        {feedback ? (
+          <Text style={styles.thanks}>{feedback === 'yes' ? 'Gracias' : 'Te responde el negocio'}</Text>
+        ) : (
+          <>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Me sirvió"
+              onPress={() => {
+                setFeedback('yes');
+                onFeedback?.(true);
+              }}
+              style={styles.thumb}
+            >
+              <Ionicons name="thumbs-up-outline" size={16} color={colors.faint} />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="No me sirvió; prefiero que responda el negocio"
+              onPress={() => {
+                setFeedback('no');
+                onFeedback?.(false);
+              }}
+              style={styles.thumb}
+            >
+              <Ionicons name="thumbs-down-outline" size={16} color={colors.faint} />
+            </Pressable>
+          </>
+        )}
+      </View>
+    </View>
+  );
+}
+
+/** «Escribiendo…»: la espera de un momento antes de cada respuesta, como en cualquier chat. */
+export function TypingBubble() {
+  const reduce = useReduceMotion();
+  const [dots] = useState(() => [0, 1, 2].map(() => new Animated.Value(0.4)));
+  useEffect(() => {
+    if (reduce) return;
+    const loop = Animated.loop(
+      Animated.stagger(
+        150,
+        dots.map((d) => Animated.sequence([Animated.timing(d, { toValue: 1, duration: 300, useNativeDriver: true }), Animated.timing(d, { toValue: 0.4, duration: 300, useNativeDriver: true })])),
+      ),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [dots, reduce]);
+  return (
+    <View style={styles.typing} accessible accessibilityLabel="Escribiendo" accessibilityLiveRegion="polite">
+      {dots.map((d, i) => (
+        <Animated.View key={i} style={[styles.dot, { opacity: d }]} />
+      ))}
     </View>
   );
 }
@@ -116,39 +149,40 @@ export function TeachLink({ onPress }: { onPress: () => void }) {
   );
 }
 
-/** Cuando Empre AI no tiene con qué responder: no adivina, dice que el negocio aún no contesta. */
-export function AiStatusLine({ text }: { text: string }) {
+/** Un aviso de una línea sobre tu mensaje («también le llegó al negocio», «esto lo responde el negocio»). */
+export function AiStatusLine({ text, icon = 'time-outline' }: { text: string; icon?: keyof typeof Ionicons.glyphMap }) {
   return (
     <View style={styles.statusRow} accessibilityLiveRegion="polite">
-      <Text style={styles.status}>{text}</Text>
+      <View style={styles.statusPill}>
+        <Ionicons name={icon} size={14} color={colors.muted} />
+        <Text style={styles.status}>{text}</Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, justifyContent: 'flex-start', marginVertical: 4 },
-  bubble: { maxWidth: '84%', gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12, borderRadius: 18, borderBottomLeftRadius: 4, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
-  head: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
-  headName: { fontSize: 12.5, fontFamily: fonts.display.bold, color: colors.ink },
-  autoChip: { paddingHorizontal: 8, paddingVertical: 1, borderRadius: radius.pill, backgroundColor: colors.selectedSoft },
-  autoText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
-  reached: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
-  headText: { flexShrink: 1, fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.muted },
-  source: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.faint },
+  wrap: { alignSelf: 'flex-start', maxWidth: '86%', marginVertical: 4, gap: 2 },
+  bubble: { gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18, borderBottomLeftRadius: 6, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surface },
+  part: { gap: 6 },
   cta: { alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.ink },
   ctaText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
-  foot: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.selectedSoft },
-  footText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  chip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
-  chipText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  note: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 6 },
+  noteText: { flexShrink: 1, fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.faint },
+  thumb: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  thanks: { paddingHorizontal: 8, fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
+  typing: { alignSelf: 'flex-start', flexDirection: 'row', gap: 5, marginVertical: 4, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 18, borderBottomLeftRadius: 6, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surface },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.faint },
   ownerWrap: { alignItems: 'center', gap: 6, marginVertical: 6 },
   ownerRow: { minHeight: 44, maxWidth: '92%', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.selectedSoft },
   ownerText: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   ownerBubble: { alignSelf: 'stretch', maxWidth: '100%' },
+  source: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.faint },
   correct: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.line },
   correctText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   teach: { alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10 },
   teachText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark, textDecorationLine: 'underline' },
   statusRow: { alignItems: 'center', marginVertical: 6 },
-  status: { maxWidth: '88%', textAlign: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.selectedSoft, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  statusPill: { maxWidth: '90%', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, backgroundColor: colors.selectedSoft },
+  status: { flexShrink: 1, fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.bold, color: colors.muted },
 });

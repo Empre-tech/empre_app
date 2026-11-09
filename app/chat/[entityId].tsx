@@ -18,12 +18,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { track } from '@/analytics/track';
 import { answersApi, replyLabel } from '@/api/answers';
-import { AiAnswerBubble, AiAnswerOwnerRow, AiStatusLine, TeachLink } from '@/components/chat/AiAnswerBubble';
-import type { ChispaMood } from '@/components/ai/Chispa';
-import { ChatVoices, HandoffLine, OwnerAvatar } from '@/components/chat/ChatVoices';
+import { AiAnswerBubble, AiAnswerOwnerRow, AiStatusLine, TeachLink, TypingBubble } from '@/components/chat/AiAnswerBubble';
 import { useAnswerData } from '@/components/chat/useAnswerData';
 import { answer as buildAnswer, detectIntent, suggestQuestions, type Action, type Answer, type Intent } from '@/lib/answers';
 import { autoAnswerStep, ownerRepliedSince } from '@/lib/chatAutoAnswer';
+import { groupAiAnswers, splitQuestions } from '@/lib/chatTurns';
 import { chatApi, entitiesApi } from '@/api/endpoints';
 import type { ChatMessage } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
@@ -79,17 +78,8 @@ export default function ChatScreen() {
   // Empre AI (3.62): lo que respondió, las preguntas en espera y qué intenciones ya respondió.
   const [aiRows, setAiRows] = useState<AiRow[]>([]);
   const [pending, setPending] = useState<PendingQuestion[]>([]);
-  // La Chispa (3.63) cuenta lo que pasa: buscando, respondió, se lo pasó al dueño o te sirvió; luego vuelve al reposo.
-  const [mood, setMood] = useState<ChispaMood>('reposo');
-  const moodTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const showMood = useCallback((m: ChispaMood, ms?: number) => {
-    if (moodTimer.current) clearTimeout(moodTimer.current);
-    setMood(m);
-    moodTimer.current = ms ? setTimeout(() => setMood('reposo'), ms) : null;
-  }, []);
-  useEffect(() => () => {
-    if (moodTimer.current) clearTimeout(moodTimer.current);
-  }, []);
+  // «Escribiendo…» (3.68): desde que llega tu pregunta hasta que hay respuesta o se le pasa al negocio.
+  const [typing, setTyping] = useState(false);
   // La hora con que se arman las respuestas guardadas (si una oferta ya venció, no se presenta como vigente).
   const [openedAt] = useState(() => Date.now());
 
@@ -264,22 +254,20 @@ export default function ChatScreen() {
           if (asked) void chatApi.aiUnknown(entityId, asked.id).catch(() => undefined);
           if (hasStatus || add.some((r) => r.ai === 'status')) continue;
           const who = answerData?.name ?? name ?? 'El negocio';
-          add.push({ id: `ai-${q.id}`, created_at: new Date().toISOString(), ai: 'status', text: online ? `Empre AI no sabe esto. Se lo pasó al dueño de ${who}, que está en línea.` : `Empre AI no sabe esto. Se lo pasó al dueño de ${who}; te llega un aviso cuando conteste.` });
+          add.push({ id: `ai-${q.id}`, created_at: new Date().toISOString(), ai: 'status', text: online ? `Esto lo responde ${who}, que está en línea.` : `Esto lo responde ${who}. Te avisamos cuando conteste.` });
         }
       }
     }
     setPending(keep);
     if (add.length) setAiRows((prev) => [...add, ...prev]);
-    if (saveToServer.length || add.some((r) => r.ai === 'answer')) showMood('responde', 1400);
-    else if (add.some((r) => r.ai === 'status')) showMood('nosabe', 2200);
-    else if (keep.length) showMood('reposo');
+    setTyping(false);
     for (const q of saveToServer) {
       chatApi
         .aiAnswer(entityId, q.intent, q.serviceId, q.taughtId)
         .then((m) => setLive((prev) => (prev.some((x) => x.id === m.id) ? prev : [m, ...prev])))
         .catch(() => setAiRows((prev) => [{ id: `ai-${q.id}`, created_at: new Date().toISOString(), ai: 'answer', intent: q.intent, answer: q.answer }, ...prev]));
     }
-  }, [answerData?.name, name, entityId, user?.id, showMood]);
+  }, [answerData?.name, name, entityId, user?.id]);
 
   // Mientras haya preguntas en espera, se revisa cada segundo (el dueño puede contestar o pasar los 45 s).
   useEffect(() => {
@@ -288,31 +276,41 @@ export default function ChatScreen() {
     return () => clearInterval(id);
   }, [pending.length, resolvePending]);
 
-  /** Después de enviar una pregunta del cliente: Empre AI prepara la respuesta con los datos del negocio. */
+  /**
+   * Después de enviar un mensaje del cliente: Empre AI prepara la respuesta con los datos del negocio. Un mensaje con
+   * varias preguntas (3.68) se responde pregunta por pregunta y la pantalla lo junta en una sola burbuja.
+   */
   const askEmpreAI = async (content: string, preset?: Intent) => {
     if (sentByEntity || !answerData || answerData.aiChatOff || !entityId) return;
-    showMood('pensando');
-    let found: { intent: Intent; services: { id: string }[]; taughtId?: string } = preset ? { intent: preset, services: [] } : detectIntent(content, answerData.services, answerData.taught);
-    // F4: si las reglas no la entienden, el servidor la clasifica (solo la intención; la respuesta sale de lo publicado).
+    setTyping(true);
+    type Found = { intent: Intent; services: { id: string }[]; taughtId?: string };
+    const parts = preset ? [content] : splitQuestions(content);
+    let found: Found[] = preset ? [{ intent: preset, services: [] }] : parts.map((part) => detectIntent(part, answerData.services, answerData.taught));
     // Modelo de uso (3.64): de dónde sale la respuesta, para medir cuánto se responde sin IA.
-    let source = found.taughtId ? 'taught' : 'rule';
-    if (found.intent === 'unknown') {
+    let source = found.some((f) => f.taughtId) ? 'taught' : 'rule';
+    // F4: si las reglas no entienden nada del mensaje, el servidor lo clasifica una vez (solo la intención).
+    if (found.every((f) => f.intent === 'unknown')) {
       const c = await chatApi.classify(entityId, content).catch(() => null);
       if (c && c.intent !== 'unknown') {
-        found = { intent: c.intent as Intent, services: [], taughtId: c.answer_id };
+        found = [{ intent: c.intent as Intent, services: [], taughtId: c.answer_id }];
         source = 'classify';
       }
     }
+    const known = found.filter((f, i) => f.intent !== 'unknown' && found.findIndex((g) => g.intent === f.intent) === i);
+    // Lo que nadie entiende igual le llega al negocio; si además hubo respuestas, se avisa con una sola línea.
+    const list: Found[] = known.length ? [...known, ...(found.some((f) => f.intent === 'unknown') ? [{ intent: 'unknown' as Intent, services: [] }] : [])] : [found[0]];
     const now = new Date();
-    const ans = buildAnswer(answerData, found.intent, { serviceId: found.services.length === 1 ? found.services[0].id : undefined, taughtId: found.taughtId, text: content, weekday: now.getDay(), now: now.getTime() });
-    track('question_asked', entityId, { intent: found.intent, answered: !ans.unanswered });
-    track('ai_answer_source', entityId, { intent: found.intent, source: ans.unanswered ? 'owner' : source, businesses: 1 });
-    const serviceId = found.services.length === 1 ? found.services[0].id : undefined;
-    const q: PendingQuestion = { id: String(now.getTime()), askedAt: now.toISOString(), text: content, intent: found.intent, serviceId, taughtId: found.taughtId, answer: ans };
-    latest.current = { ...latest.current, pending: [...latest.current.pending, q] };
-    setPending((list) => [...list, q]);
+    const qs: PendingQuestion[] = list.map((f, i) => {
+      const serviceId = f.services.length === 1 ? f.services[0].id : undefined;
+      const ans = buildAnswer(answerData, f.intent, { serviceId, taughtId: f.taughtId, text: content, weekday: now.getDay(), now: now.getTime() });
+      track('question_asked', entityId, { intent: f.intent, answered: !ans.unanswered });
+      track('ai_answer_source', entityId, { intent: f.intent, source: ans.unanswered ? 'owner' : source, businesses: 1 });
+      return { id: `${now.getTime()}-${i}`, askedAt: now.toISOString(), text: content, intent: f.intent, serviceId, taughtId: f.taughtId, answer: ans };
+    });
+    latest.current = { ...latest.current, pending: [...latest.current.pending, ...qs] };
+    setPending((prev) => [...prev, ...qs]);
     // Un momento de «escribiendo», no un salto instantáneo.
-    setTimeout(resolvePending, 700);
+    setTimeout(resolvePending, 1100);
   };
 
   const onAiAction = (a: Action) => {
@@ -330,24 +328,12 @@ export default function ChatScreen() {
     () => (aiRows.length ? [...aiRows, ...messages].sort((a, b) => b.created_at.localeCompare(a.created_at)) : messages),
     [aiRows, messages],
   );
-  // «Dos voces» (3.62): dónde empieza un grupo de mensajes del dueño (para su avatar y nombre) y dónde entra el dueño
-  // después de una respuesta de Empre AI (el relevo).
-  const voices = useMemo(() => {
-    const ownerStart = new Set<string>();
-    const handoff = new Set<string>();
-    let prevOwner = false;
-    let sawAi = false;
-    for (const r of [...rows].reverse()) {
-      const isAi = 'ai' in r ? r.ai === 'answer' : r.kind === 'ai_answer';
-      const isOwner = !('ai' in r) && r.sent_by_entity && r.kind !== 'ai_answer';
-      if (isOwner && !prevOwner) ownerStart.add(r.id);
-      if (isOwner && sawAi) handoff.add(r.id);
-      if (isAi) sawAi = true;
-      if (isOwner) sawAi = false;
-      prevOwner = isOwner;
-    }
-    return { ownerStart, handoff };
-  }, [rows]);
+  // Respuestas automáticas seguidas: una sola burbuja (3.68).
+  const aiGroups = useMemo(
+    () => groupAiAnswers(rows.map((r) => ({ id: r.id, created_at: r.created_at, ai: 'ai' in r ? r.ai === 'answer' : r.kind === 'ai_answer' && Boolean(r.ai_intent) }))),
+    [rows],
+  );
+  const rowById = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows]);
   const businessName = answerData?.name ?? name ?? 'el negocio';
 
   const suggestions = useMemo(() => (answerData && aiOn ? suggestQuestions(answerData, answeredIntents as ReadonlySet<Intent>, 3) : []), [answerData, aiOn, answeredIntents]);
@@ -426,8 +412,8 @@ export default function ChatScreen() {
           <Text style={styles.title} numberOfLines={1}>
             {name ?? 'Chat'}
           </Text>
-          <Text style={[styles.status, connected && otherOnline && styles.statusOnline]} numberOfLines={1}>
-            {!connected ? 'Conectando…' : otherOnline ? 'En línea' : 'Desconectado'}
+          <Text style={[styles.status, connected && (otherOnline || (!sentByEntity && answerData?.isOpenNow === true)) && styles.statusOnline]} numberOfLines={1}>
+            {!connected ? 'Conectando…' : otherOnline ? 'En línea' : sentByEntity ? 'Desconectado' : answerData?.isOpenNow === true ? 'Abierto ahora' : answerData?.isOpenNow === false ? 'Cerrado ahora' : 'Te responde por aquí'}
           </Text>
         </View>
         {!sentByEntity && hasPhone ? (
@@ -454,15 +440,14 @@ export default function ChatScreen() {
         ) : null}
       </View>
 
-      {!sentByEntity && (todayHours || (!aiOn && replyText)) ? (
+      {!sentByEntity && (todayHours || replyText) ? (
         <View style={styles.infoBar}>
           <Ionicons name="time-outline" size={13} color={colors.muted} />
           <Text style={styles.infoBarText} numberOfLines={1}>
-            {[todayHours, aiOn ? null : replyText].filter(Boolean).join(' · ')}
+            {[todayHours, replyText].filter(Boolean).join(' · ')}
           </Text>
         </View>
       ) : null}
-      {!sentByEntity && aiOn ? <ChatVoices avatar={avatar} businessName={businessName} online={connected && otherOnline} ownerSub={connected && otherOnline ? 'En línea ahora' : replyText ?? 'Te responde por aquí'} mood={mood} /> : null}
 
       {authStatus !== 'signedIn' ? (
         <View style={styles.center}>
@@ -492,44 +477,42 @@ export default function ChatScreen() {
             data={rows}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.messages}
+            ListHeaderComponent={typing && !sentByEntity ? <TypingBubble /> : null}
             renderItem={({ item: row }) => {
-            if ('ai' in row) {
-              return row.ai === 'answer' ? (
-                <AiAnswerBubble
-                  answer={row.answer}
-                  businessName={answerData?.name ?? name ?? 'el negocio'}
-                  onAction={onAiAction}
-                  onChoose={onAiChoose(row.intent)}
-                  onFeedback={(useful) => {
-                    track('ai_answer_feedback', entityId, { intent: row.intent, useful });
-                    if (useful) showMood('contento', 1400);
-                  }}
-                />
-              ) : (
-                <AiStatusLine text={row.text} />
+            if ('ai' in row && row.ai === 'status') return <AiStatusLine text={row.text} />;
+            if (!('ai' in row) && row.kind === 'ai_answer' && row.ai_intent && sentByEntity) {
+              const intent = row.ai_intent as Intent;
+              const when = new Date(row.created_at);
+              const built = answerData ? buildAnswer(answerData, intent, { serviceId: row.ai_service_id, taughtId: row.ai_answer_id, weekday: when.getDay(), now: openedAt }) : null;
+              return <AiAnswerOwnerRow summary={row.content} answer={built} onCorrect={() => teach({ intent: intent === 'custom' ? '' : intent })} />;
+            }
+            if ('ai' in row || (row.kind === 'ai_answer' && row.ai_intent)) {
+              // Una burbuja por grupo (3.68): la fila más nueva la dibuja con todas las respuestas, en orden.
+              if (aiGroups.hidden.has(row.id)) return null;
+              const parts = (aiGroups.lead.get(row.id) ?? [row.id]).flatMap((id) => {
+                const r = rowById.get(id);
+                if (!r) return [];
+                if ('ai' in r) return r.ai === 'answer' ? [{ answer: r.answer, intent: r.intent as string }] : [];
+                if (r.kind !== 'ai_answer' || !r.ai_intent || !answerData) return [];
+                const when = new Date(r.created_at);
+                return [{ answer: buildAnswer(answerData, r.ai_intent as Intent, { serviceId: r.ai_service_id, taughtId: r.ai_answer_id, weekday: when.getDay(), now: openedAt }), intent: r.ai_intent }];
+              });
+              if (!parts.length) return null;
+              return (
+                <View>
+                  <AiAnswerBubble
+                    answers={parts}
+                    businessName={businessName}
+                    onAction={onAiAction}
+                    onChoose={(intent, serviceId) => onAiChoose(intent as Intent)(serviceId)}
+                    onFeedback={(useful) => track('ai_answer_feedback', entityId, { intent: parts[0].intent, useful })}
+                  />
+                  {aiGroups.first && (aiGroups.lead.get(row.id) ?? [row.id]).includes(aiGroups.first) ? <AiStatusLine icon="checkmark" text={`Tu mensaje también le llegó a ${businessName}.`} /> : null}
+                </View>
               );
             }
             const item = row;
-            if (item.kind === 'ai_answer' && item.ai_intent) {
-              const intent = item.ai_intent as Intent;
-              const when = new Date(item.created_at);
-              const built = answerData ? buildAnswer(answerData, intent, { serviceId: item.ai_service_id, taughtId: item.ai_answer_id, weekday: when.getDay(), now: openedAt }) : null;
-              if (sentByEntity) return <AiAnswerOwnerRow summary={item.content} answer={built} onCorrect={() => teach({ intent: intent === 'custom' ? '' : intent })} />;
-              return built ? (
-                <AiAnswerBubble
-                  answer={built}
-                  businessName={answerData?.name ?? name ?? 'el negocio'}
-                  onAction={onAiAction}
-                  onChoose={onAiChoose(intent)}
-                  onFeedback={(useful) => {
-                    track('ai_answer_feedback', entityId, { intent, useful });
-                    if (useful) showMood('contento', 1400);
-                  }}
-                />
-              ) : null;
-            }
             const mine = item.sender_id === user?.id;
-            const ownerVoice = !sentByEntity && aiOn && !mine && item.sent_by_entity;
             return (
               <View>
                 {dayStarts.has(item.id) ? (
@@ -537,16 +520,13 @@ export default function ChatScreen() {
                     <Text style={styles.daySeparatorText}>{formatDayLabel(item.created_at)}</Text>
                   </View>
                 ) : null}
-                {!sentByEntity && voices.handoff.has(item.id) ? <HandoffLine /> : null}
                 {FEATURES.agenda && item.kind === 'appointment' && item.appointment_id ? (
                   <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
                     <AppointmentCard appointmentId={item.appointment_id} />
                   </View>
                 ) : (
-                <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs, ownerVoice && styles.ownerRow]}>
-                  {ownerVoice ? <View style={styles.ownerAvatarSlot}>{voices.ownerStart.has(item.id) ? <OwnerAvatar uri={avatar} name={businessName} /> : null}</View> : null}
-                  <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs, item.item && styles.bubbleWithItem, ownerVoice && styles.ownerBubble]}>
-                    {ownerVoice && voices.ownerStart.has(item.id) ? <Text style={styles.ownerLabel}>{`El dueño · ${businessName}`}</Text> : null}
+                <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
+                  <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs, item.item && styles.bubbleWithItem]}>
                     {item.item ? (
                       <ChatItemCard
                         item={item.item}
@@ -584,7 +564,6 @@ export default function ChatScreen() {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      {authStatus === 'signedIn' && !sentByEntity && suggestions.length ? <Text style={styles.faqLabel}>Preguntas frecuentes · respuesta al instante</Text> : null}
       {authStatus === 'signedIn' && !sentByEntity ? (
         <ScrollView
           horizontal
@@ -602,7 +581,6 @@ export default function ChatScreen() {
               disabled={!connected}
               style={({ pressed }) => [styles.quickReplyChip, (pressed || !connected) && { opacity: 0.6 }]}
             >
-              {intent ? <Ionicons name="sparkles" size={12} color={colors.ink} /> : null}
               <Text style={styles.quickReplyText}>{label}</Text>
             </Pressable>
           ))}
@@ -624,7 +602,7 @@ export default function ChatScreen() {
               setText(value);
               if (error) setError(null);
             }}
-            placeholder={!sentByEntity && aiOn ? 'Escríbele al dueño o pregunta' : 'Escribe un mensaje'}
+            placeholder="Escribe un mensaje"
             placeholderTextColor={colors.muted}
             style={styles.input}
             multiline
