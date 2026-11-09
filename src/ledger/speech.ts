@@ -28,7 +28,10 @@ export interface DictationHandlers {
   /** Texto reconocido hasta ahora (parcial mientras habla, final al terminar). */
   onText: (text: string, isFinal: boolean) => void;
   onEnd: () => void;
-  onError: (message: string) => void;
+  /** `code` es el del reconocedor («no-speech», «not-allowed»…) para que la pantalla elija qué mostrar. */
+  onError: (message: string, code?: string) => void;
+  /** Volumen del micrófono (-2 a 10, bajo 0 no se oye): la Chispa crece con tu voz, no con un bucle inventado. */
+  onVolume?: (value: number) => void;
 }
 
 const ERRORS: Record<string, string> = {
@@ -72,8 +75,15 @@ export async function startDictation(handlers: DictationHandlers, hints: string[
       if (typeof t === 'string') handlers.onText(t, Boolean(e?.isFinal));
     }),
     m.addListener('error', (e: any) => {
-      handlers.onError(ERRORS[e?.error as string] ?? 'No pudimos escucharte. Escribe lo que quieres registrar.');
+      handlers.onError(ERRORS[e?.error as string] ?? 'No pudimos escucharte. Escribe lo que quieres registrar.', e?.error as string | undefined);
     }),
+    ...(handlers.onVolume
+      ? [
+          m.addListener('volumechange', (e: any) => {
+            if (typeof e?.value === 'number') handlers.onVolume?.(e.value);
+          }),
+        ]
+      : []),
     m.addListener('end', () => {
       cleanup();
       handlers.onEnd();
@@ -88,6 +98,7 @@ export async function startDictation(handlers: DictationHandlers, hints: string[
       maxAlternatives: 1,
       // Los nombres del negocio ayudan al reconocedor a acertar «empanada» o «Don Jorge».
       contextualStrings: hints.slice(0, 80),
+      ...(handlers.onVolume ? { volumeChangeEventOptions: { enabled: true, intervalMillis: 120 } } : {}),
     });
   } catch {
     cleanup();

@@ -2,20 +2,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Animated, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { catalogApi } from '@/api/catalog';
 import { ApiError } from '@/api/client';
 import { ledgerApi, type AdjustReason, type InventoryItem, type VoiceAction, type VoiceResult } from '@/api/ledger';
 import { useEntitySections } from '@/api/sections';
 import { Button } from '@/components/Button';
-import { EmpreSymbol } from '@/components/EmpreSymbol';
-import { DoneMark } from '@/components/ledger/Flow';
+import { Chispa } from '@/components/ai/Chispa';
+import { VoiceOrb } from '@/components/ai/VoiceOrb';
 import { AmountField, Chip, MethodChips, PartyPicker } from '@/components/ledger/parts';
 import { PayDeck } from '@/components/ledger/PayDeck';
 import { categoryLabel, formatPesos, newClientId } from '@/lib/ledger';
 import { speechAvailable, startDictation } from '@/ledger/speech';
-import { liveParse, type WordTag } from '@/lib/voiceLive';
+import { liveParse } from '@/lib/voiceLive';
+import { liveRows, micLevel, phaseCopy, voicePhase, wordTone, type LiveRow, type WordTone } from '@/lib/voiceStage';
 import { availabilityLine, countFromWords, dictatedPrice, inventoryIntent, isMoneyTalk, isPriceStatement, itemNamedIn, sameNameItem, similarItems } from '@/lib/voiceNewItem';
 import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 
@@ -89,28 +90,37 @@ export function actionProblem(a: VoiceAction): string | null {
   return null;
 }
 
-function wordTagStyle(tag?: WordTag) {
-  switch (tag) {
-    case 'item':
-      return styles.tagItem;
-    case 'money':
-      return styles.tagMoney;
-    case 'stock_out':
-      return styles.tagStockOut;
-    case 'stock_low':
-      return styles.tagStockLow;
-    case 'stock_ok':
-    case 'filter':
-      return styles.tagFilter;
-    default:
-      return undefined;
-  }
-}
+/** Los tonos de la paleta para lo entendido (3.65): producto en tinta, lo bueno en verde azulado, lo que falta en rojo. */
+const TONE: Record<WordTone, { ink: string; bg: string }> = {
+  item: { ink: colors.ink, bg: colors.selectedSoft },
+  good: { ink: colors.verified, bg: colors.verifiedSoft },
+  bad: { ink: colors.primaryDark, bg: colors.primarySoft },
+  warn: { ink: colors.warning, bg: colors.accentSoft },
+};
+
+const ROW_ICON: Record<LiveRow['icon'], keyof typeof Ionicons.glyphMap> = {
+  up: 'arrow-up',
+  down: 'arrow-down',
+  out: 'close',
+  low: 'alert-circle-outline',
+  ok: 'checkmark',
+  search: 'search',
+  open: 'time-outline',
+  offer: 'pricetag-outline',
+  delivery: 'bicycle-outline',
+  cheap: 'cash-outline',
+};
+
+const MODES: { key: EmpreAIMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: 'finance', label: 'Finanzas', icon: 'wallet-outline' },
+  { key: 'inventory', label: 'Inventario', icon: 'cube-outline' },
+  { key: 'search', label: 'Buscar', icon: 'search' },
+];
 
 /**
- * Empre AI Live (estilo Google Gemini): lienzo de transcripción en vivo palabra por palabra,
- * tarjetas reactivas instantáneas según el módulo ('finance' | 'inventory' | 'search') y
- * onda acústica multicolor en la base. Nada mueve caja ni inventario sin confirmación del dueño.
+ * Empre AI por voz (3.65): la Chispa hace de orbe y su aura crece con el volumen real del micrófono; lo que dices
+ * aparece grande con las palabras entendidas marcadas y, debajo, lo que se va armando en vivo (solo con reglas). Nada
+ * mueve caja ni inventario sin que el dueño confirme.
  */
 export function VoiceSheet({
   entityId,
@@ -150,38 +160,9 @@ export function VoiceSheet({
   const canSpeak = speechAvailable();
   const [savedList, setSavedList] = useState<VoiceAction[]>([]);
 
-  // Animación de onda acústica multicolor estilo Gemini
-  const wave1 = useRef(new Animated.Value(0.4)).current;
-  const wave2 = useRef(new Animated.Value(0.4)).current;
-  const wave3 = useRef(new Animated.Value(0.4)).current;
-
-  useEffect(() => {
-    if (!listening) {
-      wave1.setValue(0.4);
-      wave2.setValue(0.4);
-      wave3.setValue(0.4);
-      return;
-    }
-    const makeLoop = (val: Animated.Value, dur: number, delay: number) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.timing(val, { toValue: 1, duration: dur, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-          Animated.timing(val, { toValue: 0.35, duration: dur, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        ]),
-      );
-    const l1 = makeLoop(wave1, 420, 0);
-    const l2 = makeLoop(wave2, 340, 110);
-    const l3 = makeLoop(wave3, 480, 220);
-    l1.start();
-    l2.start();
-    l3.start();
-    return () => {
-      l1.stop();
-      l2.stop();
-      l3.stop();
-    };
-  }, [listening, wave1, wave2, wave3]);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
+  // Nivel del micrófono (0 a 1) animado fuera de React: no se vuelve a dibujar la hoja en cada evento de volumen.
+  const [level] = useState(() => new Animated.Value(0));
 
   const items = useQuery({
     queryKey: ['ledger', entityId, 'items'],
@@ -213,15 +194,22 @@ export function VoiceSheet({
       return;
     }
     setError(null);
+    setErrorCode(null);
     setListening(true);
     const stop = await startDictation(
       {
         onText: (t) => setText(t),
-        onEnd: () => setListening(false),
-        onError: (m) => {
-          setError(m);
+        onEnd: () => {
           setListening(false);
+          level.setValue(0);
         },
+        onError: (m, code) => {
+          setError(m);
+          setErrorCode(code ?? null);
+          setListening(false);
+          level.setValue(0);
+        },
+        onVolume: (v) => Animated.timing(level, { toValue: micLevel(v), duration: 110, useNativeDriver: true }).start(),
       },
       hints,
     );
@@ -234,6 +222,7 @@ export function VoiceSheet({
       setMode(defaultMode);
       setText('');
       setError(null);
+      setErrorCode(null);
       setResult(null);
       setAnswer(null);
       setActions([]);
@@ -404,51 +393,49 @@ export function VoiceSheet({
 
   const blocked = actions.some((a) => actionProblem(a) !== null);
   const liveIntent = mode === 'search' || isMoneyTalk(text) || isPriceStatement(text) ? null : inventoryIntent(text);
-  const liveCount =
-    mode === 'search'
-      ? Number(live.searchFilters.open_now) + Number(live.searchFilters.with_offer) + Number(live.searchFilters.delivery) + Number(live.searchFilters.cheapest)
-      : live.lines.length + (live.expense ? 1 : 0) + live.stock.length;
-
-  const subtitleText =
-    mode === 'finance'
-      ? listening
-        ? 'Escuchando ventas, gastos o fiados…'
-        : 'Habla o toca una frase para registrar en caja'
-      : mode === 'inventory'
-        ? listening
-          ? 'Escuchando existencias e insumos…'
-          : 'Di qué se acabó, qué queda poco o cuánto llegó'
-        : listening
-          ? 'Escuchando qué necesitas en tu zona…'
-          : 'Di qué negocio, servicio u oferta buscas hoy';
+  const phase = voicePhase({ listening, busy, text, error, errorCode });
+  const copy = phaseCopy(phase, mode, canSpeak, error);
+  const rows = liveRows(live, mode, text, formatPesos);
+  const canGo = Boolean(text.trim()) && !busy;
+  const goLabel = mode === 'search' ? 'Buscar' : liveIntent?.kind === 'ask' ? 'Preguntar' : mode === 'inventory' ? 'Actualizar' : 'Seguir y revisar';
+  const hintLine =
+    mode !== 'search' && text.trim() && rows.length === 0 && !listening && !busy
+      ? liveIntent?.kind === 'ask'
+        ? `Vas a preguntar si hay «${liveIntent.name}».`
+        : liveIntent?.kind === 'add' && mode === 'inventory'
+          ? `Vas a sumar ${liveIntent.qty} a «${liveIntent.name}».`
+          : liveIntent?.kind === 'remove' && mode === 'inventory'
+            ? `Vas a descontar ${liveIntent.qty} de «${liveIntent.name}».`
+            : liveIntent?.kind === 'count' && mode === 'inventory'
+              ? `Vas a dejar «${liveIntent.name}» en ${liveIntent.qty}.`
+              : 'Toca la flecha y Empre AI lo arma para que lo revises.'
+      : null;
+  const openKeyboard = () => {
+    setKeyboardOpen(true);
+    setTimeout(() => inputRef.current?.focus(), 80);
+  };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Pressable style={{ flex: 1 }} onPress={result || answer ? undefined : onClose} accessibilityLabel="Cerrar" />
+        <Pressable style={{ height: insets.top + 24 }} onPress={result || answer ? undefined : onClose} accessibilityRole="button" accessibilityLabel="Cerrar" />
         <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
-          {/* Halo luminoso estilo Google Gemini en la base */}
-          {listening ? <View pointerEvents="none" style={[styles.geminiAura, styles.geminiAuraActive]} /> : null}
-
-          <View style={styles.handle} />
-
           {done ? (
             <View style={styles.doneBox}>
-              {/* El mismo visto con resorte que al registrar una venta o un gasto a mano. */}
-              <DoneMark />
-              <Text style={styles.title} accessibilityLiveRegion="polite">
-                {savedList.some((a) => a.type === 'stock') ? 'Actualizado con Empre AI' : 'Registrado en Empre Finance'}
+              <Chispa size={104} mood="contento" />
+              <Text style={styles.stageTitle} accessibilityLiveRegion="polite">
+                {savedList.some((a) => a.type === 'stock') ? 'Inventario actualizado' : 'Registrado en Empre Finance'}
               </Text>
-              <View style={styles.destList}>
-                {savedList.map((a) => (
-                  <View key={a.client_id} style={styles.destRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.destTitle}>{destinationOf(a)}</Text>
-                      <Text style={styles.hint} numberOfLines={1}>
+              <View style={[styles.list, { alignSelf: 'stretch' }]}>
+                {savedList.map((a, i) => (
+                  <View key={a.client_id} style={[styles.liveRow, i > 0 && styles.liveRowSep]}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.liveTitle}>{destinationOf(a)}</Text>
+                      <Text style={styles.cardMeta} numberOfLines={1}>
                         {a.note || a.party_name || a.item_name || TYPE_LABEL[a.type]}
                       </Text>
                     </View>
-                    {a.amount > 0 ? <Text style={styles.destTitle}>{formatPesos(a.amount)}</Text> : null}
+                    {a.amount > 0 ? <Text style={styles.liveValue}>{formatPesos(a.amount)}</Text> : null}
                   </View>
                 ))}
               </View>
@@ -460,9 +447,9 @@ export function VoiceSheet({
             <>
               <View style={styles.headRow}>
                 <View style={styles.brandRow}>
-                  <EmpreSymbol product="ai" size={28} animated={false} />
+                  <Chispa size={30} animated={false} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.liveBrandText}>EMPRE AI · RESPUESTA</Text>
+                    <Text style={styles.liveBrandText}>Empre AI · tu inventario</Text>
                     <Text style={styles.title} accessibilityLiveRegion="polite">
                       {answer.exact ? `${answer.exact.name}: ${availabilityLine(answer.exact).text.toLowerCase()}` : answer.rows.length ? `«${answer.name}» no está con ese nombre` : `«${answer.name}» no está en tu inventario`}
                     </Text>
@@ -510,63 +497,40 @@ export function VoiceSheet({
             </>
           ) : !result || actions.length === 0 ? (
             <>
-              {/* SLOT A: Cabecera Empre AI Live + Pastillas de Módulo */}
-              <View style={styles.headRow}>
-                <View style={styles.brandRow}>
-                  <EmpreSymbol product="ai" size={30} animated />
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.liveTagRow}>
-                      <Text style={styles.liveBrandText}>EMPRE AI LIVE</Text>
-                      {listening ? <View style={styles.livePulseDot} /> : null}
-                    </View>
-                    <Text style={styles.subtitle} numberOfLines={1}>
-                      {subtitleText}
-                    </Text>
-                  </View>
+              <View style={styles.topRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.topTitle}>Empre AI</Text>
+                  <Text style={styles.topStatus} accessibilityLiveRegion="polite">
+                    {copy.status}
+                  </Text>
                 </View>
-                <Pressable accessibilityRole="button" accessibilityLabel="Cerrar Empre AI" onPress={onClose} hitSlop={8} style={styles.closeBtn}>
-                  <Ionicons name="close" size={18} color={colors.ink} />
+                <Pressable accessibilityRole="button" accessibilityLabel="Cerrar Empre AI" onPress={onClose} style={styles.closeBtn}>
+                  <Ionicons name="close" size={20} color={colors.ink} />
                 </Pressable>
               </View>
 
-              {/* Selector de Módulo Contextual (Finanzas / Inventario / Búsqueda) */}
-              <View style={styles.modeTrack}>
-                {entityId ? (
-                  <>
-                    <Pressable
-                      accessibilityRole="tab"
-                      accessibilityState={{ selected: mode === 'finance' }}
-                      onPress={() => setMode('finance')}
-                      style={[styles.modePill, styles.modeRow, mode === 'finance' && styles.modePillOn]}
-                    >
-                      <Ionicons name="wallet-outline" size={15} color={mode === 'finance' ? colors.ink : colors.muted} />
-                      <Text style={[styles.modePillText, mode === 'finance' && styles.modePillTextOn]}>Finanzas</Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="tab"
-                      accessibilityState={{ selected: mode === 'inventory' }}
-                      onPress={() => setMode('inventory')}
-                      style={[styles.modePill, styles.modeRow, mode === 'inventory' && styles.modePillOn]}
-                    >
-                      <Ionicons name="cube-outline" size={15} color={mode === 'inventory' ? colors.ink : colors.muted} />
-                      <Text style={[styles.modePillText, mode === 'inventory' && styles.modePillTextOn]}>Inventario</Text>
-                    </Pressable>
-                  </>
-                ) : null}
-                <Pressable
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: mode === 'search' }}
-                  onPress={() => setMode('search')}
-                  style={[styles.modePill, styles.modeRow, mode === 'search' && styles.modePillOn]}
-                >
-                  <Ionicons name="search" size={15} color={mode === 'search' ? colors.ink : colors.muted} />
-                  <Text style={[styles.modePillText, mode === 'search' && styles.modePillTextOn]}>Buscar</Text>
-                </Pressable>
+              <View style={styles.modeTrack} accessibilityRole="tablist">
+                {MODES.filter((m) => m.key === 'search' || entityId).map((m) => (
+                  <Pressable
+                    key={m.key}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: mode === m.key }}
+                    onPress={() => setMode(m.key)}
+                    style={[styles.modePill, mode === m.key && styles.modePillOn]}
+                  >
+                    <Ionicons name={m.icon} size={15} color={mode === m.key ? colors.ink : colors.muted} />
+                    <Text style={[styles.modePillText, mode === m.key && styles.modePillTextOn]}>{m.label}</Text>
+                  </Pressable>
+                ))}
               </View>
 
-              {/* SLOT B: Lienzo Central de Transcripción Viva (Estilo Google Gemini) */}
-              <View style={styles.stageBox}>
-                <Text style={styles.stageEyebrow}>LO QUE ESTÁS DICIENDO</Text>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.stage} keyboardShouldPersistTaps="handled">
+                <View style={[styles.orbArea, copy.big && styles.orbAreaBig]}>
+                  <VoiceOrb size={copy.big ? 132 : 96} mood={copy.mood} level={level} listening={listening} />
+                  <Text style={styles.stageTitle} accessibilityRole="header">
+                    {copy.title}
+                  </Text>
+                </View>
 
                 {keyboardOpen ? (
                   <TextInput
@@ -585,242 +549,112 @@ export function VoiceSheet({
                     multiline
                     maxLength={400}
                     autoFocus={!canSpeak}
-                    accessibilityLabel="Transcripción en vivo de Empre AI"
+                    accessibilityLabel="Lo que quieres decirle a Empre AI"
                   />
-                ) : (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Toca para editar con el teclado lo que estás diciendo"
-                    onPress={() => {
-                      setKeyboardOpen(true);
-                      setTimeout(() => inputRef.current?.focus(), 80);
-                    }}
-                    style={styles.liveTranscriptTap}
-                  >
-                    {live.words.length > 0 ? (
-                      <Text style={styles.liveTranscriptText} accessibilityLiveRegion="polite">
-                        «
-                        {live.words.map((w, i) => (
-                          <Text key={i} style={[w.known && styles.wordKnown, wordTagStyle(w.tag)]}>
-                            {`${w.text}${i < live.words.length - 1 ? ' ' : ''}`}
-                          </Text>
-                        ))}
-                        »
-                      </Text>
-                    ) : (
-                      <Text style={styles.livePlaceholder}>
-                        {listening
-                          ? 'Habla con naturalidad… Empre AI escribe aquí lo que vas diciendo.'
-                          : 'Toca la onda de voz abajo para hablar, o elige un ejemplo rápido:'}
-                      </Text>
-                    )}
-                  </Pressable>
-                )}
-
-                {/* Frases de ejemplo tocables */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.promptsRow}>
-                  {QUICK_PROMPTS[mode].map((prompt) => (
-                    <Pressable
-                      key={prompt}
-                      accessibilityRole="button"
-                      onPress={() => setText((prev) => (prev.trim() ? `${prev.trim()}, ${prompt.toLowerCase()}` : prompt))}
-                      style={styles.promptChip}
-                    >
-                      <Text style={styles.promptChipText}>«{prompt}»</Text>
-                    </Pressable>
-                  ))}
-                  {text.trim() ? (
-                    <Pressable accessibilityRole="button" onPress={() => setText('')} style={styles.clearChip}>
-                      <Text style={styles.clearChipText}>Limpiar</Text>
-                    </Pressable>
-                  ) : null}
-                </ScrollView>
-              </View>
-
-              {/* SLOT C: Tarjetas Vivas Detectadas en Tiempo Real según el Módulo */}
-              {text.trim().length > 0 ? (
-                <View style={styles.liveCardsSection} accessibilityLiveRegion="polite">
-                  <View style={styles.liveCardsHeader}>
-                    <Text style={styles.stageEyebrow}>
-                      {mode === 'search' ? 'FILTROS DETECTADOS EN VIVO' : 'ENTENDIDO EN TIEMPO REAL'}
-                    </Text>
-                    <Text style={styles.liveReadyBadge}>
-                      {liveCount > 0 ? `${liveCount} ${liveCount === 1 ? 'detección' : 'detecciones'}` : 'Analizando frase…'}
-                    </Text>
-                  </View>
-
-                  {mode === 'search' ? (
-                    <View style={styles.wrap}>
-                      <View style={styles.searchPreviewPill}>
-                        <Ionicons name="search" size={13} color="#fff" />
-                        <Text style={styles.searchPreviewText} numberOfLines={1}>
-                          {text.trim()}
-                        </Text>
-                      </View>
-                      {live.searchFilters.open_now ? (
-                        <View style={[styles.filterPill, styles.filterRow, { backgroundColor: colors.verifiedSoft }]}>
-                          <View style={styles.openDot} />
-                          <Text style={[styles.filterPillText, { color: colors.verified }]}>Abierto ahora</Text>
-                        </View>
-                      ) : null}
-                      {live.searchFilters.with_offer ? (
-                        <View style={[styles.filterPill, styles.filterRow, { backgroundColor: colors.accentSoft }]}>
-                          <Ionicons name="pricetag-outline" size={13} color={colors.accentInk} />
-                          <Text style={[styles.filterPillText, { color: colors.accentInk }]}>Con oferta</Text>
-                        </View>
-                      ) : null}
-                      {live.searchFilters.delivery ? (
-                        <View style={[styles.filterPill, styles.filterRow, { backgroundColor: colors.selectedSoft }]}>
-                          <Ionicons name="bicycle-outline" size={14} color={colors.ink} />
-                          <Text style={[styles.filterPillText, { color: colors.ink }]}>Domicilio</Text>
-                        </View>
-                      ) : null}
-                      {live.searchFilters.cheapest ? (
-                        <View style={[styles.filterPill, styles.filterRow, { backgroundColor: colors.selectedSoft }]}>
-                          <Ionicons name="cash-outline" size={14} color={colors.ink} />
-                          <Text style={[styles.filterPillText, { color: colors.ink }]}>Más económico</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                  ) : (
-                    <ScrollView style={{ maxHeight: 168 }} contentContainerStyle={{ gap: 8 }}>
-                      {/* Tarjetas en vivo de Ventas */}
-                      {live.lines.map((l) => (
-                        <View key={l.name} style={styles.liveActionCard}>
-                          <View style={[styles.liveActionIcon, { backgroundColor: colors.verifiedSoft }]}>
-                            <Ionicons name="arrow-up" size={16} color={colors.verified} />
-                          </View>
-                          <View style={{ flex: 1, minWidth: 0 }}>
-                            <Text style={styles.liveActionTag}>
-                              VENTA {live.method ? `· ${live.method.toUpperCase()}` : '· CATÁLOGO'}
-                              {live.fiadoTo ? ` (${live.fiadoTo})` : ''}
-                            </Text>
-                            <Text style={styles.liveActionTitle} numberOfLines={1}>
-                              {l.qty} × {l.name}
-                              {l.fixed ? ' (corregido)' : ''}
-                            </Text>
-                          </View>
-                          {l.price ? <Text style={styles.liveActionAmount}>{formatPesos(l.price * l.qty)}</Text> : null}
-                        </View>
-                      ))}
-
-                      {/* Tarjeta en vivo de Gasto */}
-                      {live.expense ? (
-                        <View style={styles.liveActionCard}>
-                          <View style={[styles.liveActionIcon, { backgroundColor: '#FEE2E2' }]}>
-                            <Ionicons name="arrow-down" size={16} color={colors.danger} />
-                          </View>
-                          <View style={{ flex: 1, minWidth: 0 }}>
-                            <Text style={[styles.liveActionTag, { color: colors.danger }]}>GASTO DETECTADO</Text>
-                            <Text style={styles.liveActionTitle} numberOfLines={1}>
-                              {live.expense.what ? `Compra / pago: ${live.expense.what}` : 'Gasto del día'}
-                            </Text>
-                          </View>
-                          {live.expense.amount > 0 ? (
-                            <Text style={[styles.liveActionAmount, { color: colors.danger }]}>−{formatPesos(live.expense.amount)}</Text>
-                          ) : null}
-                        </View>
-                      ) : null}
-
-                      {/* Tarjetas en vivo de Semáforo de Inventario */}
-                      {live.stock.map((st) => {
-                        const isOut = st.level === 'out';
-                        const isLow = st.level === 'low';
-                        const borderCol = isOut ? '#DC2626' : isLow ? '#F59E0B' : '#10B981';
-                        const badgeBg = isOut ? '#FEE2E2' : isLow ? '#FEF3C7' : '#D1FAE5';
-                        const badgeFg = isOut ? '#B91C1C' : isLow ? '#B45309' : '#047857';
-                        const label = isOut ? 'Agotado' : isLow ? 'Poco' : st.counted != null ? `Hay (${st.counted})` : 'Hay';
+                ) : live.words.length > 0 ? (
+                  <Pressable accessibilityRole="button" accessibilityLabel={`Dijiste: ${text}. Toca para corregirlo con el teclado`} onPress={openKeyboard} style={styles.saidTap}>
+                    <Text style={styles.said} accessibilityLiveRegion="polite">
+                      {live.words.map((w, i) => {
+                        const tone = wordTone(w.tag);
                         return (
-                          <View key={st.name} style={[styles.liveActionCard, { borderLeftWidth: 4, borderLeftColor: borderCol }]}>
-                            <View style={{ flex: 1, minWidth: 0 }}>
-                              <Text style={[styles.liveActionTag, { color: badgeFg }]}>SEMÁFORO DE INVENTARIO</Text>
-                              <Text style={styles.liveActionTitle} numberOfLines={1}>
-                                {st.name}
-                              </Text>
-                            </View>
-                            <View style={[styles.semPill, { backgroundColor: badgeBg }]}>
-                              <View style={[styles.semDot, { backgroundColor: borderCol }]} />
-                              <View style={[styles.semDot, { backgroundColor: isOut ? '#CBD5E1' : borderCol }]} />
-                              <View style={[styles.semDot, { backgroundColor: isOut || isLow ? '#CBD5E1' : borderCol }]} />
-                              <Text style={[styles.semPillText, { color: badgeFg }]}>{label}</Text>
-                            </View>
-                          </View>
+                          <Text key={i}>
+                            {i > 0 ? ' ' : ''}
+                            <Text style={tone ? [styles.saidWord, { color: TONE[tone].ink, backgroundColor: TONE[tone].bg }] : undefined}>{tone ? `\u00A0${w.text}\u00A0` : w.text}</Text>
+                          </Text>
                         );
                       })}
+                    </Text>
+                  </Pressable>
+                ) : copy.body ? (
+                  <Text style={styles.stageBody}>{copy.body}</Text>
+                ) : null}
 
-                      {live.lines.length === 0 && !live.expense && live.stock.length === 0 ? (
-                        <View style={styles.liveActionCard}>
-                          <Ionicons name="sparkles-outline" size={18} color={colors.verified} />
-                          <Text style={styles.hint} numberOfLines={2}>
-                            {liveIntent?.kind === 'ask' ? `Vas a preguntar si hay «${liveIntent.name}». Toca «Preguntar».` : liveIntent?.kind === 'add' && mode === 'inventory' ? `Vas a sumar ${liveIntent.qty} a «${liveIntent.name}».` : liveIntent?.kind === 'remove' && mode === 'inventory' ? `Vas a descontar ${liveIntent.qty} de «${liveIntent.name}».` : liveIntent?.kind === 'count' && mode === 'inventory' ? `Vas a dejar «${liveIntent.name}» en ${liveIntent.qty}.` : `Empre AI procesará tu frase completa al tocar «${mode === 'inventory' ? 'Actualizar' : 'Continuar'}».`}
-                          </Text>
+                {phase === 'ready' && !keyboardOpen ? (
+                  <View style={styles.prompts}>
+                    {QUICK_PROMPTS[mode].map((prompt) => (
+                      <Pressable
+                        key={prompt}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Usar la frase: ${prompt}`}
+                        onPress={() => setText(prompt)}
+                        style={({ pressed }) => [styles.prompt, pressed && styles.pressed]}
+                      >
+                        <Ionicons name="mic-outline" size={16} color={colors.muted} />
+                        <Text style={styles.promptText}>«{prompt}»</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+
+                {rows.length ? (
+                  <View style={styles.liveBlock} accessibilityLiveRegion="polite">
+                    <Text style={styles.liveLabel}>{listening ? 'Entendiendo en vivo' : 'Esto es lo que entendí'}</Text>
+                    <View style={styles.list}>
+                      {rows.map((r, i) => (
+                        <View key={r.key} style={[styles.liveRow, i > 0 && styles.liveRowSep]}>
+                          <View style={[styles.liveIcon, { backgroundColor: TONE[r.tone].bg }]}>
+                            <Ionicons name={ROW_ICON[r.icon]} size={16} color={TONE[r.tone].ink} />
+                          </View>
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={[styles.liveTag, { color: TONE[r.tone].ink }]} numberOfLines={1}>
+                              {r.tag}
+                            </Text>
+                            <Text style={styles.liveTitle} numberOfLines={1}>
+                              {r.title}
+                            </Text>
+                          </View>
+                          {r.value ? <Text style={[styles.liveValue, (r.tone === 'bad' || r.tone === 'warn') && { color: TONE[r.tone].ink }]}>{r.value}</Text> : null}
                         </View>
-                      ) : null}
-                    </ScrollView>
-                  )}
-                </View>
-              ) : null}
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
+                {hintLine ? <Text style={styles.hintLine}>{hintLine}</Text> : null}
+                {phase === 'error' && text.trim() && error ? <Text style={styles.error}>{error}</Text> : null}
+              </ScrollView>
 
-              {error ? <Text style={styles.error}>{error}</Text> : null}
-
-              {/* SLOT D: Dock Inferior Estilo Google Gemini (Teclado · Onda Acústica Multicolor · Acción Directa) */}
-              <View style={styles.geminiDock}>
+              <View style={styles.dock}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={keyboardOpen ? 'Ocultar edición con teclado' : 'Escribir o corregir con teclado'}
-                  onPress={() => {
-                    const next = !keyboardOpen;
-                    setKeyboardOpen(next);
-                    if (next) setTimeout(() => inputRef.current?.focus(), 80);
-                  }}
-                  style={[styles.dockRoundBtn, keyboardOpen && styles.dockRoundBtnOn]}
+                  accessibilityLabel={keyboardOpen ? 'Ocultar el teclado' : 'Escribir o corregir con el teclado'}
+                  onPress={() => (keyboardOpen ? setKeyboardOpen(false) : openKeyboard())}
+                  style={[styles.dockSide, keyboardOpen && styles.dockSideOn]}
                 >
-                  <Ionicons name="keypad-outline" size={20} color={keyboardOpen ? '#fff' : colors.ink} />
+                  <Ionicons name="keypad-outline" size={22} color={keyboardOpen ? '#FFFFFF' : colors.ink} />
                 </Pressable>
-
                 {canSpeak ? (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={listening ? 'Pausar micrófono de Empre AI' : 'Hablar con Empre AI'}
+                    accessibilityLabel={listening ? 'Dejar de escuchar' : 'Hablar con Empre AI'}
+                    accessibilityState={{ selected: listening }}
                     onPress={() => void listen()}
-                    style={[styles.geminiOrbBtn, listening && styles.geminiOrbBtnActive]}
+                    style={({ pressed }) => [styles.mic, listening && styles.micOn, pressed && styles.pressed]}
                   >
-                    <View style={styles.waveBars}>
-                      <Animated.View style={[styles.waveBar, { backgroundColor: '#14B8B0', transform: [{ scaleY: wave1 }] }]} />
-                      <Animated.View style={[styles.waveBar, { backgroundColor: '#38BDF8', height: 18, transform: [{ scaleY: wave2 }] }]} />
-                      <Animated.View style={[styles.waveBar, { backgroundColor: '#FF8A1F', height: 16, transform: [{ scaleY: wave3 }] }]} />
-                      <Animated.View style={[styles.waveBar, { backgroundColor: '#F03232', height: 18, transform: [{ scaleY: wave1 }] }]} />
-                      <Animated.View style={[styles.waveBar, { backgroundColor: '#14B8B0', transform: [{ scaleY: wave2 }] }]} />
-                    </View>
-                    <Text style={styles.geminiOrbText}>{listening ? 'Escuchando…' : 'Hablar'}</Text>
+                    {listening ? <View style={styles.stopSquare} /> : <Ionicons name="mic" size={30} color="#FFFFFF" />}
                   </Pressable>
                 ) : (
-                  <View style={styles.geminiOrbBtn}>
-                    <Text style={styles.geminiOrbText}>Modo texto</Text>
-                  </View>
+                  <View style={styles.micSpacer} />
                 )}
-
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={mode === 'search' ? 'Buscar ahora' : 'Continuar y revisar tarjetas'}
-                  disabled={!text.trim() || busy}
+                  accessibilityLabel={goLabel}
+                  accessibilityState={{ disabled: !canGo, busy }}
+                  disabled={!canGo}
                   onPress={() => void interpret()}
-                  style={[styles.dockConfirmBtn, (!text.trim() || busy) && styles.dockConfirmBtnDisabled]}
+                  style={[styles.dockSide, styles.go, !canGo && styles.goOff]}
                 >
-                  <Text style={styles.dockConfirmText}>
-                    {busy ? '…' : mode === 'search' ? 'Buscar' : liveIntent?.kind === 'ask' ? 'Preguntar' : mode === 'inventory' ? 'Actualizar' : 'Continuar'}
-                  </Text>
-                  <Ionicons name="arrow-forward" size={16} color="#fff" />
+                  {busy ? <ActivityIndicator color="#FFFFFF" /> : <Ionicons name="arrow-forward" size={22} color="#FFFFFF" />}
                 </Pressable>
               </View>
+              <Text style={styles.foot}>{copy.foot}</Text>
             </>
           ) : (
             <>
               <View style={styles.headRow}>
                 <View style={styles.brandRow}>
-                  <EmpreSymbol product="ai" size={28} animated={false} />
+                  <Chispa size={30} animated={false} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.liveBrandText}>EMPRE AI · PASO FINAL</Text>
+                    <Text style={styles.liveBrandText}>Empre AI · último paso</Text>
                     <Text style={styles.title}>{actions.length === 1 ? 'Revisa y confirma' : `Revisa y confirma (${actions.length})`}</Text>
                   </View>
                 </View>
@@ -1331,12 +1165,45 @@ function ActionCard({ entityId, heard, action: a, problem, onChange, onRemove, o
 }
 
 const styles = StyleSheet.create({
-  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  openDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#14B8B0' },
-  modeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  topTitle: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
+  topStatus: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
+  stage: { flexGrow: 1, alignItems: 'center', gap: 14, paddingBottom: spacing.md },
+  orbArea: { alignItems: 'center', justifyContent: 'center', gap: 14, minHeight: 190 },
+  orbAreaBig: { minHeight: 250 },
+  stageTitle: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
+  stageBody: { maxWidth: 300, fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.muted, textAlign: 'center' },
+  saidTap: { alignSelf: 'stretch', minHeight: 44, justifyContent: 'center' },
+  said: { fontSize: 20, lineHeight: 30, fontFamily: fonts.ui.bold, color: colors.muted, textAlign: 'center' },
+  saidWord: { fontFamily: fonts.ui.extrabold, borderRadius: 6 },
+  prompts: { alignSelf: 'stretch', gap: spacing.sm },
+  prompt: { minHeight: 48, paddingHorizontal: 14, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  promptText: { flex: 1, fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
+  liveBlock: { alignSelf: 'stretch', gap: spacing.sm },
+  liveLabel: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.muted },
+  list: { borderRadius: 18, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surface, overflow: 'hidden' },
+  liveRow: { minHeight: 56, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  liveRowSep: { borderTopWidth: 1, borderTopColor: colors.selectedSoft },
+  liveIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  liveTag: { fontSize: 11.5, fontFamily: fonts.ui.extrabold },
+  liveTitle: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  liveValue: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
+  hintLine: { alignSelf: 'stretch', fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.semibold, color: colors.muted, textAlign: 'center' },
+  dock: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: spacing.sm },
+  dockSide: { width: 52, height: 52, borderRadius: 26, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  dockSideOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  go: { backgroundColor: colors.ink, borderColor: colors.ink },
+  goOff: { backgroundColor: '#C7D2E0', borderColor: '#C7D2E0' },
+  mic: { width: 76, height: 76, borderRadius: 38, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', shadowColor: colors.ink, shadowOpacity: 0.22, shadowRadius: 20, shadowOffset: { width: 0, height: 6 }, elevation: 6 },
+  micOn: { backgroundColor: colors.primary, shadowColor: colors.primary },
+  micSpacer: { width: 76, height: 76 },
+  stopSquare: { width: 24, height: 24, borderRadius: 6, backgroundColor: '#FFFFFF' },
+  foot: { textAlign: 'center', fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.faint },
+  pressed: { opacity: 0.85 },
   backdrop: { flex: 1, backgroundColor: 'rgba(11, 21, 38, 0.52)', justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: colors.surface,
+    flex: 1,
+    backgroundColor: colors.bg,
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     paddingHorizontal: 20,
@@ -1354,94 +1221,47 @@ const styles = StyleSheet.create({
   moveInput: { minHeight: 48, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, fontSize: 18, fontFamily: fonts.ui.bold, color: colors.ink },
   similarRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   similarName: { flex: 1, minWidth: 0, fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  geminiAura: {
-    position: 'absolute',
-    left: 24,
-    right: 24,
-    bottom: -36,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: 'rgba(20, 184, 176, 0.08)',
-  },
-  geminiAuraActive: {
-    backgroundColor: 'rgba(20, 184, 176, 0.16)',
-  },
-  handle: {
-    alignSelf: 'center',
-    width: 38,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.line,
-  },
   headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  liveTagRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   liveBrandText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.verified, letterSpacing: 0.7 },
-  livePulseDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981' },
-  subtitle: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   closeBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.selectedSoft,
+    backgroundColor: colors.surface,
+    ...softShadow,
   },
   modeTrack: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
     padding: 4,
-    borderRadius: 999,
-    backgroundColor: colors.bg,
-    borderWidth: 1,
-    borderColor: colors.line,
+    borderRadius: 14,
+    backgroundColor: colors.hairline,
   },
   modePill: {
     flex: 1,
-    minHeight: 34,
-    borderRadius: 999,
+    minHeight: 44,
+    borderRadius: 11,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 10,
+    gap: 6,
+    paddingHorizontal: 8,
   },
   modePillOn: {
-    backgroundColor: colors.selectedSoft,
+    backgroundColor: colors.surface,
+    ...softShadow,
   },
   modePillText: {
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: fonts.ui.extrabold,
     color: colors.muted,
   },
   modePillTextOn: {
     color: colors.ink,
-  },
-  stageBox: {
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-    gap: 10,
-  },
-  stageEyebrow: {
-    fontSize: 11,
-    letterSpacing: 0.8,
-    fontFamily: fonts.ui.extrabold,
-    color: colors.faint,
-  },
-  liveTranscriptTap: {
-    minHeight: 84,
-    justifyContent: 'center',
-  },
-  liveTranscriptText: {
-    fontSize: 21,
-    lineHeight: 30,
-    fontFamily: fonts.display.bold,
-    color: colors.ink,
-  },
-  livePlaceholder: {
-    fontSize: 18,
-    lineHeight: 26,
-    fontFamily: fonts.display.bold,
-    color: colors.placeholder,
   },
   stageInput: {
     minHeight: 84,
@@ -1457,224 +1277,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
     textAlignVertical: 'top',
   },
-  wordKnown: {
-    fontFamily: fonts.display.bold,
-    color: colors.ink,
-  },
-  tagItem: {
-    color: colors.verified,
-    backgroundColor: colors.verifiedSoft,
-  },
-  tagMoney: {
-    color: '#0369A1',
-    backgroundColor: '#E0F2FE',
-  },
-  tagStockOut: {
-    color: colors.danger,
-    backgroundColor: '#FEE2E2',
-  },
-  tagStockLow: {
-    color: colors.accentInk,
-    backgroundColor: '#FEF3C7',
-  },
-  tagFilter: {
-    color: '#047857',
-    backgroundColor: '#D1FAE5',
-  },
-  promptsRow: {
-    gap: 8,
-    paddingVertical: 2,
-  },
-  promptChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: colors.bg,
-    borderWidth: 1,
-    borderColor: colors.line,
-  },
-  promptChipText: {
-    fontSize: 12,
-    fontFamily: fonts.ui.bold,
-    color: colors.muted,
-  },
-  clearChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#FEE2E2',
-  },
-  clearChipText: {
-    fontSize: 12,
-    fontFamily: fonts.ui.extrabold,
-    color: colors.danger,
-  },
-  liveCardsSection: {
-    gap: 8,
-    paddingTop: 4,
-  },
-  liveCardsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  liveReadyBadge: {
-    fontSize: 11.5,
-    fontFamily: fonts.ui.extrabold,
-    color: colors.verified,
-  },
-  liveActionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 12,
-    borderRadius: 18,
-    backgroundColor: colors.bg,
-    borderWidth: 1,
-    borderColor: colors.line,
-  },
-  liveActionIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  liveActionTag: {
-    fontSize: 10.5,
-    letterSpacing: 0.5,
-    fontFamily: fonts.ui.extrabold,
-    color: colors.verified,
-  },
-  liveActionTitle: {
-    fontSize: 14.5,
-    fontFamily: fonts.ui.extrabold,
-    color: colors.ink,
-  },
-  liveActionAmount: {
-    fontSize: 15,
-    fontFamily: fonts.ui.extrabold,
-    color: colors.ink,
-    fontVariant: ['tabular-nums'],
-  },
-  semPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  semDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  semPillText: {
-    fontSize: 11.5,
-    fontFamily: fonts.ui.extrabold,
-    marginLeft: 2,
-  },
-  searchPreviewPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: colors.primary,
-  },
-  searchPreviewText: {
-    fontSize: 12.5,
-    fontFamily: fonts.ui.extrabold,
-    color: '#fff',
-    maxWidth: 200,
-  },
-  filterPill: {
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  filterPillText: {
-    fontSize: 12,
-    fontFamily: fonts.ui.extrabold,
-  },
-  geminiDock: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.hairline,
-  },
-  dockRoundBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: colors.bg,
-    borderWidth: 1,
-    borderColor: colors.line,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dockRoundBtnOn: {
-    backgroundColor: colors.ink,
-    borderColor: colors.ink,
-  },
-  geminiOrbBtn: {
-    flex: 1,
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-    backgroundColor: colors.primary,
-    ...softShadow,
-  },
-  geminiOrbBtnActive: {
-    backgroundColor: colors.ink,
-  },
-  waveBars: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3.5,
-    height: 20,
-  },
-  waveBar: {
-    width: 3.5,
-    height: 14,
-    borderRadius: 2,
-  },
-  geminiOrbText: {
-    fontSize: 13,
-    fontFamily: fonts.ui.extrabold,
-    color: '#fff',
-  },
-  dockConfirmBtn: {
-    minHeight: 46,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-    backgroundColor: colors.verified,
-  },
-  dockConfirmBtnDisabled: {
-    opacity: 0.4,
-  },
-  dockConfirmText: {
-    fontSize: 13,
-    fontFamily: fonts.ui.extrabold,
-    color: '#fff',
-  },
-  destList: { alignSelf: 'stretch', gap: spacing.sm },
-  destRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs, borderTopWidth: 1, borderTopColor: colors.line },
-  destTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   title: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
-  hint: { flex: 1, fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.muted },
   heard: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, fontStyle: 'italic' },
   error: { fontSize: 13.5, fontFamily: fonts.ui.semibold, color: colors.danger },
   card: { backgroundColor: colors.bg, borderRadius: radius.lg, padding: spacing.md, gap: spacing.sm, borderWidth: 1, borderColor: colors.line },
@@ -1687,5 +1290,5 @@ const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   warn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.accentSoft, borderRadius: radius.sm, padding: spacing.sm },
   warnText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.accentInk },
-  doneBox: { alignItems: 'center', gap: spacing.md, paddingVertical: spacing.xl },
+  doneBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, paddingVertical: spacing.xl },
 });
