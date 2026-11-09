@@ -24,7 +24,7 @@ import { lookedLabel, understoodLabel } from '@/lib/chatVoice';
 import { useAnswerData } from '@/components/chat/useAnswerData';
 import { answer as buildAnswer, detectIntent, suggestQuestions, type Action, type Answer, type Intent } from '@/lib/answers';
 import { autoAnswerStep, ownerRepliedSince } from '@/lib/chatAutoAnswer';
-import { groupAiAnswers, isGreetingOnly, splitQuestions, unansweredTail, waitNotice } from '@/lib/chatTurns';
+import { groupAiAnswers, isGreetingOnly, splitQuestions, timelineOrder, unansweredTail, waitNotice } from '@/lib/chatTurns';
 import { openingFromHours, statusLine } from '@/lib/placeCard';
 import { chatApi, entitiesApi } from '@/api/endpoints';
 import type { ChatMessage } from '@/api/types';
@@ -60,6 +60,13 @@ interface PendingQuestion {
   catchUp?: boolean;
   /** Dónde va la respuesta en la conversación: justo después de su pregunta (no al final, con la hora de ahora). */
   anchor?: string;
+  /** La pregunta del cliente que se responde (su id en el servidor): la respuesta se guarda atada a ella (3.71). */
+  replyTo?: string;
+}
+
+/** El id guardado de la pregunta (la copia local aún no lo tiene): el mensaje del cliente con ese texto, de ese momento. */
+function askedIdOf(msgs: ChatMessage[], q: { text: string; askedAt: string }): string | undefined {
+  return msgs.find((m) => !m.sent_by_entity && m.content === q.text && !m.id.startsWith(LOCAL_PREFIX) && Date.parse(m.created_at) >= Date.parse(q.askedAt) - 60_000)?.id;
 }
 
 export default function ChatScreen() {
@@ -262,12 +269,10 @@ export default function ChatScreen() {
         if (step === 'wait') keep.push(q);
         else if (step === 'answer') {
           answered.add(q.intent);
-          // Lo que se responde al abrir el chat va debajo de su pregunta y no se guarda de nuevo en el servidor.
-          if (q.catchUp) add.push({ id: `ai-${q.id}`, created_at: q.anchor ?? new Date().toISOString(), ai: 'answer', intent: q.intent, answer: q.answer });
-          else saveToServer.push(q);
+          saveToServer.push(q);
         } else if (step === 'status') {
-          const asked = msgs.find((m) => m.sender_id === user?.id && m.content === q.text && !m.id.startsWith(LOCAL_PREFIX) && Date.parse(m.created_at) >= Date.parse(q.askedAt) - 60_000);
-          if (asked && !q.catchUp) void chatApi.aiUnknown(entityId, asked.id).catch(() => undefined);
+          const askedId = q.replyTo ?? askedIdOf(msgs, q);
+          if (askedId) void chatApi.aiUnknown(entityId, askedId).catch(() => undefined);
           // Un solo aviso por conversación mientras el negocio no conteste.
           if (hasStatus || add.some((r) => r.ai === 'status')) continue;
           const who = answerData?.name ?? name ?? 'El negocio';
@@ -281,10 +286,11 @@ export default function ChatScreen() {
     if (add.length) setAiRows((prev) => [...add, ...prev]);
     setTyping(false);
     for (const q of saveToServer) {
+      // Atada a su pregunta: el servidor no la repite y todos la ven justo debajo de ella (3.71).
       chatApi
-        .aiAnswer(entityId, q.intent, q.serviceId, q.taughtId)
+        .aiAnswer(entityId, q.intent, q.serviceId, q.taughtId, q.replyTo ?? askedIdOf(msgs, q))
         .then((m) => setLive((prev) => (prev.some((x) => x.id === m.id) ? prev : [m, ...prev])))
-        .catch(() => setAiRows((prev) => [{ id: `ai-${q.id}`, created_at: new Date().toISOString(), ai: 'answer', intent: q.intent, answer: q.answer }, ...prev]));
+        .catch(() => setAiRows((prev) => [{ id: `ai-${q.id}`, created_at: q.anchor ?? new Date().toISOString(), ai: 'answer', intent: q.intent, answer: q.answer }, ...prev]));
     }
   }, [answerData?.name, name, entityId, user?.id]);
 
@@ -300,8 +306,8 @@ export default function ChatScreen() {
    * varias preguntas (3.68) se responde pregunta por pregunta y la pantalla lo junta en una sola burbuja.
    */
   const greeted = useRef(false);
-  const askEmpreAI = async (content: string, preset?: Intent, opts: { catchUp?: boolean; anchor?: string } = {}) => {
-    const { catchUp = false, anchor } = opts;
+  const askEmpreAI = async (content: string, preset?: Intent, opts: { catchUp?: boolean; anchor?: string; replyTo?: string } = {}) => {
+    const { catchUp = false, anchor, replyTo } = opts;
     if (sentByEntity || !answerData || answerData.aiChatOff || !entityId) return;
     // Un saludo solo se contesta con un saludo de Empre AI, una vez por conversación; si ya hablaron, no se repite.
     if (!preset && isGreetingOnly(content)) {
@@ -347,7 +353,7 @@ export default function ChatScreen() {
       const ans = buildAnswer(answerData, f.intent, { serviceId, taughtId: f.taughtId, text: content, weekday: now.getDay(), now: now.getTime() });
       track('question_asked', entityId, { intent: f.intent, answered: !ans.unanswered });
       track('ai_answer_source', entityId, { intent: f.intent, source: ans.unanswered ? 'owner' : source, businesses: 1 });
-      return { id: `${now.getTime()}-${Math.random().toString(36).slice(2, 6)}-${i}`, askedAt: now.toISOString(), text: content, intent: f.intent, serviceId, taughtId: f.taughtId, answer: ans, catchUp, anchor };
+      return { id: `${now.getTime()}-${Math.random().toString(36).slice(2, 6)}-${i}`, askedAt: now.toISOString(), text: content, intent: f.intent, serviceId, taughtId: f.taughtId, answer: ans, catchUp, anchor, replyTo };
     });
     latest.current = { ...latest.current, pending: [...latest.current.pending, ...qs] };
     setPending((prev) => [...prev, ...qs]);
@@ -366,7 +372,7 @@ export default function ChatScreen() {
     // Cada mensaje se responde por su lado y su respuesta queda justo debajo de él (1 ms después de su hora).
     // Fuera del efecto: «escribiendo…» empieza en el siguiente ciclo, no dentro del render.
     setTimeout(() => {
-      for (const m of tail) void askEmpreAI(m.content, undefined, { catchUp: true, anchor: new Date(Date.parse(m.created_at) + 1).toISOString() });
+      for (const m of tail) void askEmpreAI(m.content, undefined, { catchUp: true, anchor: new Date(Date.parse(m.created_at) + 1).toISOString(), replyTo: m.id });
     }, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [answerData, history.data, sentByEntity, user?.id]);
@@ -383,7 +389,8 @@ export default function ChatScreen() {
   };
 
   const rows = useMemo<(ChatMessage | AiRow)[]>(
-    () => (aiRows.length ? [...aiRows, ...messages].sort((a, b) => b.created_at.localeCompare(a.created_at)) : messages),
+    // Cada respuesta de Empre AI justo debajo de su pregunta (3.71), para el cliente y para el dueño.
+    () => timelineOrder<ChatMessage | AiRow>([...aiRows, ...messages]),
     [aiRows, messages],
   );
   // Respuestas automáticas seguidas: una sola burbuja (3.68).

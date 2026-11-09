@@ -35,25 +35,44 @@ export function isGreetingOnly(text: string): boolean {
   return p.length > 0 && GREETING.test(p);
 }
 
+type TailMsg = { id: string; sender_id: string; sent_by_entity: boolean; kind?: string; content: string; created_at: string; reply_to_id?: string; ai_unanswered?: boolean };
+
 /**
- * Lo que el cliente escribió al final de la conversación y nadie ha contestado (ni el negocio ni Empre AI), de lo más
- * viejo a lo más nuevo. Sirve para que Empre AI responda también lo que llegó desde otra pantalla («Pregúntales a
- * varios», una oferta). `messages` viene del más nuevo al más viejo; solo cuenta lo de las últimas `maxAgeMs`.
+ * Lo que el cliente escribió desde que el negocio contestó por última vez y nadie ha respondido, de lo más viejo a lo
+ * más nuevo. Sirve para que Empre AI responda también lo que llegó desde otra pantalla («Pregúntales a varios», una
+ * oferta). `messages` viene del más nuevo al más viejo; solo cuenta lo de las últimas `maxAgeMs`.
+ * - Una pregunta ya respondida por Empre AI (una respuesta la nombra en `reply_to_id`) o que Empre AI ya no supo
+ *   (`ai_unanswered`) no vuelve a salir: abrir el chat otra vez no repite nada (3.71).
+ * - Una respuesta vieja de Empre AI sin `reply_to_id` cuenta como respuesta a todo lo anterior.
  */
-export function unansweredTail<M extends { sender_id: string; sent_by_entity: boolean; kind?: string; content: string; created_at: string }>(
-  messages: M[],
-  meId: string,
-  now: number,
-  maxAgeMs = 24 * 60 * 60 * 1000,
-): M[] {
+export function unansweredTail<M extends TailMsg>(messages: M[], meId: string, now: number, maxAgeMs = 24 * 60 * 60 * 1000): M[] {
+  const answered = new Set(messages.filter((m) => m.kind === 'ai_answer' && m.reply_to_id).map((m) => m.reply_to_id as string));
   const out: M[] = [];
   for (const m of messages) {
-    if (m.sent_by_entity || m.kind === 'ai_answer' || m.sender_id !== meId) break;
+    if (m.kind === 'ai_answer') {
+      if (!m.reply_to_id) break;
+      continue;
+    }
+    if (m.sent_by_entity || m.sender_id !== meId) break;
     if (now - Date.parse(m.created_at) > maxAgeMs) break;
     if (m.kind && m.kind !== 'text') continue;
+    if (answered.has(m.id) || m.ai_unanswered) continue;
     if (m.content.trim()) out.push(m);
   }
   return out.reverse();
+}
+
+/**
+ * La conversación en orden (la más nueva primero, como la lista invertida): cada respuesta de Empre AI va justo
+ * debajo de la pregunta que nombra en `reply_to_id`, aunque se haya guardado después (3.71). Lo demás, por su hora.
+ */
+export function timelineOrder<R extends { id: string; created_at: string; reply_to_id?: string }>(rows: R[]): R[] {
+  const at = new Map(rows.map((r) => [r.id, Date.parse(r.created_at)]));
+  const key = (r: R) => {
+    const q = r.reply_to_id ? at.get(r.reply_to_id) : undefined;
+    return q !== undefined ? q + 1 : Date.parse(r.created_at);
+  };
+  return [...rows].sort((a, b) => key(b) - key(a) || Date.parse(b.created_at) - Date.parse(a.created_at));
 }
 
 /** El aviso cuando Empre AI no tiene el dato: dice cuándo puede contestar el negocio si se sabe. */

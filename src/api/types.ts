@@ -183,6 +183,8 @@ export interface ChatMessage {
   ai_answer_id?: string;
   /** En una pregunta del cliente: Empre AI no supo responderla (el dueño la ve para enseñarle). */
   ai_unanswered?: boolean;
+  /** En una respuesta de Empre AI: la pregunta del cliente que responde (3.71). Se dibuja justo debajo de ella. */
+  reply_to_id?: string;
   appointment_id?: string;
   /** El producto o servicio por el que se pregunta (tarjeta arriba del texto). */
   item_id?: string;

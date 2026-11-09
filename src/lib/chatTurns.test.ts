@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { detectIntent } from './answers.ts';
-import { groupAiAnswers, isGreetingOnly, splitQuestions, unansweredTail, waitNotice } from './chatTurns.ts';
+import { groupAiAnswers, isGreetingOnly, splitQuestions, timelineOrder, unansweredTail, waitNotice } from './chatTurns.ts';
 
 test('el mensaje de la captura: cada pregunta con su intención', () => {
   const services = [{ id: 's1', name: 'Corrientazo del día', price: 16000, price_from: false }];
@@ -70,4 +70,31 @@ test('el aviso dice cuándo abre el negocio', () => {
   assert.equal(waitNotice('La 22', false, { text: 'Cerrado · abre mañana 11:00 am', tone: 'closed' }), 'Esto lo responde La 22. Abre mañana 11:00 am; te avisamos cuando conteste.');
   assert.equal(waitNotice('La 22', true, null), 'Esto lo responde La 22, que está en línea.');
   assert.equal(waitNotice('La 22', false, { text: 'Abierto · cierra 3:30 pm', tone: 'open' }), 'Esto lo responde La 22. Te avisamos cuando conteste.');
+});
+
+test('3.71: una pregunta ya respondida o que Empre AI no supo no vuelve a salir al abrir el chat', () => {
+  const now = Date.parse('2026-11-09T21:00:00Z');
+  const m = (id: string, mine: boolean, min: number, extra: object = {}) => ({ id, sender_id: mine ? 'yo' : 'dueno', sent_by_entity: !mine, content: id, created_at: new Date(now - min * 60_000).toISOString(), ...extra });
+  const rows = [
+    m('r-carta', true, 1, { kind: 'ai_answer', reply_to_id: 'carta' }),
+    m('hola', true, 2),
+    m('carta', true, 20),
+    m('domicilio', true, 90, { ai_unanswered: true }),
+    m('disponibilidad', true, 91),
+    m('dueno', false, 300),
+  ];
+  assert.deepEqual(unansweredTail(rows, 'yo', now).map((x) => x.id), ['disponibilidad', 'hola']);
+});
+
+test('3.71: cada respuesta se dibuja justo debajo de su pregunta, aunque se guardó después', () => {
+  const t = (min: number) => new Date(Date.parse('2026-11-09T21:00:00Z') + min * 60_000).toISOString();
+  const rows = [
+    { id: 'q1', created_at: t(0) },
+    { id: 'q2', created_at: t(5) },
+    { id: 'hola', created_at: t(30) },
+    { id: 'a2', created_at: t(31), reply_to_id: 'q2' },
+    { id: 'a1', created_at: t(31), reply_to_id: 'q1' },
+  ];
+  // La lista va de lo más nuevo a lo más viejo (invertida).
+  assert.deepEqual(timelineOrder(rows).map((r) => r.id), ['hola', 'a2', 'q2', 'a1', 'q1']);
 });

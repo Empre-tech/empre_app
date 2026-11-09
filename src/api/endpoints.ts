@@ -297,8 +297,11 @@ export const chatApi = {
    * el backend tenga que consultarlo en cada sondeo.
    */
   /** Guarda que Empre AI respondió `intent` (3.62, F2); el dueño lo ve en su hilo. Solo el cliente de la conversación. */
-  aiAnswer: (entityId: string, intent: string, serviceId?: string, answerId?: string) =>
-    request<ChatMessage>(`/api/chat/ai-answer/${entityId}`, { method: 'POST', body: { intent, ...(serviceId ? { service_id: serviceId } : {}), ...(answerId ? { answer_id: answerId } : {}) } }),
+  aiAnswer: (entityId: string, intent: string, serviceId?: string, answerId?: string, replyTo?: string) =>
+    request<ChatMessage>(`/api/chat/ai-answer/${entityId}`, {
+      method: 'POST',
+      body: { intent, ...(serviceId ? { service_id: serviceId } : {}), ...(answerId ? { answer_id: answerId } : {}), ...(replyTo ? { reply_to: replyTo } : {}) },
+    }),
 
   /** Empre AI no supo responder esta pregunta del cliente: el dueño la ve para enseñarle (3.62, F3). */
   /** F4: el servidor clasifica una pregunta que las reglas no entendieron (solo la intención, nunca una respuesta). */
