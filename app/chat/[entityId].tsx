@@ -18,7 +18,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { track } from '@/analytics/track';
 import { answersApi, replyLabel } from '@/api/answers';
-import { AiAnswerBubble, AiAnswerOwnerRow, AiStatusLine, TeachLink, TypingBubble } from '@/components/chat/AiAnswerBubble';
+import { AiAnswerOwnerRow, TeachLink } from '@/components/chat/AiAnswerBubble';
+import { AiRelay, AiThinking, AiTurn, Aura, ChatWelcome } from '@/components/chat/EmpreVoice';
+import { lookedLabel, understoodLabel } from '@/lib/chatVoice';
 import { useAnswerData } from '@/components/chat/useAnswerData';
 import { answer as buildAnswer, detectIntent, suggestQuestions, type Action, type Answer, type Intent } from '@/lib/answers';
 import { autoAnswerStep, ownerRepliedSince } from '@/lib/chatAutoAnswer';
@@ -391,7 +393,9 @@ export default function ChatScreen() {
     }
     return set;
   }, [answeredIntents, messages, answerData, meId]);
-  const suggestions = useMemo(() => (answerData && aiOn ? suggestQuestions(answerData, askedIntents as ReadonlySet<Intent>, 3) : []), [answerData, aiOn, askedIntents]);
+  const suggestions = useMemo(() => (answerData && aiOn ? suggestQuestions(answerData, askedIntents as ReadonlySet<Intent>, 4) : []), [answerData, aiOn, askedIntents]);
+  // La entrada (3.70): sin mensajes, Empre AI se presenta con lo que ya puede responder.
+  const welcome = authStatus === 'signedIn' && messages.length === 0 && aiRows.length === 0 && !typing && !sentByEntity && !history.isLoading && !history.isError && Boolean(answerData && aiOn) && suggestions.length > 0;
   const teach = (params: { intent?: string; question?: string }) => router.push({ pathname: '/business/teach/[id]', params: { id: entityId, ...params } });
 
   // Ids del mensaje más antiguo de cada día (separador "Hoy"/"Ayer" arriba de ese mensaje).
@@ -513,7 +517,17 @@ export default function ChatScreen() {
         <ActivityIndicator style={styles.center} color={colors.primary} />
       ) : (
         <View style={styles.listWrap}>
-          {messages.length === 0 ? (
+          <Aura on={typing && !sentByEntity} />
+          {welcome && answerData ? (
+            <ChatWelcome
+              name={businessName}
+              replyText={replyText}
+              questions={suggestions}
+              onAsk={(q) => {
+                if (sendQuick(q.label)) void askEmpreAI(q.label, q.intent);
+              }}
+            />
+          ) : messages.length === 0 ? (
             // Texto del estado vacío FUERA del FlatList invertido: antes vivía
             // como ListEmptyComponent con un scaleY(-1) manual para
             // "contrarrestar" el flip de `inverted`, pero en la práctica
@@ -527,14 +541,14 @@ export default function ChatScreen() {
             </View>
           ) : null}
           <FlatList
-            style={styles.messagesList}
+            style={[styles.messagesList, welcome && styles.hidden]}
             inverted
             data={rows}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.messages}
-            ListHeaderComponent={typing && !sentByEntity ? <TypingBubble /> : null}
+            ListHeaderComponent={typing && !sentByEntity ? <AiThinking understood={understoodLabel(pending[0]?.intent ?? 'unknown', answerData?.noun ?? 'Carta')} looking={lookedLabel(pending[0]?.intent ?? 'unknown', answerData?.noun ?? 'Carta')} /> : null}
             renderItem={({ item: row }) => {
-            if ('ai' in row && row.ai === 'status') return <AiStatusLine text={row.text} />;
+            if ('ai' in row && row.ai === 'status') return <AiRelay text={row.text} />;
             if (!('ai' in row) && row.kind === 'ai_answer' && row.ai_intent && sentByEntity) {
               const intent = row.ai_intent as Intent;
               const when = new Date(row.created_at);
@@ -554,16 +568,15 @@ export default function ChatScreen() {
               });
               if (!parts.length) return null;
               return (
-                <View>
-                  <AiAnswerBubble
-                    answers={parts}
-                    businessName={businessName}
-                    onAction={onAiAction}
-                    onChoose={(intent, serviceId) => onAiChoose(intent as Intent)(serviceId)}
-                    onFeedback={(useful) => track('ai_answer_feedback', entityId, { intent: parts[0].intent, useful })}
-                  />
-                  {aiGroups.first && (aiGroups.lead.get(row.id) ?? [row.id]).includes(aiGroups.first) ? <AiStatusLine icon="checkmark" text={`Tu mensaje también le llegó a ${businessName}.`} /> : null}
-                </View>
+                <AiTurn
+                  answers={parts}
+                  businessName={businessName}
+                  alsoSent={Boolean(aiGroups.first && (aiGroups.lead.get(row.id) ?? [row.id]).includes(aiGroups.first))}
+                  fresh={Date.parse(row.created_at) >= openedAt - 5_000}
+                  onAction={onAiAction}
+                  onChoose={(intent, serviceId) => onAiChoose(intent as Intent)(serviceId)}
+                  onFeedback={(useful) => track('ai_answer_feedback', entityId, { intent: parts[0].intent, useful })}
+                />
               );
             }
             const item = row;
@@ -581,7 +594,11 @@ export default function ChatScreen() {
                   </View>
                 ) : (
                 <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
-                  <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs, item.item && styles.bubbleWithItem]}>
+                  {/* El dueño escribe con su nombre: así se distingue de Empre AI sin etiquetas. */}
+                  {!mine && !sentByEntity ? <Avatar uri={avatar} name={businessName} size={30} /> : null}
+                  <View style={!mine && !sentByEntity ? styles.theirsCol : styles.mineCol}>
+                  {!mine && !sentByEntity ? <Text style={styles.ownerName}>{businessName}</Text> : null}
+                  <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs, item.item && styles.bubbleWithItem, !mine && !sentByEntity && styles.bubbleFull]}>
                     {item.item ? (
                       <ChatItemCard
                         item={item.item}
@@ -607,6 +624,7 @@ export default function ChatScreen() {
                       ) : null}
                     </View>
                   </View>
+                  </View>
                 </View>
                 )}
                 {sentByEntity && item.ai_unanswered ? <TeachLink onPress={() => teach({ question: item.content })} /> : null}
@@ -619,7 +637,7 @@ export default function ChatScreen() {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      {authStatus === 'signedIn' && !sentByEntity ? (
+      {authStatus === 'signedIn' && !sentByEntity && !welcome ? (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -657,7 +675,7 @@ export default function ChatScreen() {
               setText(value);
               if (error) setError(null);
             }}
-            placeholder="Escribe un mensaje"
+            placeholder={sentByEntity ? 'Escribe un mensaje' : `Escríbele a ${businessName}…`}
             placeholderTextColor={colors.muted}
             style={styles.input}
             multiline
@@ -756,12 +774,18 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     overflow: 'hidden',
   },
-  bubbleRow: { flexDirection: 'row' },
+  bubbleRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   bubbleRowMine: { justifyContent: 'flex-end' },
   bubbleRowTheirs: { justifyContent: 'flex-start' },
   bubble: { maxWidth: '80%', borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: 2 },
-  bubbleMine: { backgroundColor: colors.primary, borderBottomRightRadius: 4 },
-  bubbleTheirs: { backgroundColor: colors.surface, borderBottomLeftRadius: 4 },
+  // Tu mensaje en tinta, como en Empre AI: el rojo queda para la acción principal (3.70).
+  bubbleMine: { backgroundColor: colors.ink, borderRadius: 20, borderBottomRightRadius: 6 },
+  bubbleTheirs: { backgroundColor: colors.surface, borderRadius: 20, borderBottomLeftRadius: 6, borderWidth: 1, borderColor: colors.hairline },
+  bubbleFull: { maxWidth: '100%' },
+  theirsCol: { maxWidth: '80%', gap: 3 },
+  mineCol: { maxWidth: '100%', alignItems: 'flex-end' },
+  ownerName: { paddingLeft: 4, fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.muted },
+  hidden: { display: 'none' },
   bubbleWithItem: { gap: spacing.xs, paddingTop: spacing.xs + 2, paddingHorizontal: spacing.xs + 2 },
   attached: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, gap: 4, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.surface },
   attachedLabel: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
@@ -771,26 +795,35 @@ const styles = StyleSheet.create({
   time: { fontSize: 11, color: colors.muted },
   timeMine: { color: 'rgba(255,255,255,0.8)' },
   error: { color: colors.danger, fontSize: 13, paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
+  // La caja de escribir es la misma píldora de «Pregúntales a varios».
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
+    gap: 6,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    paddingVertical: 6,
+    paddingLeft: spacing.lg,
+    paddingRight: 6,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    backgroundColor: colors.surface,
+    shadowColor: colors.ink,
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   input: {
     flex: 1,
-    height: 44,
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.md,
+    minHeight: 44,
+    maxHeight: 120,
+    paddingVertical: 10,
     fontSize: 15,
-    fontFamily: fonts.ui.medium,
+    fontFamily: fonts.ui.semibold,
     color: colors.ink,
   },
-  send: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  send: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
   sendDisabled: { opacity: 0.4 },
 });
