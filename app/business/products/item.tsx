@@ -22,6 +22,7 @@ import { AUDIENCE_OPTIONS, audienceText, catalogCopy, defaultItemKind, parsePric
 import { mediaUrl } from '@/lib/image';
 import { fmtQty, itemLine, MODE_LABEL, splitTabs } from '@/lib/inventory';
 import { formatPesos, newClientId } from '@/lib/ledger';
+import { businessFamily, parseSpoken, starterItems } from '@/lib/family';
 import { suggestSection } from '@/lib/sections';
 import { groupOf, marginOf, NO_GROUP } from '@/lib/supplies';
 import { colors, fonts, radius, spacing } from '@/theme';
@@ -92,6 +93,8 @@ export default function ItemScreen() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // «Escríbelo como lo dirías» (3.69): una línea que llena nombre, duración y precio.
+  const [spoken, setSpoken] = useState('');
 
   // Llena el formulario una vez que llegan los datos (o con los valores por defecto si es nuevo).
   useEffect(() => {
@@ -424,6 +427,73 @@ export default function ItemScreen() {
     </View>
   );
 
+  // «Escríbelo como lo dirías»: cada cambio vuelve a leer la línea y llena los campos de abajo (que se pueden corregir).
+  const heard = spoken.trim() ? parseSpoken(spoken) : null;
+  const onSpoken = (text: string) => {
+    setSpoken(text);
+    const p = parseSpoken(text);
+    setName(p.name);
+    setPrice(p.price !== null ? String(p.price) : '');
+    setFrom(p.from);
+    if (p.duration !== null) {
+      setKind('service');
+      if (DURATIONS.includes(p.duration)) {
+        setDuration(p.duration);
+        setCustomDuration('');
+      } else {
+        setDuration(null);
+        setCustomDuration(String(p.duration));
+      }
+    }
+  };
+  const family = businessFamily({ profile: business.data?.business_profile, category: business.data?.category?.name, items: catalog.data ?? [] });
+  const have = new Set((catalog.data ?? []).map((i) => i.name.trim().toLowerCase()));
+  const starters = starterItems(family, business.data?.category?.name).filter((s) => !have.has(s.name.toLowerCase()));
+  const heardChips = heard
+    ? [
+        heard.name ? { ok: true, text: `Nombre: ${heard.name}` } : { ok: false, text: 'Falta el nombre' },
+        ...(isService || heard.duration !== null ? [heard.duration !== null ? { ok: true, text: `Dura ${heard.duration} min` } : { ok: false, text: 'Sin duración' }] : []),
+        heard.price !== null ? { ok: true, text: `Precio: ${heard.from ? 'desde ' : ''}${formatPesos(heard.price)}` } : { ok: false, text: 'Falta el precio' },
+      ]
+    : [];
+  const spokenBlock = isNew ? (
+    <View style={{ gap: spacing.sm }}>
+      <TextField
+        label="Escríbelo como lo dirías"
+        placeholder={isService ? 'corte con lavado 30 min 20 mil' : copy.kind === 'food' ? 'bandeja paisa 22 mil' : 'arroz 500 g 3.500'}
+        value={spoken}
+        onChangeText={onSpoken}
+        autoCapitalize="none"
+        maxLength={120}
+      />
+      {heardChips.length ? (
+        <View style={styles.heardRow} accessibilityLiveRegion="polite">
+          {heardChips.map((c) => (
+            <View key={c.text} style={[styles.heard, !c.ok && styles.heardMissing]}>
+              <Ionicons name={c.ok ? 'checkmark' : 'ellipse-outline'} size={13} color={c.ok ? colors.verified : colors.accentInk} />
+              <Text style={[styles.heardText, !c.ok && { color: colors.accentInk }]}>{c.text}</Text>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <Text style={styles.metaSmall}>Nombre, duración y precio en una línea: «20 mil», «media hora». Abajo lo puedes corregir.</Text>
+      )}
+      {starters.length && !spoken.trim() ? (
+        <View style={{ gap: spacing.xs }}>
+          <Text style={styles.fieldLabel}>Lo que suelen tener negocios como el tuyo</Text>
+          <View style={styles.heardRow}>
+            {starters.map((s) => (
+              <Pressable key={s.name} accessibilityRole="button" accessibilityLabel={`Empezar con ${s.name}, sin precio`} onPress={() => onSpoken(`${s.name.toLowerCase()}${s.duration ? ` ${s.duration} min` : ''} `)} style={styles.starter}>
+                <Text style={styles.starterText}>{s.name}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.metaSmall}>Tócalo y solo te falta tu precio.</Text>
+        </View>
+      ) : null}
+    </View>
+  ) : null;
+
   const moreItems = [!suppliesUpFront && showSupplies ? 'insumos que lleva' : null, showAlsoSupply ? 'si también lo usas tú' : null].filter(Boolean) as string[];
 
   return (
@@ -445,6 +515,8 @@ export default function ItemScreen() {
             ))}
           </View>
         ) : null}
+
+        {spokenBlock}
 
         <View style={styles.card}>
           <View style={styles.cardHead}>
@@ -825,6 +897,12 @@ const styles = StyleSheet.create({
   meta: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
   metaSmall: { fontSize: 12, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.muted },
   placeholder: { fontSize: 15, fontFamily: fonts.ui.medium, color: colors.muted },
+  heardRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  heard: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.verifiedSoft },
+  heardMissing: { backgroundColor: '#FFF6DE' },
+  heardText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.verified },
+  starter: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
+  starterText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   segment: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: '#EEF2F7' },
   segBtn: { flex: 1, minHeight: 52, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   segOn: { backgroundColor: colors.surface, elevation: 1, shadowColor: colors.ink, shadowOpacity: 0.12, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } },

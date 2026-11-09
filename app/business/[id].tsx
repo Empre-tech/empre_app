@@ -46,6 +46,8 @@ import { PhotosSection } from '@/components/profile/PhotosSection';
 import { getPhoneFlag, setPhoneFlag } from '@/lib/phoneFlags';
 import { LatestStrip } from '@/components/profile/LatestStrip';
 import { ProfileHero } from '@/components/profile/ProfileHero';
+import { Protagonist } from '@/components/profile/Protagonist';
+import { businessFamily } from '@/lib/family';
 import { QuickIndex } from '@/components/profile/QuickIndex';
 import { SectionHeader } from '@/components/profile/SectionHeader';
 import { Recommendations } from '@/components/profile/Recommendations';
@@ -148,7 +150,7 @@ export default function BusinessScreen() {
   const [asking, setAsking] = useState<ServiceItem | null>(null);
   // «Pregúntale» (fase 1): la hoja de respuestas y, desde ella, la hoja de reservar con el servicio elegido.
   const [askStart, setAskStart] = useState<{ intent: Intent; label: string } | { text: string } | null>(null);
-  const [bookingFor, setBookingFor] = useState<{ serviceId?: string } | null>(null);
+  const [bookingFor, setBookingFor] = useState<{ serviceId?: string; slot?: string } | null>(null);
   // Lo que el dueño le enseñó a Empre AI (3.62, F3): también responde en «Pregúntale».
   const taughtAnswers = useQuery({ queryKey: ['business-answers', id], queryFn: () => answersApi.list(id ?? ''), enabled: Boolean(id), staleTime: 60_000 });
   const bizStatus = useQuery({ queryKey: ['status', id], queryFn: () => statusApi.get(id ?? ''), enabled: Boolean(id), staleTime: 60_000 });
@@ -407,6 +409,8 @@ export default function BusinessScreen() {
   const openState: boolean | null = hasHours ? Boolean(business.is_open_now) : null;
   // El catálogo se llama según el negocio (Carta, Servicios, Productos…) y su precio más bajo va en el vistazo.
   const copy = catalogCopy(business.category?.name, business.business_profile);
+  // La familia del negocio decide qué va primero (3.69): horas libres, «Cuéntale qué necesitas» o el estante.
+  const family = businessFamily({ profile: business.business_profile, category: business.category?.name, items: catalog.data ?? [] });
   const askData: AnswerData = {
     name: business.name,
     noun: copy.noun,
@@ -691,7 +695,23 @@ export default function BusinessScreen() {
 
         <View style={styles.bodyList} onLayout={(e) => (bodyY.current = e.nativeEvent.layout.y)}>
             <>
-              {FEATURES.agenda && !isOwner ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
+              {!isOwner ? (
+                <Protagonist
+                  family={family}
+                  entityId={business.id}
+                  items={catalog.data ?? []}
+                  agenda={FEATURES.agenda ? agendaSummary.data : undefined}
+                  onPickSlot={(slot) => {
+                    track('booking_started', business.id, { origin: slot ? 'free_slot' : 'protagonist' });
+                    setBookingFor({ slot });
+                  }}
+                  onAgent={() => router.push({ pathname: '/agent/[id]', params: { id: business.id, name: business.name } })}
+                  onSendProblem={(message, item) => sendAsk(message, item)}
+                  onOpenItem={(item) => router.push({ pathname: '/business/product', params: { entityId: business.id, itemId: item.id } })}
+                />
+              ) : null}
+              {/* Con cita, las horas libres ya están arriba: la franja de la agenda sobra. */}
+              {FEATURES.agenda && !isOwner && family !== 'cita' ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
               {blockOrder({ isOwner }).map(block)}
             </>
         </View>
@@ -736,6 +756,7 @@ export default function BusinessScreen() {
           entityName={business.name}
           summary={agendaSummary.data}
           initialServiceId={bookingFor?.serviceId}
+          initialSlot={bookingFor?.slot}
           onClose={() => setBookingFor(null)}
           onBooked={(appointment) => {
             setBookingFor(null);
