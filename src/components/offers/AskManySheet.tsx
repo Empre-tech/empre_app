@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -135,6 +136,8 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
   };
 
   const ask = async (intent: ManyIntent | null, question: string, typed?: string) => {
+    // Al preguntar se baja el teclado: la respuesta tiene que verse completa.
+    Keyboard.dismiss();
     if (busy || !n) return;
     seq.current += 1;
     const id = `t${seq.current}`;
@@ -226,7 +229,8 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
   const moodText = !last ? 'Responde al instante con lo publicado' : last.answer === null ? `Revisando ${n} negocios…` : last.sent.length ? 'Le pasó la pregunta a los dueños' : last.answer.intent === 'unknown' ? 'Esto lo saben los dueños' : 'Respondió con lo publicado';
 
   return (
-    <KeyboardAvoidingView style={[styles.screen, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    // En Android un Modal de pantalla completa no se encoge con el teclado: sin «height», la caja quedaba debajo.
+    <KeyboardAvoidingView style={[styles.screen, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.header}>
         <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} style={styles.iconBtn}>
           <Ionicons name="close" size={24} color={colors.ink} />
@@ -268,6 +272,8 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
         style={{ flex: 1 }}
         contentContainerStyle={styles.body}
         keyboardShouldPersistTaps="handled"
+        // Deslizar la conversación o tocar fuera de la caja baja el teclado.
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: !reduce })}
       >
         {!turns.length ? (
