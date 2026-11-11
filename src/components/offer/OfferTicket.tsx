@@ -67,9 +67,7 @@ export function OfferTicket({ offer, cta, notchColor = colors.bg, showPrice = tr
       <View style={styles.clip}>
         {!off ? (
           <View style={styles.brandRibbon} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            <View style={[styles.ribbonSeg, { backgroundColor: '#111318' }]} />
-            <View style={[styles.ribbonSeg, { backgroundColor: '#0D7A5F' }]} />
-            <View style={[styles.ribbonSeg, { backgroundColor: '#E8896A' }]} />
+            <View style={[styles.ribbonSeg, { backgroundColor: colors.accent }]} />
           </View>
         ) : null}
 

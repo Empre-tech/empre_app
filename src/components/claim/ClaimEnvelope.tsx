@@ -1,76 +1,102 @@
 import { useEffect, useState } from 'react';
-import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Path, Rect } from 'react-native-svg';
+import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import type { OfferClaim as Claim } from '@/api/types';
-import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { formatWindow } from '@/lib/offer';
 import { colors, fonts } from '@/theme';
 
-const W = 300;
-const H = 200;
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+const AnimatedRect = Animated.createAnimatedComponent(Rect);
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-/** Justo después de reclamar: el sobre cerrado con el sello de Empre. Abrirlo lleva al QR. */
+const DASH = 70;
+
+/**
+ * Justo después de reclamar (tablero «Reclamar una oferta»): la oferta se vuelve ticket, el puente del logo se
+ * dibuja encima y su nodo la sella con una onda verde. Una sola vez; con «Reducir movimiento» aparece ya sellada.
+ */
 export function ClaimEnvelope({ claim, onOpen }: { claim: Claim; onOpen: () => void }) {
-  const [enter] = useState(() => new Animated.Value(0));
-  const [pulse] = useState(() => new Animated.Value(0));
+  const [ticket] = useState(() => new Animated.Value(0));
+  const [draw] = useState(() => new Animated.Value(0));
+  const [bar] = useState(() => new Animated.Value(0));
+  const [node] = useState(() => new Animated.Value(0));
+  const [wave] = useState(() => new Animated.Value(0));
+  const [text] = useState(() => new Animated.Value(0));
+
   useEffect(() => {
     let cancelled = false;
-    let loop: Animated.CompositeAnimation | null = null;
     AccessibilityInfo.isReduceMotionEnabled()
       .then((reduce) => {
         if (cancelled) return;
         if (reduce) {
-          enter.setValue(1);
+          [ticket, draw, bar, node, text].forEach((v) => v.setValue(1));
           return;
         }
-        Animated.spring(enter, { toValue: 1, useNativeDriver: true, friction: 7 }).start();
-        loop = Animated.loop(
-          Animated.sequence([
-            Animated.timing(pulse, { toValue: 1, duration: 1400, useNativeDriver: true }),
-            Animated.timing(pulse, { toValue: 0, duration: 1400, useNativeDriver: true }),
+        Animated.sequence([
+          Animated.spring(ticket, { toValue: 1, friction: 8, tension: 70, useNativeDriver: false }),
+          Animated.timing(draw, { toValue: 1, duration: 620, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+          Animated.timing(bar, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+          Animated.parallel([
+            Animated.spring(node, { toValue: 1, friction: 4, tension: 160, useNativeDriver: false }),
+            Animated.timing(wave, { toValue: 1, duration: 700, easing: Easing.out(Easing.quad), useNativeDriver: false }),
+            Animated.timing(text, { toValue: 1, duration: 420, delay: 120, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
           ]),
-        );
-        loop.start();
+        ]).start();
       })
-      .catch(() => enter.setValue(1));
+      .catch(() => [ticket, draw, bar, node, text].forEach((v) => v.setValue(1)));
     return () => {
       cancelled = true;
-      loop?.stop();
     };
-  }, [enter, pulse]);
+  }, [ticket, draw, bar, node, wave, text]);
 
   const minutes = claim.offer?.claim_window_minutes;
+  const dash = draw.interpolate({ inputRange: [0, 1], outputRange: [DASH, 0] });
   return (
     <View style={styles.wrap}>
       <View style={styles.middle}>
-        <Animated.View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.envelope, { opacity: enter, transform: [{ scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }] }]}>
-          <Svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
-            <Rect width={W} height={H} rx={14} fill={colors.ink} />
-            <Path d={`M0 70 L${W / 2} 140 L${W} 70 V${H - 14} A14 14 0 0 1 ${W - 14} ${H} H14 A14 14 0 0 1 0 ${H - 14} Z`} fill="#22252B" />
-          </Svg>
-          <Animated.View
-            style={[
-              styles.seal,
-              {
-                transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.07] }) }],
-              },
-            ]}
-          >
-            <EmpreSymbol product="offers" size={54} />
-          </Animated.View>
+        <Animated.View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={[styles.ticket, { opacity: ticket, transform: [{ translateY: ticket.interpolate({ inputRange: [0, 1], outputRange: [-30, 0] }) }, { scale: ticket.interpolate({ inputRange: [0, 1], outputRange: [1.06, 1] }) }] }]}
+        >
+          <View style={styles.top}>
+            <View style={styles.tag}>
+              <Text style={styles.tagText}>Oferta</Text>
+            </View>
+            <Text style={styles.offer} numberOfLines={2}>
+              {claim.offer?.title ?? 'Tu oferta'}
+            </Text>
+          </View>
+          <View style={styles.cut}>
+            <View style={[styles.notch, styles.notchL]} />
+            <View style={[styles.notch, styles.notchR]} />
+          </View>
+          <View style={styles.bottom}>
+            <Text style={styles.where} numberOfLines={1}>
+              {claim.entity_name ?? 'En el local'}
+            </Text>
+            <Svg width={92} height={92} viewBox="0 0 64 64" style={styles.seal}>
+              <AnimatedPath d="M15 25V18C15 14.686 17.686 12 21 12H47" stroke={colors.ink} strokeWidth={7} strokeLinecap="round" fill="none" strokeDasharray={DASH} strokeDashoffset={dash} />
+              <AnimatedPath d="M15 39V46C15 49.314 17.686 52 21 52H43C46.314 52 49 49.314 49 46V42" stroke={colors.ink} strokeWidth={7} strokeLinecap="round" fill="none" strokeDasharray={DASH} strokeDashoffset={dash} />
+              <AnimatedRect x={15} y={28.5} height={7} rx={3.5} fill={colors.brand} width={bar.interpolate({ inputRange: [0, 1], outputRange: [0, 25] })} />
+              <AnimatedCircle cx={47.5} cy={32} fill="none" stroke={colors.glow} strokeWidth={2} r={wave.interpolate({ inputRange: [0, 1], outputRange: [4, 18] })} opacity={wave.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.9, 0] })} />
+              <AnimatedCircle cx={47.5} cy={32} fill={colors.brand} r={node.interpolate({ inputRange: [0, 1], outputRange: [0, 4] })} />
+            </Svg>
+          </View>
         </Animated.View>
-        <View style={styles.text}>
+        <Animated.View style={[styles.text, { opacity: text, transform: [{ translateY: text.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] }]}>
           <Text style={styles.title} accessibilityRole="header">
-            Tu oferta está lista
+            ¡Es tuyo!
           </Text>
           <Text style={styles.body}>
             {claim.entity_name ? `${claim.entity_name} te guardó un cupo.` : 'Te guardamos un cupo.'}
             {minutes ? ` Tienes ${formatWindow(minutes)} para usarla en el local.` : ''}
           </Text>
-        </View>
+          <Text style={styles.saved}>Guardado en tus salidas</Text>
+        </Animated.View>
       </View>
       <Pressable accessibilityRole="button" onPress={onOpen} style={({ pressed }) => [styles.btn, pressed && { opacity: 0.85 }]}>
-        <Text style={styles.btnText}>Abrir el sobre</Text>
+        <Text style={styles.btnText}>Ver mi QR</Text>
       </Pressable>
     </View>
   );
@@ -79,11 +105,22 @@ export function ClaimEnvelope({ claim, onOpen }: { claim: Claim; onOpen: () => v
 const styles = StyleSheet.create({
   wrap: { flex: 1, justifyContent: 'space-between', gap: 24, paddingBottom: 12 },
   middle: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 26 },
-  envelope: { width: W, height: H, alignItems: 'center' },
-  seal: { position: 'absolute', top: 100, width: 76, height: 76, borderRadius: 38, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
-  text: { gap: 8, paddingHorizontal: 8 },
-  title: { fontSize: 26, lineHeight: 30, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
-  body: { fontSize: 15, lineHeight: 22, fontFamily: fonts.ui.medium, color: colors.faint, textAlign: 'center' },
+  ticket: { width: 300, borderRadius: 20, backgroundColor: colors.surface, overflow: 'hidden', shadowColor: colors.ink, shadowOpacity: 0.14, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 5 },
+  top: { padding: 18, gap: 10, backgroundColor: colors.night },
+  tag: { alignSelf: 'flex-start', paddingHorizontal: 9, paddingVertical: 3, borderTopLeftRadius: 4, borderBottomLeftRadius: 4, borderTopRightRadius: 10, borderBottomRightRadius: 10, backgroundColor: colors.accent },
+  tagText: { fontFamily: fonts.ui.extrabold, fontSize: 12.5, color: colors.ink },
+  offer: { fontFamily: fonts.display.bold, fontSize: 22, lineHeight: 26, color: '#FFFFFF' },
+  cut: { height: 0, borderTopWidth: 2, borderStyle: 'dashed', borderColor: colors.line },
+  notch: { position: 'absolute', top: -12, width: 22, height: 22, borderRadius: 11, backgroundColor: colors.bg },
+  notchL: { left: -11 },
+  notchR: { right: -11 },
+  bottom: { minHeight: 110, padding: 18, justifyContent: 'center' },
+  where: { fontFamily: fonts.ui.extrabold, fontSize: 15, color: colors.ink, maxWidth: 170 },
+  seal: { position: 'absolute', right: 12, top: 10 },
+  text: { gap: 8, paddingHorizontal: 8, alignItems: 'center' },
+  title: { fontSize: 28, lineHeight: 32, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
+  body: { fontSize: 15, lineHeight: 22, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
+  saved: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.brand },
   btn: { minHeight: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.primary },
   btnText: { fontSize: 17, fontFamily: fonts.ui.extrabold, color: '#fff' },
 });
