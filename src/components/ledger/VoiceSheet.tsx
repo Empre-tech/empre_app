@@ -544,7 +544,7 @@ export function VoiceSheet({
                           ? 'Ej: Se acabó la harina y queda poco café…'
                           : 'Ej: Comida rápida abierta ahora con oferta…'
                     }
-                    placeholderTextColor={colors.placeholder}
+                    placeholderTextColor={colors.faint}
                     style={styles.stageInput}
                     multiline
                     maxLength={400}

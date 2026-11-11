@@ -110,7 +110,7 @@ export default function TeachScreen() {
             {draft.intent === '' ? (
               <>
                 <Text style={styles.label}>La pregunta</Text>
-                <TextInput value={draft.question} onChangeText={(q) => setDraft({ ...draft, question: q.slice(0, 200) })} placeholder="¿Atienden niños?" placeholderTextColor={colors.placeholder} style={styles.input} accessibilityLabel="La pregunta" />
+                <TextInput value={draft.question} onChangeText={(q) => setDraft({ ...draft, question: q.slice(0, 200) })} placeholder="¿Atienden niños?" placeholderTextColor={colors.faint} style={styles.input} accessibilityLabel="La pregunta" />
               </>
             ) : (
               <Text style={styles.hint}>Se suma a lo que Empre AI ya responde sobre {topicLabel(draft.intent).toLowerCase()} con lo que publicaste; si no habías publicado nada, responde con esto.</Text>
@@ -120,7 +120,7 @@ export default function TeachScreen() {
               value={draft.answer}
               onChangeText={(a) => setDraft({ ...draft, answer: a.slice(0, MAX) })}
               placeholder="Sí, desde los 3 años. Los sábados hay más fila."
-              placeholderTextColor={colors.placeholder}
+              placeholderTextColor={colors.faint}
               style={[styles.input, styles.multi]}
               multiline
               accessibilityLabel="Tu respuesta"

@@ -462,7 +462,7 @@ export default function AskScreen() {
               setEditing(true);
             }}
             placeholder={listening ? 'Te escucho…' : '¿Qué necesitas?'}
-            placeholderTextColor={colors.placeholder}
+            placeholderTextColor={colors.faint}
             style={styles.input}
             returnKeyType="search"
             onSubmitEditing={() => void run(text, NO_FILTERS)}
@@ -696,7 +696,7 @@ const styles = StyleSheet.create({
   pin: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   pinDot: { position: 'absolute', right: 0, bottom: 0, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: colors.surface },
   sheet: { flex: 1, marginTop: -20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 30, shadowOffset: { width: 0, height: -10 }, elevation: 8 },
-  sheetIn: { paddingTop: 14, paddingHorizontal: 14, gap: 12 },
+  sheetIn: { paddingTop: 14, paddingHorizontal: 16, gap: 12 },
   filterBleed: { marginHorizontal: -14 },
   recHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   recName: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },

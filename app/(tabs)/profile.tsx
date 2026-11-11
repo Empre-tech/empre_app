@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, minWidth: 0, gap: 1 },
   rowLabel: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   rowSub: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.faint },
-  version: { paddingTop: 6, fontSize: 12, fontFamily: fonts.ui.medium, color: colors.placeholder, textAlign: 'center' },
+  version: { paddingTop: 6, fontSize: 12, fontFamily: fonts.ui.medium, color: colors.faint, textAlign: 'center' },
   veil: { flex: 1, backgroundColor: 'rgba(14,35,70,0.38)' },
   sheet: { gap: 8, paddingTop: 16, paddingHorizontal: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.surface },
   sheetTitle: { fontSize: 20, lineHeight: 25, fontFamily: fonts.display.bold, color: colors.ink },

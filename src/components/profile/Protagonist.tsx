@@ -121,7 +121,7 @@ function TellProblem({ items, onSendProblem }: Props) {
           value={text}
           onChangeText={setText}
           placeholder="Por ejemplo: suena al frenar"
-          placeholderTextColor={colors.placeholder}
+          placeholderTextColor={colors.faint}
           style={styles.input}
           returnKeyType="send"
           onSubmitEditing={() => written && onSendProblem(problemMessage(text, match), match)}

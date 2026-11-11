@@ -322,7 +322,7 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
             onSubmitEditing={submit}
             returnKeyType="send"
             placeholder={`Pregúntales a los ${n}…`}
-            placeholderTextColor={colors.placeholder}
+            placeholderTextColor={colors.faint}
             style={styles.input}
             accessibilityLabel={`Pregunta para los ${n} negocios`}
           />
