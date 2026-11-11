@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { keepPreviousData, useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { CategoryArt, artKeyFor } from '@/components/CategoryArt';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
@@ -486,6 +487,48 @@ export default function OffersScreen() {
               </Pressable>
             </Pressable>
             </View>
+            {/* Barrios: como las pestañas de categoría de las grandes tiendas, pero por ubicación (tablero «Ofertas») */}
+            {(data?.zones ?? []).length ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.barrios} accessibilityLabel="Barrios">
+                {[{ id: '', name: 'A tu puerta', latitude: 0, longitude: 0 }, ...(data?.zones ?? [])].map((z) => {
+                  const on = (picked?.id ?? '') === z.id;
+                  return (
+                    <Pressable
+                      key={z.id || 'here'}
+                      accessibilityRole="tab"
+                      accessibilityState={{ selected: on }}
+                      onPress={() => {
+                        if (!z.id) setPicked(null);
+                        else if (z.latitude && z.longitude) setPicked({ id: z.id, name: z.name, latitude: z.latitude, longitude: z.longitude });
+                        else goToList(z.id);
+                      }}
+                      style={styles.barrio}
+                    >
+                      <Text style={[styles.barrioText, on && styles.barrioOn]}>{z.name}</Text>
+                      <View style={[styles.barrioBar, on && styles.barrioBarOn]} />
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            ) : null}
+            {/* Categorías: botones con su ilustración, todas al mismo punto */}
+            {(categories.data ?? []).length ? (
+              <View style={styles.catGrid} accessibilityLabel="Categorías">
+                {(categories.data ?? []).slice(0, 8).map((c) => {
+                  const on = catId === c.id;
+                  return (
+                    <Pressable key={c.id} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={c.name} onPress={() => setCatId(on ? undefined : c.id)} style={styles.catBtn}>
+                      <View style={[styles.catArt, on && styles.catArtOn]}>
+                        <CategoryArt k={artKeyFor(c.name, c.icon)} size={60} />
+                      </View>
+                      <Text style={[styles.catName, on && styles.catNameOn]} numberOfLines={1}>
+                        {c.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
             {/* 1 · Lentes de tendencia y 2 · un solo sistema de filtros (3.61) */}
             <View style={styles.lensBar}>
               <LensTabs lenses={lenses} active={lensKey} onPick={setLens} />
@@ -867,6 +910,18 @@ function EmptyOffers({ searching }: { searching: boolean }) {
 }
 
 const styles = StyleSheet.create({
+  barrios: { gap: 18, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.line },
+  barrio: { minHeight: 44, justifyContent: 'flex-end', gap: 8 },
+  barrioText: { fontFamily: fonts.ui.bold, fontSize: 15, color: colors.faint },
+  barrioOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
+  barrioBar: { height: 3, borderRadius: 2, backgroundColor: 'transparent', marginBottom: -1 },
+  barrioBarOn: { backgroundColor: colors.ink },
+  catGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, rowGap: 12 },
+  catBtn: { width: '25%', alignItems: 'center', gap: 6, minHeight: 44 },
+  catArt: { width: 64, height: 64, borderRadius: 32, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
+  catArtOn: { borderColor: colors.ink },
+  catName: { fontFamily: fonts.ui.bold, fontSize: 12, color: colors.ink, textAlign: 'center', paddingHorizontal: 2 },
+  catNameOn: { fontFamily: fonts.ui.extrabold },
   lensBar: { gap: 10 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 20 },
   emptyCard: { marginHorizontal: 20, padding: 18, gap: 10, borderRadius: 20, backgroundColor: colors.surface },
