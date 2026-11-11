@@ -4,10 +4,11 @@ import { FRANJAS, heatLevel, WEEK_INITIALS } from '@/lib/finance';
 import { formatPesos } from '@/lib/ledger';
 import { colors, fonts, radius, spacing } from '@/theme';
 
-export const SALES_COLOR = colors.brand;
+// Plata (Finance) lleva su índigo en cifras y gráficos; el verde queda para «ahora».
+export const SALES_COLOR = colors.finance;
 export const EXPENSE_COLOR = '#8E929A';
 const HEAT = [colors.selectedSoft, '#B6C1D1', '#6B7079', colors.selected];
-const TONE = { good: colors.verified, bad: colors.warning, warn: colors.accentInk, flat: colors.muted } as const;
+const TONE = { good: colors.finance, bad: colors.ink, warn: colors.ink, flat: colors.muted } as const;
 
 /** «▲ 12 %» con su color. */
 export function Delta({ d, worseIsWarn = false }: { d: { text: string; tone: 'good' | 'bad' | 'flat' } | null; worseIsWarn?: boolean }) {
