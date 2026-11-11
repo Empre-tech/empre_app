@@ -132,6 +132,14 @@ export default function ProfileScreen() {
         </Text>
         {entities.length > 1 ? <Text style={styles.hint}>Toca uno para trabajar en él</Text> : null}
       </View>
+      {/* Todos juntos: el ancla negra (tablero «Mi negocio» · Perfil) */}
+      {entities.length ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={`Tus ${entities.length} negocios hoy: ${formatPesos(allTotal)}. Ver el detalle`} onPress={() => setAllOpen(true)} style={styles.anchor}>
+          <Text style={styles.anchorLead}>{entities.length > 1 ? `Tus ${entities.length} negocios, hoy` : 'Tu negocio, hoy'}</Text>
+          <Text style={styles.anchorTotal}>{formatPesos(allTotal)}</Text>
+          {inbox.requests > 0 ? <Text style={styles.anchorSub}>{requestsLabel(inbox.requests)}</Text> : <Text style={styles.anchorSub}>Lo que entró hoy, sumado</Text>}
+        </Pressable>
+      ) : null}
       {mine.isLoading ? (
         <ActivityIndicator color={colors.primary} />
       ) : mine.isError ? (
@@ -315,6 +323,10 @@ function QuickAction({ symbol, icon, label, onPress }: { symbol?: EmpreProduct; 
 }
 
 const styles = StyleSheet.create({
+  anchor: { borderRadius: 22, backgroundColor: colors.night, padding: 16, gap: 6 },
+  anchorLead: { fontFamily: fonts.ui.extrabold, fontSize: 12.5, color: colors.nightText },
+  anchorTotal: { fontFamily: fonts.display.bold, fontSize: 30, lineHeight: 34, color: '#FFFFFF' },
+  anchorSub: { fontFamily: fonts.ui.extrabold, fontSize: 13, color: colors.glow },
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 16, paddingBottom: 120, gap: 18 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 14 },

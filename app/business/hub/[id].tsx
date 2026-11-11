@@ -15,6 +15,7 @@ import { Avatar } from '@/components/Avatar';
 import { Cover } from '@/components/Cover';
 import { EmpreSymbol, type EmpreProduct } from '@/components/EmpreSymbol';
 import { EmptyState } from '@/components/EmptyState';
+import { BusinessSwitcher } from '@/components/profile/BusinessSwitcher';
 import { GrowthCard } from '@/components/profile/GrowthCard';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { ActionTile, StatusCap, SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
@@ -154,6 +155,10 @@ export default function BusinessHubScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.body, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 28 }]}>
+        {/* Varios negocios: una casilla para cambiar sin salir (tablero «Mi negocio»). */}
+        <View style={styles.switchRow}>
+          <BusinessSwitcher currentId={entityId} onPick={(id) => router.replace({ pathname: '/business/hub/[id]', params: { id } })} onAdd={() => router.push('/business/new')} />
+        </View>
         {/* Así te ven: ocupa el lugar del encabezado, así que no empuja nada hacia abajo. */}
         <View style={styles.seen}>
           <Cover photo={b.banner_url} category={b.category?.name} icon={b.category?.icon} style={styles.seenCover}>
@@ -280,6 +285,7 @@ export default function BusinessHubScreen() {
 }
 
 const styles = StyleSheet.create({
+  switchRow: { flexDirection: 'row', marginBottom: 12 },
   screen: { flex: 1, backgroundColor: colors.bg },
   body: { paddingHorizontal: 20, gap: 16 },
   main: { borderRadius: 20, overflow: 'hidden', backgroundColor: colors.surface, ...softShadow },
