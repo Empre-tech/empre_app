@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect, useRef, useState } from 'react';
 import { ledgerApi } from '@/api/ledger';
@@ -231,18 +231,61 @@ function SaleReceipt({ result, onFinance }: { result: RedeemResult; onFinance?: 
   const [method, setMethod] = useState<PayMethod>('cash');
   const [voided, setVoided] = useState(false);
   const [error, setError] = useState('');
+  // La oferta no decía el precio en pesos («2x1», «15%»): el dueño dice cuánto cobró y queda como venta del canje.
+  const [amount, setAmount] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [made, setMade] = useState<{ id: string; total: number } | null>(null);
   const entityId = result.entity_id;
-  const saleId = result.sale_id;
-  if (!saleId || !entityId) {
+  const claimId = result.claim_id;
+  const saleId = result.sale_id ?? made?.id;
+  const saleTotal = result.sale_total ?? made?.total ?? 0;
+  if (!entityId) return null;
+  if (!saleId) {
+    const total = Number(amount.replace(/\D/g, ''));
+    const record = () => {
+      if (!claimId || total <= 0 || saving) return;
+      setSaving(true);
+      setError('');
+      ledgerApi
+        .recordClaimSale(entityId, claimId, total, method)
+        .then((sale) => setMade({ id: sale.id, total: sale.total }))
+        .catch(() => setError('No pudimos anotarla. Revisa tu conexión e inténtalo otra vez.'))
+        .finally(() => setSaving(false));
+    };
     return (
       <View style={styles.sale}>
-        <Text style={styles.saleTitle}>No quedó en tus ventas</Text>
-        <Text style={styles.saleSub}>Esta oferta no dice cuánto cobrar en pesos. Si cobraste algo, anótalo como venta.</Text>
-        {entityId && onFinance ? (
-          <Pressable accessibilityRole="button" onPress={() => onFinance(entityId)} style={styles.saleLink}>
-            <Text style={styles.saleLinkText}>Ir a Finanzas</Text>
-          </Pressable>
-        ) : null}
+        <Text style={styles.saleLabel}>¿CUÁNTO COBRASTE?</Text>
+        <Text style={styles.saleSub}>Esta oferta no dice el precio en pesos. Escríbelo y queda en tus ventas como venta de Empre Offers.</Text>
+        <TextInput
+          accessibilityLabel="Cuánto cobraste, en pesos"
+          value={total > 0 ? formatPesos(total) : ''}
+          onChangeText={(t) => setAmount(t.replace(/\D/g, '').slice(0, 9))}
+          placeholder="$0"
+          placeholderTextColor={colors.faint}
+          keyboardType="number-pad"
+          returnKeyType="done"
+          onSubmitEditing={record}
+          editable={Boolean(claimId)}
+          style={styles.saleInput}
+        />
+        <View style={styles.saleChips}>
+          {PAY_METHODS.map((m) => (
+            <Pressable key={m} accessibilityRole="button" accessibilityState={{ selected: method === m }} onPress={() => setMethod(m)} style={[styles.saleChip, method === m && styles.saleChipOn]}>
+              <Text style={styles.saleChipText}>{METHOD_LABEL[m]}</Text>
+            </Pressable>
+          ))}
+        </View>
+        {error ? <Text style={styles.saleError}>{error}</Text> : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: total <= 0 || saving || !claimId }}
+          disabled={total <= 0 || saving || !claimId}
+          onPress={record}
+          style={[styles.saleBtn, (total <= 0 || saving || !claimId) && styles.saleBtnOff]}
+        >
+          <Text style={styles.saleBtnText}>{saving ? 'Anotando…' : 'Anotar la venta'}</Text>
+        </Pressable>
+        <Text style={styles.saleSub}>Si no cobraste nada, déjalo así.</Text>
       </View>
     );
   }
@@ -283,7 +326,7 @@ function SaleReceipt({ result, onFinance }: { result: RedeemResult; onFinance?: 
             Empre Finance registró la venta
           </Text>
           <Text style={styles.saleSub}>
-            {formatPesos(result.sale_total ?? 0)} · {METHOD_LABEL[method]}. No tienes que anotarlo.
+            {formatPesos(saleTotal)} · {METHOD_LABEL[method]}. {made ? 'Quedó como venta de Empre Offers.' : 'No tienes que anotarlo.'}
           </Text>
         </View>
       </View>
@@ -368,6 +411,10 @@ const styles = StyleSheet.create({
   saleChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line },
   saleChipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
   saleChipText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  saleInput: { minHeight: 56, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, fontSize: 24, fontFamily: fonts.ui.extrabold, color: colors.ink, backgroundColor: colors.bg },
+  saleBtn: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.primary },
+  saleBtnOff: { opacity: 0.4 },
+  saleBtnText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#fff' },
   saleError: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.danger },
   saleSync: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   saleLine: { width: 16, height: 2, borderRadius: 1, backgroundColor: colors.line },

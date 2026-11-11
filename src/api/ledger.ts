@@ -520,6 +520,9 @@ export const ledgerApi = {
     request<Sale>(`${base(entityId)}/sales`, { method: 'POST', body: input }),
   setSaleMethod: (entityId: string, saleId: string, method: PayMethod) =>
     request<Sale>(`${base(entityId)}/sales/${saleId}/method`, { method: 'PUT', body: { method } }),
+  /** Lo cobrado en un canje cuya oferta no decía el precio en pesos: queda como venta de Empre Offers. */
+  recordClaimSale: (entityId: string, claimId: string, total: number, method: PayMethod) =>
+    request<Sale>(`${base(entityId)}/claims/${claimId}/sale`, { method: 'POST', body: { total, method } }),
   voidSale: (entityId: string, saleId: string, reason: string) =>
     request<Sale>(`${base(entityId)}/sales/${saleId}/void`, { method: 'POST', body: { reason } }),
 
