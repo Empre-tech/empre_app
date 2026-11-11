@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi } from '@/api/agenda';
@@ -12,33 +12,27 @@ import { novedadesApi } from '@/api/novedades';
 import { claimsApi, discoveryApi, offersApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
 import { Avatar } from '@/components/Avatar';
-import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { BusinessCardModal } from '@/components/explore/BusinessCardModal';
 import type { WithDistance } from '@/components/explore/FeaturedCard';
 import { useZones } from '@/components/explore/useZoneName';
-import { BAND, dayPart, HomeBand } from '@/components/home/HomeBand';
-import { HomeDoors, type DoorRect, type SmallDoor } from '@/components/home/HomeDoors';
-import { ParaTiCarousel, type ParaTiSlide } from '@/components/home/ParaTiCarousel';
+import { EmpreAISheet } from '@/components/ai/EmpreAISheet';
+import type { DoorRect } from '@/components/home/HomeDoors';
+import { Muro, type MuroPin } from '@/components/home/Muro';
+import { PuertaMapa } from '@/components/home/PuertaMapa';
 import { MarketItemSheet } from '@/components/offers/MarketItemSheet';
 import { SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
 import { ZoneButton, ZoneList } from '@/components/ZoneButton';
 import { FEATURES } from '@/config';
-import { hourIdeas } from '@/lib/askChips';
 import { effectiveClaimStatus } from '@/lib/claims';
 import { mediaUrl } from '@/lib/image';
-import { dayLabel, stripEntries, type NovedadItem } from '@/lib/novedades';
-import { mergeCatalogIntoMarket, type MarketItem } from '@/lib/offerMarket';
-import { pickParaTi, type ParaTiCandidate } from '@/lib/paraTi';
-import { topHabits, type SearchHabit } from '@/lib/searchHabits';
-import { loadHabits } from '@/lib/searchHabitsStore';
+import { dayLabel, stripEntries } from '@/lib/novedades';
+import { onFootOrDistance } from '@/lib/format';
+import { mergeCatalogIntoMarket, priceView, type MarketItem } from '@/lib/offerMarket';
 import { useCoords } from '@/lib/useCoords';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, softShadow } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
-
-/** Lo que cabe «a 5 minutos a pie». */
-const NEAR_M = 400;
 
 function whenLabel(iso: string, now: number): string {
   const min = Math.floor((now - Date.parse(iso)) / 60_000);
@@ -80,7 +74,7 @@ export default function HomeScreen() {
   const [zonesOpen, setZonesOpen] = useState(false);
   const [card, setCard] = useState<WithDistance | null>(null);
   const [previewItem, setPreviewItem] = useState<MarketItem | null>(null);
-  const [habits, setHabits] = useState<SearchHabit[]>([]);
+  const [aiOpen, setAiOpen] = useState(false);
   // La hora del inicio: se fija al entrar y se renueva cada vez que vuelves a él (de ella salen la franja y «Para ti»).
   const [now, setNow] = useState(() => Date.now());
   // La puerta Explorar se abre hasta llenar la pantalla y ahí empieza el mapa (3.60).
@@ -88,19 +82,16 @@ export default function HomeScreen() {
   const win = useWindowDimensions();
   const [door, setDoor] = useState<DoorRect | null>(null);
   const [grow] = useState(() => new Animated.Value(0));
-  const newsY = useRef(0);
-  const scrollRef = useRef<ScrollView>(null);
   const zone = zones.find((z) => z.id === zoneId) ?? null;
   const center = zone ? { latitude: zone.latitude, longitude: zone.longitude } : coords;
   const place = center ? { lat: center.latitude, long: center.longitude } : {};
   const placeKey = [center?.latitude.toFixed(3), center?.longitude.toFixed(3)];
 
-  // Lo que más buscas vive en el teléfono; se relee al volver al inicio (por si acabas de buscar).
+  // Al volver al inicio se renueva la hora (de ella salen «hace 5 min» y lo que vence).
   useFocusEffect(
     useCallback(() => {
       setNow(Date.now());
       setDoor(null);
-      void loadHabits().then(setHabits);
     }, []),
   );
 
@@ -137,18 +128,12 @@ export default function HomeScreen() {
     return mergeCatalogIntoMarket(unique, open.data?.items ?? [], catalogsByEntity, (id?: string) => (id ? mediaUrl(id) : undefined));
   }, [market.data, open.data, catalogsByEntity]);
 
-  const hour = new Date(now).getHours();
-  const part = dayPart(hour);
-  const band = BAND[part];
-  const ideas = useMemo(() => hourIdeas(hour), [hour]);
   const firstName = user?.name?.trim().split(/\s+/)[0];
   const zoneName = zone?.name ?? (market.data?.zone || null);
 
   const discovery = useMemo(() => open.data?.items ?? [], [open.data]);
   const openNear = useMemo(() => discovery.filter((b) => b.is_open_now), [discovery]);
   const mapItems = useMemo(() => openNear.filter((b) => b.latitude && b.longitude).slice(0, 8), [openNear]);
-  const walkable = openNear.filter((b) => b.distance_meters <= NEAR_M).length;
-  const mapSub = walkable ? `${walkable} ${walkable === 1 ? 'abierto' : 'abiertos'} a 5 min a pie` : openNear.length ? `${openNear.length} ${openNear.length === 1 ? 'abierto' : 'abiertos'} cerca` : 'Nada abierto cerca ahora';
 
   // Capa 2 · Lo tuyo: solo lo que está en curso.
   const nextAppt = useMemo(
@@ -162,71 +147,22 @@ export default function HomeScreen() {
   const newsAll = useMemo(() => news.data ?? [], [news.data]);
   const unseen = newsAll.filter((n) => n.unseen);
   const strip = useMemo(() => stripEntries(newsAll), [newsAll]);
-  const usualIds = useMemo(() => (appts.data ?? []).filter((a) => a.status === 'completed' && a.entity?.id).map((a) => a.entity!.id), [appts.data]);
 
-  // Capa 3 · Para ti.
-  const top = useMemo(() => topHabits(habits, now), [habits, now]);
-  const picks = useMemo(() => {
-    const byEntity = new Map(discovery.map((b) => [b.id, b]));
-    const cands: ParaTiCandidate[] = [
-      ...marketItems.map((m): ParaTiCandidate => {
-        const biz = byEntity.get(m.entity_id);
-        const kind = m.kind === 'service' ? 'service' : 'offer';
-        return {
-          key: `${kind}:${m.id}`,
-          kind,
-          id: m.id,
-          entityId: m.entity_id,
-          entityName: m.entity_name,
-          title: m.title,
-          category: [m.category_name, biz?.subcategory].filter(Boolean).join(' '),
-          open: m.open_now ?? biz?.is_open_now ?? null,
-          distanceM: m.distance_meters,
-          endsAt: kind === 'offer' ? m.ends_at : undefined,
-          closesAt: m.open_until ?? biz?.closes_at,
-          trending: m.trending,
-          rating: m.rating,
-        };
-      }),
-      ...discovery.map(
-        (b): ParaTiCandidate => ({
-          key: `business:${b.id}`,
-          kind: 'business',
-          id: b.id,
-          entityId: b.id,
-          entityName: b.name,
-          title: b.name,
-          category: [b.category_name, b.subcategory].filter(Boolean).join(' '),
-          open: b.is_open_now,
-          distanceM: b.distance_meters,
-          closesAt: b.closes_at,
-        }),
-      ),
-    ];
-    return pickParaTi(cands, {
-      now,
-      topTerms: top.map((h) => h.term),
-      usualEntityIds: usualIds,
-      hourWords: ideas.map((i) => i.ask),
-      busyEntityIds: nextAppt?.entity?.id ? [nextAppt.entity.id] : [],
-      busyOfferIds: activeClaims.map((c) => c.offer_id),
-    });
-  }, [marketItems, discovery, top, usualIds, nextAppt, activeClaims, now, ideas]);
-
-  const slides: ParaTiSlide[] = picks.map((p) => {
-    const c = p.candidate;
-    const biz = discovery.find((b) => b.id === c.entityId);
-    const item = c.kind === 'business' ? null : marketItems.find((m) => m.id === c.id) ?? null;
+  // Al bajar: un muro de lo que ofrecen los negocios cerca (tablero «Inicio», teléfono 2). Solo lo que publicaron.
+  const pins: MuroPin[] = marketItems.slice(0, 12).map((m) => {
+    const price = priceView(m);
     return {
-      pick: p,
-      photo: item?.photo ?? biz?.profile_url ?? null,
-      category: biz?.subcategory || biz?.category_name || item?.category_name,
-      icon: biz?.category_icon ?? item?.category_icon ?? null,
-      onOpen: () => {
-        if (c.kind === 'offer') router.push({ pathname: '/offer/[id]', params: { id: c.id, entityId: c.entityId } });
-        else if (c.kind === 'service' && item) setPreviewItem(item);
-        else if (biz) setCard({ ...biz, distanceKm: biz.distance_meters / 1000 });
-      },
+      key: `${m.kind ?? 'offer'}:${m.id}`,
+      photo: m.photo,
+      category: m.category_name,
+      icon: m.category_icon,
+      title: m.title,
+      sub: price.now,
+      tag: m.kind === 'service' ? null : (price.save ?? 'Oferta'),
+      chip: m.trending ? { text: 'Lo están pidiendo', tone: 'new' } : null,
+      who: m.entity_name,
+      near: m.distance_meters !== null ? onFootOrDistance(m.distance_meters / 1000) : null,
+      onPress: () => (m.kind === 'service' ? setPreviewItem(m) : router.push({ pathname: '/offer/[id]', params: { id: m.id, entityId: m.entity_id } })),
     };
   });
 
@@ -243,43 +179,35 @@ export default function HomeScreen() {
   };
 
   const ask = (q?: string, voice = false) => router.push({ pathname: '/ask', params: { ...(q ? { q } : {}), ...(voice ? { voice: '1' } : {}) } });
-  const openNews = (n: NovedadItem) => {
-    if (n.kind === 'offer') router.push({ pathname: '/offer/[id]', params: { id: n.id, entityId: n.entity_id } });
-    else router.push({ pathname: '/business/[id]', params: { id: n.entity_id } });
-  };
 
-  // Con historial, lo que más buscas; sin historial, lo típico de esta hora.
-  const chips = top.length ? { label: 'Lo que más buscas', items: top.map((h) => ({ label: h.term, ask: h.term })) } : { label: 'Para esta hora', items: ideas.map((i) => ({ label: i.label, ask: i.ask })) };
-
+  // Más en Empre: lo que no está en las pestañas (sin repetir Ofertas ni Mensajes).
   const firstBiz = (mine.data ?? [])[0];
-  const doors: SmallDoor[] = [
-    ...(FEATURES.agenda ? [{ key: 'citas', label: 'Citas', icon: 'calendar-outline' as IconName, onPress: () => router.push('/appointments') }] : []),
-    { key: 'salidas', label: 'Salidas', icon: 'ticket-outline', onPress: () => router.push('/salidas') },
-    { key: 'sigo', label: 'Sigo', icon: 'heart-outline', onPress: () => router.push('/favorites') },
+  const mas: { key: string; title: string; sub: string; icon: IconName; tone: 'night' | 'agenda' | 'plain'; onPress: () => void }[] = [
+    { key: 'ai', title: 'Pregúntale a Empre AI', sub: 'Te responde al instante', icon: 'sparkles', tone: 'night', onPress: () => setAiOpen(true) },
+    ...(FEATURES.agenda
+      ? [{ key: 'citas', title: 'Reserva una hora', sub: nextAppt ? `Tu cita ${apptWhen(nextAppt.starts_at, now)}` : 'Con quien tenga libre', icon: 'calendar-outline' as IconName, tone: 'agenda' as const, onPress: () => router.push('/appointments') }]
+      : []),
+    { key: 'salidas', title: 'Mis salidas', sub: activeClaims.length ? `${activeClaims.length} QR activo${activeClaims.length === 1 ? '' : 's'}` : 'Lo que reclamaste', icon: 'ticket-outline', tone: 'plain', onPress: () => router.push('/salidas') },
     firstBiz
-      ? { key: 'negocio', label: 'Mi negocio', icon: 'storefront-outline', onPress: () => router.push({ pathname: '/business/hub/[id]', params: { id: firstBiz.id } }) }
-      : { key: 'negocio', label: 'Tu negocio', icon: 'storefront-outline', onPress: () => router.push('/business/new') },
+      ? { key: 'negocio', title: 'Mi negocio', sub: firstBiz.name, icon: 'storefront-outline', tone: 'plain', onPress: () => router.push({ pathname: '/business/hub/[id]', params: { id: firstBiz.id } }) }
+      : { key: 'negocio', title: '¿Tienes un negocio?', sub: 'Súmalo gratis en 2 min', icon: 'storefront-outline', tone: 'plain', onPress: () => router.push('/business/new') },
   ];
 
   const hasTuyo = Boolean(nextAppt) || activeClaims.length > 0 || strip.length > 0;
 
   return (
     <View style={styles.screen}>
-      <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {/* Capa 1 · Buscar, con el tema de la hora */}
-        <HomeBand part={part} top={insets.top + 12}>
+      <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]} keyboardShouldPersistTaps="handled">
+        <View style={styles.pad}>
+          {/* Arriba: tú (no el logo), dónde estás y lo nuevo */}
           <View style={styles.topRow}>
-            <EmpreSymbol product="master" size={32} />
+            <Pressable accessibilityRole="button" accessibilityLabel={firstName ? `Tu perfil, ${firstName}` : 'Tu perfil'} onPress={() => router.push('/(tabs)/profile')} style={styles.me}>
+              <Avatar uri={user?.profile_picture_url} name={user?.name ?? 'Tú'} size={40} />
+            </Pressable>
             <View style={styles.zone}>
-              <ZoneButton lead={zone ? 'Estás viendo' : 'Estás en'} name={zoneName ?? (coords ? 'Cerca de ti' : 'Tu ciudad')} open={zonesOpen} disabled={zones.length === 0} dark={part === 'noche'} onPress={() => setZonesOpen((v) => !v)} />
+              <ZoneButton lead={zone ? 'Estás viendo' : 'Estás en'} name={zoneName ?? (coords ? 'Cerca de ti' : 'Tu ciudad')} open={zonesOpen} disabled={zones.length === 0} onPress={() => setZonesOpen((v) => !v)} />
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={unseen.length ? `Ir a lo nuevo: ${unseen.length} cosas nuevas` : 'Estás al día'}
-              hitSlop={6}
-              onPress={() => (newsAll.length ? scrollRef.current?.scrollTo({ y: newsY.current - 16, animated: true }) : router.push('/novedades'))}
-              style={styles.bell}
-            >
+            <Pressable accessibilityRole="button" accessibilityLabel={unseen.length ? `Novedades: ${unseen.length} sin ver` : 'Novedades: estás al día'} hitSlop={6} onPress={() => router.push('/novedades')} style={styles.bell}>
               <Ionicons name="notifications-outline" size={20} color={colors.ink} />
               {unseen.length ? <View style={styles.bellDot} /> : null}
             </Pressable>
@@ -296,51 +224,53 @@ export default function HomeScreen() {
             />
           ) : null}
 
+          {/* La invitación, explícita */}
           <View style={styles.greet}>
-            <Text style={[styles.hello, { color: band.sub }]}>{band.hello}</Text>
-            <Text style={[styles.title, { color: band.ink }]} accessibilityRole="header">
-              ¿Qué necesitas hoy{firstName ? `, ${firstName}` : ''}?
+            <Text style={styles.title} accessibilityRole="header">
+              Los negocios a la puerta de tu casa
             </Text>
+            <Text style={styles.lead}>Entra y mira quién está abierto ahora, a pocos pasos.</Text>
           </View>
 
+          <PuertaMapa items={mapItems} center={center} openCount={openNear.length} ticker={newsAll.slice(0, 6)} whenOf={(iso) => whenLabel(iso, now)} onExplore={openExplore} />
+
           <View style={styles.searchPill}>
-            <Pressable accessibilityRole="search" accessibilityLabel="Busca un negocio, un servicio o lo que necesites" onPress={() => ask()} style={styles.searchTap}>
+            <Pressable accessibilityRole="search" accessibilityLabel="Busca lo que necesitas" onPress={() => ask()} style={styles.searchTap}>
               <Ionicons name="search" size={20} color={colors.ink} />
               <Text style={styles.searchText} numberOfLines={1}>
-                Un negocio, un servicio o lo que necesites
+                O busca lo que necesitas
               </Text>
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Buscar hablando" onPress={() => ask(undefined, true)} style={styles.mic}>
               <Ionicons name="mic-outline" size={18} color={colors.ink} />
             </Pressable>
           </View>
+        </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRail} contentContainerStyle={styles.chipIn}>
-            <Text style={[styles.chipLabel, { color: band.sub }]}>{chips.label}</Text>
-            {chips.items.map((c) => (
-              <Pressable key={c.label} accessibilityRole="button" accessibilityLabel={`Buscar ${c.label}`} onPress={() => ask(c.ask)} style={[styles.chip, { backgroundColor: band.chipBg, borderColor: band.chipLine }]}>
-                <Text style={[styles.chipText, { color: band.ink }]} numberOfLines={1}>
-                  {c.label}
+        {/* Más en Empre */}
+        <Text style={[styles.secTitle, styles.padText]} accessibilityRole="header">
+          Más en Empre
+        </Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.masIn}>
+          {mas.map((d) => (
+            <Pressable key={d.key} accessibilityRole="button" accessibilityLabel={`${d.title}. ${d.sub}`} onPress={d.onPress} style={[styles.masCard, d.tone === 'night' && styles.masNight]}>
+              <View style={[styles.masIcon, { backgroundColor: d.tone === 'night' ? colors.glow : d.tone === 'agenda' ? colors.agendaSoft : colors.selectedSoft }]}>
+                <Ionicons name={d.icon} size={18} color={d.tone === 'night' ? colors.night : d.tone === 'agenda' ? colors.agenda : colors.ink} />
+              </View>
+              <View style={styles.masBody}>
+                <Text style={[styles.masTitle, d.tone === 'night' && styles.onNight]} numberOfLines={2}>
+                  {d.title}
                 </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </HomeBand>
+                <Text style={[styles.masSub, d.tone === 'night' && styles.onNightSub]} numberOfLines={1}>
+                  {d.sub}
+                </Text>
+              </View>
+            </Pressable>
+          ))}
+        </ScrollView>
 
-        <View style={styles.body}>
-          {/* Puertas */}
-          <HomeDoors
-            center={center}
-            mapItems={mapItems}
-            mapSub={mapSub}
-            hasOpen={openNear.length > 0}
-            offersSub={marketItems.length ? 'Las de hoy, cerca' : 'En toda la ciudad'}
-            onExplore={openExplore}
-            onOffers={() => router.push('/(tabs)/offers')}
-            doors={doors}
-          />
-
-          {/* Capa 2 · Lo tuyo */}
+        <View style={[styles.pad, styles.body]}>
+          {/* Lo tuyo: solo lo que está en curso, y los negocios que sigues */}
           {hasTuyo ? (
             <SystemSection title="Lo tuyo">
               {nextAppt || activeClaims.length ? (
@@ -373,13 +303,12 @@ export default function HomeScreen() {
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.followIn}>
                   {strip.map((w) => (
                     <Pressable key={w.entityId} accessibilityRole="button" accessibilityLabel={`${w.name}${w.ring === 'offer' ? ', oferta nueva' : w.ring === 'post' ? ', publicó' : ''}`} onPress={() => router.push({ pathname: '/business/[id]', params: { id: w.entityId } })} style={styles.follow}>
-                      <View style={[styles.followRing, { borderColor: w.ring === 'offer' ? colors.accent : w.ring === 'post' ? colors.ink : colors.line }]}>
+                      <View style={[styles.followRing, { borderColor: w.ring === 'none' ? colors.line : colors.brand }]}>
                         <Avatar uri={w.profileUrl} name={w.name} size={56} />
                       </View>
                       <Text style={styles.followName} numberOfLines={2}>
                         {w.name}
                       </Text>
-                      {w.ring !== 'none' ? <Text style={[styles.followWhat, { color: w.ring === 'offer' ? colors.accentInk : colors.ink }]}>{w.ring === 'offer' ? 'Oferta nueva' : 'Publicó'}</Text> : null}
                     </Pressable>
                   ))}
                 </ScrollView>
@@ -387,37 +316,29 @@ export default function HomeScreen() {
             </SystemSection>
           ) : null}
 
-          {/* Capa 3 · Para ti */}
-          {slides.length ? (
+          {/* Al bajar: el muro de lo que ofrecen cerca */}
+          {pins.length ? (
             <View style={styles.section}>
-              <View style={styles.paraHead}>
-                <EmpreSymbol product="ai" size={22} />
+              <View>
                 <Text style={styles.secTitle} accessibilityRole="header">
-                  {top.length || usualIds.length ? 'Para ti' : 'Para ti, a esta hora'}
+                  Cerca de ti, para ver
                 </Text>
+                <Text style={styles.secSub}>Lo que ofrecen los negocios de tu barrio. Sigue bajando.</Text>
               </View>
-              <ParaTiCarousel slides={slides} />
+              <Muro pins={pins} />
             </View>
-          ) : null}
-
-          {/* Capa 4 · Lo nuevo en tu zona */}
-          <View onLayout={(e) => (newsY.current = e.nativeEvent.layout.y)}>
-            <SystemSection title="Lo nuevo en tu zona" link={newsAll.length > 3 ? 'Ver todo' : undefined} onLink={() => router.push('/novedades')}>
+          ) : (
+            <SystemSection title="Cerca de ti">
               <SystemGroup>
-                {newsAll.length ? (
-                  newsAll.slice(0, 3).map((n, i) => (
-                    <SystemRow key={n.kind + n.id} first={i === 0} icon={n.kind === 'offer' ? 'pricetag-outline' : 'images-outline'} tag={n.kind === 'offer' ? 'Oferta nueva' : 'Publicó'} title={n.title.trim() || n.entity_name} sub={`${n.entity_name} · ${whenLabel(n.at, now)}`} alert={n.unseen} onPress={() => openNews(n)} />
-                  ))
-                ) : (
-                  <SystemRow first icon="heart-outline" tag="Para empezar" title="Sigue a los negocios que te gustan" sub="Aquí verás lo que publican y sus ofertas" onPress={() => router.push('/map')} />
-                )}
+                <SystemRow first icon="map-outline" tag="Para empezar" title="Mira el mapa de tu barrio" sub="Cuando los negocios publiquen, aquí verás lo que ofrecen" onPress={() => router.push('/map')} />
               </SystemGroup>
             </SystemSection>
-          </View>
+          )}
         </View>
         <BusinessCardModal entity={card} onClose={() => setCard(null)} origin="home" />
         <MarketItemSheet item={previewItem} onClose={() => setPreviewItem(null)} />
       </ScrollView>
+      <EmpreAISheet visible={aiOpen} onClose={() => setAiOpen(false)} />
       {door ? (
         <Animated.View
           pointerEvents="none"
@@ -428,7 +349,7 @@ export default function HomeScreen() {
               top: grow.interpolate({ inputRange: [0, 1], outputRange: [door.y, 0] }),
               width: grow.interpolate({ inputRange: [0, 1], outputRange: [door.w, win.width] }),
               height: grow.interpolate({ inputRange: [0, 1], outputRange: [door.h, win.height] }),
-              borderRadius: grow.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }),
+              borderRadius: grow.interpolate({ inputRange: [0, 1], outputRange: [26, 0] }),
             },
           ]}
         />
@@ -439,32 +360,38 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  door: { position: 'absolute', zIndex: 20, backgroundColor: colors.selectedSoft },
-  content: { paddingBottom: 120 },
-  body: { paddingHorizontal: 20, paddingTop: 16, gap: 26 },
+  door: { position: 'absolute', zIndex: 20, backgroundColor: colors.night },
+  content: { paddingBottom: 40, gap: 14 },
+  pad: { paddingHorizontal: 18, gap: 14 },
+  padText: { paddingHorizontal: 18 },
+  body: { gap: 26, paddingTop: 10 },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  me: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   zone: { flex: 1, minWidth: 0 },
-  bell: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: colors.surface, ...softShadow },
+  bell: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: colors.surface },
   bellDot: { position: 'absolute', top: 10, right: 10, width: 9, height: 9, borderRadius: 5, borderWidth: 2, borderColor: colors.surface, backgroundColor: colors.brand },
-  greet: { gap: 2 },
-  hello: { fontSize: 13, fontFamily: fonts.ui.extrabold },
-  title: { fontSize: 26, lineHeight: 30, fontFamily: fonts.display.bold, letterSpacing: -0.4 },
+  greet: { gap: 4 },
+  title: { fontSize: 30, lineHeight: 32, fontFamily: fonts.display.bold, color: colors.ink, letterSpacing: -0.3 },
+  lead: { fontSize: 14.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   searchPill: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 14, paddingRight: 4, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
   searchTap: { flex: 1, minWidth: 0, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10 },
   searchText: { flex: 1, minWidth: 0, fontSize: 14.5, fontFamily: fonts.ui.semibold, color: colors.faint },
   mic: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.selectedSoft, alignItems: 'center', justifyContent: 'center' },
-  chipRail: { marginHorizontal: -20, marginTop: -2 },
-  chipIn: { alignItems: 'center', gap: 8, paddingHorizontal: 20 },
-  chipLabel: { fontSize: 12.5, fontFamily: fonts.ui.extrabold },
-  chip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 999, borderWidth: 1 },
-  chipText: { fontSize: 13, fontFamily: fonts.ui.extrabold },
-  section: { gap: 8 },
-  paraHead: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 28 },
+  masIn: { gap: 10, paddingHorizontal: 18 },
+  masCard: { width: 150, minHeight: 120, borderRadius: 18, padding: 14, justifyContent: 'space-between', gap: 10, backgroundColor: colors.surface },
+  masNight: { backgroundColor: colors.night },
+  masIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  masBody: { gap: 2 },
+  masTitle: { fontFamily: fonts.ui.extrabold, fontSize: 14.5, lineHeight: 18, color: colors.ink },
+  masSub: { fontFamily: fonts.ui.bold, fontSize: 12, color: colors.muted },
+  onNight: { color: '#FFFFFF' },
+  onNightSub: { color: colors.nightText },
+  section: { gap: 12 },
   secTitle: { fontSize: 19, fontFamily: fonts.display.bold, color: colors.ink },
-  rail: { marginHorizontal: -20 },
-  followIn: { gap: 16, paddingHorizontal: 20, paddingTop: 4, paddingBottom: 4 },
-  follow: { width: 76, alignItems: 'center', gap: 6 },
-  followRing: { width: 67, height: 67, borderRadius: 34, borderWidth: 2.5, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
-  followName: { fontSize: 12, lineHeight: 14, fontFamily: fonts.ui.bold, color: colors.ink, textAlign: 'center' },
-  followWhat: { fontSize: 12, fontFamily: fonts.ui.extrabold, textAlign: 'center' },
+  secSub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted, marginTop: 2 },
+  rail: { marginHorizontal: -18 },
+  followIn: { gap: 16, paddingHorizontal: 18, paddingTop: 4, paddingBottom: 4 },
+  follow: { width: 72, alignItems: 'center', gap: 6 },
+  followRing: { width: 64, height: 64, borderRadius: 32, borderWidth: 2.5, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
+  followName: { fontSize: 11.5, lineHeight: 14, fontFamily: fonts.ui.bold, color: colors.ink, textAlign: 'center' },
 });
