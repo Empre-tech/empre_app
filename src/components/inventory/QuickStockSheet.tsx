@@ -14,9 +14,9 @@ import { newClientId } from '@/lib/ledger';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const LEVELS: { level: StockLevel; label: string; color: string; ink: string }[] = [
-  { level: 'ok', label: 'Hay suficiente', color: colors.success, ink: '#0A6E6A' },
+  { level: 'ok', label: 'Hay suficiente', color: colors.success, ink: '#0D7A5F' },
   { level: 'low', label: 'Queda poco', color: colors.accent, ink: colors.accentInk },
-  { level: 'out', label: 'Se acabó', color: colors.danger, ink: '#B3261E' },
+  { level: 'out', label: 'Se acabó', color: colors.danger, ink: '#111318' },
 ];
 
 const REASONS: { key: AdjustReason; label: string }[] = [
@@ -88,7 +88,7 @@ function SheetBody({ entityId, item, onClose, onChanged, onOpenDetail }: Props &
   const isSupply = item.kind === 'supply';
   const safeN = Number.isFinite(n) && n >= 0 ? n : 0;
   const lowPoint = 5;
-  const rangeTone = safeN === 0 ? { color: '#F03232', ink: '#B3261E', label: 'Agotado · 0 disponibles' } : safeN <= lowPoint ? { color: '#FF8A1F', ink: colors.accentInk, label: 'Queda poco · punto de reorden' } : { color: '#14B8B0', ink: '#0A6E6A', label: 'En rango óptimo' };
+  const rangeTone = safeN === 0 ? { color: '#111318', ink: '#111318', label: 'Agotado · 0 disponibles' } : safeN <= lowPoint ? { color: '#E8896A', ink: colors.accentInk, label: 'Queda poco · punto de reorden' } : { color: '#0D7A5F', ink: '#0D7A5F', label: 'En rango óptimo' };
   const rangePct = Math.min(100, Math.round((safeN / (lowPoint * 2.4)) * 100));
 
   return (

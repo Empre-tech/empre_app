@@ -1497,7 +1497,7 @@ const styles = StyleSheet.create({
   topBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 6, gap: 6, paddingHorizontal: spacing.md },
   topRows: { gap: 6 },
   content: { flex: 1, position: 'relative' },
-  mapWrap: { flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#EEF2F7' },
+  mapWrap: { flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#EFF0F2' },
   map: { flex: 1 },
   mapStartupLoading: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
   activeChips: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },

@@ -5,7 +5,7 @@ import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors } from '@/theme';
 
 /**
- * La Chispa: la mascota de Empre AI (3.63). Un destello con dos ojos dentro del aura de los tres colores del logo.
+ * La Chispa en pulso: núcleo negro, destello blanco con ojos y un anillo gris con su arco verde.
  * Se mueve para contar qué pasa, no para adornar:
  * - `reposo`: respira despacio y parpadea (el único bucle permitido en pantalla);
  * - `pensando`: el aura acelera y la chispa duda de lado a lado;
@@ -35,17 +35,15 @@ function useLoop(active: boolean, ms: number, bounce = false) {
   return v;
 }
 
-/** El aura: tres arcos con los colores del logo (rojo 22 %, verde azulado 30 %, naranja 48 %). */
+/** El aura en pulso: anillo gris con un arco verde (un tercio). Al no saber, todo gris. */
 function Ring({ size, stroke, gray }: { size: number; stroke: number; gray: boolean }) {
   const r = (size - stroke) / 2;
   const len = 2 * Math.PI * r;
-  const seg = (from: number, part: number) => ({ strokeDasharray: `${len * part} ${len}`, strokeDashoffset: -len * from });
   const c = size / 2;
   return (
     <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-      <Circle cx={c} cy={c} r={r} fill="none" stroke={gray ? '#C7D2E0' : '#F03232'} strokeWidth={stroke} {...seg(0, 0.22)} />
-      <Circle cx={c} cy={c} r={r} fill="none" stroke={gray ? '#D5DEEA' : '#14B8B0'} strokeWidth={stroke} {...seg(0.22, 0.3)} />
-      <Circle cx={c} cy={c} r={r} fill="none" stroke={gray ? '#C7D2E0' : colors.accent} strokeWidth={stroke} {...seg(0.52, 0.48)} />
+      <Circle cx={c} cy={c} r={r} fill="none" stroke={gray ? '#D9DCE1' : '#CBCED4'} strokeWidth={stroke} />
+      {gray ? null : <Circle cx={c} cy={c} r={r} fill="none" stroke={colors.glow} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${len * 0.34} ${len}`} />}
     </Svg>
   );
 }
@@ -124,9 +122,9 @@ export function Chispa({ size = 28, mood = 'reposo', animated = true }: { size?:
         <Svg width={size} height={size}>
           <Defs>
             <RadialGradient id="halo" cx="50%" cy="50%" r="50%">
-              <Stop offset="0" stopColor="#14B8B0" stopOpacity={mood === 'nosabe' ? 0 : 0.35} />
-              <Stop offset="0.6" stopColor={colors.accent} stopOpacity={mood === 'nosabe' ? 0 : 0.16} />
-              <Stop offset="1" stopColor={colors.accent} stopOpacity={0} />
+              <Stop offset="0" stopColor={colors.glow} stopOpacity={mood === 'nosabe' ? 0 : 0.35} />
+              <Stop offset="0.6" stopColor={colors.glow} stopOpacity={mood === 'nosabe' ? 0 : 0.12} />
+              <Stop offset="1" stopColor={colors.glow} stopOpacity={0} />
             </RadialGradient>
           </Defs>
           <Circle cx={size / 2} cy={size / 2} r={size / 2} fill="url(#halo)" />

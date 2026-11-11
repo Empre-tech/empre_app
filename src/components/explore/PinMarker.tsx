@@ -47,12 +47,12 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
   const hasOffer = entity.has_active_offer;
   const showRayo = hasOffer && (entity.active_offer?.type === 'HORAS' || entity.active_offer?.type === 'DIA');
   const borderColor = selected ? colors.ink : hasOffer ? colors.accent : '#ffffff';
-  const statusColor = !open ? '#8796AB' : closesSoon(entity.closes_at) ? colors.warning : '#14B8B0';
+  const statusColor = !open ? '#8E929A' : closesSoon(entity.closes_at) ? colors.warning : '#0D7A5F';
   const coordinate = { latitude: entity.latitude, longitude: entity.longitude };
 
   if (emphasis) {
     const closed = entity.has_hours && !entity.is_open_now;
-    const ring = selected ? colors.ink : closed ? '#8796AB' : hasOffer ? colors.accent : emphasis === 'big' ? colors.primary : '#ffffff';
+    const ring = selected ? colors.ink : closed ? '#8E929A' : hasOffer ? colors.accent : emphasis === 'big' ? colors.primary : '#ffffff';
     const faded = closed ? styles.closedFade : null;
     return (
       <Marker

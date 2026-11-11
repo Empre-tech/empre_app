@@ -715,8 +715,8 @@ export default function ItemScreen() {
               </View>
               {margin ? (
                 <View style={[styles.margin, margin.amount < 0 ? styles.marginBad : styles.marginOk]}>
-                  <Ionicons name={margin.amount < 0 ? 'alert-circle-outline' : 'trending-up'} size={18} color={margin.amount < 0 ? '#B3261E' : '#0A6E6A'} />
-                  <Text style={[styles.marginText, { color: margin.amount < 0 ? '#B3261E' : '#0A6E6A' }]}>
+                  <Ionicons name={margin.amount < 0 ? 'alert-circle-outline' : 'trending-up'} size={18} color={margin.amount < 0 ? '#111318' : '#0D7A5F'} />
+                  <Text style={[styles.marginText, { color: margin.amount < 0 ? '#111318' : '#0D7A5F' }]}>
                     {margin.amount < 0
                       ? `Pierdes ${formatPesos(-margin.amount)} en cada uno. ¿Revisas el precio?`
                       : margin.amount === 0
@@ -903,19 +903,19 @@ const styles = StyleSheet.create({
   heardText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.verified },
   starter: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
   starterText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  segment: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: '#EEF2F7' },
+  segment: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: '#EFF0F2' },
   segBtn: { flex: 1, minHeight: 52, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   segOn: { backgroundColor: colors.surface, elevation: 1, shadowColor: colors.ink, shadowOpacity: 0.12, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } },
   segLabel: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  segHint: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: '#4C5C74' },
+  segHint: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: '#5B606B' },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   money: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 50, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.lg, paddingHorizontal: spacing.md, backgroundColor: colors.surface },
   moneySign: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: colors.muted },
   moneyInput: { flex: 1, fontSize: 16, fontFamily: fonts.ui.extrabold, color: colors.ink, paddingVertical: 0 },
-  miniSeg: { flexDirection: 'row', padding: 3, borderRadius: radius.md, backgroundColor: '#EEF2F7' },
+  miniSeg: { flexDirection: 'row', padding: 3, borderRadius: radius.md, backgroundColor: '#EFF0F2' },
   miniBtn: { minHeight: 44, paddingHorizontal: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   miniOn: { backgroundColor: colors.surface },
-  miniText: { fontSize: 13, fontFamily: fonts.ui.bold, color: '#4C5C74' },
+  miniText: { fontSize: 13, fontFamily: fonts.ui.bold, color: '#5B606B' },
   miniTextOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
   select: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 52, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.lg, paddingHorizontal: spacing.md },
   sectionPill: { minHeight: 30, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.primarySoft, justifyContent: 'center' },
@@ -928,15 +928,15 @@ const styles = StyleSheet.create({
   previewName: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   previewPrice: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   margin: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md },
-  marginOk: { backgroundColor: '#E3F5F3' },
-  marginBad: { backgroundColor: '#FDECEC' },
+  marginOk: { backgroundColor: '#E7F3EF' },
+  marginBad: { backgroundColor: '#EFF0F2' },
   marginText: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.extrabold },
-  divider: { height: 1, backgroundColor: '#EEF2F7' },
+  divider: { height: 1, backgroundColor: '#EFF0F2' },
   trackRow: { flexDirection: 'row', gap: 6 },
   trackBtn: { flex: 1, minHeight: 56, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', padding: 6 },
   trackOn: { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft },
   trackLabel: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  trackHint: { fontSize: 11, fontFamily: fonts.ui.bold, color: '#4C5C74' },
+  trackHint: { fontSize: 11, fontFamily: fonts.ui.bold, color: '#5B606B' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   stepBtn: { width: 52, height: 52, borderRadius: 14, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
   count: { fontSize: 30, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center', minWidth: 120, paddingVertical: 0 },
@@ -947,7 +947,7 @@ const styles = StyleSheet.create({
   stockBig: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
   link: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primary },
   inlineRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  supplyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56, borderBottomWidth: 1, borderBottomColor: '#EEF2F7' },
+  supplyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56, borderBottomWidth: 1, borderBottomColor: '#EFF0F2' },
   dot: { width: 10, height: 10, borderRadius: 5 },
   remove: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   pickBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, minHeight: 48, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.primarySoft },
@@ -957,7 +957,7 @@ const styles = StyleSheet.create({
   input: { flex: 1, minHeight: 48, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink, backgroundColor: colors.bg },
   moreHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 64, paddingHorizontal: spacing.md },
   moreTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  moreBody: { gap: spacing.md, padding: spacing.md, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: '#EEF2F7' },
+  moreBody: { gap: spacing.md, padding: spacing.md, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: '#EFF0F2' },
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },
 });

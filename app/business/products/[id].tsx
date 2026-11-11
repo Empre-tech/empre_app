@@ -358,7 +358,7 @@ export default function ProductsScreen() {
         ) : null}
         {FEATURES.ledger && semCounts.total > 0 ? (
           <View style={styles.semRow} accessibilityLabel={`Inventario: ${semCounts.ok} con existencias, ${semCounts.low} quedan poco, ${semCounts.out} agotados`}>
-            <SemChip label="Hay" n={semCounts.ok} dot="#14B8B0" on={stockIs('ok')} onPress={() => pickStock('ok')} />
+            <SemChip label="Hay" n={semCounts.ok} dot="#0D7A5F" on={stockIs('ok')} onPress={() => pickStock('ok')} />
             <SemChip label="Poco" n={semCounts.low} dot={colors.accent} on={stockIs('low')} onPress={() => pickStock('low')} />
             <SemChip label="Agotado" n={semCounts.out} dot={colors.brand} on={stockIs('out')} onPress={() => pickStock('out')} />
           </View>
@@ -475,7 +475,7 @@ export default function ProductsScreen() {
 
             {groups.urgent.length > 0 && !stockOn && (filter === 'urgent' || q !== '') ? (
               <View style={{ gap: spacing.sm }}>
-                <Text style={[styles.blockTitle, { color: '#B3261E' }]}>Se acaba o ya se acabó · {groups.urgent.length}</Text>
+                <Text style={[styles.blockTitle, { color: '#111318' }]}>Se acaba o ya se acabó · {groups.urgent.length}</Text>
                 {rowsOf(groups.urgent, 'urgent')}
               </View>
             ) : null}
@@ -656,7 +656,7 @@ export default function ProductsScreen() {
                           {b.title} · {b.items.length}
                         </Text>
                         <View style={styles.row}>
-                          {sum.tone !== 'muted' ? <Text style={[styles.groupSum, { color: sum.tone === 'out' ? '#B3261E' : colors.accentInk }]}>{sum.text}</Text> : null}
+                          {sum.tone !== 'muted' ? <Text style={[styles.groupSum, { color: sum.tone === 'out' ? '#111318' : colors.accentInk }]}>{sum.text}</Text> : null}
                           <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
                         </View>
                       </Pressable>
@@ -755,7 +755,7 @@ const PILL: Record<PillTone, { bg: string; fg: string }> = {
   muted: { bg: 'transparent', fg: colors.muted },
   service: { bg: 'transparent', fg: colors.muted },
 };
-const SEM_DOT = { ok: '#14B8B0', low: colors.accent, out: colors.brand } as const;
+const SEM_DOT = { ok: '#0D7A5F', low: colors.accent, out: colors.brand } as const;
 
 function SemChip({ label, n, dot, on, onPress }: { label: string; n: number; dot: string; on: boolean; onPress: () => void }) {
   return (
@@ -954,7 +954,7 @@ const styles = StyleSheet.create({
   itemLine: { borderTopWidth: 1, borderTopColor: colors.selectedSoft },
   itemMain: { flex: 1, minWidth: 0, paddingVertical: spacing.sm, paddingLeft: 4, minHeight: 56, justifyContent: 'center' },
   itemName: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  warn: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#B3261E' },
+  warn: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#111318' },
   warnSoft: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.accentInk },
   pill: { minHeight: 36, paddingHorizontal: 10, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 },
   childRow: { marginLeft: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line },

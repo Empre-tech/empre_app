@@ -10,14 +10,14 @@ export interface CoverTheme {
 }
 
 const THEMES: Record<string, CoverTheme> = {
-  comida: { kind: 'comida', color: '#5B2B1E', motif: 'steam' },
-  cafe: { kind: 'cafe', color: '#3A2A22', motif: 'steam' },
-  barberia: { kind: 'barberia', color: '#16315E', motif: 'stripes' },
-  ropa: { kind: 'ropa', color: '#3D3F66', motif: 'weave' },
-  clases: { kind: 'clases', color: '#2F4A3E', motif: 'dots' },
-  agua: { kind: 'agua', color: '#0C4A5A', motif: 'waves' },
-  bar: { kind: 'bar', color: '#3F2350', motif: 'bubbles' },
-  tienda: { kind: 'tienda', color: '#34424F', motif: 'dots' },
+  comida: { kind: 'comida', color: '#1F232B', motif: 'steam' },
+  cafe: { kind: 'cafe', color: '#23262E', motif: 'steam' },
+  barberia: { kind: 'barberia', color: '#14171F', motif: 'stripes' },
+  ropa: { kind: 'ropa', color: '#1C2029', motif: 'weave' },
+  clases: { kind: 'clases', color: '#172622', motif: 'dots' },
+  agua: { kind: 'agua', color: '#152229', motif: 'waves' },
+  bar: { kind: 'bar', color: '#191C24', motif: 'bubbles' },
+  tienda: { kind: 'tienda', color: '#1D222B', motif: 'dots' },
 };
 
 // En orden: lo más específico primero («café» antes que «comida»; «bar» como palabra para no confundirlo con «barbería»).

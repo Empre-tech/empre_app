@@ -46,7 +46,7 @@ export function ClaimEnvelope({ claim, onOpen }: { claim: Claim; onOpen: () => v
         <Animated.View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.envelope, { opacity: enter, transform: [{ scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }] }]}>
           <Svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
             <Rect width={W} height={H} rx={14} fill={colors.ink} />
-            <Path d={`M0 70 L${W / 2} 140 L${W} 70 V${H - 14} A14 14 0 0 1 ${W - 14} ${H} H14 A14 14 0 0 1 0 ${H - 14} Z`} fill="#0B1A36" />
+            <Path d={`M0 70 L${W / 2} 140 L${W} 70 V${H - 14} A14 14 0 0 1 ${W - 14} ${H} H14 A14 14 0 0 1 0 ${H - 14} Z`} fill="#22252B" />
           </Svg>
           <Animated.View
             style={[

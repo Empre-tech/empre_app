@@ -254,7 +254,7 @@ export default function BusinessAgendaScreen() {
                       </Pressable>
                     ) : (
                       <View style={styles.apptRow}>
-                        <View style={[styles.apptBar, { backgroundColor: r.a.status === 'completed' ? '#14B8B0' : colors.line }]} />
+                        <View style={[styles.apptBar, { backgroundColor: r.a.status === 'completed' ? '#0D7A5F' : colors.line }]} />
                         <Pressable accessibilityRole="button" style={styles.apptMain} onPress={() => router.push({ pathname: '/appointment/[id]', params: { id: r.a.id } })}>
                           <Text style={styles.apptTime} numberOfLines={1}>
                             {r.a.customer?.name ?? r.a.customer_note ?? 'Cliente'}

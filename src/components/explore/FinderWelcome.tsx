@@ -142,6 +142,6 @@ const styles = StyleSheet.create({
   brand: { fontSize: 34, lineHeight: 38, fontFamily: fonts.display.bold, color: colors.ink, letterSpacing: -0.6 },
   sub: { marginTop: 6, fontSize: 14, fontFamily: fonts.ui.bold, color: colors.muted, textAlign: 'center' },
   fact: { marginTop: 12, minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.surface, ...softShadow },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#14B8B0' },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#0D7A5F' },
   factText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.verified },
 });

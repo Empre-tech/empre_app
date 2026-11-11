@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
   close: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   talk: { minHeight: 60, borderRadius: 18, paddingHorizontal: 16, backgroundColor: colors.ink, flexDirection: 'row', alignItems: 'center', gap: 12 },
   talkTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
-  talkSub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: '#C7D2E0' },
+  talkSub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: '#CBCED4' },
   write: { minHeight: 56, borderRadius: 18, paddingHorizontal: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 12 },
   writeText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   label: { marginTop: 4, fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },

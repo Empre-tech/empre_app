@@ -93,7 +93,7 @@ function Full({ a, entityId, items }: { a: Analytics; entityId: string; items: I
                   <Text style={[styles.rowValue, v < 0 && { color: colors.warning }]}>{v < 0 ? `−${formatPesos(-v)}` : formatPesos(v)}</Text>
                 </View>
                 <View style={styles.track}>
-                  <View style={[styles.fill, { width: `${(Math.abs(v) / top) * 100}%`, backgroundColor: on ? colors.ink : '#8796AB' }]} />
+                  <View style={[styles.fill, { width: `${(Math.abs(v) / top) * 100}%`, backgroundColor: on ? colors.ink : '#8E929A' }]} />
                 </View>
                 <Text style={styles.note}>
                   {String(Math.round(p.qty * 10) / 10).replace('.', ',')} vendidos · te deja {Math.round(p.margin_pct ?? 0)} %

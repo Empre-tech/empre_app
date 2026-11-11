@@ -249,7 +249,7 @@ export default function AskScreen() {
                     <View style={styles.pin}>
                       <Ionicons name={displayIcon(b.category_icon) as keyof typeof Ionicons.glyphMap} size={18} color={colors.ink} />
                     </View>
-                    <View style={[styles.pinDot, { backgroundColor: b.is_open_now ? '#14B8B0' : colors.placeholder }]} />
+                    <View style={[styles.pinDot, { backgroundColor: b.is_open_now ? '#0D7A5F' : colors.placeholder }]} />
                   </View>
                 </Marker>
               ))}
@@ -646,7 +646,7 @@ const styles = StyleSheet.create({
   idea: { flex: 1, minWidth: 0, minHeight: 84, alignItems: 'center', justifyContent: 'center', gap: 6, padding: 8, borderRadius: 16, backgroundColor: colors.bg },
   ideaText: { fontSize: 12.5, textAlign: 'center', fontFamily: fonts.ui.extrabold, color: colors.ink },
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  openDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#14B8B0' },
+  openDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#0D7A5F' },
   screen: { flex: 1, backgroundColor: colors.bg },
   pressed: { opacity: 0.8 },
   // Escribiendo

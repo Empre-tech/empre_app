@@ -757,7 +757,7 @@ const styles = StyleSheet.create({
   faqLabel: { paddingHorizontal: spacing.lg, paddingTop: 6, fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.muted },
   ownerRow: { alignItems: 'flex-end', gap: 8 },
   ownerAvatarSlot: { width: 28 },
-  ownerBubble: { shadowColor: '#0E2346', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+  ownerBubble: { shadowColor: '#111318', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
   ownerLabel: { marginBottom: 2, fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.verified },
   quickReplies: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.sm },
   // Preguntas frecuentes (3.62): blancas, en tinta y de 44 px; el destello marca las que responde Empre AI.

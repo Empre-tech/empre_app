@@ -147,7 +147,7 @@ export default function ScanScreen() {
               <Text style={styles.bizName} numberOfLines={1}>
                 {activeBiz.name} · <Text style={styles.bizMeta}>{todayCount === 1 ? '1 canje hoy' : `${todayCount} canjes hoy`}</Text>
               </Text>
-              {businesses.length > 1 ? <Ionicons name="chevron-down" size={14} color="#D5DEEA" /> : null}
+              {businesses.length > 1 ? <Ionicons name="chevron-down" size={14} color="#E4E6EA" /> : null}
             </Pressable>
           ) : null}
         </View>
@@ -255,13 +255,13 @@ const FOCUS_SIZE = 252;
 const CORNER_SIZE = 30;
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#0B1A36' },
+  screen: { flex: 1, backgroundColor: '#22252B' },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingBottom: 10 },
   back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
   headText: { flex: 1, minWidth: 0 },
   title: { fontSize: 19, lineHeight: 23, fontFamily: fonts.display.bold, color: '#fff' },
   bizLine: { minHeight: 22, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  bizName: { flexShrink: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: '#D5DEEA' },
+  bizName: { flexShrink: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: '#E4E6EA' },
   bizMeta: { fontFamily: fonts.ui.extrabold, color: '#2FD3C9' },
   content: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', gap: 26, paddingHorizontal: 20, paddingVertical: 16 },
   frame: { width: FOCUS_SIZE, height: FOCUS_SIZE, borderRadius: 24 },
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
   scanLine: { position: 'absolute', left: 14, right: 14, height: 2.5, borderRadius: 2, backgroundColor: '#2FD3C9' },
   camText: { alignSelf: 'stretch', alignItems: 'center', gap: 10, paddingHorizontal: 8 },
   camTitle: { fontSize: 22, lineHeight: 27, fontFamily: fonts.display.bold, color: '#fff', textAlign: 'center' },
-  camSub: { fontSize: 14.5, lineHeight: 21, fontFamily: fonts.ui.medium, color: '#D5DEEA', textAlign: 'center' },
+  camSub: { fontSize: 14.5, lineHeight: 21, fontFamily: fonts.ui.medium, color: '#E4E6EA', textAlign: 'center' },
   manualCard: { alignSelf: 'stretch', gap: 12, padding: 18, borderRadius: 20, backgroundColor: colors.surface },
   codeInput: { textAlign: 'center', fontSize: 24, letterSpacing: 8 },
   manualHint: { fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },

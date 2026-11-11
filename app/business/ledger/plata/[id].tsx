@@ -129,7 +129,7 @@ function Full({ a, entityId, range, entered, out, onRange }: { a: Analytics; ent
                 <Pressable key={p.start} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`${dayLong(p.start)}: entró ${formatPesos(vIn)}, salió ${formatPesos(vOut)}`} onPress={() => setSel(on ? null : i)} style={[styles.barSlot, on && styles.barSlotOn]}>
                   <View style={styles.barPair}>
                     <View style={[styles.bar, { height: vIn > 0 ? Math.max(4, (vIn / top) * BAR_MAX) : 2, backgroundColor: dim ? colors.placeholder : colors.ink }]} />
-                    <View style={[styles.bar, { height: vOut > 0 ? Math.max(4, (vOut / top) * BAR_MAX) : 2, backgroundColor: dim ? colors.hairline : '#8796AB' }]} />
+                    <View style={[styles.bar, { height: vOut > 0 ? Math.max(4, (vOut / top) * BAR_MAX) : 2, backgroundColor: dim ? colors.hairline : '#8E929A' }]} />
                   </View>
                   <Text style={styles.barLabel} numberOfLines={1}>
                     {i % every === 0 ? bucketLabel(a.bucket, p.start, series.length) : ''}
@@ -142,7 +142,7 @@ function Full({ a, entityId, range, entered, out, onRange }: { a: Analytics; ent
         </View>
         <View style={styles.legend}>
           <Legend color={colors.ink} label="Entró" value={formatPesos(shownIn)} />
-          <Legend color="#8796AB" label="Salió" value={formatPesos(shownOut)} />
+          <Legend color="#8E929A" label="Salió" value={formatPesos(shownOut)} />
         </View>
       </View>
 

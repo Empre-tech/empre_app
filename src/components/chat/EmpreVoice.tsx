@@ -61,9 +61,9 @@ export function Aura({ on }: { on: boolean }) {
       <Svg width="100%" height="100%" viewBox="0 0 400 340" preserveAspectRatio="none">
         <Defs>
           <RadialGradient id="aura" cx="50%" cy="60%" r="60%">
-            <Stop offset="0" stopColor="#14B8B0" stopOpacity="0.16" />
-            <Stop offset="0.55" stopColor="#FF8A1F" stopOpacity="0.08" />
-            <Stop offset="1" stopColor="#FF8A1F" stopOpacity="0" />
+            <Stop offset="0" stopColor="#0D7A5F" stopOpacity="0.16" />
+            <Stop offset="0.55" stopColor="#E8896A" stopOpacity="0.08" />
+            <Stop offset="1" stopColor="#E8896A" stopOpacity="0" />
           </RadialGradient>
         </Defs>
         <Ellipse cx="200" cy="200" rx="260" ry="200" fill="url(#aura)" />
@@ -299,10 +299,10 @@ const styles = StyleSheet.create({
   thanks: { paddingHorizontal: 8, fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
   step: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 22 },
   stepDot: { width: 18, height: 18, borderRadius: 9, backgroundColor: colors.line, alignItems: 'center', justifyContent: 'center' },
-  stepDotDone: { backgroundColor: '#14B8B0' },
+  stepDotDone: { backgroundColor: '#0D7A5F' },
   stepText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
   relay: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  relayLine: { flex: 1, height: 1, backgroundColor: '#CFE9EC' },
+  relayLine: { flex: 1, height: 1, backgroundColor: '#E7F3EF' },
   relayText: { flexShrink: 1, maxWidth: '78%', textAlign: 'center', fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.extrabold, color: colors.verified },
   aura: { position: 'absolute', left: -40, right: -40, bottom: 0, height: 340 },
   welcome: { flex: 1, justifyContent: 'center', gap: spacing.lg, paddingHorizontal: spacing.lg },

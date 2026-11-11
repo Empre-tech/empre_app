@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   chipText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   chipTextOn: { color: '#FFFFFF' },
-  openDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#14B8B0' },
+  openDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#0D7A5F' },
   clear: { minHeight: 44, paddingHorizontal: 8, justifyContent: 'center' },
   clearText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   backdrop: { flex: 1, backgroundColor: 'rgba(14, 35, 70, 0.45)' },

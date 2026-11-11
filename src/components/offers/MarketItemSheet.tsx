@@ -322,7 +322,7 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
             <View style={styles.heroTopRow}>
               {p.save ? (
                 <View style={styles.heroOfferBadge}>
-                  <Ionicons name="flame" size={13} color={colors.ink} />
+                  <Ionicons name="flame" size={13} color="#fff" />
                   <Text style={styles.heroOfferBadgeText}>OFERTA {p.save}</Text>
                 </View>
               ) : (
@@ -362,7 +362,7 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
                 style={({ pressed }) => [styles.offerBanner, pressed && styles.pressed]}
               >
                 <View style={styles.offerBannerIcon}>
-                  <Ionicons name="flame" size={18} color={colors.ink} />
+                  <Ionicons name="flame" size={18} color="#fff" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.offerBannerTag}>
@@ -622,7 +622,7 @@ const classified = new Map<string, { intent: string; answer_id?: string }>();
 
 const styles = StyleSheet.create({
   aiChipCompare: { backgroundColor: colors.ink, borderColor: colors.ink },
-  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(14,35,70,0.52)' },
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17,19,24,0.52)' },
   sheet: { maxHeight: '90%', backgroundColor: colors.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden', ...softShadow },
   handleWrap: { alignItems: 'center', paddingTop: 10, paddingBottom: 6, backgroundColor: colors.surface },
   handle: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.line },
@@ -630,21 +630,21 @@ const styles = StyleSheet.create({
   heroWrap: { height: 188, position: 'relative', backgroundColor: colors.ink },
   heroPhoto: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   heroTopRow: { position: 'absolute', top: 12, left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  heroOfferBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.accent },
-  heroOfferBadgeText: { fontSize: 12.5, fontFamily: fonts.display.bold, color: colors.ink },
-  heroCatalogBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(14,35,70,0.86)' },
+  heroOfferBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.brand },
+  heroOfferBadgeText: { fontSize: 12.5, fontFamily: fonts.display.bold, color: '#fff' },
+  heroCatalogBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(17,19,24,0.86)' },
   heroCatalogBadgeText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },
   closeBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.94)', alignItems: 'center', justifyContent: 'center' },
   heroBottomRow: { position: 'absolute', bottom: 12, left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   openBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.94)' },
   openDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.verified },
   openBadgeText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  ratingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: '#1B6B3C' },
+  ratingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.ink },
   ratingBadgeText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },
   body: { paddingHorizontal: 18, paddingTop: 14, gap: 12 },
-  offerBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 16, backgroundColor: '#FFF1E3', borderWidth: 1.5, borderColor: colors.accent },
-  offerBannerIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
-  offerBannerTag: { fontSize: 10.5, letterSpacing: 0.4, fontFamily: fonts.ui.extrabold, color: '#8F4300' },
+  offerBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 16, backgroundColor: colors.accentSoft, borderWidth: 1.5, borderColor: colors.brand },
+  offerBannerIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  offerBannerTag: { fontSize: 10.5, letterSpacing: 0.4, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
   offerBannerTitle: { fontSize: 14, fontFamily: fonts.display.bold, color: colors.ink },
   offerBannerGo: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: colors.surface },
   offerBannerGoText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
@@ -653,14 +653,14 @@ const styles = StyleSheet.create({
   itemTitle: { fontSize: 21, lineHeight: 25, fontFamily: fonts.display.bold, color: colors.ink },
   itemCategory: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   priceColumn: { alignItems: 'flex-end', gap: 3 },
-  promoPriceBox: { backgroundColor: '#FFF1E3', borderWidth: 1.5, borderColor: colors.accent, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
+  promoPriceBox: { backgroundColor: colors.accentSoft, borderWidth: 1.5, borderColor: colors.brand, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
   catalogPriceBox: { backgroundColor: colors.selectedSoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
   priceNow: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
   priceWas: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.faint, textDecorationLine: 'line-through', fontVariant: ['tabular-nums'] },
   consultText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.muted },
   factsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   factPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.selectedSoft },
-  factPillUrgent: { backgroundColor: '#FFF1E3' },
+  factPillUrgent: { backgroundColor: colors.accentSoft },
   factPillText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.ink },
   descText: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.muted },
   bizCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
@@ -669,11 +669,11 @@ const styles = StyleSheet.create({
   bizMeta: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
   bizGoPill: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.selectedSoft },
   bizGoText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  aiCard: { padding: 14, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: '#D5E3F7', gap: 10 },
+  aiCard: { padding: 14, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line, gap: 10 },
   aiHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   aiTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink },
   aiSub: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
-  aiAutoBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: '#E3F5F3' },
+  aiAutoBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: colors.verifiedSoft },
   aiAutoText: { fontSize: 10, fontFamily: fonts.ui.extrabold, color: colors.verified, letterSpacing: 0.4 },
   aiChipsRow: { gap: 6, paddingVertical: 2 },
   aiChip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line },
@@ -687,7 +687,7 @@ const styles = StyleSheet.create({
   aiSvcRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, paddingVertical: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
   aiSvcName: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   aiSvcPrice: { fontSize: 13, fontFamily: fonts.display.bold, color: colors.ink },
-  aiOfferBlock: { padding: 8, borderRadius: 10, backgroundColor: '#FFF1E3', gap: 2 },
+  aiOfferBlock: { padding: 8, borderRadius: 10, backgroundColor: colors.accentSoft, gap: 2 },
   aiSource: { fontSize: 11, fontFamily: fonts.ui.bold, color: colors.faint },
   aiAnswerActions: { marginTop: 4, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.line },
   aiWriteLink: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32 },

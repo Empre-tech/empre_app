@@ -5,8 +5,8 @@ import { formatPesos } from '@/lib/ledger';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 export const SALES_COLOR = colors.brand;
-export const EXPENSE_COLOR = '#8796AB';
-const HEAT = [colors.selectedSoft, '#B6C1D1', '#5B6B82', colors.selected];
+export const EXPENSE_COLOR = '#8E929A';
+const HEAT = [colors.selectedSoft, '#B6C1D1', '#6B7079', colors.selected];
 const TONE = { good: colors.verified, bad: colors.warning, warn: colors.accentInk, flat: colors.muted } as const;
 
 /** «▲ 12 %» con su color. */

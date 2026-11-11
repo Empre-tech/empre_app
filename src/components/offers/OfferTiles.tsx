@@ -69,9 +69,8 @@ export function OfferTile({ item, now, onPress, width = TILE_W, selected }: { it
       <View style={styles.tileClip}>
         {selected ? (
           <View style={styles.tricolorBar}>
-            <View style={[styles.tricolorSeg, { backgroundColor: colors.primary }]} />
-            <View style={[styles.tricolorSeg, { backgroundColor: '#14B8B0' }]} />
-            <View style={[styles.tricolorSeg, { backgroundColor: colors.accent }]} />
+            <View style={[styles.tricolorSeg, { backgroundColor: colors.ink }]} />
+            <View style={[styles.tricolorSeg, { backgroundColor: colors.brand }]} />
           </View>
         ) : null}
         <View style={styles.tilePhotoWrap}>
@@ -91,7 +90,7 @@ export function OfferTile({ item, now, onPress, width = TILE_W, selected }: { it
 
           {isService && item.has_entity_offer ? (
             <View style={styles.entityOfferTag}>
-              <Ionicons name="flame" size={11} color={colors.ink} />
+              <Ionicons name="flame" size={11} color="#fff" />
               <Text style={styles.entityOfferTagText}>Con oferta</Text>
             </View>
           ) : item.rating && item.rating >= 4.0 ? (
@@ -234,7 +233,7 @@ export function FeaturedOffer({ item, now, onPress }: { item: MarketItem; now: n
     <Pressable accessibilityRole="button" accessibilityLabel={featuredA11y(item, now)} onPress={onPress} style={({ pressed }) => [styles.feat, pressed && styles.pressed]}>
       <View style={styles.tricolorBar}>
         <View style={[styles.tricolorSeg, { backgroundColor: colors.primary }]} />
-        <View style={[styles.tricolorSeg, { backgroundColor: '#14B8B0' }]} />
+        <View style={[styles.tricolorSeg, { backgroundColor: '#0D7A5F' }]} />
         <View style={[styles.tricolorSeg, { backgroundColor: colors.accent }]} />
       </View>
       <Photo item={item} style={styles.featPhoto} size="lg" />
@@ -319,10 +318,10 @@ export function ZoneCard({ zone, onPress }: { zone: MarketZone; onPress: () => v
 }
 
 export const ZONE_W = 168;
-// Verde del ahorro y tonos del reloj (los mismos del mockup vitrina_viva.html).
-const SAVE_GREEN = '#2E7D4F';
-const ACCENT_SOFT = '#FFF1E3';
-const ACCENT_INK = '#8F4300';
+// Tonos unificados bajo la regla de los 3 colores (Blanco + Negro Carbón + Verde Pulso).
+const SAVE_GREEN = colors.brand;
+const ACCENT_SOFT = colors.accentSoft;
+const ACCENT_INK = colors.accentInk;
 export const TILE_W = 224;
 export const TILE_GAP = 12;
 
@@ -341,7 +340,7 @@ const styles = StyleSheet.create({
   tileBody: { paddingTop: 11, paddingHorizontal: 13, paddingBottom: 13, gap: 5 },
   tileBizRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
   tileBiz: { flex: 1, fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
-  tileDistPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: '#E3F5F3' },
+  tileDistPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: colors.verifiedSoft },
   tileDistText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.verified },
   tileTitle: { fontSize: 16, lineHeight: 20, minHeight: 40, fontFamily: fonts.display.bold, color: colors.ink },
   ticketPerfRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: -13, marginVertical: 3 },
@@ -351,38 +350,38 @@ const styles = StyleSheet.create({
   tileFootRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginTop: 2 },
   tileClock: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: colors.selectedSoft },
   tileClockUrgent: { backgroundColor: ACCENT_SOFT },
-  tileServiceMeta: { backgroundColor: '#E3F5F3' },
+  tileServiceMeta: { backgroundColor: colors.verifiedSoft },
   tileClockText: { flexShrink: 1, fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
   quickActionPill: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: colors.primarySoft },
   quickActionText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
-  mapActiveTag: { position: 'absolute', left: 9, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: 'rgba(14,35,70,0.88)' },
+  mapActiveTag: { position: 'absolute', left: 9, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: 'rgba(17,19,24,0.88)' },
   mapActiveTagText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#fff' },
   openPhotoPill: { position: 'absolute', left: 9, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.92)' },
   openDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.verified },
   openPhotoText: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  catalogTag: { position: 'absolute', left: 9, top: 9, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(14,35,70,0.84)' },
+  catalogTag: { position: 'absolute', left: 9, top: 9, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(17,19,24,0.84)' },
   catalogTagText: { maxWidth: 110, fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  entityOfferTag: { position: 'absolute', right: 9, top: 9, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.accent },
-  entityOfferTagText: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  ratingTag: { position: 'absolute', right: 9, top: 9, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, backgroundColor: SAVE_GREEN },
+  entityOfferTag: { position: 'absolute', right: 9, top: 9, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.brand },
+  entityOfferTagText: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  ratingTag: { position: 'absolute', right: 9, top: 9, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.ink },
   ratingTagText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#fff' },
   title: { flex: 1, fontSize: 14.5, lineHeight: 19, fontFamily: fonts.display.bold, color: colors.ink, minHeight: 18 },
   meta: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   price: { fontSize: 17, fontFamily: fonts.ui.extrabold, color: colors.ink, fontVariant: ['tabular-nums'] },
-  promoPriceTag: { backgroundColor: '#FFF1E3', borderWidth: 1, borderColor: colors.accent, borderRadius: 7, paddingHorizontal: 6, paddingVertical: 1 },
+  promoPriceTag: { backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.brand, borderRadius: 7, paddingHorizontal: 6, paddingVertical: 1 },
   promoPriceText: { color: colors.ink },
   consultPrice: { fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.muted },
   was: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.faint, textDecorationLine: 'line-through', fontVariant: ['tabular-nums'] },
-  save: { backgroundColor: '#E3F5F3', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  saveText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: '#1B6B3C' },
+  save: { backgroundColor: colors.verifiedSoft, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  saveText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
   reasonText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
   row: { flexDirection: 'row', gap: spacing.md, padding: spacing.sm + 2, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
   rowPhotoWrap: { position: 'relative', width: 82, height: 82 },
   rowPhoto: { width: 82, height: 82, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  rowSaveBadge: { position: 'absolute', left: 4, top: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: colors.accent },
-  rowSaveBadgeText: { fontSize: 10.5, fontFamily: fonts.display.bold, color: colors.ink },
-  rowCatBadge: { position: 'absolute', left: 4, bottom: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: 'rgba(14,35,70,0.84)' },
+  rowSaveBadge: { position: 'absolute', left: 4, top: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: colors.brand },
+  rowSaveBadgeText: { fontSize: 10.5, fontFamily: fonts.display.bold, color: '#fff' },
+  rowCatBadge: { position: 'absolute', left: 4, bottom: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: 'rgba(17,19,24,0.84)' },
   rowCatBadgeText: { fontSize: 9.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
   rowBody: { flex: 1, minWidth: 0, justifyContent: 'center', gap: 3 },
   rowTopLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
@@ -396,8 +395,8 @@ const styles = StyleSheet.create({
   zoneBody: { padding: spacing.sm + 2, paddingTop: spacing.sm, gap: 2 },
   here: { alignSelf: 'flex-start', marginTop: 4, backgroundColor: colors.primarySoft, borderRadius: 6, paddingHorizontal: 6 },
   hereText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
-  saveTag: { position: 'absolute', left: 9, top: 9, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.accent, shadowColor: colors.ink, shadowOpacity: 0.16, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  saveTagText: { fontSize: 12.5, fontFamily: fonts.display.bold, color: colors.ink },
+  saveTag: { position: 'absolute', left: 9, top: 9, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.brand, shadowColor: colors.ink, shadowOpacity: 0.16, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  saveTagText: { fontSize: 12.5, fontFamily: fonts.display.bold, color: '#fff' },
   rowPrice: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 2 },
   priceBig: { fontSize: 22 },
   feat: { marginHorizontal: spacing.lg, backgroundColor: colors.surface, borderRadius: 22, borderWidth: 1, borderColor: colors.line, overflow: 'hidden', shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },

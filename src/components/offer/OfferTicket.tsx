@@ -58,7 +58,7 @@ export function OfferTicket({ offer, cta, notchColor = colors.bg, showPrice = tr
   const slotsText = formatSlotsFree(offer.slots_left, offer.total_slots);
 
   const topBg = off ? styles.topOff : hot ? styles.topHot : warn ? styles.topWarn : styles.topCalm;
-  const ringColor = off ? '#8796AB' : hot ? colors.ink : warn ? colors.accentDark : colors.primary;
+  const ringColor = off ? '#8E929A' : hot ? colors.ink : warn ? colors.accentDark : colors.primary;
   const ringTrack = hot ? 'rgba(22, 35, 58, 0.2)' : colors.line;
   const kind = hot ? 'Última llamada' : offerTypeLabel(offer.type);
 
@@ -67,9 +67,9 @@ export function OfferTicket({ offer, cta, notchColor = colors.bg, showPrice = tr
       <View style={styles.clip}>
         {!off ? (
           <View style={styles.brandRibbon} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            <View style={[styles.ribbonSeg, { backgroundColor: '#F03232' }]} />
-            <View style={[styles.ribbonSeg, { backgroundColor: '#14B8B0' }]} />
-            <View style={[styles.ribbonSeg, { backgroundColor: '#FF8A1F' }]} />
+            <View style={[styles.ribbonSeg, { backgroundColor: '#111318' }]} />
+            <View style={[styles.ribbonSeg, { backgroundColor: '#0D7A5F' }]} />
+            <View style={[styles.ribbonSeg, { backgroundColor: '#E8896A' }]} />
           </View>
         ) : null}
 
