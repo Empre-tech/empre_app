@@ -34,7 +34,7 @@ export function ReviewCard({ review, mine = false }: { review: Review; mine?: bo
           </Text>
           <View style={styles.stars} accessible={false}>
             {[1, 2, 3, 4, 5].map((n) => (
-              <Ionicons key={n} name={n <= review.rating ? 'star' : 'star-outline'} size={12} color={colors.accent} />
+              <Ionicons key={n} name={n <= review.rating ? 'star' : 'star-outline'} size={12} color={colors.ink} />
             ))}
           </View>
           <Text style={styles.when}>{when}</Text>

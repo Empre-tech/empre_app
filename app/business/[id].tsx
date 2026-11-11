@@ -969,7 +969,7 @@ function StarPicker({ value, onChange }: { value: number; onChange: (rating: num
     <View style={styles.starPicker}>
       {[1, 2, 3, 4, 5].map((n) => (
         <Pressable key={n} accessibilityRole="button" accessibilityLabel={`${n} estrellas`} onPress={() => onChange(n)} hitSlop={6}>
-          <Ionicons name={n <= value ? 'star' : 'star-outline'} size={32} color={colors.accent} />
+          <Ionicons name={n <= value ? 'star' : 'star-outline'} size={32} color={colors.ink} />
         </Pressable>
       ))}
     </View>

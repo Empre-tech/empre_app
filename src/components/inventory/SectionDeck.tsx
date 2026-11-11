@@ -144,7 +144,7 @@ export function SectionDeck({
             <Text style={styles.meta}>{countText}</Text>
             {alert ? (
               <View style={styles.alert}>
-                <View style={[styles.dot, { backgroundColor: alert.tone === 'out' ? colors.brand : colors.accent }]} />
+                <View style={[styles.dot, { backgroundColor: alert.tone === 'out' ? colors.ink : colors.faint }]} />
                 <Text style={styles.alertText} numberOfLines={1}>
                   {alert.text}
                 </Text>

@@ -95,7 +95,7 @@ const TONE: Record<WordTone, { ink: string; bg: string }> = {
   item: { ink: colors.ink, bg: colors.selectedSoft },
   good: { ink: colors.verified, bg: colors.verifiedSoft },
   bad: { ink: colors.primaryDark, bg: colors.primarySoft },
-  warn: { ink: colors.warning, bg: colors.accentSoft },
+  warn: { ink: colors.warning, bg: colors.selectedSoft },
 };
 
 const ROW_ICON: Record<LiveRow['icon'], keyof typeof Ionicons.glyphMap> = {
@@ -814,7 +814,7 @@ function StockCard({ entityId, heard, action: a, problem, onChange, onRemove }: 
       )}
       {[...(a.warnings ?? []), ...(problem && !(a.warnings ?? []).includes(problem) ? [problem] : [])].map((w) => (
         <View key={w} style={styles.warn}>
-          <Ionicons name="alert-circle-outline" size={16} color={colors.accentInk} />
+          <Ionicons name="alert-circle-outline" size={16} color={colors.ink} />
           <Text style={styles.warnText}>{w}</Text>
         </View>
       ))}
@@ -870,7 +870,7 @@ function MoveCard({ action: a, move, problem, onChange, onRemove }: { action: Vo
       {move.kind === 'remove' && !needsCount ? <Text style={styles.cardMeta}>Si lo vendiste, mejor regístralo como venta: descuenta solo y cuenta en tu plata.</Text> : null}
       {problem ? (
         <View style={styles.warn}>
-          <Ionicons name="alert-circle-outline" size={16} color={colors.accentInk} />
+          <Ionicons name="alert-circle-outline" size={16} color={colors.ink} />
           <Text style={styles.warnText}>{problem}</Text>
         </View>
       ) : null}
@@ -903,7 +903,7 @@ function PriceCard({ action: a, ask, problem, onChange, onRemove }: { action: Vo
           </View>
           {problem ? (
             <View style={styles.warn}>
-              <Ionicons name="alert-circle-outline" size={16} color={colors.accentInk} />
+              <Ionicons name="alert-circle-outline" size={16} color={colors.ink} />
               <Text style={styles.warnText}>{problem}</Text>
             </View>
           ) : null}
@@ -1156,7 +1156,7 @@ function ActionCard({ entityId, heard, action: a, problem, onChange, onRemove, o
 
       {[...(a.warnings ?? []), ...(problem && !(a.warnings ?? []).includes(problem) ? [problem] : [])].filter((w) => !(needsPrice && w === 'Falta el monto.')).map((w) => (
         <View key={w} style={styles.warn}>
-          <Ionicons name="alert-circle-outline" size={16} color={colors.accentInk} />
+          <Ionicons name="alert-circle-outline" size={16} color={colors.ink} />
           <Text style={styles.warnText}>{w}</Text>
         </View>
       ))}
@@ -1288,7 +1288,7 @@ const styles = StyleSheet.create({
   link: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.primary },
   party: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  warn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.accentSoft, borderRadius: radius.sm, padding: spacing.sm },
-  warnText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.accentInk },
+  warn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.selectedSoft, borderRadius: radius.sm, padding: spacing.sm },
+  warnText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   doneBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, paddingVertical: spacing.xl },
 });

@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   reqBody: { flex: 1, minWidth: 0, gap: 1 },
   reqName: { fontSize: 17, lineHeight: 21, fontFamily: fonts.display.bold, color: colors.ink },
   reqService: { fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  reqMeta: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.accentInk },
+  reqMeta: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.agenda },
   why: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.bg },
   whyIcon: { marginTop: 2 },
   whyText: { flex: 1, fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.ink },

@@ -197,7 +197,7 @@ export default function SalidasScreen() {
                   <Text style={styles.stopSub} numberOfLines={1}>
                     {x.sub}
                   </Text>
-                  <Text style={[styles.stopState, x.hot && { color: colors.accentInk }, x.done && { color: colors.verified }]}>{x.state}</Text>
+                  <Text style={[styles.stopState, x.hot && { color: colors.ink }, x.done && { color: colors.verified }]}>{x.state}</Text>
                 </View>
               </Pressable>
             ))}
@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
   railLine: { flex: 1, width: 3, borderRadius: 2, backgroundColor: colors.hairline },
   stopDot: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.line, backgroundColor: colors.surface },
   stopDotDone: { borderColor: colors.verified, backgroundColor: colors.verified },
-  stopDotHot: { borderColor: colors.accent, borderWidth: 3 },
+  stopDotHot: { borderColor: colors.ink, borderWidth: 3 },
   stopBody: { flex: 1, minWidth: 0, gap: 3, paddingTop: 2, paddingBottom: 12 },
   stopTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   stopTitle: { flexShrink: 1, fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },

@@ -240,14 +240,14 @@ export function AiRelay({ text }: { text: string }) {
 }
 
 const ICON: Partial<Record<Intent, { icon: keyof typeof Ionicons.glyphMap; tint: string; ink: string }>> = {
-  services: { icon: 'restaurant-outline', tint: colors.accentSoft, ink: colors.warning },
+  services: { icon: 'restaurant-outline', tint: colors.selectedSoft, ink: colors.ink },
   price: { icon: 'cash-outline', tint: colors.selectedSoft, ink: colors.ink },
   duration: { icon: 'hourglass-outline', tint: colors.selectedSoft, ink: colors.ink },
   hours: { icon: 'time-outline', tint: colors.verifiedSoft, ink: colors.verified },
   availability: { icon: 'time-outline', tint: colors.verifiedSoft, ink: colors.verified },
   book: { icon: 'calendar-outline', tint: colors.verifiedSoft, ink: colors.verified },
   delivery: { icon: 'bicycle-outline', tint: colors.selectedSoft, ink: colors.ink },
-  offers: { icon: 'pricetag-outline', tint: colors.accentSoft, ink: colors.warning },
+  offers: { icon: 'pricetag-outline', tint: colors.accentSoft, ink: colors.accentInk },
 };
 
 /** La entrada: la Chispa, a quién le escribes y lo que ya se puede responder con lo publicado. */

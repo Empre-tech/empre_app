@@ -635,7 +635,7 @@ export default function ChatScreen() {
                           size={14}
                           color={
                             item.is_read
-                              ? colors.accent
+                              ? colors.glow
                               : item.id.startsWith(LOCAL_PREFIX)
                                 ? 'rgba(255,255,255,0.6)'
                                 : '#fff'

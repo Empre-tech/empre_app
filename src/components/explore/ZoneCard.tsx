@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   open: { color: '#0D7A5F' },
   closed: { color: '#8E2A2A' },
   tagline: { paddingTop: 2, fontSize: 12.5, fontFamily: fonts.ui.medium, fontStyle: 'italic', color: colors.ink },
-  review: { marginTop: 4, paddingLeft: 10, borderLeftWidth: 3, borderLeftColor: colors.accent, gap: 2 },
+  review: { marginTop: 4, paddingLeft: 10, borderLeftWidth: 3, borderLeftColor: colors.ink, gap: 2 },
   quote: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, fontStyle: 'italic', color: colors.ink },
   byline: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   foot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: spacing.md, paddingRight: spacing.sm },

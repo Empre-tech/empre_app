@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
   coinsInput: { flex: 1, padding: 0, textAlign: 'right', fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   result: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg, borderRadius: radius.lg },
   resultOk: { backgroundColor: colors.verifiedSoft },
-  resultOff: { backgroundColor: colors.accentSoft },
+  resultOff: { backgroundColor: colors.selectedSoft },
   resultTitle: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
   resultBody: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.ink, marginTop: 2 },
   causeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 56, paddingTop: spacing.sm },

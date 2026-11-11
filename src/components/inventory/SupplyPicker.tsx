@@ -38,7 +38,7 @@ interface Props {
   onDone: (refs: string[], created: NewSupply[]) => void;
 }
 
-const DOT: Record<string, string> = { ok: colors.success, low: colors.accent, out: colors.danger };
+const DOT: Record<string, string> = { ok: colors.success, low: colors.ink, out: colors.danger };
 
 type Row = { type: 'head'; title: string; count: number } | { type: 'item'; item: PickerChoice };
 

@@ -46,7 +46,7 @@ export function BusinessRow({ entity, distanceKm, onPress, style }: Props) {
         <View style={styles.metaRow}>
           {hasRating ? (
             <View style={styles.rating}>
-              <Ionicons name="star" size={13} color={colors.accent} />
+              <Ionicons name="star" size={13} color={colors.ink} />
               <Text style={styles.ratingText}>{entity.avg_rating.toFixed(1)}</Text>
               <Text style={styles.reviewCount}>· {reviewsLabel}</Text>
             </View>

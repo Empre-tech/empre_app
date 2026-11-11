@@ -159,7 +159,7 @@ export default function AlertsScreen() {
   );
 }
 
-const TONE = { out: { dot: colors.danger, fg: '#111318' }, low: { dot: colors.accent, fg: colors.accentInk }, muted: { dot: '#E4E6EA', fg: '#5B606B' } };
+const TONE = { out: { dot: colors.danger, fg: '#111318' }, low: { dot: colors.ink, fg: colors.ink }, muted: { dot: '#E4E6EA', fg: '#5B606B' } };
 
 function GroupHead({ title, tone }: { title: string; tone: keyof typeof TONE }) {
   return (
@@ -214,8 +214,8 @@ function Group({
                 <View style={styles.users}>
                   <Text style={styles.usersLabel}>{tone === 'out' ? 'Afecta a' : 'Lo usan'}</Text>
                   {users.slice(0, 6).map((u) => (
-                    <View key={u.ref} style={[styles.chip, { backgroundColor: tone === 'out' ? '#EFF0F2' : colors.accentSoft }]}>
-                      <Text style={[styles.chipText, { color: tone === 'out' ? '#111318' : colors.accentInk }]}>{u.name}</Text>
+                    <View key={u.ref} style={[styles.chip, { backgroundColor: tone === 'out' ? '#EFF0F2' : colors.selectedSoft }]}>
+                      <Text style={[styles.chipText, { color: tone === 'out' ? '#111318' : colors.ink }]}>{u.name}</Text>
                     </View>
                   ))}
                   {users.length > 6 ? <Text style={styles.usersLabel}>y {users.length - 6} más</Text> : null}

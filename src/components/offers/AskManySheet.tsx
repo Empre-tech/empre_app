@@ -74,7 +74,7 @@ const ICON: Record<ManyIntent, keyof typeof Ionicons.glyphMap> = {
 const TINT: Record<ManyIntent, { bg: string; ink: string }> = {
   price: { bg: colors.selectedSoft, ink: colors.ink },
   open: { bg: colors.verifiedSoft, ink: colors.verified },
-  offers: { bg: colors.accentSoft, ink: colors.warning },
+  offers: { bg: colors.accentSoft, ink: colors.accentInk },
   duration: { bg: colors.selectedSoft, ink: colors.ink },
 };
 

@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { keepPreviousData, useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { Avatar } from '@/components/Avatar';
 import { CategoryArt, artKeyFor } from '@/components/CategoryArt';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -28,7 +29,6 @@ import { claimsApi, discoveryApi, offersApi } from '@/api/offers';
 import type { DiscoveryItem } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/Button';
-import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { ZoneButton, ZoneList } from '@/components/ZoneButton';
 import { UpdatingBar } from '@/components/explore/LoadingMotion';
 import { BizFaces, BizVitrinaSheet } from '@/components/offers/BizFaces';
@@ -117,7 +117,7 @@ export default function OffersScreen() {
   const [face, setFace] = useState<BizFace | null>(null);
   const win = useWindowDimensions();
 
-  const { status } = useAuth();
+  const { status, user } = useAuth();
   const claims = useQuery({ queryKey: ['claims', 'mine'], queryFn: claimsApi.mine, enabled: status === 'signedIn', retry: false, staleTime: 15_000 });
   const activeClaims = (claims.data ?? []).filter((c) => c.status === 'RECLAMADO').length;
 
@@ -416,7 +416,7 @@ export default function OffersScreen() {
         aria-hidden={!compact}
         style={[styles.mini, { top: insets.top, opacity: bar, transform: [{ translateY: bar.interpolate({ inputRange: [0, 1], outputRange: [-MINI_H, 0] }) }] }]}
       >
-        <EmpreSymbol product="offers" size={24} />
+        <Avatar uri={user?.profile_picture_url} name={user?.name ?? 'Tú'} size={28} />
         <Pressable accessibilityRole="button" accessibilityLabel={`Zona: ${zoneLabel}. Volver arriba para cambiarla`} onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: !reduce })} style={styles.miniTap}>
           <Text style={styles.miniCity} numberOfLines={1}>
             {zoneLabel}
@@ -431,7 +431,9 @@ export default function OffersScreen() {
       <ScrollView ref={scrollRef} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" onScroll={onScroll} scrollEventThrottle={64}>
         <View style={styles.top}>
           {home ? (
-            <EmpreSymbol product="offers" size={32} />
+            <Pressable accessibilityRole="button" accessibilityLabel="Tu perfil" onPress={() => router.push('/(tabs)/profile')} style={styles.round}>
+              <Avatar uri={user?.profile_picture_url} name={user?.name ?? 'Tú'} size={40} />
+            </Pressable>
           ) : (
             <Pressable accessibilityRole="button" accessibilityLabel="Volver a la vitrina" onPress={closeAll} style={styles.round}>
               <Ionicons name="chevron-back" size={20} color={colors.ink} />

@@ -125,7 +125,7 @@ export default function AIBusinessAssistantScreen() {
           <Ionicons name="chevron-back" size={24} color={colors.ink} />
         </Pressable>
         <View style={styles.headerIconWrap}>
-          <Ionicons name="sparkles" size={18} color={colors.accent} />
+          <Ionicons name="sparkles" size={18} color={colors.brand} />
         </View>
         <View style={styles.headerTitleWrap}>
           <Text style={styles.title}>Asistente de IA</Text>
@@ -144,7 +144,7 @@ export default function AIBusinessAssistantScreen() {
           return (
             <View key={step.key} style={[styles.progressChip, done && styles.progressChipDone]}>
               {done ? (
-                <Ionicons name="checkmark" size={12} color={colors.accent} />
+                <Ionicons name="checkmark" size={12} color={colors.brand} />
               ) : (
                 <View style={styles.progressChipDot} />
               )}
@@ -179,7 +179,7 @@ export default function AIBusinessAssistantScreen() {
                 <Ionicons name="sparkles" size={13} color="#fff" />
               </View>
               <View style={[styles.bubble, styles.bubbleTheirs]}>
-                <ActivityIndicator size="small" color={colors.accent} />
+                <ActivityIndicator size="small" color={colors.brand} />
               </View>
             </View>
           ) : null
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: colors.accentSoft,
+    backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -274,16 +274,16 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: radius.pill,
     borderWidth: 1.5,
-    borderColor: colors.accent,
+    borderColor: colors.brand,
     backgroundColor: '#fff',
   },
-  starterChipText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.accentInk },
+  starterChipText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
   bubbleRow: { flexDirection: 'row' },
   bubbleRowMine: { justifyContent: 'flex-end' },
   bubbleRowTheirs: { justifyContent: 'flex-start' },
   bubble: { maxWidth: '78%', borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   bubbleMine: { backgroundColor: colors.primary, borderBottomRightRadius: 4 },
-  bubbleTheirs: { backgroundColor: colors.accentSoft, borderBottomLeftRadius: 4 },
+  bubbleTheirs: { backgroundColor: colors.primarySoft, borderBottomLeftRadius: 4 },
   bubbleText: { fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink, lineHeight: 20 },
   bubbleTextMine: { color: '#fff' },
   // Avatar con chispa para distinguir de un chat con una persona real.
@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.brand,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 6,
@@ -320,10 +320,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
   },
-  progressChipDone: { backgroundColor: colors.accentSoft, borderColor: colors.accentSoft },
+  progressChipDone: { backgroundColor: colors.primarySoft, borderColor: colors.primarySoft },
   progressChipDot: { width: 6, height: 6, borderRadius: 3, borderWidth: 1.5, borderColor: colors.line },
   progressLabel: { fontSize: 11, fontFamily: fonts.ui.bold, color: colors.muted },
-  progressLabelDone: { color: colors.accentInk },
+  progressLabelDone: { color: colors.primaryDark },
   error: { color: colors.danger, fontSize: 13, paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
   reviewButton: {
     flexDirection: 'row',

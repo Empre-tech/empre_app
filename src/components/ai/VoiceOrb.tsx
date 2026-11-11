@@ -34,8 +34,8 @@ export function VoiceOrb({ size, mood, level, listening }: { size: number; mood:
             <Defs>
               <RadialGradient id="voz" cx="50%" cy="50%" r="50%">
                 <Stop offset="0.45" stopColor="#0D7A5F" stopOpacity={0.32} />
-                <Stop offset="0.75" stopColor={colors.accent} stopOpacity={0.14} />
-                <Stop offset="1" stopColor={colors.accent} stopOpacity={0} />
+                <Stop offset="0.75" stopColor={colors.glow} stopOpacity={0.14} />
+                <Stop offset="1" stopColor={colors.glow} stopOpacity={0} />
               </RadialGradient>
             </Defs>
             <Circle cx={halo / 2} cy={halo / 2} r={halo / 2} fill="url(#voz)" />

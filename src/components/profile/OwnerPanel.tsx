@@ -101,5 +101,5 @@ const styles = StyleSheet.create({
   pending: { fontSize: 13, fontFamily: fonts.ui.semibold, color: '#9A5B00' },
   tool: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   toolText: { flex: 1, fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brand },
 });

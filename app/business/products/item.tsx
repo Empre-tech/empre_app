@@ -28,7 +28,7 @@ import { groupOf, marginOf, NO_GROUP } from '@/lib/supplies';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const DURATIONS = [15, 30, 45, 60, 90];
-const DOT: Record<string, string> = { ok: colors.success, low: colors.accent, out: colors.danger };
+const DOT: Record<string, string> = { ok: colors.success, low: colors.ink, out: colors.danger };
 
 const TRACK: { mode: StockMode; label: string; hint: string }[] = [
   { mode: 'exact', label: 'Cuento', hint: 'cuántos hay' },
@@ -470,8 +470,8 @@ export default function ItemScreen() {
         <View style={styles.heardRow} accessibilityLiveRegion="polite">
           {heardChips.map((c) => (
             <View key={c.text} style={[styles.heard, !c.ok && styles.heardMissing]}>
-              <Ionicons name={c.ok ? 'checkmark' : 'ellipse-outline'} size={13} color={c.ok ? colors.verified : colors.accentInk} />
-              <Text style={[styles.heardText, !c.ok && { color: colors.accentInk }]}>{c.text}</Text>
+              <Ionicons name={c.ok ? 'checkmark' : 'ellipse-outline'} size={13} color={c.ok ? colors.verified : colors.ink} />
+              <Text style={[styles.heardText, !c.ok && { color: colors.ink }]}>{c.text}</Text>
             </View>
           ))}
         </View>

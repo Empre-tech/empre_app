@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
   meta: { fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
   label: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   input: { minHeight: 50, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.lg, paddingHorizontal: spacing.md, fontSize: 16, fontFamily: fonts.ui.semibold, color: colors.ink },
-  warn: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.accentInk },
+  warn: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
   seg: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: '#EFF0F2' },
   segBtn: { flex: 1, minHeight: 52, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   segOn: { backgroundColor: colors.surface },

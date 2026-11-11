@@ -16,7 +16,7 @@ import { arrivalTimes, lateStops, loadSavedPlans, metersBetween, planHour, planK
 import { useCoords } from '@/lib/useCoords';
 import { colors, fonts } from '@/theme';
 
-const stopRing = (on: boolean) => (on ? { borderColor: colors.brand, padding: 3 } : { borderColor: colors.accent, padding: 0 });
+const stopRing = (on: boolean) => (on ? { borderColor: colors.brand, padding: 3 } : { borderColor: colors.ink, padding: 0 });
 
 /** El plan (tablero «Plan con las cuatro mejoras»): el recorrido en el mapa, sus paradas con hora y oferta, y qué hacer si una oferta termina antes de llegar. */
 export default function PlanScreen() {
@@ -204,7 +204,7 @@ export default function PlanScreen() {
                     {late[i] ? (
                       <View style={styles.warn} accessibilityLiveRegion="polite">
                         <View style={styles.warnTop}>
-                          <Ionicons name="time-outline" size={18} color={colors.accentInk} />
+                          <Ionicons name="time-outline" size={18} color={colors.agenda} />
                           <Text style={styles.warnTitle}>
                             Su oferta termina a las {planHour(s.ends_at)}. Llegarías a las {planHour(times[i])}.
                           </Text>
@@ -301,10 +301,10 @@ const styles = StyleSheet.create({
   map: { backgroundColor: colors.selectedSoft },
   mapZone: { position: 'absolute', right: 12, bottom: 36, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 999, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
   mapZoneText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.muted },
-  pinOut: { padding: 2, borderRadius: 999, borderWidth: 3, borderColor: colors.accent, backgroundColor: colors.surface },
+  pinOut: { padding: 2, borderRadius: 999, borderWidth: 3, borderColor: colors.ink, backgroundColor: colors.surface },
   pinOutOn: { padding: 3, borderColor: colors.brand },
   pin: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  pinOn: { width: 40, height: 40, borderRadius: 20, borderWidth: 3, borderColor: colors.accent },
+  pinOn: { width: 40, height: 40, borderRadius: 20, borderWidth: 3, borderColor: colors.glow },
   pinText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   sheet: { marginTop: -26, paddingTop: 22, paddingHorizontal: 20, gap: 18, borderTopLeftRadius: 28, borderTopRightRadius: 28, backgroundColor: colors.bg },
   head: { gap: 8 },
@@ -316,10 +316,10 @@ const styles = StyleSheet.create({
   list: { gap: 14 },
   dash: { position: 'absolute', left: 17, top: 30, bottom: 30, borderLeftWidth: 2, borderStyle: 'dashed', borderLeftColor: colors.line },
   stop: { flexDirection: 'row', gap: 12 },
-  numOut: { width: 36, height: 36, marginTop: 14, borderRadius: 18, borderWidth: 2.5, borderColor: colors.accent, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  numOut: { width: 36, height: 36, marginTop: 14, borderRadius: 18, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   numOutOn: { borderColor: colors.brand },
   num: { flex: 1, alignSelf: 'stretch', borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  numOn: { borderWidth: 2.5, borderColor: colors.accent },
+  numOn: { borderWidth: 2.5, borderColor: colors.brand },
   numText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   stopBody: { flex: 1, minWidth: 0, gap: 6 },
   when: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.faint },
@@ -340,10 +340,10 @@ const styles = StyleSheet.create({
   pct: { paddingVertical: 3, paddingHorizontal: 8, borderRadius: 999, backgroundColor: colors.accent },
   pctText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.ink },
   see: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
-  warn: { gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.accentSoft },
+  warn: { gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.agendaSoft },
   warnTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  warnTitle: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
-  warnText: { flex: 1, fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.accentInk },
+  warnTitle: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.extrabold, color: colors.agenda },
+  warnText: { flex: 1, fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.agenda },
   warnBtn: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.surface },
   warnBtnText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   inTime: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 999, backgroundColor: colors.verifiedSoft },
@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
   eyebrowSm: { fontSize: 11, letterSpacing: 1.1, fontFamily: fonts.ui.extrabold, color: colors.faint },
   previewTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   previewRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  previewNum: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.accent, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  previewNum: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   previewNumText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.ink },
   previewText: { flex: 1, fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.ink },
   previewBiz: { fontFamily: fonts.ui.extrabold },

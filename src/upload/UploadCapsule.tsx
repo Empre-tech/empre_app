@@ -91,5 +91,5 @@ const styles = StyleSheet.create({
   pillDone: { backgroundColor: '#0D7A5F' },
   text: { flexShrink: 1, fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#fff' },
   track: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, backgroundColor: 'rgba(255,255,255,0.2)' },
-  fill: { height: 3, backgroundColor: colors.accent },
+  fill: { height: 3, backgroundColor: colors.brand },
 });

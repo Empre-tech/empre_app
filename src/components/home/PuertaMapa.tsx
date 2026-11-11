@@ -94,6 +94,9 @@ export function PuertaMapa({
         <Dot key={p.id} x={p.x} y={p.y} live={i === 0} />
       ))}
       <View pointerEvents="none" style={[styles.you, { left: w / 2 - 8 }]} />
+      <View pointerEvents="none" style={[styles.youTag, { left: w / 2 - 70 }]}>
+        <Text style={styles.youText}>Tu puerta</Text>
+      </View>
       <View style={styles.count}>
         <View style={styles.countDot} />
         <Text style={styles.countText}>{openCount ? `${openCount} ${openCount === 1 ? 'abierto' : 'abiertos'} ahora` : 'Mira quién abre pronto'}</Text>
@@ -127,6 +130,8 @@ const styles = StyleSheet.create({
   dotHalo: { position: 'absolute', width: 26, height: 26, borderRadius: 13, backgroundColor: colors.glow },
   dot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.glow, shadowColor: colors.glow, shadowOpacity: 0.7, shadowRadius: 8, shadowOffset: { width: 0, height: 0 } },
   you: { position: 'absolute', top: 120, width: 16, height: 16, borderRadius: 8, backgroundColor: '#FFFFFF', borderWidth: 4, borderColor: 'rgba(255,255,255,0.18)' },
+  youTag: { position: 'absolute', top: 86, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.12)' },
+  youText: { fontFamily: fonts.ui.extrabold, fontSize: 10.5, color: '#FFFFFF' },
   count: { position: 'absolute', left: 14, top: 14, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(17,19,24,0.72)' },
   countDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.glow },
   countText: { fontFamily: fonts.ui.extrabold, fontSize: 13, color: colors.glow },

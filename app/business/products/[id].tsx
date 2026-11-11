@@ -359,7 +359,7 @@ export default function ProductsScreen() {
         {FEATURES.ledger && semCounts.total > 0 ? (
           <View style={styles.semRow} accessibilityLabel={`Inventario: ${semCounts.ok} con existencias, ${semCounts.low} quedan poco, ${semCounts.out} agotados`}>
             <SemChip label="Hay" n={semCounts.ok} dot="#0D7A5F" on={stockIs('ok')} onPress={() => pickStock('ok')} />
-            <SemChip label="Poco" n={semCounts.low} dot={colors.accent} on={stockIs('low')} onPress={() => pickStock('low')} />
+            <SemChip label="Poco" n={semCounts.low} dot={colors.ink} on={stockIs('low')} onPress={() => pickStock('low')} />
             <SemChip label="Agotado" n={semCounts.out} dot={colors.brand} on={stockIs('out')} onPress={() => pickStock('out')} />
           </View>
         ) : null}
@@ -434,7 +434,7 @@ export default function ProductsScreen() {
           >
             <View style={styles.alertHead}>
               <View style={styles.alertIcon}>
-                <Ionicons name="warning-outline" size={18} color={colors.accentInk} />
+                <Ionicons name="warning-outline" size={18} color={colors.ink} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.alertTitle}>{alerts.total === 1 ? 'Tienes 1 cosa por revisar' : `Tienes ${alerts.total} cosas por revisar`}</Text>
@@ -656,7 +656,7 @@ export default function ProductsScreen() {
                           {b.title} · {b.items.length}
                         </Text>
                         <View style={styles.row}>
-                          {sum.tone !== 'muted' ? <Text style={[styles.groupSum, { color: sum.tone === 'out' ? '#111318' : colors.accentInk }]}>{sum.text}</Text> : null}
+                          {sum.tone !== 'muted' ? <Text style={[styles.groupSum, { color: sum.tone === 'out' ? '#111318' : colors.ink }]}>{sum.text}</Text> : null}
                           <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
                         </View>
                       </Pressable>
@@ -755,7 +755,7 @@ const PILL: Record<PillTone, { bg: string; fg: string }> = {
   muted: { bg: 'transparent', fg: colors.muted },
   service: { bg: 'transparent', fg: colors.muted },
 };
-const SEM_DOT = { ok: '#0D7A5F', low: colors.accent, out: colors.brand } as const;
+const SEM_DOT = { ok: '#0D7A5F', low: colors.ink, out: colors.brand } as const;
 
 function SemChip({ label, n, dot, on, onPress }: { label: string; n: number; dot: string; on: boolean; onPress: () => void }) {
   return (
@@ -941,9 +941,9 @@ const styles = StyleSheet.create({
   confirmText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   alertCard: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1.5, borderColor: '#F2C9A0', overflow: 'hidden' },
   alertHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md },
-  alertIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' },
+  alertIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.selectedSoft, alignItems: 'center', justifyContent: 'center' },
   alertTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  alertLine: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.accentInk },
+  alertLine: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
   alertFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 44, borderTopWidth: 1, borderTopColor: '#F5E6D6' },
   alertLink: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primary },
   blockHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 40 },
@@ -955,7 +955,7 @@ const styles = StyleSheet.create({
   itemMain: { flex: 1, minWidth: 0, paddingVertical: spacing.sm, paddingLeft: 4, minHeight: 56, justifyContent: 'center' },
   itemName: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   warn: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#111318' },
-  warnSoft: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.accentInk },
+  warnSoft: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
   pill: { minHeight: 36, paddingHorizontal: 10, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 },
   childRow: { marginLeft: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line },
   pillMuted: { borderWidth: 1, borderColor: colors.line },

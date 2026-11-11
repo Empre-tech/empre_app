@@ -43,7 +43,7 @@ function Ring({ size, stroke, gray }: { size: number; stroke: number; gray: bool
   return (
     <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
       <Circle cx={c} cy={c} r={r} fill="none" stroke={gray ? '#D9DCE1' : '#CBCED4'} strokeWidth={stroke} />
-      {gray ? null : <Circle cx={c} cy={c} r={r} fill="none" stroke={colors.glow} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${len * 0.34} ${len}`} />}
+      {gray ? null : <Circle cx={c} cy={c} r={r} fill="none" stroke={colors.brand} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${len * 0.34} ${len}`} />}
     </Svg>
   );
 }

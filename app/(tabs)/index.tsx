@@ -159,7 +159,6 @@ export default function HomeScreen() {
       title: m.title,
       sub: price.now,
       tag: m.kind === 'service' ? null : (price.save ?? 'Oferta'),
-      chip: m.trending ? { text: 'Lo están pidiendo', tone: 'new' } : null,
       who: m.entity_name,
       near: m.distance_meters !== null ? onFootOrDistance(m.distance_meters / 1000) : null,
       onPress: () => (m.kind === 'service' ? setPreviewItem(m) : router.push({ pathname: '/offer/[id]', params: { id: m.id, entityId: m.entity_id } })),
@@ -187,7 +186,6 @@ export default function HomeScreen() {
     ...(FEATURES.agenda
       ? [{ key: 'citas', title: 'Reserva una hora', sub: nextAppt ? `Tu cita ${apptWhen(nextAppt.starts_at, now)}` : 'Con quien tenga libre', icon: 'calendar-outline' as IconName, tone: 'agenda' as const, onPress: () => router.push('/appointments') }]
       : []),
-    { key: 'salidas', title: 'Mis salidas', sub: activeClaims.length ? `${activeClaims.length} QR activo${activeClaims.length === 1 ? '' : 's'}` : 'Lo que reclamaste', icon: 'ticket-outline', tone: 'plain', onPress: () => router.push('/salidas') },
     firstBiz
       ? { key: 'negocio', title: 'Mi negocio', sub: firstBiz.name, icon: 'storefront-outline', tone: 'plain', onPress: () => router.push({ pathname: '/business/hub/[id]', params: { id: firstBiz.id } }) }
       : { key: 'negocio', title: '¿Tienes un negocio?', sub: 'Súmalo gratis en 2 min', icon: 'storefront-outline', tone: 'plain', onPress: () => router.push('/business/new') },
