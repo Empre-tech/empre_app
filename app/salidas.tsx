@@ -259,7 +259,7 @@ export default function SalidasScreen() {
       {laterAppts.length ? (
         <Section title="Lo que sigue">
           {laterAppts.map((a, i) => (
-            <Row key={a.id} first={i === 0} icon="calendar-outline" title={a.service?.name ?? 'Cita'} sub={[a.entity?.name, formatWhen(a.starts_at)].filter(Boolean).join(' · ')} tag={STATUS_LABEL[a.status]} onPress={() => openAppt(a)} />
+            <Row key={a.id} first={i === 0} agenda icon="calendar-outline" title={a.service?.name ?? 'Cita'} sub={[a.entity?.name, formatWhen(a.starts_at)].filter(Boolean).join(' · ')} tag={STATUS_LABEL[a.status]} onPress={() => openAppt(a)} />
           ))}
         </Section>
       ) : null}
@@ -330,11 +330,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Row({ first, icon, title, sub, tag, onPress }: { first: boolean; icon: keyof typeof Ionicons.glyphMap; title: string; sub: string; tag?: string; onPress: () => void }) {
+function Row({ first, icon, title, sub, tag, agenda, onPress }: { first: boolean; icon: keyof typeof Ionicons.glyphMap; title: string; sub: string; tag?: string; agenda?: boolean; onPress: () => void }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={[title, sub, tag].filter(Boolean).join('. ')} onPress={onPress} style={({ pressed }) => [styles.row, !first && styles.rowLine, pressed && { opacity: 0.85 }]}>
-      <View style={styles.icon}>
-        <Ionicons name={icon} size={20} color={colors.ink} />
+      {/* Las citas llevan el violeta de Agenda (solo en el ícono). */}
+      <View style={[styles.icon, agenda && { backgroundColor: colors.agendaSoft }]}>
+        <Ionicons name={icon} size={20} color={agenda ? colors.agenda : colors.ink} />
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={styles.rowTitle} numberOfLines={1}>
@@ -386,13 +387,13 @@ const styles = StyleSheet.create({
   stopState: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
   stamp: { paddingVertical: 2, paddingHorizontal: 8, borderRadius: 7, borderWidth: 2, borderColor: colors.verified, transform: [{ rotate: '-6deg' }] },
   stampText: { fontSize: 11, letterSpacing: 1.5, fontFamily: fonts.ui.extrabold, color: colors.verified },
-  ticket: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 72, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 20, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, elevation: 3 },
-  ticketIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ink },
+  ticket: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 72, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 20, backgroundColor: colors.night, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, elevation: 3 },
+  ticketIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.nightLine },
   ticketText: { flex: 1, minWidth: 0, gap: 2 },
-  ticketBiz: { fontSize: 15, lineHeight: 19, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  ticketOffer: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
-  left: { paddingVertical: 4, paddingHorizontal: 9, borderRadius: 999, backgroundColor: colors.accentSoft },
-  leftText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
+  ticketBiz: { fontSize: 15, lineHeight: 19, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
+  ticketOffer: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.nightText },
+  left: { paddingVertical: 4, paddingHorizontal: 9, borderRadius: 999, backgroundColor: colors.glowSoft },
+  leftText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.glow },
   none: { padding: 16, borderRadius: 16, overflow: 'hidden', backgroundColor: colors.surface, fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.muted },
   day: { borderRadius: 20, overflow: 'hidden', backgroundColor: colors.surface, ...softShadow },
   dayHead: { paddingVertical: 14, paddingHorizontal: 16, gap: 8 },

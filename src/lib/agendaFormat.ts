@@ -108,12 +108,12 @@ export const STATUS_LABEL: Record<AppointmentStatus, string> = {
 };
 
 export const STATUS_COLOR: Record<AppointmentStatus, string> = {
-  requested: colors.warning,
-  confirmed: colors.success,
+  requested: colors.ink,
+  confirmed: colors.agenda,
   declined: colors.danger,
   expired: colors.muted,
   cancelled: colors.muted,
-  completed: colors.success,
+  completed: colors.agenda,
   no_show: colors.danger,
   disputed: colors.warning,
   blocked: colors.muted,
