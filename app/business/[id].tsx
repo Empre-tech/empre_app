@@ -47,6 +47,7 @@ import { getPhoneFlag, setPhoneFlag } from '@/lib/phoneFlags';
 import { LatestStrip } from '@/components/profile/LatestStrip';
 import { ProfileHero } from '@/components/profile/ProfileHero';
 import { Protagonist } from '@/components/profile/Protagonist';
+import { Muro, type MuroPin } from '@/components/home/Muro';
 import { businessFamily } from '@/lib/family';
 import { QuickIndex } from '@/components/profile/QuickIndex';
 import { SectionHeader } from '@/components/profile/SectionHeader';
@@ -59,7 +60,7 @@ import { hasLocation } from '@/lib/geo';
 import { formatRelativeTime } from '@/lib/format';
 import { resolveImageUrl } from '@/lib/image';
 import { openingFromHours, statusLine } from '@/lib/placeCard';
-import { catalogCopy, formatPesos, type ServiceItem } from '@/lib/catalog';
+import { catalogCopy, formatPesos, priceText, type ServiceItem } from '@/lib/catalog';
 import { chatItemParam } from '@/lib/chatItem';
 import { blockOrder, coverSource, sections, showQuickIndex, type BlockId, type SectionId } from '@/lib/profileLayout';
 import { featuredRating } from '@/lib/reviewSnippet';
@@ -655,6 +656,60 @@ export default function BusinessScreen() {
         {showIndex ? <QuickIndex sections={secs} active={secs.includes(activeSection) ? activeSection : secs[0]} onGo={goTo} catalogNoun={copy.noun} /> : null}
       </View>
     ) : null;
+  // El muro del perfil (tablero «Perfil del negocio»): lo que ofrece, con foto, mezclado con lo que publicó.
+  // Se ve lo justo (8); «Ver todo» abre el catálogo. Nada inventado: sin fotos ni servicios, no se dibuja.
+  const muroPins: MuroPin[] = (() => {
+    const items = (catalog.data ?? []).filter((it) => it.photos?.length);
+    const posts = photos.filter((ph) => ph.url);
+    const out: MuroPin[] = [];
+    let i = 0;
+    let j = 0;
+    while (out.length < 8 && (i < items.length || j < posts.length)) {
+      if (i < items.length && (out.length % 3 !== 1 || j >= posts.length)) {
+        const it = items[i++];
+        const dur = it.duration_min ? `${it.duration_min} min` : null;
+        out.push({
+          key: `item:${it.id}`,
+          photo: it.photos?.[0],
+          category: business.category?.name,
+          icon: business.category?.icon,
+          title: it.name,
+          sub: [priceText(it), dur].filter(Boolean).join(' · ') || null,
+          onPress: () => router.push({ pathname: '/business/product', params: { entityId: business.id, itemId: it.id } }),
+        });
+      } else if (j < posts.length) {
+        const ph = posts[j];
+        const at = new Date(ph.created_at);
+        out.push({
+          key: `post:${ph.id}`,
+          photo: ph.url,
+          category: business.category?.name,
+          icon: business.category?.icon,
+          title: ph.caption?.trim() || 'Del negocio',
+          chip: { text: at.toLocaleDateString('es-CO', { month: 'short', year: 'numeric' }).replace('.', ''), tone: 'story' },
+          onPress: () => openViewer(photos.indexOf(ph)),
+        });
+        j++;
+      }
+    }
+    return out;
+  })();
+  const muroBlock =
+    !isOwner && muroPins.length ? (
+      <View style={styles.muroWrap}>
+        <View style={styles.muroHead}>
+          <Text style={styles.muroTitle} accessibilityRole="header">
+            Lo que hacen
+          </Text>
+          <Text style={styles.muroCount}>{[(catalog.data ?? []).length ? `${(catalog.data ?? []).length} ${copy.noun}` : null, photos.length ? `${photos.length} fotos` : null].filter(Boolean).join(' · ')}</Text>
+        </View>
+        <Muro pins={muroPins} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Ver todo lo que ofrecen" onPress={() => openCatalog()} style={styles.muroMore}>
+          <Text style={styles.muroMoreText}>Ver todo</Text>
+          <Ionicons name="chevron-down" size={16} color={colors.ink} />
+        </Pressable>
+      </View>
+    ) : null;
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)'));
   const barSpace = isOwner ? 0 : ACTION_BAR_HEIGHT + insets.bottom;
 
@@ -710,6 +765,7 @@ export default function BusinessScreen() {
                   onOpenItem={(item) => router.push({ pathname: '/business/product', params: { entityId: business.id, itemId: item.id } })}
                 />
               ) : null}
+              {muroBlock}
               {/* Con cita, las horas libres ya están arriba: la franja de la agenda sobra. */}
               {FEATURES.agenda && !isOwner && family !== 'cita' ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
               {blockOrder({ isOwner }).map(block)}
@@ -921,6 +977,12 @@ function StarPicker({ value, onChange }: { value: number; onChange: (rating: num
 }
 
 const styles = StyleSheet.create({
+  muroWrap: { paddingHorizontal: spacing.lg, gap: 12, paddingTop: 6 },
+  muroHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
+  muroTitle: { fontFamily: fonts.display.bold, fontSize: 19, color: colors.ink },
+  muroCount: { fontFamily: fonts.ui.bold, fontSize: 12.5, color: colors.muted },
+  muroMore: { minHeight: 46, borderRadius: 23, backgroundColor: colors.selectedSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  muroMoreText: { fontFamily: fonts.ui.extrabold, fontSize: 14, color: colors.ink },
   coach: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.ink },
   coachText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: '#fff' },
   coachBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm },
