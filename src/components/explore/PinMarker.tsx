@@ -39,20 +39,20 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
   const look = [tier, emphasis ?? '', selected ? 's' : '', mine ? 'm' : '', entity.has_active_offer ? 'o' : '', entity.is_open_now ? 'a' : 'c', closesSoon(entity.closes_at) ? 'p' : '', distanceLabel ?? ''].join('|');
   const { tracking, onLayout, onImageSettled, markerRef } = useMarkerTracking(look);
 
-  // Los pines no llevan color por categoría: el aro naranja dice oferta y el punto, cómo está.
-  const cat = { fg: colors.ink, bg: colors.selectedSoft };
+  // Sobre el mapa negro: lo abierto brilla en verde, la oferta lleva su aro coral y lo cerrado queda en grafito.
+  const cat = { fg: entity.is_open_now ? colors.glow : '#5B606B', bg: colors.selectedSoft };
   const open = entity.has_hours ? entity.is_open_now : true;
   const icon = (entity.category_icon || 'storefront') as keyof typeof Ionicons.glyphMap;
   const thumb = entity.profile_url ? resolveImageUrl(entity.profile_url) : null;
   const hasOffer = entity.has_active_offer;
   const showRayo = hasOffer && (entity.active_offer?.type === 'HORAS' || entity.active_offer?.type === 'DIA');
-  const borderColor = selected ? colors.ink : hasOffer ? colors.accent : '#ffffff';
-  const statusColor = !open ? '#8E929A' : closesSoon(entity.closes_at) ? colors.warning : '#0D7A5F';
+  const borderColor = selected ? '#ffffff' : hasOffer ? colors.accent : open ? colors.glow : '#5B606B';
+  const statusColor = !open ? '#8E929A' : closesSoon(entity.closes_at) ? '#FFFFFF' : colors.glow;
   const coordinate = { latitude: entity.latitude, longitude: entity.longitude };
 
   if (emphasis) {
     const closed = entity.has_hours && !entity.is_open_now;
-    const ring = selected ? colors.ink : closed ? '#8E929A' : hasOffer ? colors.accent : emphasis === 'big' ? colors.primary : '#ffffff';
+    const ring = selected ? '#ffffff' : closed ? '#5B606B' : hasOffer ? colors.accent : colors.glow;
     const faded = closed ? styles.closedFade : null;
     return (
       <Marker
