@@ -4,7 +4,7 @@ import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { canLeave, dayKey, fullWelcomeToday } from '@/lib/finderWelcome';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { colors, fonts, softShadow } from '@/theme';
+import { colors, fonts } from '@/theme';
 
 const FILE = `${FileSystem.documentDirectory ?? ''}finder-welcome.json`;
 
@@ -24,7 +24,7 @@ function saveShown(now: Date) {
   if (FileSystem.documentDirectory) void FileSystem.writeAsStringAsync(FILE, JSON.stringify(dayKey(now))).catch(() => undefined);
 }
 
-/** Una onda verde azulado que sale desde ti, una y otra vez. */
+/** Una onda verde que sale desde ti, una y otra vez. */
 function Wave({ delay, active }: { delay: number; active: boolean }) {
   const [v] = useState(() => new Animated.Value(0));
   useEffect(() => {
@@ -39,7 +39,7 @@ function Wave({ delay, active }: { delay: number; active: boolean }) {
 
 /**
  * Bienvenida a Empre Finder (3.60) mientras llega el mapa, en lugar de una pantalla en blanco con un spinner. La primera
- * vez de cada día sale completa (logo, «Bienvenido a Empre Finder», qué se está buscando y lo que ya se sabe) y dura al
+ * vez de cada día sale completa (logo, «Esto es Empre Finder», qué se está buscando y lo que ya se sabe) y dura al
  * menos 1,5 s; las demás veces solo el logo. Cuando el mapa está listo, el logo se encoge sobre tu punto (el mapa
  * arranca centrado en ti) y la capa se desvanece. Con «Reducir movimiento» no hay ondas ni vuelo: solo un fundido.
  */
@@ -102,7 +102,7 @@ export function FinderWelcome({ ready, zoneName, openLine, onDone }: { ready: bo
       accessible
       accessibilityRole="progressbar"
       accessibilityLiveRegion="polite"
-      accessibilityLabel={full ? `Bienvenido a Empre Finder. Buscando lo abierto${zoneName ? ` en ${zoneName}` : ' cerca de ti'}` : 'Cargando el mapa'}
+      accessibilityLabel={full ? `Esto es Empre Finder. Buscando lo abierto${zoneName ? ` en ${zoneName}` : ' cerca de ti'}` : 'Cargando el mapa'}
       style={[StyleSheet.absoluteFill, styles.veil, { opacity: veil }]}
     >
       <View style={styles.center}>
@@ -115,9 +115,9 @@ export function FinderWelcome({ ready, zoneName, openLine, onDone }: { ready: bo
       </View>
       {full ? (
         <Animated.View style={[styles.copy, rise]}>
-          <Text style={styles.hello}>Bienvenido a</Text>
+          <Text style={styles.hello}>Esto es</Text>
           <Text style={styles.brand}>
-            Empre <Text style={{ color: colors.primary }}>Finder</Text>
+            Empre <Text style={{ color: colors.glow }}>Finder</Text>
           </Text>
           <Text style={styles.sub}>Buscando lo abierto {zoneName ? `en ${zoneName}` : 'cerca de ti'}…</Text>
           {openLine ? (
@@ -133,15 +133,16 @@ export function FinderWelcome({ ready, zoneName, openLine, onDone }: { ready: bo
 }
 
 const styles = StyleSheet.create({
-  veil: { zIndex: 50, backgroundColor: 'rgba(244,247,251,0.92)', alignItems: 'center', justifyContent: 'center' },
+  // El mapa es el ancla negra: la entrada también (tablero «Empre Finder», teléfono 1).
+  veil: { zIndex: 50, backgroundColor: 'rgba(17,19,24,0.96)', alignItems: 'center', justifyContent: 'center' },
   // El logo queda en el centro del mapa, que es donde está tu punto al arrancar.
   center: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'center' },
-  wave: { position: 'absolute', width: 120, height: 120, borderRadius: 60, borderWidth: 2, borderColor: 'rgba(20,184,176,0.55)' },
+  wave: { position: 'absolute', width: 120, height: 120, borderRadius: 60, borderWidth: 2, borderColor: 'rgba(47,217,143,0.55)' },
   copy: { position: 'absolute', left: 24, right: 24, top: '58%', alignItems: 'center', gap: 4 },
-  hello: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.muted },
-  brand: { fontSize: 34, lineHeight: 38, fontFamily: fonts.display.bold, color: colors.ink, letterSpacing: -0.6 },
-  sub: { marginTop: 6, fontSize: 14, fontFamily: fonts.ui.bold, color: colors.muted, textAlign: 'center' },
-  fact: { marginTop: 12, minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.surface, ...softShadow },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#0D7A5F' },
-  factText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.verified },
+  hello: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.nightText },
+  brand: { fontSize: 34, lineHeight: 38, fontFamily: fonts.display.bold, color: '#FFFFFF', letterSpacing: -0.6 },
+  sub: { marginTop: 6, fontSize: 14, fontFamily: fonts.ui.bold, color: colors.nightText, textAlign: 'center' },
+  fact: { marginTop: 12, minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)' },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.glow },
+  factText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.glow },
 });

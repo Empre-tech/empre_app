@@ -67,7 +67,13 @@ export function ClaimQR({ claim, status, now, saved, message, busy, entity, onDi
       >
         <View style={[styles.qr, !active && styles.qrOff]}>
           {/* El QR lleva el id del reclamo; el escáner del negocio lo valida en el servidor. */}
-          <QRCode value={claim.id} size={168} color={colors.ink} backgroundColor="#ffffff" />
+          <QRCode value={claim.id} size={168} color={colors.ink} backgroundColor="#ffffff" ecl="H" />
+          {/* El logo al centro del QR (tablero «Reclamar una oferta»); con corrección alta sigue leyéndose. */}
+          {active ? (
+            <View style={styles.qrLogo} pointerEvents="none">
+              <EmpreSymbol product="master" size={40} animated={false} />
+            </View>
+          ) : null}
         </View>
         {active ? (
           <View style={styles.codeRow}>
@@ -94,7 +100,7 @@ export function ClaimQR({ claim, status, now, saved, message, busy, entity, onDi
 
       {active ? (
         <>
-          {onDirections ? <Button title="Cómo llegar" variant="secondary" onPress={onDirections} /> : null}
+          {onDirections ? <Button title="Cómo llegar" onPress={onDirections} /> : null}
           <Pressable accessibilityRole="button" disabled={busy} onPress={onCancel} style={[styles.cancelBtn, busy && { opacity: 0.55 }]}>
             <Text style={styles.cancel}>Cancelar reclamo y liberar mi cupo</Text>
           </Pressable>
@@ -110,6 +116,7 @@ export function ClaimQR({ claim, status, now, saved, message, busy, entity, onDi
 }
 
 const styles = StyleSheet.create({
+  qrLogo: { position: 'absolute', alignSelf: 'center', top: '50%', marginTop: -24, padding: 4, borderRadius: 14, backgroundColor: '#ffffff' },
   qr: { padding: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.hairline, backgroundColor: '#fff' },
   qrOff: { opacity: 0.3 },
   codeRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', gap: 10 },

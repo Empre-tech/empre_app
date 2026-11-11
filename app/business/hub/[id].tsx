@@ -188,6 +188,19 @@ export default function BusinessHubScreen() {
           </SystemGroup>
         ) : null}
 
+        {/* El día en una frase, armada con plantillas (tablero «Mi negocio · Hoy»): solo lo que sí pasó. */}
+        <Text style={styles.daySentence} accessibilityRole="header">
+          {(FEATURES.agenda && confirmed) || requests || soldToday > 0 ? (
+            <>
+              Hoy {FEATURES.agenda && confirmed ? <>tienes <Text style={styles.dsAgenda}>{`${confirmed} ${confirmed === 1 ? 'cita' : 'citas'}`}</Text></> : null}
+              {FEATURES.agenda && confirmed && requests ? ', ' : ''}
+              {requests ? <Text style={styles.dsUnder}>{`${requests} por responder`}</Text> : null}
+              {soldToday > 0 ? <>{(FEATURES.agenda && confirmed) || requests ? ' y llevas ' : 'llevas '}<Text style={styles.dsMoney}>{formatPesos(soldToday)}</Text></> : null}.
+            </>
+          ) : (
+            'Hoy todavía no hay movimiento. Empieza por lo de abajo.'
+          )}
+        </Text>
         <View style={styles.main}>
           {soldToday > 0 || (FEATURES.agenda && appts.length > 0) ? (
             <View style={styles.mainTop}>
@@ -294,10 +307,14 @@ const styles = StyleSheet.create({
   label: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   dayTrack: { height: 32, borderRadius: 8, justifyContent: 'center', backgroundColor: colors.selectedSoft },
   dayBlock: { position: 'absolute', top: 0, bottom: 0, borderRadius: 6 },
-  dayConfirmed: { backgroundColor: colors.ink },
+  dayConfirmed: { backgroundColor: colors.agenda },
   dayPending: { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.ink },
   dayOn: { shadowColor: colors.ink, shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 3, transform: [{ scale: 1.08 }] },
   dayNow: { position: 'absolute', top: -5, bottom: -5, width: 2, backgroundColor: colors.brand },
+  daySentence: { fontFamily: fonts.display.bold, fontSize: 24, lineHeight: 29, color: colors.ink, marginBottom: 12 },
+  dsAgenda: { color: colors.agenda },
+  dsUnder: { textDecorationLine: 'underline' },
+  dsMoney: { color: colors.finance },
   dayLabels: { flexDirection: 'row', justifyContent: 'space-between' },
   dayLabel: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.faint },
   mainFoot: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingLeft: 16, paddingRight: 12 },

@@ -11,6 +11,7 @@ import { ledgerApi, type InventoryItem, type StockMode } from '@/api/ledger';
 import { useAudienceEnabled, useEntitySections, type SectionPick } from '@/api/sections';
 import { Button } from '@/components/Button';
 import { ProductPhotos, readyIds, slotsFrom, type PhotoSlot } from '@/components/catalog/ProductPhotos';
+import { ReadyChecklist } from '@/components/catalog/ReadyChecklist';
 import { SectionSheet } from '@/components/catalog/SectionSheet';
 import { QuickStockSheet } from '@/components/inventory/QuickStockSheet';
 import { SupplyPicker, type NewSupply, type PickerChoice } from '@/components/inventory/SupplyPicker';
@@ -203,6 +204,7 @@ export default function ItemScreen() {
     setPendingSupplies((p) => p.filter((x) => x.key !== ref));
   };
 
+  const priceN = Number(price.replace(/\D/g, ''));
   const save = async () => {
     const dur = isService ? (customDuration.trim() ? Number(customDuration.trim()) : duration ?? 0) : 0;
     if (name.trim().length < (isVariant ? 1 : 2)) return setError(isVariant ? 'Escribe la variante, por ejemplo Chocolate o Talla M.' : 'Escribe el nombre (mínimo 2 letras).');
@@ -867,6 +869,23 @@ export default function ItemScreen() {
         ) : null}
 
         {stock && stock.sold_28 > 0 ? <Text style={styles.meta}>Vendiste {fmtQty(stock.sold_28)} en las últimas 4 semanas.</Text> : null}
+
+        {!isVariant && !isGroup ? (
+          <ReadyChecklist
+            items={[
+              { key: 'foto', label: 'Foto, para salir en Ofertas', ok: readyIds(photos).length > 0, value: readyIds(photos).length > 0 ? 'Lista' : 'Falta' },
+              { key: 'nombre', label: 'Nombre claro, de menos de 40 letras', ok: name.trim().length >= 3 && name.trim().length <= 40, value: name.trim().length > 40 ? 'Muy largo' : name.trim().length >= 3 ? 'Listo' : 'Falta' },
+              { key: 'precio', label: 'Precio final en pesos', ok: priceN > 0 || from, value: priceN > 0 ? `$${priceN.toLocaleString('es-CO').replace(/,/g, '.')}` : from ? 'Desde' : 'Falta' },
+              { key: 'seccion', label: 'Sección', ok: Boolean(section), value: section ? 'Lista' : 'Falta' },
+              ...(isService
+                ? [
+                    { key: 'dura', label: 'Duración', ok: Boolean(duration) || Number(customDuration) > 0, value: duration ? `${duration} min` : Number(customDuration) > 0 ? `${customDuration} min` : 'Falta' },
+                    ...(FEATURES.agenda ? [{ key: 'reserva', label: 'Se puede reservar', ok: bookable, value: bookable ? 'Sí' : 'Falta' }] : []),
+                  ]
+                : []),
+            ]}
+          />
+        ) : null}
 
         {!isNew ? (
           <View style={{ gap: spacing.xs }}>
