@@ -28,7 +28,7 @@ export const colors = {
   warning: '#111318', // se acaba pronto: negro y subrayado, no naranja
   hairline: '#E4E6EA',
   faint: '#6B7079', // etiquetas pequeñas y pestañas sin elegir
-  placeholder: '#8E929A',
+  placeholder: '#6B7079', // texto de ejemplo en los campos: legible (4,8:1), más claro que el texto
   // Anclas negras y el rojo que brilla sobre ellas
   night: '#111318',
   nightLine: '#22252B',
