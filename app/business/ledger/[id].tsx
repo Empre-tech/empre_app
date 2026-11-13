@@ -218,7 +218,7 @@ export default function LedgerHome() {
                   <Text style={styles.invite}>{openingHero?.note ?? 'Registra tu primera venta. Te toma dos toques.'}</Text>
                 ) : (
                   <View style={styles.minis}>
-                    <Mini label="Te entró" value={formatPesos(entered)} />
+                    <Mini label="Te entró" value={formatPesos(entered)} income />
                     <Mini label="Te fiaron" value={formatPesos(fiado)} />
                     <Mini label="Gastaste" value={formatPesos(expensesTotal)} />
                   </View>
@@ -259,7 +259,7 @@ export default function LedgerHome() {
                         onPress={() => setSelHour(on ? null : b.hour)}
                         style={styles.hourSlot}
                       >
-                        <View style={[styles.hourBar, { height: b.total > 0 ? Math.max(10, (b.total / topBar) * 88) : 4, backgroundColor: on || isTop ? colors.ink : b.total > 0 ? colors.placeholder : b.isFuture ? colors.selectedSoft : colors.line }]} />
+                        <View style={[styles.hourBar, { height: b.total > 0 ? Math.max(10, (b.total / topBar) * 88) : 4, backgroundColor: on || isTop ? colors.finance : b.total > 0 ? colors.financeLight : b.isFuture ? colors.selectedSoft : colors.line }]} />
                         {b.isNow ? <View style={styles.nowLine} /> : null}
                       </Pressable>
                     );
@@ -357,13 +357,14 @@ export default function LedgerHome() {
   );
 }
 
-function Mini({ label, value }: { label: string; value: string }) {
+/** Una de las tres cifras del día: lo que entró va en verde; lo fiado y lo gastado, en negro. */
+function Mini({ label, value, income }: { label: string; value: string; income?: boolean }) {
   return (
     <View style={styles.mini}>
       <Text style={styles.label} numberOfLines={1}>
         {label}
       </Text>
-      <Text style={styles.miniValue} numberOfLines={1} adjustsFontSizeToFit>
+      <Text style={[styles.miniValue, income && { color: colors.finance }]} numberOfLines={1} adjustsFontSizeToFit>
         {value}
       </Text>
     </View>
@@ -419,7 +420,7 @@ const styles = StyleSheet.create({
   count: { flex: 1, minWidth: 0, fontSize: 16, lineHeight: 20, fontFamily: fonts.display.bold, color: colors.ink },
   btnOutline: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   btnOutlineText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  btnRed: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primary },
+  btnRed: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.finance },
   btnRedText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
   card: { gap: 10, padding: 14, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
   hours: { height: 96, flexDirection: 'row', alignItems: 'flex-end', gap: 3 },

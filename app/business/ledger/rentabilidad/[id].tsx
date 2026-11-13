@@ -110,8 +110,8 @@ function Full({ a, entityId, items }: { a: Analytics; entityId: string; items: I
             {cur.name}: te deja {Math.round(cur.margin_pct ?? 0)} %
           </Text>
           <View style={styles.split}>
-            <View style={{ width: `${costShare}%`, backgroundColor: '#B6C1D1' }} />
-            <View style={{ flex: 1, backgroundColor: colors.ink }} />
+            <View style={{ width: `${costShare}%`, backgroundColor: '#CBCED4' }} />
+            <View style={{ flex: 1, backgroundColor: colors.finance }} />
           </View>
           <Mini3 items={[['Lo cobras', formatPesos(price)], ['Te cuesta', formatPesos(cost)], ['Te queda', price - cost < 0 ? `−${formatPesos(cost - price)}` : formatPesos(price - cost)]]} />
         </View>
