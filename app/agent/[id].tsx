@@ -6,6 +6,8 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollVie
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi, type Appointment, type AppointmentService } from '@/api/agenda';
 import { ApiError } from '@/api/client';
+import { NO_PREFS, usable } from '@/lib/agentMemory';
+import { loadAgentPrefs } from '@/lib/agentPrefsStore';
 import { useAuth } from '@/auth/AuthContext';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { clockShort, dayKey, formatDay, nextDays } from '@/lib/agendaFormat';
@@ -49,10 +51,14 @@ export default function AgentBookingScreen() {
   const summary = useQuery({ queryKey: ['agenda-summary', id], queryFn: () => agendaApi.summary(id), enabled: Boolean(id), staleTime: 20_000 });
   const mine = useQuery({ queryKey: ['appointments'], queryFn: agendaApi.mine, staleTime: 60_000 });
   const services = useMemo(() => summary.data?.services.filter((s) => s.active) ?? [], [summary.data]);
+  // «Lo de siempre» respeta lo que pausaste u olvidaste en «Lo que Agent sabe de ti».
+  const prefs = useQuery({ queryKey: ['agent-prefs'], queryFn: loadAgentPrefs }).data ?? NO_PREFS;
   const usual = useMemo(() => {
-    const last = [...(mine.data ?? [])].filter((a) => a.entity_id === id && a.status === 'completed' && a.service_id).sort((a, b) => b.starts_at.localeCompare(a.starts_at))[0];
+    const last = usable(mine.data ?? [], prefs)
+      .filter((a) => a.entity_id === id && a.service_id)
+      .sort((a, b) => b.starts_at.localeCompare(a.starts_at))[0];
     return last ? services.find((s) => s.id === last.service_id) ?? null : null;
-  }, [mine.data, services, id]);
+  }, [mine.data, services, id, prefs]);
 
   const say = (you: string | null, agent: string, next: Step) => {
     setMsgs((m) => (you ? [...m, { id: ++seq.current, from: 'you', text: you }] : m));

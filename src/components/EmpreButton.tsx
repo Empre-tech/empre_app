@@ -124,6 +124,7 @@ export function EmpreButton({ bottom }: { bottom: number }) {
     : [
         ...(signedIn
           ? [
+              { key: 'vuelta', title: 'Armar una vuelta', sub: 'Varias cosas en una salida a pie', icon: 'walk-outline' as IconName, tone: 'plain' as const, go: () => router.push('/vuelta') },
               { key: 'salidas', title: 'Mis salidas', sub: 'Las ofertas que guardaste', icon: 'ticket-outline' as IconName, tone: 'plain' as const, go: () => router.push('/salidas') },
               { key: 'citas', title: 'Mis citas', sub: 'Las que pediste', icon: 'calendar-outline' as IconName, tone: 'plain' as const, go: () => router.push('/appointments') },
               { key: 'saved', title: 'Guardados', sub: 'Los negocios que te gustan', icon: 'bookmark-outline' as IconName, tone: 'plain' as const, go: () => router.push('/favorites') },

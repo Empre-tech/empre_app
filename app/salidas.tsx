@@ -126,6 +126,10 @@ export default function SalidasScreen() {
         <Text style={styles.title} accessibilityRole="header">
           Mis salidas
         </Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Armar una vuelta por el barrio" onPress={() => router.push('/vuelta')} style={styles.vuelta}>
+          <Ionicons name="walk-outline" size={16} color={colors.ink} />
+          <Text style={styles.vueltaText}>Armar una vuelta</Text>
+        </Pressable>
       </View>
 
       {savedMonth > 0 ? (
@@ -346,6 +350,8 @@ function Row({ first, icon, title, sub, tag, agenda, onPress }: { first: boolean
 }
 
 const styles = StyleSheet.create({
+  vuelta: { marginLeft: 'auto', minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1.5, borderColor: colors.line },
+  vueltaText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 20, gap: 22 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10 },

@@ -65,6 +65,8 @@ export default function AskScreen() {
   const [card, setCard] = useState<AskPlace | null>(null);
   const [recents, setRecents] = useState<string[]>([]);
   const [listening, setListening] = useState(false);
+  // Lo dicho por voz se muestra con lo entendido antes de buscar (tablero «Para el cliente», teléfono 2): «Buscar así» o «Corregir».
+  const [heard, setHeard] = useState(false);
   const stopRef = useRef<(() => void) | null>(null);
   const seq = useRef(0);
   const started = useRef(false);
@@ -157,8 +159,7 @@ export default function AskScreen() {
           setText(t);
           if (isFinal && t.trim()) {
             setListening(false);
-            const parsed = liveParse(t);
-            void run(t, parsed.searchFilters);
+            setHeard(true);
           }
         },
         onEnd: () => setListening(false),
@@ -483,7 +484,7 @@ export default function AskScreen() {
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 20 }]} keyboardShouldPersistTaps="handled">
-        {listening || hasLiveFilters ? (
+        {listening || hasLiveFilters || heard ? (
           <View style={styles.liveCard} accessibilityLiveRegion="polite">
             <View style={styles.liveCardHead}>
               <Text style={styles.liveBrand}>EMPRE AI LIVE · BÚSQUEDA</Text>
@@ -498,6 +499,30 @@ export default function AskScreen() {
                   ))
                 : 'Habla con naturalidad: «comida rápida abierta ahora con oferta»…'}
             </Text>
+            {heard && !listening && text.trim() ? (
+              <View style={styles.heardRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setHeard(false);
+                    void run(text, liveParse(text).searchFilters);
+                  }}
+                  style={styles.heardGo}
+                >
+                  <Text style={styles.heardGoText}>Buscar así</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setHeard(false);
+                    setEditing(true);
+                  }}
+                  style={styles.heardFix}
+                >
+                  <Text style={styles.heardFixText}>Corregir</Text>
+                </Pressable>
+              </View>
+            ) : null}
             {hasLiveFilters ? (
               <View style={styles.chips}>
                 {live.searchFilters.open_now ? (
@@ -640,6 +665,11 @@ function ResultRow({ b, tone, onOpen }: { b: AskPlace; tone: number; onOpen: () 
 }
 
 const styles = StyleSheet.create({
+  heardRow: { flexDirection: 'row', gap: 8 },
+  heardGo: { flex: 1, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ink },
+  heardGoText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.surface },
+  heardFix: { flex: 1, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.line },
+  heardFixText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
   altGroup: { gap: 8 },
   altHead: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   ideas: { flexDirection: 'row', gap: 8 },
