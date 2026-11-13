@@ -3,6 +3,7 @@ import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Marker } from 'react-native-maps';
 
+import { categoryColor } from '@/lib/categoryColor';
 import { bubbleSize, bubbleText } from '@/lib/mapLevels';
 import { bubbleLabel } from '@/lib/markerLabels';
 import { colors, fonts, radius } from '@/theme';
@@ -14,8 +15,8 @@ interface Props {
   count: number;
   /** Algún negocio de la burbuja tiene oferta vigente: anillo ámbar y rayo, sin cantidad. */
   hasOffer: boolean;
-  /** Color de la categoría que más se repite. */
-  color: string;
+  /** Color de la categoría que más se repite: la burbuja va en su tono claro, con el borde en el color. */
+  color?: string | null;
   /** Nombre de la zona (nivel 1), si el centro cae en una. */
   label?: string | null;
   onPress: () => void;
@@ -29,6 +30,7 @@ interface Props {
 function BubbleMarkerView({ latitude, longitude, count, hasOffer, color, label, onPress }: Props) {
   const { tracking, onLayout, markerRef } = useMarkerTracking();
   const size = bubbleSize(count);
+  const tone = categoryColor(color ?? colors.sandInk);
   return (
     <Marker
       ref={markerRef}
@@ -45,7 +47,7 @@ function BubbleMarkerView({ latitude, longitude, count, hasOffer, color, label, 
       }}
     >
       <View collapsable={false} onLayout={onLayout} style={styles.wrap}>
-        <View style={[styles.bubble, { width: size, height: size, borderRadius: size / 2, backgroundColor: color, borderColor: hasOffer ? colors.accent : '#ffffff' }]}>
+        <View style={[styles.bubble, { width: size, height: size, borderRadius: size / 2, backgroundColor: tone.bg, borderColor: hasOffer ? colors.accent : tone.fg }]}>
           <Text style={styles.count}>{bubbleText(count)}</Text>
           {hasOffer ? (
             <View style={styles.bolt}>
@@ -78,8 +80,8 @@ export const BubbleMarker = memo(
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center', padding: 8 },
-  bubble: { borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
-  count: { fontSize: 14, fontFamily: fonts.display.bold, color: colors.ink },
+  bubble: { borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  count: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   bolt: {
     position: 'absolute',
     top: -6,
@@ -94,5 +96,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   label: { marginTop: 4, maxWidth: 150, height: 22, paddingHorizontal: 9, borderRadius: radius.pill, backgroundColor: colors.sand, justifyContent: 'center' },
-  labelText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  labelText: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.ink },
 });

@@ -40,7 +40,7 @@ import { FeaturedOffer, OfferRow, OfferTile, TILE_GAP, TILE_W, ZONE_W, ZoneCard 
 import { Showcase } from '@/components/offers/Showcase';
 import { SkeletonBlock } from '@/components/Skeleton';
 import type { ServiceItem } from '@/lib/catalog';
-import { mediaUrl } from '@/lib/image';
+import { mediaUrl, resolveImageUrl } from '@/lib/image';
 import { onFootOrDistance } from '@/lib/format';
 import { loadLastCity, saveLastCity } from '@/lib/lastCityStore';
 import { displayIcon } from '@/lib/mapView';
@@ -74,6 +74,15 @@ import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 
 type Coords = { latitude: number; longitude: number };
 
+/** El primer nivel de Ofertas: el tipo de negocio que trae cada categoría. Pocas, claras y sin repetir. */
+const FAMILIES = [
+  { id: 'food', name: 'Comida', icon: 'restaurant-outline' },
+  { id: 'shop', name: 'Tiendas', icon: 'bag-handle-outline' },
+  { id: 'service', name: 'Servicios', icon: 'construct-outline' },
+  { id: 'valuable', name: 'Joyas y tecnología', icon: 'diamond-outline' },
+  { id: 'other', name: 'Otros', icon: 'grid-outline' },
+];
+
 const COMPACT_AT = 72; // px bajados para pasar a la barra compacta
 const MINI_H = 60; // alto de la barra compacta (la lista no queda debajo al saltar a una zona)
 
@@ -101,7 +110,8 @@ export default function OffersScreen() {
   const [coords, setCoords] = useState<Coords | null>(null);
   const [locAsked, setLocAsked] = useState(false);
   const [lastCity, setLastCity] = useState<string | null>(null); // null = aún leyendo el teléfono
-  const [catId, setCatId] = useState<string | undefined>(); // categoría elegida en la fila con iconos
+  const [catId, setCatId] = useState<string | undefined>(); // categoría elegida (segundo nivel)
+  const [fam, setFam] = useState<string | undefined>(); // tipo de negocio elegido (primer nivel: comida, tiendas…)
   const [term, setTerm] = useState<string | undefined>();
   const [sort, setSort] = useState<MarketSort>('near');
   const [zone, setZone] = useState<string | undefined>();
@@ -174,7 +184,8 @@ export default function OffersScreen() {
   }, [text]);
 
   const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 5 * 60_000 });
-  const category = catId;
+  // El filtro: la categoría elegida; si solo hay tipo de negocio, todas las suyas (el servidor acepta varias).
+  const category = catId ?? (fam ? (categories.data ?? []).filter((c) => c.profile === fam).map((c) => c.id).join(',') || undefined : undefined);
   const center = picked ?? coords;
   const hasLoc = center !== null;
   const sortNow = effectiveSort(sort, hasLoc);
@@ -353,15 +364,10 @@ export default function OffersScreen() {
   // Las ofertas son el tema, por secciones (tablero «Empre Offers»): cada una una vez, sin repetir foto.
   // Categorías en un solo nivel: las principales; las hijas aparecen al elegir su madre.
   const allCats = useMemo(() => categories.data ?? [], [categories.data]);
-  const topCats = useMemo(() => {
-    const tops = allCats.filter((c) => !c.parent_id);
-    return (tops.length ? tops : allCats).slice(0, 10);
-  }, [allCats]);
-  const selectedTop = useMemo(() => {
-    const c = allCats.find((x) => x.id === catId);
-    return c ? (c.parent_id ? allCats.find((x) => x.id === c.parent_id) ?? c : c) : undefined;
-  }, [allCats, catId]);
-  const subCats = useMemo(() => (selectedTop ? allCats.filter((c) => c.parent_id === selectedTop.id).slice(0, 12) : []), [allCats, selectedTop]);
+  // Las categorías llegan sueltas (84, sin madre): el primer nivel es su tipo de negocio, que cada una ya trae.
+  const topCats = useMemo(() => FAMILIES.filter((f) => allCats.some((c) => c.profile === f.id)), [allCats]);
+  const selectedTop = topCats.find((f) => f.id === fam);
+  const subCats = useMemo(() => (fam ? allCats.filter((c) => c.profile === fam).slice(0, 14) : []), [allCats, fam]);
   const offerRails = useMemo(() => (q || category ? [] : offerSections(knownOffers, now)), [knownOffers, now, q, category]);
   // Un asomo de «Lo que venden cerca»: cuatro fotos de negocios distintos.
   const nearbyPeek = useMemo(
@@ -371,6 +377,17 @@ export default function OffersScreen() {
         6,
       ),
     [catalogsByEntity],
+  );
+  // Si los productos aún no tienen foto, el asomo usa la foto de cada negocio cerca: nunca queda en blanco.
+  const peek = useMemo(
+    () =>
+      nearbyPeek.length >= 4
+        ? nearbyPeek
+        : nearbyBiz
+            .map((b) => ({ id: b.id, entityId: b.id, photo: resolveImageUrl(b.photos?.[0] ?? b.profile_url) ?? undefined, name: b.name }))
+            .filter((x) => Boolean(x.photo))
+            .slice(0, 6),
+    [nearbyPeek, nearbyBiz],
   );
 
   const pickZone = (id: string) => {
@@ -549,13 +566,22 @@ export default function OffersScreen() {
               </ScrollView>
             ) : null}
             {/* Un solo nivel: las categorías principales en una fila, con los filtros al lado */}
-            <FilterRow cats={topCats} catId={selectedTop?.id} onCat={setCatId} tags={tags} onOpen={() => setFiltersOpen(true)} />
+            <FilterRow
+              cats={topCats}
+              catId={fam}
+              onCat={(id) => {
+                setFam(id);
+                setCatId(undefined);
+              }}
+              tags={tags}
+              onOpen={() => setFiltersOpen(true)}
+            />
             {/* Lo de adentro (Pescados, Panadería…) solo después de elegir una principal */}
             {selectedTop && subCats.length ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats} accessibilityLabel={`Dentro de ${selectedTop.name}`}>
-                <Chip label={`Todo ${selectedTop.name.toLowerCase()}`} active={catId === selectedTop.id} onPress={() => setCatId(selectedTop.id)} />
+                <Chip label={`Todo ${selectedTop.name.toLowerCase()}`} active={!catId} onPress={() => setCatId(undefined)} />
                 {subCats.map((c) => (
-                  <Chip key={c.id} label={c.name} active={catId === c.id} onPress={() => setCatId(catId === c.id ? selectedTop.id : c.id)} />
+                  <Chip key={c.id} label={c.name} active={catId === c.id} onPress={() => setCatId(catId === c.id ? undefined : c.id)} />
                 ))}
               </ScrollView>
             ) : null}
@@ -607,7 +633,13 @@ export default function OffersScreen() {
         {home ? (
           <>
             {/* 3 · Los negocios dan la cara */}
-            {show === 'services' ? <BizFaces faces={faces.filter((f) => !f.hasOffer)} onOpen={setFace} /> : <BizFaces faces={faces.filter((f) => f.hasOffer)} onOpen={setFace} />}
+            {show === 'services' ? (
+              <BizFaces faces={faces.filter((f) => !f.hasOffer)} onOpen={setFace} />
+            ) : faces.some((f) => f.hasOffer) ? (
+              <BizFaces faces={faces.filter((f) => f.hasOffer)} onOpen={setFace} />
+            ) : (
+              <BizFaces faces={faces} onOpen={setFace} title="Negocios a la puerta" />
+            )}
 
             {!data && (market.isLoading || !ready) ? (
               <View style={styles.rail}>
@@ -678,7 +710,7 @@ export default function OffersScreen() {
             {alertZone && show !== 'services' ? <OfferAlertCard zoneId={alertZone.id} zoneName={alertZone.name} categoryId={alertCat?.id} categoryName={alertCat?.name} /> : null}
 
             {/* Aparte: lo que venden cerca. Nunca mezclado con las ofertas */}
-            {!q && nearbyPeek.length ? (
+            {!q && peek.length ? (
               <Pressable accessibilityRole="button" accessibilityLabel="Lo que venden cerca: productos y servicios" onPress={() => router.push('/cerca')} style={styles.peek}>
                 <View style={styles.railHead}>
                   <View style={{ flex: 1 }}>
@@ -690,7 +722,7 @@ export default function OffersScreen() {
                   <Text style={styles.seeAllText}>Explorar ›</Text>
                 </View>
                 <View style={styles.peekRow}>
-                  {nearbyPeek.slice(0, offerRails.length ? 4 : 6).map((x) => (
+                  {peek.slice(0, offerRails.length ? 4 : 6).map((x) => (
                     <View key={x.id} style={[styles.peekCell, !offerRails.length && styles.peekCellWide]}>
                       <ExpoImage source={{ uri: x.photo }} style={styles.peekImg} contentFit="cover" accessibilityIgnoresInvertColors />
                       <Text style={styles.peekText} numberOfLines={1}>

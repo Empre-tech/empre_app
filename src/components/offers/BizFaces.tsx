@@ -9,12 +9,12 @@ import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, softShadow } from '@/theme';
 
 /** «Negocios ofreciendo hoy» (3.61): aro naranja si tiene oferta, en tinta si solo publica catálogo. */
-export function BizFaces({ faces, onOpen }: { faces: BizFace[]; onOpen: (f: BizFace) => void }) {
+export function BizFaces({ faces, onOpen, title = 'Negocios ofreciendo hoy' }: { faces: BizFace[]; onOpen: (f: BizFace) => void; title?: string }) {
   if (!faces.length) return null;
   return (
     <View style={styles.sec}>
       <Text style={styles.title} accessibilityRole="header">
-        Negocios ofreciendo hoy
+        {title}
       </Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
         {faces.map((f) => (

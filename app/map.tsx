@@ -412,6 +412,8 @@ export default function MapScreen() {
   );
   const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 5 * 60_000 });
   const groups = useMemo(() => buildGroups(categories.data ?? []), [categories.data]);
+  // Color de cada categoría para teñir en claro las burbujas de zona con lo que más hay en ellas.
+  const catColors = useMemo(() => new Map((categories.data ?? []).map((c) => [c.id, c.color ?? null] as const)), [categories.data]);
   // Lo que se manda como filtro: la categoría, o todas las del grupo elegido.
   const catFilter = categoryFilter(groupId, categoryId, groups);
   const searching = debouncedSearch.length > 0;
@@ -1160,20 +1162,20 @@ export default function MapScreen() {
                   center={reference}
                   radius={radiusKm * 1000}
                   strokeWidth={1.5}
-                  strokeColor={colors.ink}
-                  fillColor="rgba(14,35,70,0.06)"
+                  strokeColor={colors.brand}
+                  fillColor="rgba(240,50,50,0.06)"
                 />
               ) : null}
               {/* Sin círculo ni nombre de la zona (3.30): la franja de arriba ya dice dónde estás. */}
               {revealed.map((m) =>
                 m.kind === 'bubble' ? (
                   <BubbleMarker
-                    key={m.key}
+                    key={`${m.key}-${catColors.get(m.categoryId ?? '') ?? ''}`}
                     latitude={m.latitude}
                     longitude={m.longitude}
                     count={m.count}
                     hasOffer={m.hasOffer}
-                    color={colors.ink}
+                    color={catColors.get(m.categoryId ?? '')}
                     label={m.label}
                     onPress={() => onBubblePress(m.latitude, m.longitude)}
                   />
