@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
   labelSpacer: { height: 26 },
   label: { marginTop: 4, maxWidth: 178, height: 24, paddingHorizontal: 10, borderRadius: radius.pill, backgroundColor: colors.ink, justifyContent: 'center' },
   labelText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  labelDistance: { color: '#FFD2A6', fontFamily: fonts.ui.extrabold },
+  labelDistance: { color: colors.nightText, fontFamily: fonts.ui.extrabold },
   pinBig: { width: 56, height: 56, borderRadius: 28, borderWidth: 4, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   thumbBig: { width: 48, height: 48, borderRadius: 24 },
   pinDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: '#fff', opacity: 0.8 },

@@ -40,6 +40,7 @@ import { Showcase } from '@/components/offers/Showcase';
 import { SkeletonBlock } from '@/components/Skeleton';
 import type { ServiceItem } from '@/lib/catalog';
 import { mediaUrl } from '@/lib/image';
+import { onFootOrDistance } from '@/lib/format';
 import { loadLastCity, saveLastCity } from '@/lib/lastCityStore';
 import { displayIcon } from '@/lib/mapView';
 import { applyFilters, availableLenses, bizFaces, lensItems, type BizFace, type LensKey } from '@/lib/offerLenses';
@@ -52,6 +53,7 @@ import {
   flattenPages,
   listTitle,
   mergeCatalogIntoMarket,
+  nearestOtherZone,
   nearEnd,
   pesos,
   showZones,
@@ -302,11 +304,6 @@ export default function OffersScreen() {
 
   const sections = q ? [] : visibleSections(data);
 
-  // Servicios del catálogo destacados para su propia fila cuando hay tanto ofertas como catálogo
-  const catalogSpotlightItems = useMemo(
-    () => mergedNear.filter((o) => o.kind === 'service' || Boolean(o.service_id)).slice(0, 10),
-    [mergedNear],
-  );
 
   const zonesOn = !q && showZones(data);
   const zoneName = data?.zones.find((z) => z.id === zoneId)?.name;
@@ -326,6 +323,19 @@ export default function OffersScreen() {
   const lensRest = lensList.slice(3, 7);
   const halfW = Math.floor((win.width - 40 - 10) / 2);
 
+  // Pocas ofertas aquí (tablero «Ofertas», teléfono 4): de cerca a lejos, primero las de tu puerta y luego el barrio
+  // vecino con lo mismo. Nunca se rellena con el catálogo.
+  const few = Boolean(data) && !q && lensList.length < 4;
+  const vecino = few ? nearestOtherZone(data?.zones ?? [], [zoneId, picked?.id]) : null;
+  const vecinoQ = useQuery({
+    queryKey: ['offers-vecino', placeKey, category ?? 'all', vecino?.id ?? ''],
+    queryFn: () => offersApi.marketAll({ ...place, category, zone: vecino?.id, sort: 'near' }),
+    enabled: ready && Boolean(vecino),
+    staleTime: 60_000,
+  });
+  const vecinoItems = useMemo(() => (vecinoQ.data?.items ?? []).filter((o) => o.kind !== 'service').slice(0, 6), [vecinoQ.data]);
+  const vecinoLejos = vecino ? onFootOrDistance((vecino.distance_meters ?? 0) / 1000) : null;
+
   // Todas las ofertas conocidas (sin servicios): para los negocios que dan la cara y su vitrina.
   const knownOffers = useMemo(() => {
     const d = data;
@@ -334,7 +344,6 @@ export default function OffersScreen() {
     return raw.filter((o) => o.kind !== 'service' && (seen.has(o.id) ? false : (seen.add(o.id), true)));
   }, [data, rawAllItems]);
   const faces = useMemo(() => bizFaces(nearbyBiz, knownOffers, catalogsByEntity), [nearbyBiz, knownOffers, catalogsByEntity]);
-  const catalogRow = useMemo(() => (openOnly ? catalogSpotlightItems.filter((o) => o.open_now !== false) : catalogSpotlightItems), [catalogSpotlightItems, openOnly]);
 
   const pickZone = (id: string) => {
     const z = data?.zones.find((x) => x.id === id);
@@ -357,7 +366,7 @@ export default function OffersScreen() {
     setOpenOnly(false);
   };
 
-  const zoneTitle = picked ? `Vitrina en ${picked.name}` : coords ? 'Catálogo y ofertas cerca' : city ? `Catálogo y ofertas en ${city}` : 'Catálogo y ofertas';
+  const zoneTitle = picked ? `Ofertas en ${picked.name}` : coords ? 'Ofertas cerca' : city ? `Ofertas en ${city}` : 'Ofertas';
 
   const [bar] = useState(() => new Animated.Value(0));
   useEffect(() => {
@@ -465,7 +474,7 @@ export default function OffersScreen() {
         <View style={styles.heroRow}>
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={styles.hero} accessibilityRole="header">
-              {home ? zoneTitle : 'Catálogo y ofertas'}
+              {home ? zoneTitle : 'Todas las ofertas'}
             </Text>
             <Text style={styles.heroSub}>
               Servicios con precio al día, productos y ofertas activas · Pregunta con Empre AI
@@ -619,33 +628,26 @@ export default function OffersScreen() {
             {data && !lenses.length && show !== 'services' ? (
               <View style={styles.emptyCard}>
                 <Text style={styles.emptyTitle}>{`Hoy no hay ofertas ${picked ? `en ${picked.name}` : data.zone ? `en ${data.zone}` : 'cerca'}`}</Text>
-                <Text style={styles.emptyText}>Cuando un negocio de tu zona publique una, sale aquí. Mientras tanto, mira lo que ofrecen en su catálogo o busca en toda la ciudad.</Text>
+                <Text style={styles.emptyText}>Cuando un negocio de tu zona publique una, sale aquí.</Text>
                 <Button title={city ? `Ver toda ${city}` : 'Ver todas'} variant="secondary" onPress={() => openAll(false)} />
               </View>
             ) : null}
 
-            {/* Del catálogo: siempre aparte de las ofertas */}
-            {show !== 'offers' && catalogRow.length > 0 ? (
+            {/* Pocas ofertas: el barrio vecino, con lo mismo que estás viendo */}
+            {vecino && vecinoItems.length && show !== 'services' ? (
               <View style={styles.sec}>
                 <View style={styles.railHead}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.shTitle} accessibilityRole="header">
-                      Del catálogo de los negocios
+                      {`En ${vecino.name}`}
                     </Text>
-                    <Text style={styles.shWhy}>Precios publicados por cada local · Mira al instante si tienen oferta</Text>
+                    <Text style={styles.shWhy}>{[`${vecinoItems.length === 1 ? '1 oferta' : `${vecinoItems.length} ofertas`}`, vecinoLejos].filter(Boolean).join(' · ')}</Text>
                   </View>
-                  <Pressable
-                    accessibilityRole="link"
-                    onPress={() => {
-                      setVitrinaFilter('services');
-                      openAll(false);
-                    }}
-                    style={styles.seeAll}
-                  >
-                    <Text style={styles.seeAllText}>Ver catálogo</Text>
+                  <Pressable accessibilityRole="link" accessibilityLabel={`Ver las ofertas de ${vecino.name}`} onPress={() => pickZone(vecino.id)} style={styles.seeAll}>
+                    <Text style={styles.seeAllText}>Ver todas</Text>
                   </Pressable>
                 </View>
-                {rail(catalogRow)}
+                {rail(vecinoItems)}
               </View>
             ) : null}
           </>

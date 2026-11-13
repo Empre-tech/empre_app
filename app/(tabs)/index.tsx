@@ -4,35 +4,28 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { agendaApi } from '@/api/agenda';
 import { catalogApi } from '@/api/catalog';
 import type { ServiceItem } from '@/lib/catalog';
-import { entitiesApi } from '@/api/endpoints';
 import { novedadesApi } from '@/api/novedades';
-import { claimsApi, discoveryApi, offersApi } from '@/api/offers';
+import { discoveryApi, offersApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
 import { Avatar } from '@/components/Avatar';
 import { BusinessCardModal } from '@/components/explore/BusinessCardModal';
 import type { WithDistance } from '@/components/explore/FeaturedCard';
 import { useZones } from '@/components/explore/useZoneName';
-import { EmpreAISheet } from '@/components/ai/EmpreAISheet';
 import type { DoorRect } from '@/components/home/HomeDoors';
 import { Muro, type MuroPin } from '@/components/home/Muro';
 import { PuertaMapa } from '@/components/home/PuertaMapa';
 import { MarketItemSheet } from '@/components/offers/MarketItemSheet';
 import { SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
 import { ZoneButton, ZoneList } from '@/components/ZoneButton';
-import { FEATURES } from '@/config';
-import { effectiveClaimStatus } from '@/lib/claims';
 import { mediaUrl } from '@/lib/image';
 import { dayLabel, stripEntries } from '@/lib/novedades';
 import { onFootOrDistance } from '@/lib/format';
 import { mergeCatalogIntoMarket, priceView, type MarketItem } from '@/lib/offerMarket';
 import { useCoords } from '@/lib/useCoords';
 import { useReduceMotion } from '@/lib/useReduceMotion';
-import { colors, fonts, softShadow } from '@/theme';
-
-type IconName = keyof typeof Ionicons.glyphMap;
+import { colors, fonts } from '@/theme';
 
 function whenLabel(iso: string, now: number): string {
   const min = Math.floor((now - Date.parse(iso)) / 60_000);
@@ -42,26 +35,11 @@ function whenLabel(iso: string, now: number): string {
   return dayLabel(iso, now);
 }
 
-/** «hoy 4:30 pm», «mañana 10:00 am» o «vie 9:00 am». */
-function apptWhen(iso: string, now: number): string {
-  const d = new Date(iso);
-  const h = d.getHours();
-  const time = `${h % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`;
-  const today = new Date(now);
-  const days = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 86_400_000);
-  const day = days === 0 ? 'hoy' : days === 1 ? 'mañana' : d.toLocaleDateString('es-CO', { weekday: 'short' }).replace('.', '');
-  return `${day} ${time}`;
-}
-
-function expiresIn(iso: string, now: number): string {
-  const min = Math.max(1, Math.ceil((Date.parse(iso) - now) / 60_000));
-  return min < 60 ? `Vence en ${min} min` : `Vence en ${Math.floor(min / 60)} h`;
-}
-
 /**
- * Inicio de Empre en capas (3.59): 1 · buscar y puertas, con una franja que cambia con la hora; 2 · lo tuyo, solo lo que
- * está en curso; 3 · «Para ti», como mucho 3 recomendaciones por reglas fijas que llevan directo a lo importante; 4 · lo
- * nuevo en tu zona. Con pocos datos cada capa se encoge o no se dibuja: nunca se rellena con datos inventados.
+ * Inicio (tablero «Inicio a la puerta»): solo dos cosas, una entrada al mapa y las novedades. Buscar, Empre AI, tus citas
+ * y tus salidas viven en el mapa y en el botón Empre; aquí no se repiten. Arriba, lo nuevo de los negocios que sigues; al
+ * bajar, el muro de lo que publicaron los negocios cerca. Con pocos datos cada parte se encoge o no se dibuja: nunca se
+ * rellena con datos inventados.
  */
 export default function HomeScreen() {
   const router = useRouter();
@@ -74,7 +52,6 @@ export default function HomeScreen() {
   const [zonesOpen, setZonesOpen] = useState(false);
   const [card, setCard] = useState<WithDistance | null>(null);
   const [previewItem, setPreviewItem] = useState<MarketItem | null>(null);
-  const [aiOpen, setAiOpen] = useState(false);
   // La hora del inicio: se fija al entrar y se renueva cada vez que vuelves a él (de ella salen la franja y «Para ti»).
   const [now, setNow] = useState(() => Date.now());
   // La puerta Explorar se abre hasta llenar la pantalla y ahí empieza el mapa (3.60).
@@ -98,9 +75,6 @@ export default function HomeScreen() {
   const open = useQuery({ queryKey: ['home-near', ...placeKey], queryFn: () => discoveryApi.discover({ ...place, limit: 12 }), staleTime: 60_000 });
   const market = useQuery({ queryKey: ['home-market', ...placeKey], queryFn: () => offersApi.market(place), staleTime: 60_000 });
   const news = useQuery({ queryKey: ['novedades'], queryFn: novedadesApi.list, enabled: signedIn, staleTime: 60_000 });
-  const appts = useQuery({ queryKey: ['appointments'], queryFn: agendaApi.mine, enabled: signedIn && FEATURES.agenda, staleTime: 60_000 });
-  const claims = useQuery({ queryKey: ['my-claims'], queryFn: claimsApi.mine, enabled: signedIn, staleTime: 30_000 });
-  const mine = useQuery({ queryKey: ['my-entities'], queryFn: entitiesApi.mine, enabled: signedIn, staleTime: 60_000 });
 
   const nearBizList = useMemo(() => (open.data?.items ?? []).slice(0, 6), [open.data]);
   const catalogQueries = useQueries({
@@ -135,15 +109,6 @@ export default function HomeScreen() {
   const openNear = useMemo(() => discovery.filter((b) => b.is_open_now), [discovery]);
   const mapItems = useMemo(() => openNear.filter((b) => b.latitude && b.longitude).slice(0, 8), [openNear]);
 
-  // Capa 2 · Lo tuyo: solo lo que está en curso.
-  const nextAppt = useMemo(
-    () =>
-      [...(appts.data ?? [])]
-        .filter((a) => (a.status === 'confirmed' || a.status === 'requested') && Date.parse(a.ends_at) > now && Date.parse(a.starts_at) - now < 48 * 3_600_000)
-        .sort((a, b) => a.starts_at.localeCompare(b.starts_at))[0] ?? null,
-    [appts.data, now],
-  );
-  const activeClaims = useMemo(() => (claims.data ?? []).filter((c) => effectiveClaimStatus(c, now) === 'RECLAMADO').slice(0, 2), [claims.data, now]);
   const newsAll = useMemo(() => news.data ?? [], [news.data]);
   const unseen = newsAll.filter((n) => n.unseen);
   const strip = useMemo(() => stripEntries(newsAll), [newsAll]);
@@ -177,21 +142,8 @@ export default function HomeScreen() {
     });
   };
 
-  const ask = (q?: string, voice = false) => router.push({ pathname: '/ask', params: { ...(q ? { q } : {}), ...(voice ? { voice: '1' } : {}) } });
-
-  // Más en Empre: lo que no está en las pestañas (sin repetir Ofertas ni Mensajes).
-  const firstBiz = (mine.data ?? [])[0];
-  const mas: { key: string; title: string; sub: string; icon: IconName; tone: 'night' | 'agenda' | 'plain'; onPress: () => void }[] = [
-    { key: 'ai', title: 'Pregúntale a Empre AI', sub: 'Te responde al instante', icon: 'sparkles', tone: 'night', onPress: () => setAiOpen(true) },
-    ...(FEATURES.agenda
-      ? [{ key: 'citas', title: 'Reserva una hora', sub: nextAppt ? `Tu cita ${apptWhen(nextAppt.starts_at, now)}` : 'Con quien tenga libre', icon: 'calendar-outline' as IconName, tone: 'agenda' as const, onPress: () => router.push('/appointments') }]
-      : []),
-    firstBiz
-      ? { key: 'negocio', title: 'Mi negocio', sub: firstBiz.name, icon: 'storefront-outline', tone: 'plain', onPress: () => router.push({ pathname: '/business/hub/[id]', params: { id: firstBiz.id } }) }
-      : { key: 'negocio', title: '¿Tienes un negocio?', sub: 'Súmalo gratis en 2 min', icon: 'storefront-outline', tone: 'plain', onPress: () => router.push('/business/new') },
-  ];
-
-  const hasTuyo = Boolean(nextAppt) || activeClaims.length > 0 || strip.length > 0;
+  // Cuántos negocios hay a la puerta: el número sale de lo que encontró el mapa, nunca inventado.
+  const nearCount = discovery.length;
 
   return (
     <View style={styles.screen}>
@@ -225,103 +177,43 @@ export default function HomeScreen() {
           {/* La invitación, explícita */}
           <View style={styles.greet}>
             <Text style={styles.title} accessibilityRole="header">
-              Los negocios a la puerta de tu casa
+              {nearCount > 1 ? `${nearCount} negocios a la puerta de tu casa` : 'Los negocios a la puerta de tu casa'}
             </Text>
             <Text style={styles.lead}>Entra y mira quién está abierto ahora, a pocos pasos.</Text>
           </View>
 
-          <PuertaMapa items={mapItems} center={center} openCount={openNear.length} ticker={newsAll.slice(0, 6)} whenOf={(iso) => whenLabel(iso, now)} onExplore={openExplore} />
+          <PuertaMapa items={mapItems} center={center} openCount={openNear.length} ticker={[]} whenOf={(iso) => whenLabel(iso, now)} onExplore={openExplore} />
 
-          <View style={styles.searchPill}>
-            <Pressable accessibilityRole="search" accessibilityLabel="Busca lo que necesitas" onPress={() => ask()} style={styles.searchTap}>
-              <Ionicons name="search" size={20} color={colors.ink} />
-              <Text style={styles.searchText} numberOfLines={1}>
-                O busca lo que necesitas
+          {strip.length ? (
+            <View style={styles.section}>
+              <Text style={styles.secTitle} accessibilityRole="header">
+                Lo nuevo de los que sigues
               </Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Buscar hablando" onPress={() => ask(undefined, true)} style={styles.mic}>
-              <Ionicons name="mic-outline" size={18} color={colors.ink} />
-            </Pressable>
-          </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.followIn}>
+                {strip.map((w) => (
+                  <Pressable key={w.entityId} accessibilityRole="button" accessibilityLabel={`${w.name}${w.ring === 'offer' ? ', oferta nueva' : w.ring === 'post' ? ', publicó' : ''}`} onPress={() => router.push({ pathname: '/business/[id]', params: { id: w.entityId } })} style={styles.follow}>
+                    <View style={[styles.followRing, { borderColor: w.ring === 'none' ? colors.line : colors.brand }]}>
+                      <Avatar uri={w.profileUrl} name={w.name} size={56} />
+                    </View>
+                    <Text style={styles.followName} numberOfLines={2}>
+                      {w.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
         </View>
 
-        {/* Más en Empre */}
-        <Text style={[styles.secTitle, styles.padText]} accessibilityRole="header">
-          Más en Empre
-        </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.masIn}>
-          {mas.map((d) => (
-            <Pressable key={d.key} accessibilityRole="button" accessibilityLabel={`${d.title}. ${d.sub}`} onPress={d.onPress} style={[styles.masCard, d.tone === 'night' && styles.masNight]}>
-              <View style={[styles.masIcon, { backgroundColor: d.tone === 'night' ? colors.glow : d.tone === 'agenda' ? colors.agendaSoft : colors.selectedSoft }]}>
-                <Ionicons name={d.icon} size={18} color={d.tone === 'night' ? colors.night : d.tone === 'agenda' ? colors.agenda : colors.ink} />
-              </View>
-              <View style={styles.masBody}>
-                <Text style={[styles.masTitle, d.tone === 'night' && styles.onNight]} numberOfLines={2}>
-                  {d.title}
-                </Text>
-                <Text style={[styles.masSub, d.tone === 'night' && styles.onNightSub]} numberOfLines={1}>
-                  {d.sub}
-                </Text>
-              </View>
-            </Pressable>
-          ))}
-        </ScrollView>
-
         <View style={[styles.pad, styles.body]}>
-          {/* Lo tuyo: solo lo que está en curso, y los negocios que sigues */}
-          {hasTuyo ? (
-            <SystemSection title="Lo tuyo">
-              {nextAppt || activeClaims.length ? (
-                <SystemGroup>
-                  {nextAppt ? (
-                    <SystemRow
-                      first
-                      icon="calendar-outline"
-                      tag={`Tu cita · ${apptWhen(nextAppt.starts_at, now)}${nextAppt.status === 'requested' ? ' · por confirmar' : ''}`}
-                      title={nextAppt.service?.name ?? 'Cita'}
-                      sub={nextAppt.entity?.name}
-                      onPress={() => router.push({ pathname: '/appointment/[id]', params: { id: nextAppt.id } })}
-                    />
-                  ) : null}
-                  {activeClaims.map((c, i) => (
-                    <SystemRow
-                      key={c.id}
-                      first={!nextAppt && i === 0}
-                      icon="qr-code-outline"
-                      tag={`Oferta reclamada · ${expiresIn(c.expires_at, now)}`}
-                      title={c.offer?.title ?? 'Tu oferta'}
-                      sub={[c.entity_name, 'muestra tu QR en caja'].filter(Boolean).join(' · ')}
-                      alert
-                      onPress={() => router.push({ pathname: '/offer/claim', params: { claimId: c.id, offerId: c.offer_id } })}
-                    />
-                  ))}
-                </SystemGroup>
-              ) : null}
-              {strip.length ? (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.followIn}>
-                  {strip.map((w) => (
-                    <Pressable key={w.entityId} accessibilityRole="button" accessibilityLabel={`${w.name}${w.ring === 'offer' ? ', oferta nueva' : w.ring === 'post' ? ', publicó' : ''}`} onPress={() => router.push({ pathname: '/business/[id]', params: { id: w.entityId } })} style={styles.follow}>
-                      <View style={[styles.followRing, { borderColor: w.ring === 'none' ? colors.line : colors.brand }]}>
-                        <Avatar uri={w.profileUrl} name={w.name} size={56} />
-                      </View>
-                      <Text style={styles.followName} numberOfLines={2}>
-                        {w.name}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              ) : null}
-            </SystemSection>
-          ) : null}
-
-          {/* Al bajar: el muro de lo que ofrecen cerca */}
+          {/* Al bajar: solo novedades, lo que publicaron los negocios cerca */}
           {pins.length ? (
             <View style={styles.section}>
               <View>
                 <Text style={styles.secTitle} accessibilityRole="header">
-                  Cerca de ti, para ver
+                  Lo nuevo cerca
                 </Text>
-                <Text style={styles.secSub}>Lo que ofrecen los negocios de tu barrio. Sigue bajando.</Text>
+                <Text style={styles.secSub}>Lo que publicaron los negocios de tu barrio.</Text>
               </View>
               <Muro pins={pins} />
             </View>
@@ -336,7 +228,6 @@ export default function HomeScreen() {
         <BusinessCardModal entity={card} onClose={() => setCard(null)} origin="home" />
         <MarketItemSheet item={previewItem} onClose={() => setPreviewItem(null)} />
       </ScrollView>
-      <EmpreAISheet visible={aiOpen} onClose={() => setAiOpen(false)} />
       {door ? (
         <Animated.View
           pointerEvents="none"
@@ -361,7 +252,6 @@ const styles = StyleSheet.create({
   door: { position: 'absolute', zIndex: 20, backgroundColor: colors.night },
   content: { paddingBottom: 96, gap: 14 }, // el botón Empre flota encima: lo último no queda debajo
   pad: { paddingHorizontal: 16, gap: 14 },
-  padText: { paddingHorizontal: 16 },
   body: { gap: 26, paddingTop: 10 },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   me: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
@@ -370,26 +260,13 @@ const styles = StyleSheet.create({
   bellDot: { position: 'absolute', top: 10, right: 10, width: 9, height: 9, borderRadius: 5, borderWidth: 2, borderColor: colors.surface, backgroundColor: colors.brand },
   greet: { gap: 4 },
   title: { fontSize: 30, lineHeight: 32, fontFamily: fonts.display.bold, color: colors.ink, letterSpacing: -0.3 },
-  lead: { fontSize: 14.5, fontFamily: fonts.ui.semibold, color: colors.muted },
-  searchPill: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 14, paddingRight: 4, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
-  searchTap: { flex: 1, minWidth: 0, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  searchText: { flex: 1, minWidth: 0, fontSize: 14.5, fontFamily: fonts.ui.semibold, color: colors.faint },
-  mic: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.selectedSoft, alignItems: 'center', justifyContent: 'center' },
-  masIn: { gap: 10, paddingHorizontal: 16 },
-  masCard: { width: 150, minHeight: 120, borderRadius: 18, padding: 14, justifyContent: 'space-between', gap: 10, backgroundColor: colors.surface },
-  masNight: { backgroundColor: colors.night },
-  masIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  masBody: { gap: 2 },
-  masTitle: { fontFamily: fonts.ui.extrabold, fontSize: 14.5, lineHeight: 18, color: colors.ink },
-  masSub: { fontFamily: fonts.ui.bold, fontSize: 12, color: colors.muted },
-  onNight: { color: '#FFFFFF' },
-  onNightSub: { color: colors.nightText },
+  lead: { fontSize: 15, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.muted },
   section: { gap: 12 },
-  secTitle: { fontSize: 19, fontFamily: fonts.display.bold, color: colors.ink },
-  secSub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted, marginTop: 2 },
+  secTitle: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
+  secSub: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, marginTop: 2 },
   rail: { marginHorizontal: -16 },
   followIn: { gap: 16, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 },
   follow: { width: 72, alignItems: 'center', gap: 6 },
   followRing: { width: 64, height: 64, borderRadius: 32, borderWidth: 2.5, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
-  followName: { fontSize: 11.5, lineHeight: 14, fontFamily: fonts.ui.bold, color: colors.ink, textAlign: 'center' },
+  followName: { fontSize: 12, lineHeight: 15, fontFamily: fonts.ui.medium, color: colors.ink, textAlign: 'center' },
 });

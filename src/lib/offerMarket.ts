@@ -58,6 +58,19 @@ export interface MarketZone {
   looks: { color?: string; icon?: string }[];
 }
 
+/**
+ * El barrio vecino para cuando hay pocas ofertas (tablero «Ofertas», teléfono 4): el más cercano que no es donde estás
+ * ni el que ya estás viendo. Sin distancia conocida no se adivina cuál queda cerca.
+ */
+export function nearestOtherZone(zones: MarketZone[], exclude: (string | undefined | null)[] = []): MarketZone | null {
+  const skip = new Set(exclude.filter(Boolean));
+  return (
+    zones
+      .filter((z) => !z.here && !skip.has(z.id) && z.distance_meters !== null)
+      .sort((a, b) => (a.distance_meters ?? 0) - (b.distance_meters ?? 0))[0] ?? null
+  );
+}
+
 export interface MarketResponse {
   has_location: boolean;
   /** Ciudad de la vitrina (de la ubicación o, sin ella, la última conocida). Vacía = todas. */

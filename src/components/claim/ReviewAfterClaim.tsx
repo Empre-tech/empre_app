@@ -28,7 +28,7 @@ export function ReviewAfterClaim({ entityId, claimId, entityName }: Props) {
   if (state === 'sent') {
     return (
       <View style={styles.thanks}>
-        <Ionicons name="shield-checkmark" size={18} color="#075E62" />
+        <Ionicons name="shield-checkmark" size={18} color={colors.verified} />
         <Text style={styles.thanksText}>Tu reseña ya está publicada con el sello «Canje verificado».</Text>
       </View>
     );

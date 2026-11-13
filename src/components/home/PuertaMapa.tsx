@@ -87,7 +87,7 @@ export function PuertaMapa({
     >
       <Svg width="100%" height={H} style={StyleSheet.absoluteFill}>
         <Path d={`M0 60 H${w} M0 150 H${w} M0 240 H${w} M${w * 0.2} 0 V${H} M${w * 0.5} 0 V${H} M${w * 0.8} 0 V${H}`} stroke={colors.nightLine} strokeWidth={11} />
-        <Path d={`M0 0 H${w * 0.2} C${w * 0.17} 60 ${w * 0.1} 110 0 130 Z`} fill="#0B3D30" />
+        <Path d={`M0 0 H${w * 0.2} C${w * 0.17} 60 ${w * 0.1} 110 0 130 Z`} fill="#22252B" />
         <Circle cx={w / 2} cy={128} r={70} fill="none" stroke="rgba(255,255,255,.14)" strokeWidth={1.5} strokeDasharray="4 6" />
       </Svg>
       {pts.map((p, i) => (
