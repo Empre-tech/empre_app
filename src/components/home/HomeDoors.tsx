@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View, type View as ViewType } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';

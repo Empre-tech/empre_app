@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Pop } from '@/components/ledger/Flow';

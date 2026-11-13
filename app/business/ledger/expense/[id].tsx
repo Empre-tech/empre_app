@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { ledgerApi, type InventoryItem } from '@/api/ledger';
 import { DoneMark, FLOW_SETTLE_MS, FlowHeader, Pop, useFlowBack, useFlowStep } from '@/components/ledger/Flow';
 import { AmountField, Chip, LedgerReceipt, PartyPicker, type PartyChoice } from '@/components/ledger/parts';

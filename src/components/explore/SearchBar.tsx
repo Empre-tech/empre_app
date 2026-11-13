@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useRef, useState } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { removedAnnouncement } from '@/lib/context';

@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import Constants from 'expo-constants';
 import { useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';

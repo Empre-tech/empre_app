@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { StyleSheet, Text, View } from 'react-native';
 import { Chispa, type ChispaMood } from '@/components/ai/Chispa';
 import { Avatar } from '@/components/Avatar';

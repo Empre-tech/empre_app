@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';

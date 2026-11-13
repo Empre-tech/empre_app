@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';

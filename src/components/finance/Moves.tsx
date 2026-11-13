@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Expense, Sale } from '@/api/ledger';
 import { queueVoid } from '@/ledger/ledgerStore';

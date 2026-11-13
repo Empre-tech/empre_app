@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { EntityDetail as Entity, OfferClaim } from '@/api/types';

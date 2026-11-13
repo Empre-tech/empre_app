@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { sectionLabel, type SectionId } from '@/lib/profileLayout';
 import { colors, fonts, spacing } from '@/theme';

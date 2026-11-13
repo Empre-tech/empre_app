@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useRouter } from 'expo-router';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts, radius, spacing } from '@/theme';

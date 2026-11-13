@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { RememberSize } from '@/components/ai/RememberSize';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';

@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { memo } from 'react';
 import { View, type StyleProp, type ViewStyle } from 'react-native';
 import { SvgXml } from 'react-native-svg';
