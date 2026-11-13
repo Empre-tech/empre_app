@@ -595,3 +595,39 @@ export function publicCatalog<T extends { id: string; parent_id?: string }>(item
   const parents = new Set(items.map((i) => i.parent_id).filter(Boolean));
   return items.filter((i) => !parents.has(i.id));
 }
+
+const STOP = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'con', 'sin', 'y', 'o', 'para', 'por', 'en', 'un', 'una', 'al', 'a']);
+
+/**
+ * «Así lo encuentran en Empre» (tablero «Perfil», teléfono 2d): lo que el dueño registró se vuelve búsqueda. Palabras del
+ * nombre y la sección, cada valor de sus atributos («vinotinto», «talla 40») y para quién es. Sin repetir, como mucho 8.
+ */
+export function searchTerms(item: Pick<ServiceItem, 'name' | 'section' | 'audience'>, attrs: ItemAttr[] = []): string[] {
+  const out: string[] = [];
+  const add = (t: string) => {
+    const v = t.trim().toLowerCase();
+    if (v && !out.includes(v)) out.push(v);
+  };
+  for (const w of `${item.name} ${item.section ?? ''}`.split(/[\s,.·/+-]+/)) {
+    if (w.length >= 3 && !STOP.has(w.toLowerCase()) && !/^\d/.test(w)) add(w);
+  }
+  for (const a of attrs) add(/^\d/.test(a.value) ? `${a.name} ${a.value}` : a.value);
+  for (const a of audienceText(item.audience).split(', ')) add(a);
+  return out.slice(0, 8);
+}
+
+/**
+ * Filtros rápidos que salen de los datos del negocio (tablero «Perfil», teléfono 2b): un tope de precio y una duración,
+ * solo si parten la lista en dos (hay de los dos lados). El tope es la mediana subida a los $5.000.
+ */
+export function quickFilters(items: Pick<ServiceItem, 'price' | 'duration_min'>[]): { maxPrice: number | null; maxMin: number | null } {
+  const prices = items.map((i) => i.price).filter((p): p is number => typeof p === 'number' && p > 0).sort((a, b) => a - b);
+  let maxPrice: number | null = null;
+  if (prices.length >= 4) {
+    const cap = Math.ceil(prices[Math.floor((prices.length - 1) / 2)] / 5000) * 5000;
+    if (prices.some((p) => p <= cap) && prices.some((p) => p > cap)) maxPrice = cap;
+  }
+  const mins = items.map((i) => i.duration_min).filter((m): m is number => typeof m === 'number' && m > 0);
+  const maxMin = mins.length >= 4 && mins.some((m) => m <= 30) && mins.some((m) => m > 30) ? 30 : null;
+  return { maxPrice, maxMin };
+}

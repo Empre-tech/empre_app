@@ -62,3 +62,19 @@ test('el dueño escribe la variante como la diría', async () => {
   assert.deepEqual(parseVariantInput('Chocolate'), { label: 'Chocolate', attrs: [] });
   assert.deepEqual(parseVariantInput('Chocolate, Talla M'), { label: 'Chocolate, Talla M', attrs: [] }, 'mezclado: queda como nombre');
 });
+
+test('lo que el dueño registró se vuelve búsqueda', async () => {
+  const { searchTerms } = await import('./catalog.ts');
+  assert.deepEqual(
+    searchTerms({ name: 'Tenis de lona', section: 'Tenis', audience: [] }, [{ name: 'Color', value: 'Vinotinto' }, { name: 'Talla', value: '40' }]),
+    ['tenis', 'lona', 'vinotinto', 'talla 40'],
+  );
+});
+
+test('los filtros rápidos solo salen si parten la lista', async () => {
+  const { quickFilters } = await import('./catalog.ts');
+  const it = (price: number, duration_min: number) => ({ price, duration_min });
+  assert.deepEqual(quickFilters([it(12000, 15), it(18000, 25), it(22000, 35), it(30000, 45)]), { maxPrice: 20000, maxMin: 30 });
+  assert.deepEqual(quickFilters([it(12000, 15), it(18000, 25)]), { maxPrice: null, maxMin: null }, 'con poco no hay filtro');
+  assert.deepEqual(quickFilters([it(10000, 20), it(10000, 20), it(10000, 20), it(10000, 20)]).maxPrice, null, 'todos iguales no se parten');
+});

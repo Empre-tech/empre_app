@@ -10,6 +10,7 @@ import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi, type InventoryItem, type StockMode } from '@/api/ledger';
 import { useAudienceEnabled, useEntitySections, type SectionPick } from '@/api/sections';
 import { Button } from '@/components/Button';
+import { PhotoGuide } from '@/components/catalog/PhotoGuide';
 import { ProductPhotos, readyIds, slotsFrom, type PhotoSlot } from '@/components/catalog/ProductPhotos';
 import { ReadyChecklist } from '@/components/catalog/ReadyChecklist';
 import { SectionSheet } from '@/components/catalog/SectionSheet';
@@ -534,6 +535,7 @@ export default function ItemScreen() {
             <Text style={styles.cardTitle}>Lo que ven tus clientes</Text>
           </View>
           {isVariant && parent ? <Text style={styles.meta}>Variante de «{parent.name}»</Text> : null}
+          {!isVariant ? <PhotoGuide /> : null}
           {!isVariant ? <ProductPhotos value={photos} onChange={setPhotos} onError={setError} /> : null}
           <TextField
             label={isVariant ? 'Variante' : 'Nombre'}

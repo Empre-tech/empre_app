@@ -60,7 +60,7 @@ import { hasLocation } from '@/lib/geo';
 import { formatRelativeTime } from '@/lib/format';
 import { resolveImageUrl } from '@/lib/image';
 import { openingFromHours, statusLine } from '@/lib/placeCard';
-import { catalogCopy, formatPesos, priceText, type ServiceItem } from '@/lib/catalog';
+import { catalogCopy, catalogCount, formatPesos, priceText, publicCatalog, type ServiceItem } from '@/lib/catalog';
 import { chatItemParam } from '@/lib/chatItem';
 import { blockOrder, coverSource, sections, showQuickIndex, type BlockId, type SectionId } from '@/lib/profileLayout';
 import { featuredRating } from '@/lib/reviewSnippet';
@@ -694,6 +694,11 @@ export default function BusinessScreen() {
     }
     return out;
   })();
+  // «Ver catálogo · 14 servicios y 6 productos»: servicios y productos se cuentan aparte, nunca mezclados.
+  const pub = publicCatalog(catalog.data ?? []);
+  const nServ = pub.filter((i) => i.kind === 'service').length;
+  const nProd = pub.filter((i) => i.kind === 'product').length;
+  const catalogLabel = nServ && nProd ? `Ver catálogo · ${nServ} ${nServ === 1 ? 'servicio' : 'servicios'} y ${nProd} ${nProd === 1 ? 'producto' : 'productos'}` : pub.length ? `Ver catálogo · ${catalogCount(copy, pub.length)}` : 'Ver catálogo';
   const muroBlock =
     !isOwner && muroPins.length ? (
       <View style={styles.muroWrap}>
@@ -704,9 +709,9 @@ export default function BusinessScreen() {
           <Text style={styles.muroCount}>{[(catalog.data ?? []).length ? `${(catalog.data ?? []).length} ${copy.noun}` : null, photos.length ? `${photos.length} fotos` : null].filter(Boolean).join(' · ')}</Text>
         </View>
         <Muro pins={muroPins} />
-        <Pressable accessibilityRole="button" accessibilityLabel="Ver todo lo que ofrecen" onPress={() => openCatalog()} style={styles.muroMore}>
-          <Text style={styles.muroMoreText}>Ver todo</Text>
-          <Ionicons name="chevron-down" size={16} color={colors.ink} />
+        <Pressable accessibilityRole="button" accessibilityLabel={catalogLabel} onPress={() => openCatalog()} style={styles.muroMore}>
+          <Text style={styles.muroMoreText}>{catalogLabel}</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.ink} />
         </Pressable>
       </View>
     ) : null;
@@ -982,7 +987,7 @@ const styles = StyleSheet.create({
   muroTitle: { fontFamily: fonts.display.bold, fontSize: 19, color: colors.ink },
   muroCount: { fontFamily: fonts.ui.bold, fontSize: 12.5, color: colors.muted },
   muroMore: { minHeight: 46, borderRadius: 23, backgroundColor: colors.selectedSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  muroMoreText: { fontFamily: fonts.ui.extrabold, fontSize: 14, color: colors.ink },
+  muroMoreText: { fontFamily: fonts.ui.semibold, fontSize: 14, color: colors.ink },
   coach: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.ink },
   coachText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: '#fff' },
   coachBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm },

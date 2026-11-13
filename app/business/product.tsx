@@ -13,7 +13,7 @@ import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { Cover } from '@/components/Cover';
 import { AskSheet } from '@/components/profile/AskSheet';
-import { attrGroups, pickVariant, audienceText, catalogCopy, priceText } from '@/lib/catalog';
+import { attrGroups, pickVariant, audienceText, catalogCopy, priceText, searchTerms } from '@/lib/catalog';
 import { chatItemParam } from '@/lib/chatItem';
 import { safeIcon } from '@/lib/icons';
 import { mediaUrl } from '@/lib/image';
@@ -93,6 +93,12 @@ export default function ProductScreen() {
   const contact = b.contact_info?.trim();
   const canCall = Boolean(contact && PHONE_RE.test(contact));
   const askName = parent && item.variant_label ? `${parent.name} (${item.variant_label})` : item.name;
+  // Lo que se registró se vuelve búsqueda en todo Empre (tablero «Perfil», teléfono 2d).
+  const terms = searchTerms({ name: title, section: item.section || parent?.section, audience: item.audience?.length ? item.audience : parent?.audience }, shown.attrs ?? []);
+  // De la misma sección: otros productos de ese negocio, sin las variantes de este.
+  const familyId = parentId ?? item.id;
+  const sectionName = item.section || parent?.section;
+  const family = sectionName ? all.filter((i) => !i.parent_id && i.id !== familyId && i.section === sectionName).slice(0, 8) : [];
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => setPage(Math.round(e.nativeEvent.contentOffset.x / width));
   const send = (message: string) => {
@@ -235,6 +241,40 @@ export default function ProductScreen() {
               <Text style={styles.desc}>{description}</Text>
             </View>
           ) : null}
+          {terms.length >= 2 ? (
+            <View style={styles.terms}>
+              <Text style={styles.label}>Así lo encuentran en Empre</Text>
+              <View style={styles.termRow}>
+                {terms.map((t) => (
+                  <Text key={t} style={styles.term}>
+                    {t}
+                  </Text>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          {family.length ? (
+            <View style={{ gap: 8 }}>
+              <Text style={styles.label}>De la misma sección</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.familyRow}>
+                {family.map((f) => {
+                  const ph = f.photos?.[0];
+                  const fp = priceText(f);
+                  return (
+                    <Pressable key={f.id} accessibilityRole="button" accessibilityLabel={[f.name, fp].filter(Boolean).join(', ')} onPress={() => setSelected(f.id)} style={styles.familyCard}>
+                      {ph ? <Image source={{ uri: mediaUrl(ph) }} style={styles.familyImg} contentFit="cover" accessibilityIgnoresInvertColors /> : <View style={[styles.familyImg, styles.familyNoImg]}><Ionicons name={icon} size={22} color={colors.muted} /></View>}
+                      <Text style={styles.familyName} numberOfLines={2}>
+                        {f.name}
+                      </Text>
+                      {fp ? <Text style={styles.familyPrice}>{fp}</Text> : null}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          ) : null}
+
           <Pressable accessibilityRole="link" accessibilityLabel={`Vendido por ${b.name}. Ver el negocio`} onPress={() => router.push({ pathname: '/business/[id]', params: { id: b.id } })} style={styles.seller}>
             <Avatar uri={b.profile_url} name={b.name} size={40} />
             <View style={{ flex: 1, minWidth: 0 }}>
@@ -327,4 +367,13 @@ const styles = StyleSheet.create({
   footer: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.surface },
   call: { width: 54, height: 54, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   viewer: { flex: 1, backgroundColor: '#000' },
+  terms: { gap: 8, padding: 14, borderRadius: 16, backgroundColor: colors.bg },
+  termRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  term: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.surface, fontSize: 13, fontFamily: fonts.ui.medium, color: colors.ink, overflow: 'hidden' },
+  familyRow: { gap: 10 },
+  familyCard: { width: 130, gap: 4 },
+  familyImg: { width: 130, height: 130, borderRadius: 14, backgroundColor: colors.bg },
+  familyNoImg: { alignItems: 'center', justifyContent: 'center' },
+  familyName: { fontSize: 13, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.ink },
+  familyPrice: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink, fontVariant: ['tabular-nums'] },
 });
