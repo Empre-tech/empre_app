@@ -1,4 +1,4 @@
-import type { ItemKind, ServiceItem } from '@/lib/catalog';
+import type { ItemAttr, ItemKind, ServiceItem } from '@/lib/catalog';
 import { request } from './client';
 import type { Section } from './sections';
 
@@ -19,6 +19,8 @@ export interface ServiceInput {
   /** Solo al crear: una variante (sabor, talla) de este producto, con su parte corta. */
   parent_id?: string;
   variant_label?: string;
+  /** En una variante: sus atributos (Talla: 40, Color: Vinotinto). Sin parte corta, el servidor la arma con los valores. */
+  attrs?: ItemAttr[];
   /** Solo al crear: servicio o producto (vacío = lo más probable para el negocio). */
   kind?: ItemKind;
 }

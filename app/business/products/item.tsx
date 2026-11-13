@@ -19,7 +19,7 @@ import { Chip } from '@/components/ledger/parts';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { TextField } from '@/components/TextField';
 import { FEATURES } from '@/config';
-import { AUDIENCE_OPTIONS, audienceText, catalogCopy, defaultItemKind, parsePriceInput, type ItemKind } from '@/lib/catalog';
+import { parseVariantInput, AUDIENCE_OPTIONS, audienceText, catalogCopy, defaultItemKind, parsePriceInput, type ItemKind } from '@/lib/catalog';
 import { mediaUrl } from '@/lib/image';
 import { fmtQty, itemLine, MODE_LABEL, splitTabs } from '@/lib/inventory';
 import { formatPesos, newClientId } from '@/lib/ledger';
@@ -301,7 +301,15 @@ export default function ItemScreen() {
     setAddingVariant(true);
     setError(null);
     try {
-      await catalogApi.create(entityId, { name: label, price: null, price_from: false, parent_id: existing.id, variant_label: label });
+      // «Talla 40, Color vinotinto» queda como atributos (filtros y búsqueda); «Chocolate», como el nombre corto.
+      const known = [...new Set((catalog.data ?? []).filter((i) => i.parent_id === existing.id).flatMap((i) => (i.attrs ?? []).map((a) => a.name)))];
+      const parsed = parseVariantInput(label, known);
+      await catalogApi.create(
+        entityId,
+        parsed.attrs.length
+          ? { name: label, price: null, price_from: false, parent_id: existing.id, attrs: parsed.attrs }
+          : { name: label, price: null, price_from: false, parent_id: existing.id, variant_label: label },
+      );
       await refresh();
       setNewVariant('');
     } catch (e) {
@@ -821,7 +829,7 @@ export default function ItemScreen() {
               <TextInput
                 value={newVariant}
                 onChangeText={setNewVariant}
-                placeholder={variants.length ? 'Otra variante' : 'Ej. Chocolate, Talla M'}
+                placeholder={variants.length ? 'Otra: Talla 41, Color negro' : 'Ej. Talla 40, Color negro'}
                 placeholderTextColor={colors.muted}
                 style={styles.input}
                 maxLength={40}
@@ -829,6 +837,7 @@ export default function ItemScreen() {
               />
               <Button title="Agregar" variant="secondary" loading={addingVariant} disabled={newVariant.trim().length < 1} onPress={() => void addVariant()} />
             </View>
+            <Text style={styles.metaSmall}>Escribe cada atributo con su nombre: «Talla 40, Color negro». Así se filtra y se encuentra en Empre.</Text>
             {variants.length === 0 && stock?.counted ? <Text style={styles.metaSmall}>Al agregar variantes, el producto deja de contarse: cuenta cada variante.</Text> : null}
           </View>
         ) : null}

@@ -35,9 +35,17 @@ export interface ServiceItem {
   variant_label?: string;
   /** Su precio es el del producto (no tiene uno propio). */
   price_inherited?: boolean;
+  /** En una variante: lo que la distingue (Talla: 40, Color: Vinotinto), en orden. */
+  attrs?: ItemAttr[];
 }
 
 export type ItemKind = 'service' | 'product';
+
+/** Un atributo de una variante: su nombre (Talla, Color, Sabor…) y su valor. */
+export interface ItemAttr {
+  name: string;
+  value: string;
+}
 
 /** Cuántos servicios se ven antes de «Ver todos». */
 export const CATALOG_PREVIEW = 5;
@@ -448,15 +456,120 @@ export function itemsInSection<T extends Pick<ServiceItem, 'section'>>(items: T[
   return items.filter((i) => ((i.section ?? '').trim() || NO_SECTION) === section);
 }
 
-/** Filtra por texto (sin tildes ni mayúsculas, en nombre, descripción y sección) y por sección («» = todas). */
-export function filterCatalog<T extends Pick<ServiceItem, 'name' | 'description' | 'section'>>(items: T[], query: string, section: string): T[] {
+/** Filtra por texto (sin tildes ni mayúsculas, en nombre, descripción, sección y atributos) y por sección («» = todas). */
+export function filterCatalog<T extends Pick<ServiceItem, 'name' | 'description' | 'section'> & { attrs?: ItemAttr[] }>(items: T[], query: string, section: string): T[] {
   const q = bare(query);
   return items.filter((it) => {
     const own = (it.section ?? '').trim();
     if (section && own !== section && !(section === NO_SECTION && !own)) return false;
     if (!q) return true;
-    return bare(`${it.name} ${it.description ?? ''} ${own}`).includes(q);
+    const attrs = (it.attrs ?? []).map((a) => `${a.name} ${a.value}`).join(' ');
+    return bare(`${it.name} ${it.description ?? ''} ${own} ${attrs}`).includes(q);
   });
+}
+
+/** Un atributo con los valores que aparecen en el catálogo: cuántos ítems lo tienen y si queda alguno sin agotar. */
+export interface AttrGroup {
+  name: string;
+  values: { value: string; count: number; available: boolean }[];
+}
+
+const attrKey = (name: string) => bare(name);
+
+/**
+ * Los atributos de todo lo que se ve (tallas, colores, sabores), en el orden en que aparecen: los filtros del catálogo.
+ * Un nombre que solo cambia en tildes o mayúsculas cuenta como el mismo. Sin atributos, no hay filtros.
+ */
+export function attrGroups(items: { attrs?: ItemAttr[]; sold_out?: boolean }[]): AttrGroup[] {
+  const out: AttrGroup[] = [];
+  const idx = new Map<string, number>();
+  for (const it of items) {
+    for (const a of it.attrs ?? []) {
+      const key = attrKey(a.name);
+      let i = idx.get(key);
+      if (i === undefined) {
+        i = out.length;
+        idx.set(key, i);
+        out.push({ name: a.name, values: [] });
+      }
+      const g = out[i];
+      let v = g.values.find((x) => x.value === a.value);
+      if (!v) {
+        v = { value: a.value, count: 0, available: false };
+        g.values.push(v);
+      }
+      v.count += 1;
+      if (!it.sold_out) v.available = true;
+    }
+  }
+  return out;
+}
+
+/** El ítem tiene todos los atributos elegidos (nombre → valor). Sin nada elegido, todos pasan. */
+export function matchesAttrs(item: { attrs?: ItemAttr[] }, chosen: Record<string, string>): boolean {
+  const wanted = Object.entries(chosen).filter(([, v]) => v);
+  if (wanted.length === 0) return true;
+  const own = new Map((item.attrs ?? []).map((a) => [attrKey(a.name), a.value]));
+  return wanted.every(([name, value]) => own.get(attrKey(name)) === value);
+}
+
+// Nombres de atributo que se entienden solos al escribir una variante, con su forma bien escrita.
+const KNOWN_ATTRS = ['Talla', 'Color', 'Sabor', 'Tamaño', 'Presentación', 'Material', 'Peso', 'Capacidad', 'Medida', 'Modelo', 'Aroma', 'Estilo'];
+
+const firstUpper = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
+
+/**
+ * Entiende lo que el dueño escribe al agregar una variante. «Talla 40, Color vinotinto» (o «talla: 40 y color negro»)
+ * da dos atributos; si el producto ya tiene variantes con atributos, «41 gris» se reparte en ellos, en orden.
+ * «Chocolate» queda como el nombre corto, sin atributos.
+ */
+export function parseVariantInput(text: string, known: string[] = []): { label: string; attrs: ItemAttr[] } {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  if (!clean) return { label: '', attrs: [] };
+  const names = [...known, ...KNOWN_ATTRS];
+  const canon = (w: string) => names.find((n) => bare(n) === bare(w));
+  const parts = clean.split(/\s*[,;]\s*|\s+y\s+/i).filter(Boolean);
+  const attrs: ItemAttr[] = [];
+  for (const part of parts) {
+    const m = part.match(/^(\S+?)\s*:?\s+(.+)$/);
+    const name = m ? canon(m[1]) : undefined;
+    if (!m || !name) {
+      attrs.length = 0;
+      break;
+    }
+    attrs.push({ name, value: firstUpper(m[2].trim()) });
+  }
+  if (attrs.length === parts.length && attrs.length > 0) return { label: '', attrs };
+  const tokens = clean.split(/[\s,;]+/).filter(Boolean);
+  if (known.length > 1 && tokens.length === known.length) {
+    return { label: '', attrs: known.map((name, i) => ({ name, value: firstUpper(tokens[i]) })) };
+  }
+  return { label: clean, attrs: [] };
+}
+
+/** Servicios y productos nunca van mezclados: si el negocio tiene los dos, se elige; si tiene uno, no hay que elegir. */
+export function kindChips(items: { kind?: ItemKind }[]): { key: ItemKind | null; label: string; count: number }[] {
+  const services = items.filter((i) => i.kind === 'service').length;
+  const products = items.filter((i) => i.kind === 'product').length;
+  if (services === 0 || products === 0) return [];
+  return [
+    { key: null, label: 'Todo', count: items.length },
+    { key: 'service', label: 'Servicios', count: services },
+    { key: 'product', label: 'Productos', count: products },
+  ];
+}
+
+/**
+ * Al tocar un valor (Talla 41) en la ficha: la variante con ese valor que conserve lo demás que ya estaba elegido
+ * (el mismo color); si no hay, la primera con ese valor que no esté agotada; si todas lo están, la primera.
+ */
+export function pickVariant<T extends { id: string; attrs?: ItemAttr[]; sold_out?: boolean }>(options: T[], current: { attrs?: ItemAttr[] }, name: string, value: string): T | undefined {
+  const key = attrKey(name);
+  const withValue = options.filter((o) => (o.attrs ?? []).some((a) => attrKey(a.name) === key && a.value === value));
+  if (withValue.length === 0) return undefined;
+  const rest = (current.attrs ?? []).filter((a) => attrKey(a.name) !== key);
+  const same = withValue.find((o) => rest.every((r) => (o.attrs ?? []).some((a) => attrKey(a.name) === attrKey(r.name) && a.value === r.value)));
+  return same ?? withValue.find((o) => !o.sold_out) ?? withValue[0];
 }
 
 /** Lo que más probablemente agrega un negocio: una peluquería, servicios; una tienda o un restaurante, productos. */

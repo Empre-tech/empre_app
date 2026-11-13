@@ -13,7 +13,7 @@ import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { Cover } from '@/components/Cover';
 import { AskSheet } from '@/components/profile/AskSheet';
-import { audienceText, catalogCopy, priceText } from '@/lib/catalog';
+import { attrGroups, pickVariant, audienceText, catalogCopy, priceText } from '@/lib/catalog';
 import { chatItemParam } from '@/lib/chatItem';
 import { safeIcon } from '@/lib/icons';
 import { mediaUrl } from '@/lib/image';
@@ -60,6 +60,8 @@ export default function ProductScreen() {
   const parentId = item?.parent_id ?? (all.some((i) => i.parent_id === item?.id) ? item?.id : undefined);
   const parent = parentId ? all.find((i) => i.id === parentId) : undefined;
   const options = parentId ? all.filter((i) => i.parent_id === parentId) : [];
+  // Con atributos (talla, color), se elige cada uno por separado; sin ellos, la lista de siempre.
+  const attrOpts = attrGroups(options);
   const copy = catalogCopy(business.data?.category?.name, business.data?.business_profile);
 
   if (catalog.isLoading || business.isLoading) {
@@ -164,7 +166,42 @@ export default function ProductScreen() {
             ) : null}
           </View>
 
-          {options.length > 0 ? (
+          {attrOpts.length > 0 ? (
+            <View style={{ gap: spacing.md }}>
+              {attrOpts.map((g) => {
+                const current = (shown.attrs ?? []).find((a) => a.name.toLowerCase() === g.name.toLowerCase())?.value;
+                return (
+                  <View key={g.name} style={{ gap: spacing.sm }}>
+                    <Text style={styles.label}>
+                      {g.name}
+                      {current ? ` · ${current}` : ''}
+                    </Text>
+                    <View style={styles.options} accessibilityRole="radiogroup" accessibilityLabel={g.name}>
+                      {g.values.map((v) => {
+                        const on = v.value === current;
+                        return (
+                          <Pressable
+                            key={v.value}
+                            accessibilityRole="radio"
+                            accessibilityState={{ checked: on }}
+                            accessibilityLabel={`${g.name} ${v.value}${v.available ? '' : ', agotado'}`}
+                            onPress={() => {
+                              const next = pickVariant(options, shown, g.name, v.value);
+                              if (next) setSelected(next.id);
+                            }}
+                            style={[styles.option, on && styles.optionOn, !v.available && !on && styles.optionOut]}
+                          >
+                            <Text style={[styles.optionText, !v.available && !on && styles.optionTextOut]}>{v.value}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                );
+              })}
+              {shown.sold_out ? <Text style={styles.meta}>Esta combinación está agotada.</Text> : null}
+            </View>
+          ) : options.length > 0 ? (
             <View style={{ gap: spacing.sm }}>
               <Text style={styles.label}>Opciones</Text>
               <View style={styles.options} accessibilityRole="radiogroup">
