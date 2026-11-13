@@ -238,3 +238,19 @@ export const statusApi = {
     request<BusinessStatus>(`/api/entities/${entityId}/status`, { method: 'PATCH', body: { availability } }),
 };
 
+
+/** Un «Avísame» de Ofertas: avisar cuando un negocio de la zona publique una oferta (de la categoría, si la tiene). */
+export interface OfferAlert {
+  id: string;
+  zone_id: string;
+  category_id?: string;
+  zone_name?: string;
+  category_name?: string;
+}
+
+export const offerAlertsApi = {
+  mine: async (): Promise<OfferAlert[]> => (await request<{ data?: OfferAlert[] | null }>('/api/offer-alerts')).data ?? [],
+  create: (zoneId: string, categoryId?: string) =>
+    request<OfferAlert>('/api/offer-alerts', { method: 'POST', body: { zone_id: zoneId, ...(categoryId ? { category_id: categoryId } : {}) } }),
+  remove: (id: string) => request<unknown>(`/api/offer-alerts/${id}`, { method: 'DELETE' }),
+};

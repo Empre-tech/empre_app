@@ -35,8 +35,11 @@ type NotificationData = {
     | 'appointment_expired'
     | 'appointment_reminder'
     | 'appointment_closing'
-    | 'appointment_digest';
+    | 'appointment_digest'
+    | 'offer';
   entity_id?: string;
+  /** «Avísame» de Ofertas: la oferta nueva que coincidió. */
+  offer_id?: string;
   user_id?: string;
   appointment_id?: string;
 };
@@ -154,6 +157,11 @@ export function usePushNotifications() {
         case 'verification':
           if (data.entity_id) {
             router.push({ pathname: '/business/[id]', params: { id: data.entity_id } });
+          }
+          break;
+        case 'offer':
+          if (data.offer_id) {
+            router.push({ pathname: '/offer/[id]', params: { id: data.offer_id, ...(data.entity_id ? { entityId: data.entity_id } : {}) } });
           }
           break;
         case 'subscription':

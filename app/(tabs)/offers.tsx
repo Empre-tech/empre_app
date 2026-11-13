@@ -34,6 +34,7 @@ import { UpdatingBar } from '@/components/explore/LoadingMotion';
 import { BizFaces, BizVitrinaSheet } from '@/components/offers/BizFaces';
 import { FilterRow, FiltersSheet, LensTabs, type FilterTag, type ShowFilter } from '@/components/offers/LensFilters';
 import { MarketItemSheet } from '@/components/offers/MarketItemSheet';
+import { OfferAlertCard } from '@/components/offers/OfferAlertCard';
 import { Reveal } from '@/components/offers/MarketMotion';
 import { FeaturedOffer, OfferRow, OfferTile, TILE_GAP, TILE_W, ZONE_W, ZoneCard } from '@/components/offers/OfferTiles';
 import { Showcase } from '@/components/offers/Showcase';
@@ -335,6 +336,9 @@ export default function OffersScreen() {
   });
   const vecinoItems = useMemo(() => (vecinoQ.data?.items ?? []).filter((o) => o.kind !== 'service').slice(0, 6), [vecinoQ.data]);
   const vecinoLejos = vecino ? onFootOrDistance((vecino.distance_meters ?? 0) / 1000) : null;
+  // Lo último con pocas ofertas: que te avisen en la zona que estás viendo (o donde estás), no un relleno.
+  const alertZone = few ? (data?.zones.find((z) => z.id === (picked?.id ?? zoneId)) ?? data?.zones.find((z) => z.here) ?? null) : null;
+  const alertCat = (categories.data ?? []).find((c) => c.id === catId);
 
   // Todas las ofertas conocidas (sin servicios): para los negocios que dan la cara y su vitrina.
   const knownOffers = useMemo(() => {
@@ -650,6 +654,8 @@ export default function OffersScreen() {
                 {rail(vecinoItems)}
               </View>
             ) : null}
+
+            {alertZone && show !== 'services' ? <OfferAlertCard zoneId={alertZone.id} zoneName={alertZone.name} categoryId={alertCat?.id} categoryName={alertCat?.name} /> : null}
           </>
         ) : null}
 
