@@ -279,7 +279,7 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  door: { position: 'absolute', zIndex: 20, backgroundColor: colors.night },
+  door: { position: 'absolute', zIndex: 20, backgroundColor: colors.sand },
   content: { paddingBottom: 96, gap: 14 }, // el botón Empre flota encima: lo último no queda debajo
   pad: { paddingHorizontal: 16, gap: 14 },
   body: { gap: 26, paddingTop: 10 },

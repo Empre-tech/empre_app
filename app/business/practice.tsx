@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
   body2: { flex: 1, padding: spacing.lg, gap: spacing.sm },
   lead: { fontSize: 17, lineHeight: 22, fontFamily: fonts.ui.bold, color: colors.ink },
   steps: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.muted, marginBottom: spacing.xs },
-  camera: { flex: 1, minHeight: 240, marginBottom: spacing.sm, padding: spacing.xl, gap: spacing.md, alignItems: 'center', justifyContent: 'center', borderRadius: radius.lg, backgroundColor: colors.ink },
+  camera: { flex: 1, minHeight: 240, marginBottom: spacing.sm, padding: spacing.xl, gap: spacing.md, alignItems: 'center', justifyContent: 'center', borderRadius: radius.lg, backgroundColor: colors.primary },
   checking: { alignItems: 'center', gap: spacing.md },
   cameraText: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.semibold, color: '#fff', textAlign: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, padding: spacing.xl },

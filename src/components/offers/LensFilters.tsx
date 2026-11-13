@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
   cat: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   catOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected, borderWidth: 1.5 },
   catText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  filterBtn: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.ink },
+  filterBtn: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.primary },
   filterBtnText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
   badge: { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent },
   badgeText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },

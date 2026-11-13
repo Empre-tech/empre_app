@@ -256,9 +256,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 8,
   },
-  fabOpen: { backgroundColor: colors.ink, shadowColor: colors.ink, shadowOpacity: 0.25 },
+  fabOpen: { backgroundColor: colors.primary, shadowColor: colors.ink, shadowOpacity: 0.25 },
   pressed: { opacity: 0.8 },
-  veil: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(255,255,255,0.86)' },
+  veil: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(43,38,34,0.06)' },
   menu: { position: 'absolute', right: SIDE, left: SIDE, alignItems: 'flex-end', gap: 8 },
   item: {
     minHeight: 48,
@@ -304,6 +304,6 @@ const styles = StyleSheet.create({
   bizRow: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 8, borderRadius: 16 },
   bizRowOn: { backgroundColor: colors.bg },
   bizIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
-  tag: { marginLeft: 'auto', paddingHorizontal: 7, paddingVertical: 1, borderRadius: 999, backgroundColor: colors.ink },
-  tagText: { fontSize: 12, fontFamily: fonts.ui.medium, color: '#FFFFFF' },
+  tag: { marginLeft: 'auto', paddingHorizontal: 7, paddingVertical: 1, borderRadius: 999, backgroundColor: colors.sand },
+  tagText: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.ink },
 });

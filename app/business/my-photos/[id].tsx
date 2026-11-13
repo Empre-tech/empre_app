@@ -163,7 +163,7 @@ function PhotoEditor({ photo, entityId, businessName, categoryName, onClose, onC
         </View>
         <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: insets.bottom + spacing.xl }} keyboardShouldPersistTaps="handled">
           {isVideo(photo) ? (
-            <View style={[styles.preview, { width: width - spacing.lg * 2, height: 160, backgroundColor: colors.ink }]}>
+            <View style={[styles.preview, { width: width - spacing.lg * 2, height: 160, backgroundColor: colors.night }]}>
               <Ionicons name="play" size={36} color="#fff" />
             </View>
           ) : (

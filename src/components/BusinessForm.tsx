@@ -1239,7 +1239,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   stepDotActive: { borderWidth: 2, borderColor: colors.selected },
-  stepDotDone: { backgroundColor: colors.selected, borderColor: colors.selected },
+  stepDotDone: { backgroundColor: colors.primaryDark, borderColor: colors.selected },
   stepDotText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
   stepDotTextActive: { color: colors.selected },
   stepLabel: { fontSize: 11, fontFamily: fonts.ui.medium, color: colors.muted, marginTop: 4, textAlign: 'center' },

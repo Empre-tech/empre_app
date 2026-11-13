@@ -988,8 +988,8 @@ const styles = StyleSheet.create({
   muroCount: { fontFamily: fonts.ui.bold, fontSize: 12.5, color: colors.muted },
   muroMore: { minHeight: 46, borderRadius: 23, backgroundColor: colors.selectedSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   muroMoreText: { fontFamily: fonts.ui.semibold, fontSize: 14, color: colors.ink },
-  coach: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.ink },
-  coachText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: '#fff' },
+  coach: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.sand },
+  coachText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.ink },
   coachBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm },
   coachBtnText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#fff', textDecorationLine: 'underline' },
   visitGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
@@ -1010,7 +1010,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: 'rgba(43,38,34,0.06)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1257,7 +1257,7 @@ const styles = StyleSheet.create({
   // Fondo cálido oscuro (tinta de la marca), no negro puro, para que el
   // visor de publicaciones se sienta parte de Empre y no de otra app.
   viewer: { flex: 1, backgroundColor: colors.bg },
-  viewerSlide: { height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ink },
+  viewerSlide: { height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sand },
   viewerImage: { width: '100%', height: '100%' },
   viewerVideoWrap: { width: '100%', height: '100%' },
   muteButton: {
@@ -1293,7 +1293,7 @@ const styles = StyleSheet.create({
   },
   // Área de la foto: contenida (no a pantalla completa) para que debajo quepa
   // el bloque de descripción, como un post de feed en vez de una historia.
-  viewerPhotoArea: { backgroundColor: colors.ink },
+  viewerPhotoArea: { backgroundColor: colors.sand },
   viewerDots: {
     position: 'absolute',
     bottom: spacing.sm,

@@ -799,7 +799,7 @@ const styles = StyleSheet.create({
   bubbleRowTheirs: { justifyContent: 'flex-start' },
   bubble: { minWidth: 96, maxWidth: '80%', borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: 2 },
   // Tu mensaje en tinta, como en Empre AI: el rojo queda para la acción principal (3.70).
-  bubbleMine: { backgroundColor: colors.ink, borderRadius: 20, borderBottomRightRadius: 6 },
+  bubbleMine: { backgroundColor: colors.sand, borderRadius: 20, borderBottomRightRadius: 6 },
   bubbleTheirs: { backgroundColor: colors.surface, borderRadius: 20, borderBottomLeftRadius: 6, borderWidth: 1, borderColor: colors.hairline },
   bubbleFull: { maxWidth: '100%' },
   theirsCol: { maxWidth: '80%', gap: 3 },
@@ -810,10 +810,10 @@ const styles = StyleSheet.create({
   attached: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, gap: 4, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.surface },
   attachedLabel: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
   bubbleText: { fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink },
-  bubbleTextMine: { color: '#fff' },
+  bubbleTextMine: { color: colors.ink },
   bubbleMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end' },
   time: { fontSize: 11, color: colors.muted },
-  timeMine: { color: 'rgba(255,255,255,0.8)' },
+  timeMine: { color: colors.muted },
   error: { color: colors.danger, fontSize: 13, paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
   // La caja de escribir es la misma píldora de «Pregúntales a varios».
   composer: {

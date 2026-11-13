@@ -69,7 +69,7 @@ export function OfferTile({ item, now, onPress, width = TILE_W, selected }: { it
       <View style={styles.tileClip}>
         {selected ? (
           <View style={styles.tricolorBar}>
-            <View style={[styles.tricolorSeg, { backgroundColor: colors.ink }]} />
+            <View style={[styles.tricolorSeg, { backgroundColor: colors.sand }]} />
             <View style={[styles.tricolorSeg, { backgroundColor: colors.brand }]} />
           </View>
         ) : null}
@@ -95,7 +95,7 @@ export function OfferTile({ item, now, onPress, width = TILE_W, selected }: { it
             </View>
           ) : item.rating && item.rating >= 4.0 ? (
             <View style={styles.ratingTag}>
-              <Ionicons name="star" size={10} color="#fff" />
+              <Ionicons name="star" size={10} color={colors.ink} />
               <Text style={styles.ratingTagText}>{item.rating.toFixed(1)}</Text>
             </View>
           ) : null}
@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
   tilePhotoWrap: { position: 'relative' },
   tilePhoto: { height: 118, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   badge: { position: 'absolute', top: 12, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4 },
-  badgeLeft: { left: 10, backgroundColor: 'rgba(255,255,255,0.96)' },
+  badgeLeft: { left: 10, backgroundColor: 'rgba(43,38,34,0.06)' },
   urgentText: { color: colors.ink },
   tileBody: { paddingTop: 11, paddingHorizontal: 13, paddingBottom: 13, gap: 5 },
   tileBizRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
@@ -355,16 +355,16 @@ const styles = StyleSheet.create({
   quickActionPill: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: colors.primarySoft },
   quickActionText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   mapActiveTag: { position: 'absolute', left: 9, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: 'rgba(17,19,24,0.88)' },
-  mapActiveTagText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  mapActiveTagText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.ink },
   openPhotoPill: { position: 'absolute', left: 9, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.92)' },
   openDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.verified },
   openPhotoText: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   catalogTag: { position: 'absolute', left: 9, top: 9, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(17,19,24,0.84)' },
-  catalogTagText: { maxWidth: 110, fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  catalogTagText: { maxWidth: 110, fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.ink },
   entityOfferTag: { position: 'absolute', right: 9, top: 9, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.brand },
-  entityOfferTagText: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  ratingTag: { position: 'absolute', right: 9, top: 9, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.ink },
-  ratingTagText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  entityOfferTagText: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  ratingTag: { position: 'absolute', right: 9, top: 9, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.sand },
+  ratingTagText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.ink },
   title: { flex: 1, fontSize: 14.5, lineHeight: 19, fontFamily: fonts.display.bold, color: colors.ink, minHeight: 18 },
   meta: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
@@ -380,9 +380,9 @@ const styles = StyleSheet.create({
   rowPhotoWrap: { position: 'relative', width: 82, height: 82 },
   rowPhoto: { width: 82, height: 82, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   rowSaveBadge: { position: 'absolute', left: 4, top: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: colors.brand },
-  rowSaveBadgeText: { fontSize: 10.5, fontFamily: fonts.display.bold, color: '#fff' },
+  rowSaveBadgeText: { fontSize: 10.5, fontFamily: fonts.display.bold, color: colors.ink },
   rowCatBadge: { position: 'absolute', left: 4, bottom: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: 'rgba(17,19,24,0.84)' },
-  rowCatBadgeText: { fontSize: 9.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  rowCatBadgeText: { fontSize: 9.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   rowBody: { flex: 1, minWidth: 0, justifyContent: 'center', gap: 3 },
   rowTopLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
   rowOfferAlert: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, backgroundColor: ACCENT_SOFT },
@@ -396,15 +396,15 @@ const styles = StyleSheet.create({
   here: { alignSelf: 'flex-start', marginTop: 4, backgroundColor: colors.primarySoft, borderRadius: 6, paddingHorizontal: 6 },
   hereText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   saveTag: { position: 'absolute', left: 9, top: 9, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.brand, shadowColor: colors.ink, shadowOpacity: 0.16, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  saveTagText: { fontSize: 12.5, fontFamily: fonts.display.bold, color: '#fff' },
+  saveTagText: { fontSize: 12.5, fontFamily: fonts.display.bold, color: colors.ink },
   rowPrice: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 2 },
   priceBig: { fontSize: 22 },
   feat: { marginHorizontal: spacing.lg, backgroundColor: colors.surface, borderRadius: 22, borderWidth: 1, borderColor: colors.line, overflow: 'hidden', shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   featPhoto: { height: 150, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   ruleText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.ink },
   bigSave: { position: 'absolute', right: 12, top: 102, width: 74, height: 74, borderRadius: 37, backgroundColor: SAVE_GREEN, borderWidth: 4, borderColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: colors.ink, shadowOpacity: 0.18, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
-  bigSaveText: { fontSize: 19, lineHeight: 22, fontFamily: fonts.display.bold, color: '#fff' },
-  bigSaveSub: { fontSize: 9, fontFamily: fonts.ui.extrabold, color: '#fff', letterSpacing: 0.4 },
+  bigSaveText: { fontSize: 19, lineHeight: 22, fontFamily: fonts.display.bold, color: colors.ink },
+  bigSaveSub: { fontSize: 9, fontFamily: fonts.ui.extrabold, color: colors.ink, letterSpacing: 0.4 },
   featBody: { padding: spacing.md, paddingTop: spacing.sm + 2, gap: 3 },
   featTitle: { fontSize: 18, lineHeight: 22, fontFamily: fonts.display.bold, color: colors.ink, paddingRight: 76 },
   featFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, marginTop: 4 },

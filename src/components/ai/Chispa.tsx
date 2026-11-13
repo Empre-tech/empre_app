@@ -167,6 +167,6 @@ export function Chispa({ size = 28, mood = 'reposo', animated = true }: { size?:
 }
 
 const styles = StyleSheet.create({
-  core: { position: 'absolute', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ink },
+  core: { position: 'absolute', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sand },
   eyes: { position: 'absolute', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
 });

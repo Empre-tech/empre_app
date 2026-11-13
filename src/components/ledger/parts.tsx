@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepDotPast: {
-    backgroundColor: colors.ink,
+    backgroundColor: colors.finance,
     borderColor: colors.ink,
   },
   stepDotCur: {
@@ -444,7 +444,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.line,
   },
   stepBarPast: {
-    backgroundColor: colors.ink,
+    backgroundColor: colors.sand,
   },
   stepLabel: {
     fontSize: 12,
@@ -567,7 +567,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.line,
   },
   chipDotOn: {
-    backgroundColor: colors.selected,
+    backgroundColor: colors.sand,
   },
   chipText: { fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.ink },
   chipTextOn: { fontFamily: fonts.ui.extrabold, color: colors.selected },

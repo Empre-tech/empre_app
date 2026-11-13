@@ -251,7 +251,7 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
 
       <View style={styles.context} accessible accessibilityLabel={`${product}, en ${n} negocios${near ? ' a menos de 1 kilómetro' : ''}`}>
         <View style={styles.contextIcon}>
-          <Ionicons name="pricetag" size={18} color="#FFFFFF" />
+          <Ionicons name="pricetag" size={18} color={colors.ink} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.contextTitle} numberOfLines={1}>
@@ -576,7 +576,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontFamily: fonts.display.bold, fontSize: 17, color: colors.ink },
   headerSub: { fontFamily: fonts.ui.bold, fontSize: 11.5, color: colors.muted },
   context: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16, marginTop: 4, padding: 8, paddingRight: 12, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
-  contextIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  contextIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.sand, alignItems: 'center', justifyContent: 'center' },
   contextTitle: { fontFamily: fonts.ui.extrabold, fontSize: 14, color: colors.ink },
   contextSub: { fontFamily: fonts.ui.bold, fontSize: 12, color: colors.muted },
   faces: { flexDirection: 'row' },
@@ -591,8 +591,8 @@ const styles = StyleSheet.create({
   sugIcon: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   sugText: { fontFamily: fonts.ui.extrabold, fontSize: 13.5, lineHeight: 17, color: colors.ink },
   turn: { gap: 10 },
-  mine: { alignSelf: 'flex-end', maxWidth: '80%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, borderBottomRightRadius: 6, backgroundColor: colors.ink },
-  mineText: { fontFamily: fonts.ui.bold, fontSize: 14, lineHeight: 19, color: '#FFFFFF' },
+  mine: { alignSelf: 'flex-end', maxWidth: '80%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, borderBottomRightRadius: 6, backgroundColor: colors.sand },
+  mineText: { fontFamily: fonts.ui.bold, fontSize: 14, lineHeight: 19, color: colors.ink },
   aiRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   aiName: { fontFamily: fonts.ui.extrabold, fontSize: 13, color: colors.ink },
   aiStatus: { fontFamily: fonts.ui.bold, fontSize: 12, color: colors.muted },
@@ -626,10 +626,10 @@ const styles = StyleSheet.create({
   rowName: { fontFamily: fonts.ui.extrabold, fontSize: 13.5, color: colors.ink },
   rowSub: { fontFamily: fonts.ui.bold, fontSize: 11.5, color: colors.muted },
   rowValue: { fontFamily: fonts.display.bold, fontSize: 15.5, color: colors.ink },
-  askBtn: { minHeight: 44, paddingHorizontal: 12, borderRadius: 22, backgroundColor: colors.ink, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  askBtn: { minHeight: 44, paddingHorizontal: 12, borderRadius: 22, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', gap: 5 },
   askBtnSent: { backgroundColor: colors.verifiedSoft, borderWidth: 1.5, borderColor: '#D42020' },
   askText: { fontFamily: fonts.ui.extrabold, fontSize: 12.5, color: '#FFFFFF' },
-  askAll: { minHeight: 46, borderRadius: 14, backgroundColor: colors.ink, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  askAll: { minHeight: 46, borderRadius: 14, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   askAllText: { fontFamily: fonts.ui.extrabold, fontSize: 13.5, color: '#FFFFFF' },
   handoff: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   handoffLine: { flex: 1, height: 1, backgroundColor: '#FDECEC' },

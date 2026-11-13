@@ -224,7 +224,7 @@ export default function SalidasScreen() {
                 style={[styles.ticket, !stackOpen && { position: 'absolute', left: 0, right: 0, top: i * 10, zIndex: 10 - i, transform: [{ scale: 1 - i * 0.03 }] }]}
               >
                 <View style={styles.ticketIcon}>
-                  <Ionicons name="qr-code-outline" size={22} color="#fff" />
+                  <Ionicons name="qr-code-outline" size={22} color={colors.ink} />
                 </View>
                 <View style={styles.ticketText}>
                   <Text style={styles.ticketBiz} numberOfLines={2}>
@@ -387,9 +387,9 @@ const styles = StyleSheet.create({
   stamp: { paddingVertical: 2, paddingHorizontal: 8, borderRadius: 7, borderWidth: 2, borderColor: colors.verified, transform: [{ rotate: '-6deg' }] },
   stampText: { fontSize: 11, letterSpacing: 1.5, fontFamily: fonts.ui.extrabold, color: colors.verified },
   ticket: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 72, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 20, backgroundColor: colors.night, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, elevation: 3 },
-  ticketIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.nightLine },
+  ticketIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sand },
   ticketText: { flex: 1, minWidth: 0, gap: 2 },
-  ticketBiz: { fontSize: 15, lineHeight: 19, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
+  ticketBiz: { fontSize: 15, lineHeight: 19, fontFamily: fonts.ui.extrabold, color: colors.ink },
   ticketOffer: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.nightText },
   left: { paddingVertical: 4, paddingHorizontal: 9, borderRadius: 999, backgroundColor: colors.glowSoft },
   leftText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.glow },

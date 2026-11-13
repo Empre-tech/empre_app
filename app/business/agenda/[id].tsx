@@ -189,7 +189,7 @@ export default function BusinessAgendaScreen() {
                   <Text style={[styles.dayWeek, active && styles.onText]}>{weekdayShort(d)}</Text>
                   <Text style={[styles.dayNum, active && styles.onText]}>{dayNumber(d)}</Text>
                   <View style={styles.dayDots}>
-                    {marks.appts ? <View style={[styles.dayDot, { backgroundColor: colors.ink }]} /> : null}
+                    {marks.appts ? <View style={[styles.dayDot, { backgroundColor: colors.primaryDark }]} /> : null}
                     {marks.reqs ? <View style={[styles.dayDot, { backgroundColor: colors.warning }]} /> : null}
                   </View>
                 </Pressable>

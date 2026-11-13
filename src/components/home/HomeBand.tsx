@@ -87,6 +87,6 @@ const styles = StyleSheet.create({
   halo: { position: 'absolute', width: 56, height: 56, borderRadius: 28, opacity: 0.12 },
   sun: { width: 32, height: 32, borderRadius: 16, opacity: 0.22 },
   moon: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFFFFF' },
-  moonCut: { position: 'absolute', left: 18, top: 8, width: 28, height: 28, borderRadius: 14, backgroundColor: colors.ink },
+  moonCut: { position: 'absolute', left: 18, top: 8, width: 28, height: 28, borderRadius: 14, backgroundColor: colors.sand },
   star: { position: 'absolute', width: 3, height: 3, borderRadius: 2, backgroundColor: '#FFFFFF' },
 });

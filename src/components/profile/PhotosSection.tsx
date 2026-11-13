@@ -144,7 +144,7 @@ export function UploadTile({ item, size, onRetry, onRemove }: { item: UploadItem
   const label = failed ? `No se subió${item.error ? `: ${item.error}` : ''}` : done ? 'Publicada' : `Subiendo, ${pct} %`;
   return (
     <View style={[styles.cell, styles.uploadCell, { width: size, height: size }, failed && styles.uploadFailed]} accessible={!failed} accessibilityLabel={label}>
-      {isVideoItem(item) ? <View style={[styles.videoFill, { backgroundColor: colors.ink }]} /> : <Image accessible={false} source={{ uri: item.uri }} style={styles.image} contentFit="cover" />}
+      {isVideoItem(item) ? <View style={[styles.videoFill, { backgroundColor: colors.night }]} /> : <Image accessible={false} source={{ uri: item.uri }} style={styles.image} contentFit="cover" />}
       <View style={[styles.uploadVeil, done && styles.uploadVeilDone]}>
         {failed ? (
           <>
@@ -187,13 +187,13 @@ export function UploadTile({ item, size, onRetry, onRemove }: { item: UploadItem
 }
 
 const styles = StyleSheet.create({
-  uploadCell: { backgroundColor: colors.ink },
+  uploadCell: { backgroundColor: colors.sand },
   uploadFailed: { borderWidth: 2, borderColor: '#2B2622' },
   uploadVeil: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(10,20,40,0.55)', alignItems: 'center', justifyContent: 'center', gap: 4 },
   uploadVeilDone: { backgroundColor: 'rgba(29,107,61,0.55)' },
   ringWrap: { width: RING, height: RING, alignItems: 'center', justifyContent: 'center' },
-  ringText: { position: 'absolute', fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  failedText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  ringText: { position: 'absolute', fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  failedText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   failedRow: { flexDirection: 'row', gap: 4 },
   iconBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
   section: { gap: spacing.sm },
@@ -202,16 +202,16 @@ const styles = StyleSheet.create({
   mosaicTop: { flexDirection: 'row', gap: GAP },
   mosaicSide: { gap: GAP },
   mosaicRow: { flexDirection: 'row', gap: GAP },
-  newBadge: { position: 'absolute', left: 6, top: 6, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: colors.night },
+  newBadge: { position: 'absolute', left: 6, top: 6, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: colors.sand },
   newBadgeText: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: colors.glow },
   caption: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 8, paddingTop: 16, paddingBottom: 6, backgroundColor: 'rgba(10,20,40,0.45)' },
-  captionText: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: '#fff' },
+  captionText: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.ink },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   cell: { borderRadius: 10, overflow: 'hidden', backgroundColor: colors.primarySoft },
   image: { width: '100%', height: '100%' },
   videoFill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   more: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(10,20,40,0.62)', alignItems: 'center', justifyContent: 'center' },
-  moreText: { fontSize: 18, fontFamily: fonts.display.bold, color: '#fff' },
+  moreText: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
   newCell: { borderWidth: 2, borderStyle: 'dashed', borderColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   newText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   hint: { padding: spacing.sm, borderRadius: radius.sm, backgroundColor: '#FFF4DC', fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#7A4B00' },

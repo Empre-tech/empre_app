@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
   barRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   barLabel: { width: 10, fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.muted },
   track: { flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.line, overflow: 'hidden' },
-  fill: { height: 6, borderRadius: 3, backgroundColor: colors.ink },
+  fill: { height: 6, borderRadius: 3, backgroundColor: colors.sand },
   barCount: { width: 22, textAlign: 'right', fontSize: 11.5, fontFamily: fonts.ui.medium, color: colors.muted },
   verified: { flexDirection: 'row', alignItems: 'center', gap: 6, width: '100%' },
   verifiedText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#D42020' },

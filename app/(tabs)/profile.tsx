@@ -352,7 +352,7 @@ function QuickAction({ symbol, icon, label, onPress }: { symbol?: EmpreProduct; 
 }
 
 const styles = StyleSheet.create({
-  anchor: { borderRadius: 22, backgroundColor: colors.night, padding: 16, gap: 6 },
+  anchor: { borderRadius: 22, backgroundColor: colors.sand, padding: 16, gap: 6 },
   anchorLead: { fontFamily: fonts.ui.extrabold, fontSize: 12.5, color: colors.nightText },
   anchorTotal: { fontFamily: fonts.display.bold, fontSize: 30, lineHeight: 34, color: colors.financeLight, fontVariant: ['tabular-nums'] },
   anchorSub: { fontFamily: fonts.ui.extrabold, fontSize: 13, color: colors.glow },
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
   bizText: { flex: 1, minWidth: 0, gap: 2 },
   bizLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   bizName: { flexShrink: 1, fontSize: 17, lineHeight: 21, fontFamily: fonts.display.bold, color: colors.ink },
-  activeTag: { paddingVertical: 2, paddingHorizontal: 7, borderRadius: 999, overflow: 'hidden', backgroundColor: colors.primary, fontSize: 11, letterSpacing: 0.9, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  activeTag: { paddingVertical: 2, paddingHorizontal: 7, borderRadius: 999, overflow: 'hidden', backgroundColor: colors.primary, fontSize: 11, letterSpacing: 0.9, fontFamily: fonts.ui.extrabold, color: colors.ink },
   bizCat: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.faint },
   badge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 9, borderRadius: 999 },
   badgeText: { fontSize: 12, fontFamily: fonts.ui.extrabold },

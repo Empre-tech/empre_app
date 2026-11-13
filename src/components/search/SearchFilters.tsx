@@ -66,7 +66,7 @@ export function FilterRow({
         >
           {c.key === 'open' && !c.on ? <View style={styles.openDot} /> : null}
           <Text style={[styles.chipText, c.on && styles.chipTextOn]}>{c.label}</Text>
-          {c.on ? <Ionicons name="close" size={14} color="#FFFFFF" /> : c.key === 'group' ? <Ionicons name="chevron-down" size={14} color={colors.ink} /> : null}
+          {c.on ? <Ionicons name="close" size={14} color={colors.ink} /> : c.key === 'group' ? <Ionicons name="chevron-down" size={14} color={colors.ink} /> : null}
         </Pressable>
       ))}
       {n >= 2 ? (
@@ -156,8 +156,8 @@ const styles = StyleSheet.create({
   row: { gap: 6, alignItems: 'center', paddingHorizontal: 16 },
   filtersBtn: { minHeight: 44, paddingHorizontal: 12, borderRadius: 22, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 6 },
   onMap: { ...softShadow },
-  count: { minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
-  countText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
+  count: { minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, backgroundColor: colors.sand, alignItems: 'center', justifyContent: 'center' },
+  countText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   divider: { width: 1, height: 24, backgroundColor: colors.line },
   chip: { minHeight: 44, paddingHorizontal: 13, borderRadius: 22, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 6 },
   chipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
@@ -183,6 +183,6 @@ const styles = StyleSheet.create({
   footClear: { minHeight: 52, paddingHorizontal: 12, justifyContent: 'center' },
   footClearText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink, textDecorationLine: 'underline' },
   see: { flex: 1, minHeight: 52, borderRadius: 16, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  seeText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
+  seeText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   pressed: { opacity: 0.85 },
 });

@@ -30,19 +30,19 @@ export const colors = {
   faint: '#6B6358', // etiquetas pequeñas y pestañas sin elegir
   placeholder: '#6B6358', // texto de ejemplo en los campos: legible (4,8:1), más claro que el texto
   // Anclas negras y el rojo que brilla sobre ellas
-  night: '#2B2622',
-  nightLine: '#3A332D',
-  nightSoft: '#4A423A',
-  nightText: '#CBCED4',
-  glow: '#FF6B6B', // rojo claro: solo sobre negro (6,6:1)
-  glowSoft: 'rgba(240,50,50,0.18)',
+  night: '#F3EBDD', // las anclas ya no son negras: arena clara
+  nightLine: '#E2D5BC',
+  nightSoft: '#D9C9A8',
+  nightText: '#6B6358',
+  glow: '#D42020', // lo vivo en rojo (sobre arena 4,7:1)
+  glowSoft: 'rgba(212,32,32,0.12)',
   // Arena: el complemento del rojo, en poca cantidad (chips, lo elegido, etiquetas)
   sand: '#EADCBF',
   sandSoft: '#F3EBDD',
   sandInk: '#7A6236', // arena para texto sobre blanco (5,8:1)
   // Plata y Finance: verde. Lo que entra en verde; gastos y fiado en negro.
   finance: '#0B7F3D', // texto y formas sobre blanco (5,1:1)
-  financeLight: '#9FCFA6', // sobre negro
+  financeLight: '#0B7F3D', // ya no hay fondos negros: el verde de siempre
   financeSoft: '#E8F5EC',
   // La agenda es de Empre: rojo y negro
   agenda: '#D42020',

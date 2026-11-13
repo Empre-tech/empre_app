@@ -65,7 +65,7 @@ export function ContextRow({ chips, zoneName, onRemoveScope, onRemoveFilter, onC
         return (
           <Pressable key="area" accessibilityRole="button" accessibilityLabel="Buscar en esta zona" onPress={onSearchArea} style={styles.areaHit}>
             <View style={styles.areaPill}>
-              <Ionicons name="refresh" size={14} color="#fff" />
+              <Ionicons name="refresh" size={14} color={colors.ink} />
               <Text style={styles.areaText}>Buscar en esta zona</Text>
             </View>
           </Pressable>
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 12,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.97)',
+    backgroundColor: 'rgba(43,38,34,0.06)',
     ...shadow,
   },
   chipRemovable: { paddingRight: 2 },
@@ -131,8 +131,8 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 14,
     borderRadius: radius.pill,
-    backgroundColor: colors.ink,
+    backgroundColor: colors.sand,
     ...shadow,
   },
-  areaText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  areaText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

@@ -345,7 +345,7 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
               ) : null}
               {(biz?.avg_rating ?? item.rating ?? 0) >= 4.0 ? (
                 <View style={styles.ratingBadge}>
-                  <Ionicons name="star" size={11} color="#fff" />
+                  <Ionicons name="star" size={11} color={colors.ink} />
                   <Text style={styles.ratingBadgeText}>{(biz?.avg_rating ?? item.rating ?? 0).toFixed(1)}</Text>
                 </View>
               ) : null}
@@ -479,7 +479,7 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
                     onPress={() => setAskMany(true)}
                     style={({ pressed }) => [styles.aiChip, styles.aiChipCompare, pressed && styles.pressed]}
                   >
-                    <Ionicons name="git-compare-outline" size={13} color="#fff" />
+                    <Ionicons name="git-compare-outline" size={13} color={colors.ink} />
                     <Text style={[styles.aiChipText, styles.aiChipTextActive]}>{`Comparar en los ${peers.length}`}</Text>
                   </Pressable>
                 ) : null}
@@ -621,13 +621,13 @@ function AIBlockView({ b }: { b: Block }) {
 const classified = new Map<string, { intent: string; answer_id?: string }>();
 
 const styles = StyleSheet.create({
-  aiChipCompare: { backgroundColor: colors.ink, borderColor: colors.ink },
+  aiChipCompare: { backgroundColor: colors.sand, borderColor: colors.ink },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17,19,24,0.52)' },
   sheet: { maxHeight: '90%', backgroundColor: colors.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden', ...softShadow },
   handleWrap: { alignItems: 'center', paddingTop: 10, paddingBottom: 6, backgroundColor: colors.surface },
   handle: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.line },
   scrollContent: { paddingBottom: 16 },
-  heroWrap: { height: 188, position: 'relative', backgroundColor: colors.ink },
+  heroWrap: { height: 188, position: 'relative', backgroundColor: colors.sand },
   heroPhoto: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   heroTopRow: { position: 'absolute', top: 12, left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   heroOfferBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.brand },
@@ -636,11 +636,11 @@ const styles = StyleSheet.create({
   heroCatalogBadgeText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },
   closeBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.94)', alignItems: 'center', justifyContent: 'center' },
   heroBottomRow: { position: 'absolute', bottom: 12, left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  openBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.94)' },
+  openBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(43,38,34,0.06)' },
   openDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.verified },
   openBadgeText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  ratingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.ink },
-  ratingBadgeText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  ratingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.sand },
+  ratingBadgeText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.ink },
   body: { paddingHorizontal: 18, paddingTop: 14, gap: 12 },
   offerBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 16, backgroundColor: colors.accentSoft, borderWidth: 1.5, borderColor: colors.brand },
   offerBannerIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
@@ -694,7 +694,7 @@ const styles = StyleSheet.create({
   aiWriteLinkText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   aiInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   aiInput: { flex: 1, height: 42, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line, fontSize: 13, fontFamily: fonts.ui.medium, color: colors.ink },
-  aiSendBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  aiSendBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   aiSendBtnDisabled: { opacity: 0.4 },
   footerBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18, paddingTop: 12, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
   chatBtn: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 16, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line },

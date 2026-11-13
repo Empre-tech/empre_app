@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     height: 44,
     borderRadius: radius.pill,
-    backgroundColor: colors.ink,
+    backgroundColor: colors.primary,
   },
   reviewButtonReady: { backgroundColor: colors.verified },
   reviewButtonText: { fontSize: 14, fontFamily: fonts.ui.bold, color: '#fff' },

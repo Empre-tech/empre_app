@@ -96,20 +96,20 @@ export function ParaTiCarousel({ slides }: { slides: ParaTiSlide[] }) {
 }
 
 const styles = StyleSheet.create({
-  card: { height: 236, borderRadius: 22, overflow: 'hidden', backgroundColor: colors.ink, justifyContent: 'flex-end' },
+  card: { height: 236, borderRadius: 22, overflow: 'hidden', backgroundColor: colors.sand, justifyContent: 'flex-end' },
   // La foto o la portada van debajo; esta capa asegura que el texto blanco se lea encima.
   scrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 170, backgroundColor: 'rgba(17,19,24,0.62)' },
   bars: { position: 'absolute', left: 18, top: 20, flexDirection: 'row', gap: 5 },
-  bar: { width: 22, height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.35)' },
+  bar: { width: 22, height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: 'rgba(43,38,34,0.06)' },
   barFill: { height: '100%', backgroundColor: '#FFFFFF' },
-  next: { position: 'absolute', right: 10, top: 6, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)' },
+  next: { position: 'absolute', right: 10, top: 6, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(43,38,34,0.06)' },
   body: { paddingHorizontal: 18, paddingBottom: 16, gap: 6 },
   whyRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   offerChip: { paddingHorizontal: 9, paddingVertical: 2, borderRadius: 999, backgroundColor: colors.brand },
-  offerChipText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
-  why: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: 'rgba(255,255,255,0.92)' },
-  title: { fontSize: 20, lineHeight: 24, fontFamily: fonts.display.bold, color: '#FFFFFF' },
-  proof: { fontSize: 13, fontFamily: fonts.ui.bold, color: 'rgba(255,255,255,0.9)' },
+  offerChipText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  why: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
+  title: { fontSize: 20, lineHeight: 24, fontFamily: fonts.display.bold, color: colors.ink },
+  proof: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted },
   cta: { alignSelf: 'flex-start', marginTop: 4, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, borderRadius: 12, backgroundColor: '#FFFFFF' },
   ctaText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

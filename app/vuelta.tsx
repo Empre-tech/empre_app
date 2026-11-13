@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
   leg: { flexDirection: 'row', gap: 12 },
   legLine: { alignItems: 'center', width: 28 },
   legDot: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primaryDark },
-  legDotText: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.surface },
+  legDotText: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink },
   legBar: { flex: 1, width: 2, backgroundColor: colors.line, marginVertical: 4 },
   legBody: { flex: 1, paddingBottom: 18, gap: 2 },
   legHour: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
@@ -342,7 +342,7 @@ const styles = StyleSheet.create({
   booked: { fontSize: 13.5, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
   offer: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: 'hidden', backgroundColor: colors.accent, color: colors.ink, fontSize: 12, fontFamily: fonts.ui.semibold },
   legSee: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  going: { padding: 16, gap: 4, borderRadius: radius.lg, backgroundColor: colors.ink },
+  going: { padding: 16, gap: 4, borderRadius: radius.lg, backgroundColor: colors.sand },
   goingHead: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.surface },
   goingSub: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.nightText },
 });

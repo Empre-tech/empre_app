@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 15, lineHeight: 19, fontFamily: fonts.ui.bold, color: colors.ink },
   sub: { fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.medium, color: colors.muted },
   subError: { color: colors.ink },
-  btn: { minHeight: 44, minWidth: 92, paddingHorizontal: 14, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ink },
+  btn: { minHeight: 44, minWidth: 92, paddingHorizontal: 14, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary },
   btnQuiet: { backgroundColor: colors.selectedSoft },
   btnText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.surface },
   btnTextQuiet: { color: colors.ink },
