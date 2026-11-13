@@ -60,8 +60,7 @@ export function FilterRow({ cats, catId, onCat, tags, onOpen }: { cats: { id: st
           })}
         </ScrollView>
         <Pressable accessibilityRole="button" accessibilityLabel={tags.length ? `Filtros, ${tags.length} puestos` : 'Filtros'} onPress={onOpen} style={({ pressed }) => [styles.filterBtn, pressed && styles.pressed]}>
-          <Ionicons name="options-outline" size={16} color="#FFFFFF" />
-          <Text style={styles.filterBtnText}>Filtros</Text>
+          <Ionicons name="options-outline" size={20} color={colors.ink} />
           {tags.length ? (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{tags.length}</Text>
@@ -188,9 +187,8 @@ const styles = StyleSheet.create({
   cats: { gap: 6, paddingLeft: 20, paddingRight: 4 },
   cat: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   catOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected, borderWidth: 1.5 },
-  catText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  filterBtn: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.primary },
-  filterBtnText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
+  catText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.ink },
+  filterBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   badge: { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent },
   badgeText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   tags: { gap: 6, paddingHorizontal: 20 },

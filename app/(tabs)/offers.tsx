@@ -368,7 +368,7 @@ export default function OffersScreen() {
     () =>
       nearbyWall(
         Object.entries(catalogsByEntity).map(([entityId, list]) => list.map((it) => ({ id: it.id, entityId, photo: it.photos?.[0] ? mediaUrl(it.photos[0]) : undefined, name: it.section || it.name }))),
-        4,
+        6,
       ),
     [catalogsByEntity],
   );
@@ -394,7 +394,6 @@ export default function OffersScreen() {
     setOpenOnly(false);
   };
 
-  const zoneTitle = picked ? `Ofertas en ${picked.name}` : coords ? 'Ofertas cerca' : city ? `Ofertas en ${city}` : 'Ofertas';
 
   const [bar] = useState(() => new Animated.Value(0));
   useEffect(() => {
@@ -501,14 +500,13 @@ export default function OffersScreen() {
           </View>
         ) : null}
 
-        <View style={styles.heroRow}>
-          <View style={{ flex: 1, gap: 2 }}>
+        {home ? null : (
+          <View style={styles.heroRow}>
             <Text style={styles.hero} accessibilityRole="header">
-              {home ? zoneTitle : 'Todas las ofertas'}
+              Todas las ofertas
             </Text>
-            <Text style={styles.heroSub}>{heroLine}</Text>
           </View>
-        </View>
+        )}
 
         {home ? (
           <>
@@ -657,13 +655,7 @@ export default function OffersScreen() {
               </Reveal>
             ) : null}
 
-            {data && !lenses.length && show !== 'services' ? (
-              <View style={styles.emptyCard}>
-                <Text style={styles.emptyTitle}>{`Hoy no hay ofertas ${picked ? `en ${picked.name}` : data.zone ? `en ${data.zone}` : 'cerca'}`}</Text>
-                <Text style={styles.emptyText}>Cuando un negocio de tu zona publique una, sale aquí.</Text>
-                <Button title={city ? `Ver toda ${city}` : 'Ver todas'} variant="secondary" onPress={() => openAll(false)} />
-              </View>
-            ) : null}
+            {data && !lenses.length && show !== 'services' ? <Text style={styles.quietLine}>{heroLine}</Text> : null}
 
             {/* Pocas ofertas: el barrio vecino, con lo mismo que estás viendo */}
             {vecino && vecinoItems.length && show !== 'services' ? (
@@ -698,8 +690,8 @@ export default function OffersScreen() {
                   <Text style={styles.seeAllText}>Explorar ›</Text>
                 </View>
                 <View style={styles.peekRow}>
-                  {nearbyPeek.map((x) => (
-                    <View key={x.id} style={styles.peekCell}>
+                  {nearbyPeek.slice(0, offerRails.length ? 4 : 6).map((x) => (
+                    <View key={x.id} style={[styles.peekCell, !offerRails.length && styles.peekCellWide]}>
                       <ExpoImage source={{ uri: x.photo }} style={styles.peekImg} contentFit="cover" accessibilityIgnoresInvertColors />
                       <Text style={styles.peekText} numberOfLines={1}>
                         {x.name}
@@ -974,8 +966,10 @@ function EmptyOffers({ searching }: { searching: boolean }) {
 
 const styles = StyleSheet.create({
   peek: { marginHorizontal: 20, padding: 14, gap: 12, borderRadius: 20, backgroundColor: colors.surface },
-  peekRow: { flexDirection: 'row', gap: 8 },
+  peekRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   peekCell: { flex: 1, gap: 4 },
+  // Sin ofertas cerca, lo que venden se ve más grande: seis, en dos filas (nunca un aviso vacío)
+  peekCellWide: { flex: 0, width: '31%' },
   peekImg: { width: '100%', aspectRatio: 1, borderRadius: 12, backgroundColor: colors.bg },
   peekText: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.ink, textAlign: 'center' },
   barrios: { gap: 18, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.line },
@@ -1001,8 +995,8 @@ const styles = StyleSheet.create({
   roundDot: { position: 'absolute', top: 9, right: 9, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.brand, borderWidth: 2, borderColor: colors.surface },
   zoneWrap: { marginHorizontal: 20, marginTop: -8 },
   heroRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, paddingHorizontal: 20 },
-  hero: { fontSize: 27, lineHeight: 31, letterSpacing: -0.3, fontFamily: fonts.display.bold, color: colors.ink },
-  heroSub: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
+  hero: { fontSize: 20, lineHeight: 24, fontFamily: fonts.display.bold, color: colors.ink },
+  quietLine: { paddingHorizontal: 20, fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   vitrinaPills: { gap: 8, paddingHorizontal: 20 },
   vitrinaPill: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 13, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   vitrinaPillOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
