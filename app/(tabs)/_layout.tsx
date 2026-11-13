@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '@/auth/AuthContext';
 import { useInboxSummary } from '@/chat/useInboxSummary';
+import { getPhoneFlag } from '@/lib/phoneFlags';
 import { EmpreButton } from '@/components/EmpreButton';
 import { badgeText, messagesA11y } from '@/lib/inbox';
 import { useReduceMotion } from '@/lib/useReduceMotion';
@@ -51,6 +53,19 @@ export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const dockBottom = Math.max(insets.bottom, 10);
   const msgBadge = badgeText(inbox.messages);
+  // La primera vez sin sesión, la bienvenida (tablero «Primera vez»): una sola vez en este teléfono.
+  const router = useRouter();
+  const { status } = useAuth();
+  useEffect(() => {
+    if (status !== 'signedOut') return;
+    let alive = true;
+    void getPhoneFlag('welcome-seen').then((seen) => {
+      if (alive && !seen) router.push('/(auth)/welcome');
+    });
+    return () => {
+      alive = false;
+    };
+  }, [status, router]);
 
   return (
     <>

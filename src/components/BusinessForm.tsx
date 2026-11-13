@@ -234,7 +234,9 @@ export function BusinessForm({ initial, draft }: Props) {
 
   const goToBusiness = (id: string) => {
     if (editing && router.canGoBack()) router.back();
-    else router.replace({ pathname: '/business/[id]', params: { id } });
+    else if (editing) router.replace({ pathname: '/business/[id]', params: { id } });
+    // Recién creado: «Listo» con un solo siguiente paso (tablero «Primera vez», teléfono 5).
+    else router.replace({ pathname: '/business/listo', params: { id } });
   };
 
   const goBack = () => {

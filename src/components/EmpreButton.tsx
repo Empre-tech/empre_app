@@ -39,13 +39,13 @@ export const EMPRE_BUTTON = 60;
 const SIDE = 16;
 const FADE_MS = 140;
 
-/** El símbolo de Empre en blanco, con su punto naranja (tablero «Dirección clara»). */
-function EmpreMark({ size = 34 }: { size?: number }) {
+/** El símbolo de Empre (blanco o negro, nunca rojo), con su punto naranja (tablero «Dirección clara»). */
+export function EmpreMark({ size = 34, color = '#FFFFFF' }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
-      <Path d="M15 25V18C15 14.686 17.686 12 21 12H47" stroke="#FFFFFF" strokeWidth={7} strokeLinecap="round" />
-      <Path d="M15 39V46C15 49.314 17.686 52 21 52H43C46.314 52 49 49.314 49 46V42" stroke="#FFFFFF" strokeWidth={7} strokeLinecap="round" />
-      <Rect x={15} y={28.5} width={22} height={7} rx={3.5} fill="#FFFFFF" />
+      <Path d="M15 25V18C15 14.686 17.686 12 21 12H47" stroke={color} strokeWidth={7} strokeLinecap="round" />
+      <Path d="M15 39V46C15 49.314 17.686 52 21 52H43C46.314 52 49 49.314 49 46V42" stroke={color} strokeWidth={7} strokeLinecap="round" />
+      <Rect x={15} y={28.5} width={22} height={7} rx={3.5} fill={color} />
       <Circle cx={45} cy={32} r={6} fill={colors.accent} />
     </Svg>
   );

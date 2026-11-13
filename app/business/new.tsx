@@ -1,16 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { categoriesApi } from '@/api/endpoints';
+import { understandBusiness } from '@/lib/businessText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/auth/AuthContext';
 import { BusinessForm, type BusinessDraft } from '@/components/BusinessForm';
 import { Button } from '@/components/Button';
 import { colors, fonts, radius, spacing } from '@/theme';
 
-/** Crear un negocio nuevo: requiere sesión iniciada. Antes de mostrar el
- * formulario, deja elegir entre llenarlo a mano o describírselo al asistente
- * de IA (que llega aquí mismo con `aiDraft`, ya listo para revisar). */
+/** Crear un negocio nuevo (tablero «Primera vez», teléfono 3): primero se escribe como se diría y Empre entiende el
+ * tipo, el horario y el nombre con reglas; luego el formulario llega lleno para revisar el resto (dirección en el mapa,
+ * fotos) y publicar. También se puede hablar con el asistente o llenarlo paso a paso. Requiere sesión. */
 export default function NewBusinessScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -27,6 +30,19 @@ export default function NewBusinessScreen() {
   }, [aiDraft]);
 
   const [mode, setMode] = useState<'choose' | 'manual'>(draftFromAI ? 'manual' : 'choose');
+  const [text, setText] = useState('');
+  const [draft, setDraft] = useState<BusinessDraft | undefined>(draftFromAI);
+  const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 5 * 60_000 });
+  const understood = useMemo(() => understandBusiness(text, categories.data ?? []), [text, categories.data]);
+  const next = () => {
+    setDraft({
+      ...(understood.name ? { name: understood.name } : {}),
+      description: text.trim(),
+      ...(understood.categoryId ? { categoryId: understood.categoryId } : {}),
+      ...(understood.hours ? { hours: understood.hours.hours } : {}),
+    });
+    setMode('manual');
+  };
 
   useEffect(() => {
     if (status === 'signedOut') router.replace('/(auth)/login');
@@ -43,103 +59,85 @@ export default function NewBusinessScreen() {
   }
 
   if (mode === 'manual') {
-    return <BusinessForm draft={draftFromAI} />;
+    return <BusinessForm draft={draft} />;
   }
 
   return (
-    <View style={[styles.chooseScreen, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg }]}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Volver"
-        onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
-        style={styles.back}
-      >
-        <Ionicons name="chevron-back" size={22} color={colors.ink} />
-      </Pressable>
-
-      <View style={styles.chooseHeader}>
-        <Text style={styles.chooseTitle}>¿Cómo quieres crear tu negocio?</Text>
-        <Text style={styles.chooseSubtitle}>De cualquier forma, al final puedes revisar y editar todo antes de publicarlo.</Text>
-      </View>
-
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.push('/business/new-ai')}
-        style={({ pressed }) => [styles.optionCard, styles.optionCardPrimary, pressed && styles.optionCardPressed]}
-      >
-        <View style={[styles.optionIcon, styles.optionIconPrimary]}>
-          <Ionicons name="sparkles" size={22} color="#fff" />
-        </View>
-        <View style={styles.optionText}>
-          <View style={styles.optionTitleRow}>
-            <Text style={styles.optionTitle}>Crear con ayuda de IA</Text>
-            <View style={styles.recommendedPill}>
-              <Text style={styles.recommendedPillText}>Recomendado</Text>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={[styles.write, { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.lg }]} keyboardShouldPersistTaps="handled">
+        <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))} style={styles.back}>
+          <Ionicons name="chevron-back" size={22} color={colors.ink} />
+        </Pressable>
+        <Text style={styles.title} accessibilityRole="header">
+          ¿Qué negocio tienes?
+        </Text>
+        <Text style={styles.lead}>Escríbelo como se lo dirías a un vecino. Empre lo ordena y tú lo revisas antes de publicar.</Text>
+        <TextInput
+          value={text}
+          onChangeText={setText}
+          multiline
+          autoFocus
+          placeholder="barbería en el centro, de lunes a sábado de 9 a 8"
+          placeholderTextColor={colors.placeholder}
+          accessibilityLabel="Tu negocio, como lo dirías"
+          style={styles.input}
+        />
+        {understood.chips.length ? (
+          <View style={{ gap: 8 }}>
+            <Text style={styles.label}>Entendí</Text>
+            <View style={styles.chips}>
+              {understood.chips.map((c) => (
+                <View key={c.k} style={styles.chip}>
+                  <Text style={styles.chipKey}>{c.k}</Text>
+                  <Text style={styles.chipVal}>{c.v}</Text>
+                </View>
+              ))}
             </View>
           </View>
-          <Text style={styles.optionSubtitle}>
-            Cuéntale a la IA tu negocio en tus palabras: ella sugiere nombre, categoría, descripción y horario.
-          </Text>
+        ) : null}
+        {understood.categoryName ? (
+          <View style={styles.note}>
+            <Ionicons name="sparkles" size={16} color={colors.primaryDark} />
+            <Text style={styles.noteText}>
+              Lo puse en <Text style={styles.noteStrong}>{understood.categoryName}</Text>. Así te encuentran quienes lo buscan cerca.
+            </Text>
+          </View>
+        ) : text.trim().length > 12 && !understood.chips.length ? (
+          <Text style={styles.hint}>Cuéntame qué haces y tu horario («de lunes a sábado de 9 a 8»). Lo demás lo llenas en el siguiente paso.</Text>
+        ) : null}
+        <View style={{ flex: 1 }} />
+        <Button title="Seguir" disabled={!text.trim()} onPress={next} />
+        <View style={styles.alt}>
+          <Pressable accessibilityRole="button" onPress={() => router.push('/business/new-ai')} style={styles.altBtn}>
+            <Text style={styles.altText}>Prefiero hablarlo con el asistente</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => setMode('manual')} style={styles.altBtn}>
+            <Text style={styles.altText}>Llenarlo paso a paso</Text>
+          </Pressable>
         </View>
-        <Ionicons name="chevron-forward" size={20} color={colors.muted} />
-      </Pressable>
-
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => setMode('manual')}
-        style={({ pressed }) => [styles.optionCard, pressed && styles.optionCardPressed]}
-      >
-        <View style={styles.optionIcon}>
-          <Ionicons name="create-outline" size={22} color={colors.ink} />
-        </View>
-        <View style={styles.optionText}>
-          <Text style={styles.optionTitle}>Crear manualmente</Text>
-          <Text style={styles.optionSubtitle}>Llena el formulario paso a paso tú mismo.</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={colors.muted} />
-      </Pressable>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, backgroundColor: colors.bg },
-  chooseScreen: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: spacing.lg, gap: spacing.md },
-  back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: -spacing.sm },
-  chooseHeader: { gap: spacing.xs, marginTop: spacing.md, marginBottom: spacing.sm },
-  chooseTitle: { fontSize: 22, fontFamily: fonts.display.semibold, color: colors.ink },
-  chooseSubtitle: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted, lineHeight: 20 },
-  optionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.md,
-    borderRadius: radius.lg,
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    backgroundColor: colors.bg,
-  },
-  optionCardPrimary: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  optionCardPressed: { opacity: 0.85 },
-  optionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-  },
-  optionIconPrimary: { backgroundColor: colors.primary },
-  optionText: { flex: 1, gap: 2 },
-  optionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  optionTitle: { fontSize: 16, fontFamily: fonts.ui.bold, color: colors.ink },
-  recommendedPill: {
-    paddingHorizontal: 8,
-    height: 18,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-  },
-  recommendedPillText: { fontSize: 10, fontFamily: fonts.ui.bold, color: '#fff' },
-  optionSubtitle: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, lineHeight: 18 },
+  screen: { flex: 1, backgroundColor: colors.surface },
+  write: { flexGrow: 1, paddingHorizontal: 20, gap: spacing.md },
+  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: -spacing.sm },
+  title: { fontSize: 28, lineHeight: 32, fontFamily: fonts.display.bold, color: colors.ink, letterSpacing: -0.4 },
+  lead: { fontSize: 15, lineHeight: 21, fontFamily: fonts.ui.medium, color: colors.muted },
+  input: { minHeight: 110, padding: 14, borderRadius: radius.md, borderWidth: 2, borderColor: colors.ink, fontSize: 16, lineHeight: 22, fontFamily: fonts.ui.medium, color: colors.ink, textAlignVertical: 'top' },
+  label: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.bg },
+  chipKey: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
+  chipVal: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
+  note: { flexDirection: 'row', gap: 10, padding: 12, borderRadius: radius.md, backgroundColor: colors.primarySoft },
+  noteText: { flex: 1, fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.ink },
+  noteStrong: { fontFamily: fonts.ui.bold },
+  hint: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.muted },
+  alt: { alignItems: 'center' },
+  altBtn: { minHeight: 44, justifyContent: 'center' },
+  altText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.muted },
 });

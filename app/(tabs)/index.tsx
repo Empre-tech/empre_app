@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Easing, Linking, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { catalogApi } from '@/api/catalog';
 import type { ServiceItem } from '@/lib/catalog';
@@ -23,7 +23,8 @@ import { mediaUrl } from '@/lib/image';
 import { dayLabel, stripEntries } from '@/lib/novedades';
 import { onFootOrDistance } from '@/lib/format';
 import { mergeCatalogIntoMarket, priceView, type MarketItem } from '@/lib/offerMarket';
-import { useCoords } from '@/lib/useCoords';
+import { useLocation } from '@/lib/useCoords';
+import { SkeletonBlock } from '@/components/Skeleton';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts } from '@/theme';
 
@@ -44,7 +45,8 @@ function whenLabel(iso: string, now: number): string {
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const coords = useCoords();
+  const location = useLocation();
+  const coords = location.coords;
   const { status, user } = useAuth();
   const signedIn = status === 'signedIn' && Boolean(user);
   const zones = useZones();
@@ -182,7 +184,35 @@ export default function HomeScreen() {
             <Text style={styles.lead}>Entra y mira quién está abierto ahora, a pocos pasos.</Text>
           </View>
 
-          <PuertaMapa items={mapItems} center={center} openCount={openNear.length} ticker={[]} whenOf={(iso) => whenLabel(iso, now)} onExplore={openExplore} />
+          {location.denied && !coords && !zone ? (
+            // Sin ubicación también funciona (tablero «Estados», teléfono 5): se elige el barrio y sigue igual.
+            <View style={styles.where}>
+              <Text style={styles.whereTitle} accessibilityRole="header">
+                ¿Dónde estás?
+              </Text>
+              <Text style={styles.whereText}>Sin tu ubicación también funciona: elige tu barrio. Solo la usamos para buscar cerca de ti.</Text>
+              <Pressable accessibilityRole="button" onPress={() => (location.settingsOnly ? void Linking.openSettings() : location.retry())} style={styles.whereBtn}>
+                <Text style={styles.whereBtnText}>{location.settingsOnly ? 'Activarla en los ajustes' : 'Usar mi ubicación'}</Text>
+              </Pressable>
+              {zones.length ? (
+                <View style={styles.whereZones}>
+                  {zones.slice(0, 8).map((z) => (
+                    <Pressable key={z.id} accessibilityRole="button" accessibilityLabel={`Estoy en ${z.name}`} onPress={() => setZoneId(z.id)} style={styles.whereZone}>
+                      <Text style={styles.whereZoneText}>{z.name}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          ) : open.isLoading && !open.data ? (
+            // Cargando: la forma de lo que viene, nunca una rueda sola (tablero «Estados», teléfono 1).
+            <View accessibilityLabel="Buscando negocios cerca" accessibilityLiveRegion="polite">
+              <SkeletonBlock height={278} borderRadius={26} />
+              <Text style={styles.loadingText}>Buscando negocios cerca…</Text>
+            </View>
+          ) : (
+            <PuertaMapa items={mapItems} center={center} openCount={openNear.length} ticker={[]} whenOf={(iso) => whenLabel(iso, now)} onExplore={openExplore} />
+          )}
 
           {strip.length ? (
             <View style={styles.section}>
@@ -259,6 +289,15 @@ const styles = StyleSheet.create({
   bell: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: colors.surface },
   bellDot: { position: 'absolute', top: 10, right: 10, width: 9, height: 9, borderRadius: 5, borderWidth: 2, borderColor: colors.surface, backgroundColor: colors.brand },
   greet: { gap: 4 },
+  where: { gap: 12, padding: 16, borderRadius: 22, backgroundColor: colors.surface },
+  whereTitle: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.ink },
+  whereText: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.muted },
+  whereBtn: { minHeight: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ink },
+  whereBtnText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.surface },
+  whereZones: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  whereZone: { minHeight: 44, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1.5, borderColor: colors.line, justifyContent: 'center' },
+  whereZoneText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
+  loadingText: { position: 'absolute', left: 16, bottom: 16, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
   title: { fontSize: 30, lineHeight: 32, fontFamily: fonts.display.bold, color: colors.ink, letterSpacing: -0.3 },
   lead: { fontSize: 15, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.muted },
   section: { gap: 12 },
