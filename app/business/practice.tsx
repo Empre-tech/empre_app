@@ -44,13 +44,13 @@ export default function PracticeScreen() {
             <Ionicons name="checkmark" size={36} color="#fff" />
           </View>
           <Text style={styles.title} accessibilityRole="header">
-            Ya sabes canjear
+            ¡Lo hiciste bien!
           </Text>
-          <Text style={styles.body}>Cuando llegue un cliente real, es exactamente igual.</Text>
+          <Text style={styles.body}>Con un cliente de verdad, aquí verías su nombre, la oferta y que se anotó en Plata. Esta vez no se anotó nada.</Text>
           <View style={styles.actions}>
-            <Button title="Listo" onPress={() => router.back()} />
+            <Button title="Siguiente paso" onPress={() => router.back()} />
             <Button
-              title="Practicar otra vez"
+              title="Otra vez"
               variant="ghost"
               onPress={() => {
                 setDone(false);
@@ -68,9 +68,13 @@ export default function PracticeScreen() {
       <SubScreenHeader title="Canjear ofertas" />
       <View style={styles.banner}>
         <Ionicons name="school-outline" size={16} color={colors.ink} />
-        <Text style={styles.bannerText}>PRÁCTICA · NO CUENTA COMO VENTA</Text>
+        <Text style={styles.bannerText}>MODO PRÁCTICA · NADA DE ESTO CUENTA</Text>
       </View>
       <View style={[styles.body2, { paddingBottom: insets.bottom + spacing.lg }]}>
+        <Text style={styles.lead} accessibilityRole="header">
+          Así se ve cuando un cliente llega con su oferta
+        </Text>
+        <Text style={styles.steps}>1. Toca «Escanear». 2. Es el QR de práctica: no hay cliente ni venta. 3. Mira lo que pasa.</Text>
         <View style={styles.camera}>
           {checking ? (
             <View style={styles.checking} accessibilityLiveRegion="polite">
@@ -106,6 +110,8 @@ const styles = StyleSheet.create({
   banner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, minHeight: 36, backgroundColor: colors.selectedSoft },
   bannerText: { fontSize: 12, letterSpacing: 0.6, fontFamily: fonts.ui.extrabold, color: colors.ink },
   body2: { flex: 1, padding: spacing.lg, gap: spacing.sm },
+  lead: { fontSize: 17, lineHeight: 22, fontFamily: fonts.ui.bold, color: colors.ink },
+  steps: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.muted, marginBottom: spacing.xs },
   camera: { flex: 1, minHeight: 240, marginBottom: spacing.sm, padding: spacing.xl, gap: spacing.md, alignItems: 'center', justifyContent: 'center', borderRadius: radius.lg, backgroundColor: colors.ink },
   checking: { alignItems: 'center', gap: spacing.md },
   cameraText: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.semibold, color: '#fff', textAlign: 'center' },

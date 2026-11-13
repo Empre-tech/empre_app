@@ -103,7 +103,32 @@ function list<T>(res: { data?: T[] | null }): T[] {
   return res?.data ?? [];
 }
 
+/** Una persona en la lista de espera de un día (tablero «Agenda del negocio», teléfono 3). */
+export interface WaitlistEntry {
+  id: string;
+  entity_id: string;
+  user_id: string;
+  day: string;
+  service_id?: string;
+  status: 'waiting' | 'offered' | 'booked' | 'passed' | 'left';
+  offered_slot?: string;
+  offered_at?: string;
+  appointment_id?: string;
+  created_at: string;
+  name?: string;
+  entity_name?: string;
+}
+
 export const agendaApi = {
+  /** Lista de espera: anotarse un día sin horas, verla (dueño), las mías, tomar la hora que se liberó o salirme. */
+  joinWaitlist: (entityId: string, date: string, serviceId?: string) =>
+    request<WaitlistEntry>(`/api/entities/${entityId}/waitlist`, { method: 'POST', body: { date, ...(serviceId ? { service_id: serviceId } : {}) } }),
+  businessWaitlist: async (entityId: string, date: string) =>
+    (await request<{ data?: WaitlistEntry[] | null }>(`/api/entities/${entityId}/waitlist`, { query: { date } })).data ?? [],
+  myWaitlist: async () => (await request<{ data?: WaitlistEntry[] | null }>('/api/waitlist/mine')).data ?? [],
+  takeWaitlist: (id: string) => request<Appointment>(`/api/waitlist/${id}/take`, { method: 'POST' }),
+  leaveWaitlist: (id: string) => request<unknown>(`/api/waitlist/${id}`, { method: 'DELETE' }),
+
   summary: (entityId: string) => request<AgendaSummary>(`/api/entities/${entityId}/agenda/summary`),
 
   /** Horas libres (ISO) de un día `YYYY-MM-DD`. */

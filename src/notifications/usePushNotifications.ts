@@ -36,10 +36,13 @@ type NotificationData = {
     | 'appointment_reminder'
     | 'appointment_closing'
     | 'appointment_digest'
-    | 'offer';
+    | 'offer'
+    | 'waitlist_offer';
   entity_id?: string;
   /** «Avísame» de Ofertas: la oferta nueva que coincidió. */
   offer_id?: string;
+  /** Lista de espera: la hora que se liberó y se le ofrece. */
+  waitlist_id?: string;
   user_id?: string;
   appointment_id?: string;
 };
@@ -158,6 +161,9 @@ export function usePushNotifications() {
           if (data.entity_id) {
             router.push({ pathname: '/business/[id]', params: { id: data.entity_id } });
           }
+          break;
+        case 'waitlist_offer':
+          if (data.waitlist_id) router.push({ pathname: '/waitlist/[id]', params: { id: data.waitlist_id } });
           break;
         case 'offer':
           if (data.offer_id) {

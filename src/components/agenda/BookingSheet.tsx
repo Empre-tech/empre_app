@@ -71,6 +71,9 @@ export function BookingSheet({ visible, entityId, entityName, summary, onClose, 
   }, [visible, summary.next_slot, startService, days, initialSlot]);
 
   const needsService = summary.services.length > 0;
+  // Un día sin horas: anotarse en la lista de espera de ese día (si alguien cancela, la hora se ofrece en orden).
+  const [waitJoined, setWaitJoined] = useState<string | null>(null);
+  const join = useMutation({ mutationFn: () => agendaApi.joinWaitlist(entityId, day, serviceId), onSuccess: () => setWaitJoined(day) });
   const slots = useQuery({
     queryKey: ['availability', entityId, day, serviceId ?? null],
     queryFn: () => agendaApi.availability(entityId, day, serviceId),
@@ -184,7 +187,17 @@ export function BookingSheet({ visible, entityId, entityName, summary, onClose, 
               ) : slots.isError ? (
                 <Text style={styles.empty}>No pudimos cargar las horas. Intenta de nuevo.</Text>
               ) : (slots.data ?? []).length === 0 ? (
-                <Text style={styles.empty}>No hay horas libres ese día. Prueba con otro.</Text>
+                <View style={styles.waitBox}>
+                  <Text style={styles.empty}>No hay horas libres ese día.</Text>
+                  {waitJoined === day ? (
+                    <Text style={styles.waitOk} accessibilityLiveRegion="polite">
+                      Estás en la lista de espera. Si alguien cancela, te avisamos y tienes 10 minutos para tomar la hora.
+                    </Text>
+                  ) : (
+                    <Button title="Avísame si se libera una hora" variant="secondary" loading={join.isPending} onPress={() => join.mutate()} />
+                  )}
+                  {join.isError ? <Text style={styles.waitErr}>No se pudo anotar. Revisa tu conexión e inténtalo de nuevo.</Text> : null}
+                </View>
               ) : (
                 <View style={styles.grid}>
                   {(slots.data ?? []).map((iso) => (
@@ -304,6 +317,9 @@ const styles = StyleSheet.create({
   },
   slotText: { fontSize: 14.5, fontFamily: fonts.ui.semibold, color: colors.ink },
   empty: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center', paddingVertical: spacing.lg },
+  waitBox: { gap: spacing.sm },
+  waitOk: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.ink, textAlign: 'center' },
+  waitErr: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.ink, textAlign: 'center' },
   summaryCard: { backgroundColor: colors.primarySoft, borderRadius: radius.md, padding: spacing.md, gap: 2 },
   summaryWhen: { fontSize: 17, fontFamily: fonts.ui.extrabold, color: colors.ink },
   summaryMeta: { fontSize: 13.5, fontFamily: fonts.ui.medium, color: colors.muted },

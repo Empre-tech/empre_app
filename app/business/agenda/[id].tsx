@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { notifyError } from '@/components/Notice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { agendaApi, type Appointment, type AppointmentService } from '@/api/agenda';
+import { agendaApi, type Appointment, type AppointmentService, type WaitlistEntry } from '@/api/agenda';
 import { entitiesApi } from '@/api/endpoints';
 import { Button } from '@/components/Button';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
@@ -67,6 +67,8 @@ export default function BusinessAgendaScreen() {
   const pending = items.filter((a) => a.status === 'requested').sort((a, b) => Date.parse(a.expires_at ?? a.starts_at) - Date.parse(b.expires_at ?? b.starts_at));
   const today = items.filter((a) => a.status !== 'requested' && dayKey(new Date(a.starts_at)) === day);
   const confirmedToday = today.filter((a) => a.status === 'confirmed').length;
+  // Lista de espera del día (tablero «Agenda del negocio», teléfono 3): si alguien cancela, la hora se ofrece en orden.
+  const waitlist = useQuery({ queryKey: ['agenda', id, 'waitlist', day], queryFn: () => agendaApi.businessWaitlist(id, day), enabled: Boolean(id) && settings.data?.enabled === true, staleTime: 30_000 });
   const slots = useQuery({ queryKey: ['agenda', id, 'slots', day], queryFn: () => agendaApi.availability(id, day), enabled: Boolean(id) && settings.data?.enabled === true, staleTime: 30_000 });
   const askedToday = pending.filter((a) => dayKey(new Date(a.starts_at)) === day);
   // Una hora pedida no se ofrece como libre: se respeta a quien la pidió.
@@ -285,6 +287,28 @@ export default function BusinessAgendaScreen() {
                 </View>
               ))
             )}
+            {(waitlist.data ?? []).length ? (
+              <View style={styles.wait}>
+                <Text style={styles.dayTitle}>Lista de espera</Text>
+                <Text style={styles.waitLead}>Si alguien cancela, Empre le avisa a la lista en orden, con 10 minutos para cada uno.</Text>
+                {(waitlist.data ?? []).map((w, i) => {
+                  const st = waitText(w, i);
+                  return (
+                    <View key={w.id} style={styles.waitRow} accessible accessibilityLabel={`${w.name || 'Cliente'}: ${st.d}`}>
+                      <View style={[styles.waitAv, st.on && styles.waitAvOn]}>
+                        <Text style={[styles.waitIni, st.on && styles.waitIniOn]}>{(w.name || 'C').trim().charAt(0).toUpperCase()}</Text>
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.waitName} numberOfLines={1}>
+                          {w.name || 'Cliente'}
+                        </Text>
+                        <Text style={[styles.waitSub, st.on && styles.waitSubOn]}>{st.d}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
           </ScrollView>
 
           <Modal visible={reqsOpen} transparent animationType="slide" onRequestClose={() => setReqsOpen(false)}>
@@ -520,6 +544,21 @@ function SlotActionSheet({
   );
 }
 
+/** En qué va cada persona de la lista de espera, en una frase; la que tomó o tiene la hora se marca. */
+function waitText(w: WaitlistEntry, i: number): { d: string; on: boolean } {
+  const at = w.offered_slot ? clockShort(w.offered_slot) : '';
+  switch (w.status) {
+    case 'booked':
+      return { d: `Tomó la hora de las ${at}`, on: true };
+    case 'offered':
+      return { d: `Avisada · tiene 10 minutos para tomar las ${at}`, on: true };
+    case 'passed':
+      return { d: 'Avisada · no respondió a tiempo', on: false };
+    default:
+      return { d: i === 0 ? 'Primera en la fila' : `En la fila · ${i + 1}.ª`, on: false };
+  }
+}
+
 const styles = StyleSheet.create({
   dayDots: { flexDirection: 'row', gap: 3, height: 6, marginTop: 3 },
   dayDot: { width: 6, height: 6, borderRadius: 3 },
@@ -579,6 +618,16 @@ const styles = StyleSheet.create({
   askedSub: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
   dayHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, paddingTop: 4 },
   dayTitle: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  wait: { marginTop: spacing.lg, gap: spacing.sm },
+  waitLead: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
+  waitRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  waitAv: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
+  waitAvOn: { backgroundColor: colors.brand },
+  waitIni: { fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
+  waitIniOn: { color: colors.surface },
+  waitName: { fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
+  waitSub: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
+  waitSubOn: { color: colors.primaryDark },
   dayCount: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.faint },
   pendingSub: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.agenda },
   pendingSee: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.agenda },
