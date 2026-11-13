@@ -23,7 +23,7 @@ const SCREENS = [
   'components/offers/AskManySheet.tsx',
   'components/chat/ChatVoices.tsx',
   'components/search/SearchFilters.tsx',
-  'components/QuickActionSheet.tsx',
+  'components/EmpreButton.tsx',
 ];
 
 for (const f of SCREENS) {
