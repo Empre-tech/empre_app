@@ -49,6 +49,7 @@ import { iconGroups, mostPopular } from '@/lib/offerHome';
 import { applyFilters, availableLenses, lensItems, type BizFace, type LensKey } from '@/lib/offerLenses';
 import {
   askItemsToMarketItems,
+  catalogMarketItem,
   distanceLabel,
   effectiveSort,
   endText,
@@ -319,7 +320,12 @@ export default function OffersScreen() {
   );
 
   // Todo lo que la Vitrina ya cargó: de aquí salen los negocios que ofrecen lo mismo (3.64). Sin otra consulta.
-  const askPool = useMemo(() => [...mergedNear, ...items], [mergedNear, items]);
+  // Todo el catálogo cargado de los negocios cerca: con él «Para decidir» compara el mismo producto entre negocios.
+  const catalogPool = useMemo(
+    () => nearbyBiz.flatMap((b) => publicCatalog(catalogsByEntity[b.id] ?? []).map((it) => catalogMarketItem(b, it, resolvePhoto(it.photos?.[0]) ?? b.photos?.[0] ?? b.profile_url ?? undefined))),
+    [nearbyBiz, catalogsByEntity, resolvePhoto],
+  );
+  const askPool = useMemo(() => [...mergedNear, ...items, ...catalogPool], [mergedNear, items, catalogPool]);
 
   const sections = q ? [] : visibleSections(data);
 
@@ -740,7 +746,7 @@ export default function OffersScreen() {
                     items={x.items}
                     offers={x.offers}
                     onBiz={() => router.push({ pathname: '/business/[id]', params: { id: x.biz.id } })}
-                    onItem={(it) => router.push({ pathname: '/business/product', params: { entityId: x.biz.id, itemId: it.id } })}
+                    onItem={(it) => open(catalogMarketItem(x.biz, it, resolvePhoto(it.photos?.[0]) ?? x.biz.photos?.[0] ?? x.biz.profile_url ?? undefined))}
                   />
                 ))
               : null}
@@ -912,7 +918,7 @@ export default function OffersScreen() {
       </ScrollView>
 
       {/* FICHA RÁPIDA INTERACTIVA CON EMPRE AI + DETECCIÓN DE OFERTA + CHAT DIRECTO */}
-      <MarketItemSheet item={selectedItem} onClose={() => setSelectedItem(null)} pool={askPool} />
+      <MarketItemSheet item={selectedItem} onClose={() => setSelectedItem(null)} pool={askPool} onPick={setSelectedItem} />
       <FiltersSheet
         visible={filtersOpen}
         zones={[...(coords ? [{ id: '', name: 'Cerca de ti', on: !picked }] : []), ...(data?.zones ?? []).map((z) => ({ id: z.id, name: z.name, on: picked?.id === z.id }))]}

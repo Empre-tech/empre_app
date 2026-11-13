@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { answerMany, askDraft, manyIntentOf, manySuggestions, sameItem, sameItemPeers, toRow, unknownMany } from './askMany.ts';
+import { answerMany, askDraft, decisionPoints, manyIntentOf, manySuggestions, sameItem, sameItemPeers, similarItem, toRow, unknownMany } from './askMany.ts';
 import type { MarketItem } from './offerMarket.ts';
 
 function svc(p: Partial<MarketItem> & Pick<MarketItem, 'id' | 'entity_id'>): MarketItem {
@@ -78,4 +78,19 @@ test('intenciones, desconocido y borradores', () => {
   assert.equal(unknownMany(rows).missing.length, 4);
   assert.equal(askDraft('price', 'Corte clásico'), 'Hola, ¿cuánto cuesta Corte clásico?');
   assert.equal(askDraft('unknown', 'Corte clásico', '¿Atienden niños?'), 'Hola, ¿atienden niños? (sobre Corte clásico)');
+});
+
+test('puntos para decidir: dice quién está más barato, más cerca o abierto, sin favorecer al de la ficha', () => {
+  assert.ok(similarItem('Mojarra frita', 'Mojarra frita con patacón'));
+  assert.ok(!similarItem('Mojarra frita', 'Pescado frito'));
+  const d = decisionPoints(navaja, [lucho, navaja, norte, fino]);
+  assert.equal(d.peers, 3);
+  const price = d.points.find((p) => p.key === 'price')!;
+  assert.match(price.text, /7\.000 más que en/);
+  assert.equal(price.bold, 'Corte Fino');
+  assert.equal(d.points.find((p) => p.key === 'near')!.bold, 'Corte Fino');
+  const cheap = decisionPoints(fino, [lucho, navaja, fino]);
+  assert.match(cheap.points[0].text, /precio más bajo de los 3/);
+  assert.equal(cheap.points.find((p) => p.key === 'open')!.bold, 'Don Lucho');
+  assert.deepEqual(decisionPoints(lucho, [lucho]).points.map((p) => p.key), ['only']);
 });

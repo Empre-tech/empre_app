@@ -277,3 +277,59 @@ export function askDraft(intent: ManyIntent | 'unknown', product: string, text?:
     }
   }
 }
+
+/** Parecidos: las palabras del nombre más corto están en el otro y empiezan igual («Mojarra frita» ~ «Mojarra frita con patacón»). */
+export function similarItem(a: string, b: string): boolean {
+  const ra = roots(a);
+  const rb = roots(b);
+  if (!ra.length || !rb.length || ra[0] !== rb[0]) return false;
+  const [short, long] = ra.length <= rb.length ? [ra, rb] : [rb, ra];
+  return short.every((r) => long.includes(r));
+}
+
+export interface DecisionPoint {
+  key: 'price' | 'near' | 'rated' | 'open' | 'only';
+  /** El dato en una frase: «$4.000 más que en», con el nombre aparte para resaltarlo. */
+  text: string;
+  bold?: string;
+  /** La otra opción, para verla en la misma hoja. */
+  target?: MarketItem;
+}
+
+const priceOf = (it: MarketItem) => it.special_price ?? it.service_price ?? null;
+
+/**
+ * Puntos para decidir (hoja rápida de Ofertas): cómo queda este producto frente al mismo en otros negocios cerca.
+ * Solo hechos que la Vitrina ya tiene (precio, distancia, reseñas, si abre); no favorece a nadie: si otro está más
+ * barato, más cerca o mejor reseñado, lo dice, y si este gana, también.
+ */
+export function decisionPoints(item: MarketItem, pool: MarketItem[], max = 4): { peers: number; points: DecisionPoint[] } {
+  const best = new Map<string, MarketItem>();
+  for (const it of pool) {
+    if (it.entity_id === item.entity_id || it.kind === 'offer' || !similarItem(item.title, it.title)) continue;
+    const prev = best.get(it.entity_id);
+    if (!prev || (priceOf(it) ?? Infinity) < (priceOf(prev) ?? Infinity)) best.set(it.entity_id, it);
+  }
+  const peers = [...best.values()];
+  if (!peers.length) return { peers: 0, points: item.kind === 'offer' ? [] : [{ key: 'only', text: 'Cerca, solo este negocio lo tiene publicado' }] };
+  const points: DecisionPoint[] = [];
+  const mine = priceOf(item);
+  const priced = peers.filter((p) => (priceOf(p) ?? 0) > 0).sort((a, b) => priceOf(a)! - priceOf(b)!);
+  if (mine && priced.length) {
+    const low = priced[0];
+    const diff = mine - priceOf(low)!;
+    if (diff > 0) points.push({ key: 'price', text: `${pesos(diff)} más que en`, bold: low.entity_name, target: low });
+    else points.push({ key: 'price', text: `Es el precio más bajo de los ${peers.length + 1} cerca` });
+  }
+  const dist = (it: MarketItem) => it.distance_meters ?? Infinity;
+  const nearer = [...peers].sort((a, b) => dist(a) - dist(b))[0];
+  if (dist(nearer) + 100 < dist(item)) points.push({ key: 'near', text: `Más cerca, a ${distLabel(nearer.distance_meters) ?? '—'}:`, bold: nearer.entity_name, target: nearer });
+  else if (dist(item) < Infinity) points.push({ key: 'near', text: 'Es el que tienes más cerca' });
+  const rated = [...peers].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))[0];
+  if ((rated.rating ?? 0) >= (item.rating ?? 0) + 0.3) points.push({ key: 'rated', text: `Mejor reseñado (★ ${(rated.rating ?? 0).toFixed(1).replace('.', ',')}):`, bold: rated.entity_name, target: rated });
+  if (item.open_now === false) {
+    const open = peers.find((p) => p.open_now);
+    if (open) points.push({ key: 'open', text: 'Este está cerrado; abierto ahora:', bold: open.entity_name, target: open });
+  }
+  return { peers: peers.length, points: points.slice(0, max) };
+}

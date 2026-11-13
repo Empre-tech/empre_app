@@ -38,7 +38,7 @@ import {
   type Block,
   type Intent,
 } from '@/lib/answers';
-import { sameItemPeers } from '@/lib/askMany';
+import { decisionPoints, sameItemPeers } from '@/lib/askMany';
 import { askMessage, catalogCopy, formatPesos } from '@/lib/catalog';
 import { chatItemParam } from '@/lib/chatItem';
 import { displayIcon } from '@/lib/mapView';
@@ -55,6 +55,8 @@ interface Props {
   onClose: () => void;
   /** La Vitrina ya cargada: de aquí salen los otros negocios que ofrecen lo mismo («Pregúntales a los N», 3.64). */
   pool?: MarketItem[];
+  /** Ver otra opción (la de «Para decidir») en la misma hoja. */
+  onPick?: (item: MarketItem) => void;
 }
 
 /**
@@ -63,16 +65,16 @@ interface Props {
  * - Integra «Pregúntale a Empre AI» para responder al instante con lo que publicó el negocio.
  * - Permite escribirle directo al negocio adjuntando la tarjeta del producto/servicio o reclamar la oferta.
  */
-export function MarketItemSheet({ item, onClose, pool = [] }: Props) {
+export function MarketItemSheet({ item, onClose, pool = [], onPick }: Props) {
   const reduce = useReduceMotion();
   return (
     <Modal visible={item !== null} transparent animationType={reduce ? 'none' : 'slide'} onRequestClose={onClose}>
-      {item !== null ? <SheetContent key={item.id} item={item} onClose={onClose} pool={pool} /> : null}
+      {item !== null ? <SheetContent key={item.id} item={item} onClose={onClose} pool={pool} onPick={onPick} /> : null}
     </Modal>
   );
 }
 
-function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () => void; pool: MarketItem[] }) {
+function SheetContent({ item, onClose, pool, onPick }: { item: MarketItem; onClose: () => void; pool: MarketItem[]; onPick?: (item: MarketItem) => void }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const now = useNow(60_000);
@@ -200,6 +202,10 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
 
   // Otros negocios cercanos con el mismo producto: si hay, una pregunta les llega a todos (3.64).
   const peers = useMemo(() => sameItemPeers(item, pool), [item, pool]);
+  // Para decidir: el mismo producto en otros negocios cerca, solo con hechos (precio, distancia, reseñas, si abre).
+  const decide = useMemo(() => decisionPoints(item, pool), [item, pool]);
+  // Media hoja: se sigue viendo Ofertas detrás; al desplazar o tocar la manija, sube entera.
+  const [full, setFull] = useState(false);
   const [askMany, setAskMany] = useState(false);
 
   const [aiQuestion, setAiQuestion] = useState('');
@@ -303,14 +309,22 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
   return (
     <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel="Cerrar vista rápida" onPress={onClose} />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 14 }]} accessibilityViewIsModal>
-        <View style={styles.handleWrap}>
+      <View style={[styles.sheet, { height: full ? '92%' : '62%', paddingBottom: insets.bottom + 14 }]} accessibilityViewIsModal>
+        <Pressable accessibilityRole="button" accessibilityLabel={full ? 'Bajar la hoja' : 'Subir la hoja'} onPress={() => setFull((v) => !v)} style={styles.handleWrap}>
           <View style={styles.handle} />
-        </View>
+        </Pressable>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          onScroll={(e) => {
+            if (!full && e.nativeEvent.contentOffset.y > 24) setFull(true);
+          }}
+          scrollEventThrottle={64}
+        >
           {/* HERO FOTO (Inspirado en Referencia 2 Swiggy Card Modal) */}
-          <View style={styles.heroWrap}>
+          <View style={[styles.heroWrap, !full && styles.heroWrapHalf]}>
             <Cover
               photo={item.photo}
               category={item.category_name}
@@ -432,30 +446,28 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
               ) : null}
             </View>
 
-            {/* TARJETA DEL NEGOCIO (Acceso directo al perfil completo) */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Ir al negocio ${biz?.name ?? item.entity_name}`}
-              onPress={openBusiness}
-              style={({ pressed }) => [styles.bizCard, pressed && styles.pressed]}
-            >
-              <Avatar uri={biz?.profile_url} name={biz?.name ?? item.entity_name} size={42} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={styles.bizNameRow}>
-                  <Text style={styles.bizName} numberOfLines={1}>
-                    {biz?.name ?? item.entity_name}
-                  </Text>
-                  {biz?.is_verified ? <Ionicons name="checkmark-circle" size={15} color={colors.verified} /> : null}
-                </View>
-                <Text style={styles.bizMeta} numberOfLines={1}>
-                  Ver todo su catálogo, horarios y ubicación
-                </Text>
+            {/* PARA DECIDIR: el mismo producto en otros negocios, sin favorecer a ninguno */}
+            {decide.points.length ? (
+              <View style={styles.decideCard}>
+                <Text style={styles.decideTitle}>{decide.peers ? `Para decidir · ${decide.peers + 1} negocios lo tienen cerca` : 'Para decidir'}</Text>
+                {decide.points.map((pt) => (
+                  <Pressable
+                    key={pt.key}
+                    accessibilityRole={pt.target ? 'button' : 'text'}
+                    disabled={!pt.target || !onPick}
+                    onPress={() => pt.target && onPick?.(pt.target)}
+                    style={({ pressed }) => [styles.decideRow, pressed && styles.pressed]}
+                  >
+                    <Ionicons name={DECIDE_ICON[pt.key]} size={18} color={colors.ink} />
+                    <Text style={styles.decideText}>
+                      {pt.text}
+                      {pt.bold ? <Text style={styles.decideBold}>{` ${pt.bold}`}</Text> : null}
+                    </Text>
+                    {pt.target && onPick ? <Text style={styles.decideGo}>Ver ›</Text> : null}
+                  </Pressable>
+                ))}
               </View>
-              <View style={styles.bizGoPill}>
-                <Text style={styles.bizGoText}>Ver local</Text>
-                <Ionicons name="chevron-forward" size={14} color={colors.ink} />
-              </View>
-            </Pressable>
+            ) : null}
 
             {/* MÓDULO EMPRE AI: RESPUESTAS RÁPIDAS AL INSTANTE */}
             <View style={styles.aiCard}>
@@ -543,6 +555,30 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
                 </Pressable>
               </View>
             </View>
+            {/* TARJETA DEL NEGOCIO (Acceso directo al perfil completo) */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Ir al negocio ${biz?.name ?? item.entity_name}`}
+              onPress={openBusiness}
+              style={({ pressed }) => [styles.bizCard, pressed && styles.pressed]}
+            >
+              <Avatar uri={biz?.profile_url} name={biz?.name ?? item.entity_name} size={42} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={styles.bizNameRow}>
+                  <Text style={styles.bizName} numberOfLines={1}>
+                    {biz?.name ?? item.entity_name}
+                  </Text>
+                  {biz?.is_verified ? <Ionicons name="checkmark-circle" size={15} color={colors.verified} /> : null}
+                </View>
+                <Text style={styles.bizMeta} numberOfLines={1}>
+                  Ver todo su catálogo, horarios y ubicación
+                </Text>
+              </View>
+              <View style={styles.bizGoPill}>
+                <Text style={styles.bizGoText}>Ver local</Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.ink} />
+              </View>
+            </Pressable>
           </View>
         </ScrollView>
 
@@ -617,17 +653,32 @@ function AIBlockView({ b }: { b: Block }) {
   }
 }
 
+const DECIDE_ICON: Record<'price' | 'near' | 'rated' | 'open' | 'only', IconName> = {
+  price: 'pricetag-outline',
+  near: 'walk-outline',
+  rated: 'star-outline',
+  open: 'time-outline',
+  only: 'storefront-outline',
+};
+
 // Lo que el servidor ya clasificó en esta sesión: la misma pregunta no se paga dos veces (3.64).
 const classified = new Map<string, { intent: string; answer_id?: string }>();
 
 const styles = StyleSheet.create({
   aiChipCompare: { backgroundColor: colors.sand, borderColor: colors.ink },
-  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17,19,24,0.52)' },
-  sheet: { maxHeight: '90%', backgroundColor: colors.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden', ...softShadow },
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(43,38,34,0.28)' },
+  sheet: { backgroundColor: colors.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden', ...softShadow },
   handleWrap: { alignItems: 'center', paddingTop: 10, paddingBottom: 6, backgroundColor: colors.surface },
   handle: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.line },
   scrollContent: { paddingBottom: 16 },
   heroWrap: { height: 188, position: 'relative', backgroundColor: colors.sand },
+  heroWrapHalf: { height: 132 },
+  decideCard: { padding: 14, gap: 4, borderRadius: 18, backgroundColor: colors.surface },
+  decideTitle: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink, marginBottom: 4 },
+  decideRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 40 },
+  decideText: { flex: 1, fontSize: 14, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.ink },
+  decideBold: { fontFamily: fonts.ui.semibold },
+  decideGo: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
   heroPhoto: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   heroTopRow: { position: 'absolute', top: 12, left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   heroOfferBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.brand },

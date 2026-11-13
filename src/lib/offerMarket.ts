@@ -333,6 +333,40 @@ export function featuredA11y(o: MarketItem, now: number): string {
 // 3.55 · Vitrina Unificada: Catálogo (Servicios/Productos con precio) + Ofertas
 // ---------------------------------------------------------------------------
 
+/** Un producto o servicio del catálogo de un negocio cercano, como tarjeta de la Vitrina. */
+export function catalogMarketItem(b: DiscoveryItem, it: ServiceItem, photo?: string): MarketItem {
+  const activeOffer = b.active_offer;
+  return {
+    id: it.id,
+    entity_id: b.id,
+    title: it.name,
+    type: 'CATALOG',
+    ends_at: activeOffer?.ends_at ?? '',
+    entity_name: b.name,
+    category_name: b.category_name,
+    category_color: b.category_color,
+    category_icon: b.category_icon,
+    photo,
+    distance_meters: b.distance_meters ?? null,
+    kind: 'service',
+    service_id: it.id,
+    service_price: it.price,
+    price_from: it.price_from,
+    duration_min: it.duration_min,
+    bookable: it.bookable,
+    section: it.section,
+    description: it.description,
+    rating: b.avg_rating,
+    open_now: b.is_open_now,
+    open_until: b.closes_at,
+    latitude: b.latitude,
+    longitude: b.longitude,
+    has_entity_offer: Boolean(b.has_active_offer),
+    linked_offer_id: activeOffer?.id,
+    linked_offer_title: activeOffer?.title,
+  };
+}
+
 /**
  * Combina las ofertas vigentes de la vitrina con los servicios/productos reales del catálogo de los negocios cercanos.
  * - Si un servicio del catálogo está incluido en la oferta activa del negocio (`active_offer.items`), o coincide con
@@ -409,35 +443,7 @@ export function mergeCatalogIntoMarket(
 
       seenIds.add(it.id);
       seenServiceIds.add(it.id);
-      out.push({
-        id: it.id,
-        entity_id: b.id,
-        title: it.name,
-        type: 'CATALOG',
-        ends_at: activeOffer?.ends_at ?? '',
-        entity_name: b.name,
-        category_name: b.category_name,
-        category_color: b.category_color,
-        category_icon: b.category_icon,
-        photo: itemPhoto || fallbackPhoto,
-        distance_meters: b.distance_meters ?? null,
-        kind: 'service',
-        service_id: it.id,
-        service_price: it.price,
-        price_from: it.price_from,
-        duration_min: it.duration_min,
-        bookable: it.bookable,
-        section: it.section,
-        description: it.description,
-        rating: b.avg_rating,
-        open_now: b.is_open_now,
-        open_until: b.closes_at,
-        latitude: b.latitude,
-        longitude: b.longitude,
-        has_entity_offer: Boolean(b.has_active_offer),
-        linked_offer_id: activeOffer?.id,
-        linked_offer_title: activeOffer?.title,
-      });
+      out.push(catalogMarketItem(b, it, itemPhoto || fallbackPhoto));
     }
   }
 
