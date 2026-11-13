@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md },
   name: { fontSize: 15.5, fontFamily: fonts.ui.bold, color: colors.ink },
   meta: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
-  margin: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.success },
+  margin: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.finance },
   error: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.danger },
   inputWrap: { flexDirection: 'row', alignItems: 'center', width: 130, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.sm, backgroundColor: colors.bg },
   sign: { fontSize: 16, fontFamily: fonts.ui.bold, color: colors.muted },

@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
   partyActions: { flexDirection: 'row', gap: 8 },
   partyBtn: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   partyBtnText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  flash: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink, backgroundColor: colors.verifiedSoft },
+  flash: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink, backgroundColor: colors.financeSoft },
   tabsInline: { flexDirection: 'row', gap: spacing.sm },
   msg: { minHeight: 110, paddingTop: spacing.sm, textAlignVertical: 'top' },
   screen: { flex: 1, backgroundColor: colors.bg },

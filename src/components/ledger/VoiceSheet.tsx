@@ -93,8 +93,8 @@ export function actionProblem(a: VoiceAction): string | null {
 /** Los tonos de la paleta para lo entendido (3.65): producto en tinta, lo bueno en verde azulado, lo que falta en rojo. */
 const TONE: Record<WordTone, { ink: string; bg: string }> = {
   item: { ink: colors.ink, bg: colors.selectedSoft },
-  good: { ink: colors.verified, bg: colors.verifiedSoft },
-  bad: { ink: colors.primaryDark, bg: colors.primarySoft },
+  good: { ink: colors.finance, bg: colors.financeSoft },
+  bad: { ink: colors.ink, bg: colors.selectedSoft },
   warn: { ink: colors.warning, bg: colors.selectedSoft },
 };
 
@@ -1213,8 +1213,8 @@ const styles = StyleSheet.create({
     ...softShadow,
   },
   stockDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.placeholder },
-  stockHas: { backgroundColor: '#0D7A5F' },
-  stockOut: { backgroundColor: colors.brand },
+  stockHas: { backgroundColor: '#0B7F3D' },
+  stockOut: { backgroundColor: colors.danger },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   stepBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line },
   stepN: { minWidth: 56, textAlign: 'center', fontSize: 28, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
@@ -1223,7 +1223,7 @@ const styles = StyleSheet.create({
   similarName: { flex: 1, minWidth: 0, fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  liveBrandText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.verified, letterSpacing: 0.7 },
+  liveBrandText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.finance, letterSpacing: 0.7 },
   closeBtn: {
     width: 44,
     height: 44,

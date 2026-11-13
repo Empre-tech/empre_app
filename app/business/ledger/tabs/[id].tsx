@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
   list: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line },
   tabRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 64, paddingHorizontal: spacing.md },
   line: { borderTopWidth: 1, borderTopColor: colors.line },
-  badge: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  badge: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.financeSoft, alignItems: 'center', justifyContent: 'center' },
   name: { fontSize: 15.5, fontFamily: fonts.ui.bold, color: colors.ink },
   total: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink },
 });

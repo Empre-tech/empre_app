@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   wd: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.muted, paddingBottom: 4 },
   cell: { width: `${100 / 7}%`, height: 42, alignItems: 'center', justifyContent: 'center' },
-  band: { backgroundColor: colors.primarySoft },
+  band: { backgroundColor: colors.financeSoft },
   bandStart: { borderTopLeftRadius: 21, borderBottomLeftRadius: 21 },
   bandEnd: { borderTopRightRadius: 21, borderBottomRightRadius: 21 },
   day: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },

@@ -46,7 +46,7 @@ export function ChatVoices({ avatar, businessName, online, ownerSub, mood = 'rep
       <View style={styles.voice}>
         <View>
           <Avatar uri={avatar} name={businessName} size={26} />
-          <View style={[styles.dot, { backgroundColor: online ? '#0D7A5F' : '#CBCED4' }]} />
+          <View style={[styles.dot, { backgroundColor: online ? '#D42020' : '#CBCED4' }]} />
         </View>
         <View style={styles.texts}>
           <Text style={styles.name}>El dueño</Text>
@@ -77,8 +77,8 @@ const styles = StyleSheet.create({
   name: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   sub: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.muted },
   dot: { position: 'absolute', right: -2, bottom: -2, width: 11, height: 11, borderRadius: 6, borderWidth: 2, borderColor: colors.bg },
-  ownerMark: { position: 'absolute', right: -3, bottom: -3, width: 13, height: 13, borderRadius: 7, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0D7A5F', borderWidth: 2, borderColor: colors.bg },
+  ownerMark: { position: 'absolute', right: -3, bottom: -3, width: 13, height: 13, borderRadius: 7, alignItems: 'center', justifyContent: 'center', backgroundColor: '#D42020', borderWidth: 2, borderColor: colors.bg },
   handoff: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 8 },
-  handoffLine: { flex: 1, height: 1, backgroundColor: '#E7F3EF' },
+  handoffLine: { flex: 1, height: 1, backgroundColor: '#FDECEC' },
   handoffText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.verified },
 });

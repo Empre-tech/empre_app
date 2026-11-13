@@ -325,7 +325,7 @@ function QuickAction({ symbol, icon, label, onPress }: { symbol?: EmpreProduct; 
 const styles = StyleSheet.create({
   anchor: { borderRadius: 22, backgroundColor: colors.night, padding: 16, gap: 6 },
   anchorLead: { fontFamily: fonts.ui.extrabold, fontSize: 12.5, color: colors.nightText },
-  anchorTotal: { fontFamily: fonts.display.bold, fontSize: 30, lineHeight: 34, color: '#FFFFFF' },
+  anchorTotal: { fontFamily: fonts.display.bold, fontSize: 30, lineHeight: 34, color: colors.financeLight, fontVariant: ['tabular-nums'] },
   anchorSub: { fontFamily: fonts.ui.extrabold, fontSize: 13, color: colors.glow },
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 16, paddingBottom: 120, gap: 18 },

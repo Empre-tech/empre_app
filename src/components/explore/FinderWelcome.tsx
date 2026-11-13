@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
   veil: { zIndex: 50, backgroundColor: 'rgba(17,19,24,0.96)', alignItems: 'center', justifyContent: 'center' },
   // El logo queda en el centro del mapa, que es donde está tu punto al arrancar.
   center: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'center' },
-  wave: { position: 'absolute', width: 120, height: 120, borderRadius: 60, borderWidth: 2, borderColor: 'rgba(47,217,143,0.55)' },
+  wave: { position: 'absolute', width: 120, height: 120, borderRadius: 60, borderWidth: 2, borderColor: 'rgba(255,107,107,0.55)' },
   copy: { position: 'absolute', left: 24, right: 24, top: '58%', alignItems: 'center', gap: 4 },
   hello: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.nightText },
   brand: { fontSize: 34, lineHeight: 38, fontFamily: fonts.display.bold, color: '#FFFFFF', letterSpacing: -0.6 },

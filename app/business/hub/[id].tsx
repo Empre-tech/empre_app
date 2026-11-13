@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: 20, gap: 16 },
   main: { borderRadius: 20, overflow: 'hidden', backgroundColor: colors.surface, ...softShadow },
   mainTop: { gap: 10, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.selectedSoft },
-  big: { fontSize: 30, lineHeight: 34, fontFamily: fonts.display.bold, color: colors.ink },
+  big: { fontSize: 30, lineHeight: 34, fontFamily: fonts.display.bold, color: colors.finance, fontVariant: ['tabular-nums'] },
   label: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   dayTrack: { height: 32, borderRadius: 8, justifyContent: 'center', backgroundColor: colors.selectedSoft },
   dayBlock: { position: 'absolute', top: 0, bottom: 0, borderRadius: 6 },

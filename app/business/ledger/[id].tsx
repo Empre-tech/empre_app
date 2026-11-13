@@ -388,7 +388,7 @@ function OutboxBanner({ entityId }: { entityId: string }) {
         </Pressable>
       ) : null}
       {failed.map((f) => (
-        <View key={f.id} style={[styles.banner, { backgroundColor: colors.primarySoft }]}>
+        <View key={f.id} style={[styles.banner, { backgroundColor: colors.financeSoft }]}>
           <Ionicons name="alert-circle-outline" size={18} color={colors.danger} />
           <Text style={[styles.bannerText, { color: colors.danger }]}>No se pudo enviar un registro: {f.error}</Text>
           <Pressable accessibilityRole="button" onPress={() => retryLedgerItem(f.id)} hitSlop={8}>
@@ -409,7 +409,7 @@ const styles = StyleSheet.create({
   main: { borderRadius: 20, overflow: 'hidden', backgroundColor: colors.surface, ...softShadow },
   mainTop: { minHeight: 168, justifyContent: 'space-between', gap: 12, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.selectedSoft },
   label: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  hero: { fontSize: 40, lineHeight: 46, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  hero: { fontSize: 40, lineHeight: 46, fontFamily: fonts.display.bold, color: colors.finance, fontVariant: ['tabular-nums'] },
   heroWords: { fontSize: 26, lineHeight: 32, fontFamily: fonts.display.bold, color: colors.ink },
   invite: { fontSize: 14.5, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.muted },
   minis: { flexDirection: 'row', gap: 12 },
@@ -425,7 +425,7 @@ const styles = StyleSheet.create({
   hours: { height: 96, flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
   hourSlot: { flex: 1, minWidth: 0, height: 96, justifyContent: 'flex-end' },
   hourBar: { borderRadius: 4 },
-  nowLine: { position: 'absolute', left: '50%', top: 0, bottom: 0, width: 2, marginLeft: -1, backgroundColor: colors.brand },
+  nowLine: { position: 'absolute', left: '50%', top: 0, bottom: 0, width: 2, marginLeft: -1, backgroundColor: colors.finance },
   hourLabels: { flexDirection: 'row', gap: 3, marginTop: -6 },
   hourLabel: { flex: 1, minWidth: 0, textAlign: 'center', fontSize: 12, fontFamily: fonts.ui.bold, color: colors.faint },
   hourDetail: { minHeight: 44, justifyContent: 'center', gap: 1, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.selectedSoft },
@@ -438,5 +438,5 @@ const styles = StyleSheet.create({
   noMoves: { minHeight: 58, paddingVertical: 18, fontSize: 14.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   banner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: 12, borderRadius: 12, backgroundColor: colors.selectedSoft },
   bannerText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.ink },
-  bannerLink: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
+  bannerLink: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.finance },
 });

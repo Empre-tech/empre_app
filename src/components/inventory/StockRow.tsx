@@ -10,7 +10,7 @@ import { formatPesos, newClientId } from '@/lib/ledger';
 import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 
 const LEVELS: { level: StockLevel; label: string; color: string }[] = [
-  { level: 'ok', label: 'Hay', color: colors.success },
+  { level: 'ok', label: 'Hay', color: colors.finance },
   { level: 'low', label: 'Queda poco', color: colors.warning },
   { level: 'out', label: 'Se acabó', color: colors.danger },
 ];
@@ -32,7 +32,7 @@ export function StockRow({ entityId, item, onChanged, onError, onEdit, onRetire 
   const usedIn = item.used_in ?? [];
   const missing = missingIngredients(item);
   const blocked = missing.out.length > 0;
-  const dot = blocked ? colors.danger : item.status === 'out' ? colors.danger : item.status === 'low' ? colors.warning : item.status === 'ok' ? colors.success : colors.line;
+  const dot = blocked ? colors.danger : item.status === 'out' ? colors.danger : item.status === 'low' ? colors.warning : item.status === 'ok' ? colors.finance : colors.line;
 
   const level = useMutation({
     mutationFn: (l: StockLevel) => ledgerApi.setLevel(entityId, item.ref, newClientId(), l),

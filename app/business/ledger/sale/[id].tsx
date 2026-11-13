@@ -651,7 +651,7 @@ const styles = StyleSheet.create({
   doneBody: { alignItems: 'center', gap: 16, paddingHorizontal: 20, paddingTop: 24, paddingBottom: 24 },
   doneText: { alignItems: 'center', gap: 2 },
   doneTitle: { fontSize: 19, lineHeight: 23, fontFamily: fonts.display.bold, color: colors.ink },
-  doneTotal: { fontSize: 40, lineHeight: 46, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  doneTotal: { fontSize: 40, lineHeight: 46, fontFamily: fonts.display.bold, color: colors.finance, fontVariant: ['tabular-nums'] },
   doneSub: { textAlign: 'center', fontSize: 14.5, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.muted },
   doneReceipt: { alignSelf: 'stretch' },
   footer: { gap: 8, paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.hairline, backgroundColor: colors.surface },

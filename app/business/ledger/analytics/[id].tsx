@@ -194,7 +194,7 @@ function Lines({ rows, empty, onPress }: { rows: InvLine[]; empty: string; onPre
     <>
       {rows.map((r) => (
         <Pressable key={`${r.ref}${r.text}`} accessibilityRole={onPress ? 'button' : undefined} disabled={!onPress} onPress={() => onPress?.(r)} style={styles.line}>
-          {r.tone !== 'muted' ? <View style={[styles.dot, { backgroundColor: colors.brand }]} /> : null}
+          {r.tone !== 'muted' ? <View style={[styles.dot, { backgroundColor: colors.finance }]} /> : null}
           <Text style={[styles.lineName, { flex: 1 }]} numberOfLines={1}>
             {r.name}
           </Text>

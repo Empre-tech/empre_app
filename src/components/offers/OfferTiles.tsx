@@ -233,7 +233,7 @@ export function FeaturedOffer({ item, now, onPress }: { item: MarketItem; now: n
     <Pressable accessibilityRole="button" accessibilityLabel={featuredA11y(item, now)} onPress={onPress} style={({ pressed }) => [styles.feat, pressed && styles.pressed]}>
       <View style={styles.tricolorBar}>
         <View style={[styles.tricolorSeg, { backgroundColor: colors.primary }]} />
-        <View style={[styles.tricolorSeg, { backgroundColor: '#0D7A5F' }]} />
+        <View style={[styles.tricolorSeg, { backgroundColor: '#D42020' }]} />
         <View style={[styles.tricolorSeg, { backgroundColor: colors.accent }]} />
       </View>
       <Photo item={item} style={styles.featPhoto} size="lg" />

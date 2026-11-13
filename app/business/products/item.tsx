@@ -29,7 +29,7 @@ import { groupOf, marginOf, NO_GROUP } from '@/lib/supplies';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const DURATIONS = [15, 30, 45, 60, 90];
-const DOT: Record<string, string> = { ok: colors.success, low: colors.ink, out: colors.danger };
+const DOT: Record<string, string> = { ok: colors.finance, low: colors.ink, out: colors.danger };
 
 const TRACK: { mode: StockMode; label: string; hint: string }[] = [
   { mode: 'exact', label: 'Cuento', hint: 'cuántos hay' },
@@ -480,7 +480,7 @@ export default function ItemScreen() {
         <View style={styles.heardRow} accessibilityLiveRegion="polite">
           {heardChips.map((c) => (
             <View key={c.text} style={[styles.heard, !c.ok && styles.heardMissing]}>
-              <Ionicons name={c.ok ? 'checkmark' : 'ellipse-outline'} size={13} color={c.ok ? colors.verified : colors.ink} />
+              <Ionicons name={c.ok ? 'checkmark' : 'ellipse-outline'} size={13} color={c.ok ? colors.finance : colors.ink} />
               <Text style={[styles.heardText, !c.ok && { color: colors.ink }]}>{c.text}</Text>
             </View>
           ))}
@@ -725,8 +725,8 @@ export default function ItemScreen() {
               </View>
               {margin ? (
                 <View style={[styles.margin, margin.amount < 0 ? styles.marginBad : styles.marginOk]}>
-                  <Ionicons name={margin.amount < 0 ? 'alert-circle-outline' : 'trending-up'} size={18} color={margin.amount < 0 ? '#111318' : '#0D7A5F'} />
-                  <Text style={[styles.marginText, { color: margin.amount < 0 ? '#111318' : '#0D7A5F' }]}>
+                  <Ionicons name={margin.amount < 0 ? 'alert-circle-outline' : 'trending-up'} size={18} color={margin.amount < 0 ? '#111318' : '#0B7F3D'} />
+                  <Text style={[styles.marginText, { color: margin.amount < 0 ? '#111318' : '#0B7F3D' }]}>
                     {margin.amount < 0
                       ? `Pierdes ${formatPesos(-margin.amount)} en cada uno. ¿Revisas el precio?`
                       : margin.amount === 0
@@ -749,8 +749,8 @@ export default function ItemScreen() {
                 <View style={styles.trackRow} accessibilityRole="radiogroup">
                   {TRACK.map((t) => (
                     <Pressable key={t.mode} accessibilityRole="radio" accessibilityState={{ checked: track === t.mode }} onPress={() => setTrack(t.mode)} style={[styles.trackBtn, track === t.mode && styles.trackOn]}>
-                      <Text style={[styles.trackLabel, track === t.mode && { color: colors.primaryDark }]}>{t.label}</Text>
-                      <Text style={[styles.trackHint, track === t.mode && { color: colors.primaryDark }]}>{t.hint}</Text>
+                      <Text style={[styles.trackLabel, track === t.mode && { color: colors.finance }]}>{t.label}</Text>
+                      <Text style={[styles.trackHint, track === t.mode && { color: colors.finance }]}>{t.hint}</Text>
                     </Pressable>
                   ))}
                 </View>
@@ -926,9 +926,9 @@ const styles = StyleSheet.create({
   metaSmall: { fontSize: 12, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.muted },
   placeholder: { fontSize: 15, fontFamily: fonts.ui.medium, color: colors.muted },
   heardRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  heard: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.verifiedSoft },
+  heard: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.financeSoft },
   heardMissing: { backgroundColor: '#FFF6DE' },
-  heardText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.verified },
+  heardText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.finance },
   starter: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
   starterText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   segment: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: '#EFF0F2' },
@@ -946,23 +946,23 @@ const styles = StyleSheet.create({
   miniText: { fontSize: 13, fontFamily: fonts.ui.bold, color: '#5B606B' },
   miniTextOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
   select: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 52, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.lg, paddingHorizontal: spacing.md },
-  sectionPill: { minHeight: 30, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.primarySoft, justifyContent: 'center' },
+  sectionPill: { minHeight: 30, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.financeSoft, justifyContent: 'center' },
   audWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  suggest: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 40, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
-  suggestText: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
-  sectionPillText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
+  suggest: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 40, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.financeSoft },
+  suggestText: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.semibold, color: colors.finance },
+  sectionPillText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.finance },
   preview: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.bg },
   previewIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   previewName: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   previewPrice: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   margin: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md },
-  marginOk: { backgroundColor: '#E7F3EF' },
+  marginOk: { backgroundColor: '#E8F5EC' },
   marginBad: { backgroundColor: '#EFF0F2' },
   marginText: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.extrabold },
   divider: { height: 1, backgroundColor: '#EFF0F2' },
   trackRow: { flexDirection: 'row', gap: 6 },
   trackBtn: { flex: 1, minHeight: 56, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', padding: 6 },
-  trackOn: { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  trackOn: { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.financeSoft },
   trackLabel: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   trackHint: { fontSize: 11, fontFamily: fonts.ui.bold, color: '#5B606B' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
@@ -978,7 +978,7 @@ const styles = StyleSheet.create({
   supplyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56, borderBottomWidth: 1, borderBottomColor: '#EFF0F2' },
   dot: { width: 10, height: 10, borderRadius: 5 },
   remove: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  pickBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, minHeight: 48, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  pickBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, minHeight: 48, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.financeSoft },
   pickText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.primary },
   variantRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, borderTopWidth: 1, borderTopColor: colors.line },
   qty: { width: 64, minHeight: 42, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.xs, fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink, textAlign: 'center', backgroundColor: colors.bg },

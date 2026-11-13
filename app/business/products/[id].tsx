@@ -358,9 +358,9 @@ export default function ProductsScreen() {
         ) : null}
         {FEATURES.ledger && semCounts.total > 0 ? (
           <View style={styles.semRow} accessibilityLabel={`Inventario: ${semCounts.ok} con existencias, ${semCounts.low} quedan poco, ${semCounts.out} agotados`}>
-            <SemChip label="Hay" n={semCounts.ok} dot="#0D7A5F" on={stockIs('ok')} onPress={() => pickStock('ok')} />
+            <SemChip label="Hay" n={semCounts.ok} dot="#0B7F3D" on={stockIs('ok')} onPress={() => pickStock('ok')} />
             <SemChip label="Poco" n={semCounts.low} dot={colors.ink} on={stockIs('low')} onPress={() => pickStock('low')} />
-            <SemChip label="Agotado" n={semCounts.out} dot={colors.brand} on={stockIs('out')} onPress={() => pickStock('out')} />
+            <SemChip label="Agotado" n={semCounts.out} dot={colors.finance} on={stockIs('out')} onPress={() => pickStock('out')} />
           </View>
         ) : null}
         {FEATURES.ledger ? (
@@ -755,7 +755,7 @@ const PILL: Record<PillTone, { bg: string; fg: string }> = {
   muted: { bg: 'transparent', fg: colors.muted },
   service: { bg: 'transparent', fg: colors.muted },
 };
-const SEM_DOT = { ok: '#0D7A5F', low: colors.ink, out: colors.brand } as const;
+const SEM_DOT = { ok: '#0B7F3D', low: colors.ink, out: colors.finance } as const;
 
 function SemChip({ label, n, dot, on, onPress }: { label: string; n: number; dot: string; on: boolean; onPress: () => void }) {
   return (
@@ -928,7 +928,7 @@ const styles = StyleSheet.create({
   aiVoiceBtnText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },
   meta: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
-  setup: { gap: spacing.sm, backgroundColor: colors.primarySoft, borderRadius: radius.lg, padding: spacing.md },
+  setup: { gap: spacing.sm, backgroundColor: colors.financeSoft, borderRadius: radius.lg, padding: spacing.md },
   setupTitle: { fontSize: 15.5, fontFamily: fonts.display.bold, color: colors.ink },
   row: { flexDirection: 'row', gap: spacing.sm },
   linkRow: { minHeight: 40, justifyContent: 'center', alignSelf: 'center' },
@@ -961,7 +961,7 @@ const styles = StyleSheet.create({
   pillMuted: { borderWidth: 1, borderColor: colors.line },
   groupSum: { fontSize: 12, fontFamily: fonts.ui.extrabold },
   pillText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold },
-  emptySupplies: { padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
+  emptySupplies: { padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.financeSoft },
   review: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.primary },
   reviewRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   fab: { position: 'absolute', right: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 56, paddingHorizontal: 22, borderRadius: 28, backgroundColor: colors.primary, elevation: 4, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },

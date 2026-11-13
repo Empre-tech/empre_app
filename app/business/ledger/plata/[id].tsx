@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
   mainTop: { gap: 10, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.selectedSoft },
   heroRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   label: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  hero: { fontSize: 34, lineHeight: 38, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  hero: { fontSize: 34, lineHeight: 38, fontFamily: fonts.display.bold, color: colors.finance, fontVariant: ['tabular-nums'] },
   rangeBtn: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
   bars: { flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
   barSlot: { flex: 1, minWidth: 0, minHeight: 98, justifyContent: 'flex-end', alignItems: 'center', gap: 4, paddingVertical: 4, borderRadius: 8 },

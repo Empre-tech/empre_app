@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: 20, gap: 24 },
   card: { gap: 12, padding: 16, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
   label: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  hero: { fontSize: 40, lineHeight: 46, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  hero: { fontSize: 40, lineHeight: 46, fontFamily: fonts.display.bold, color: colors.finance, fontVariant: ['tabular-nums'] },
   note: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.semibold, color: colors.muted },
   body2: { fontSize: 14.5, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.muted },
   listCard: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
