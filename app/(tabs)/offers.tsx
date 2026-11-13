@@ -2,6 +2,7 @@ import { Ionicons } from '@/components/Icon';
 import { keepPreviousData, useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { Image as ExpoImage } from 'expo-image';
 import { Avatar } from '@/components/Avatar';
 import { CategoryArt, artKeyFor } from '@/components/CategoryArt';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -55,6 +56,8 @@ import {
   listTitle,
   mergeCatalogIntoMarket,
   nearestOtherZone,
+  nearbyWall,
+  offerSections,
   nearEnd,
   pesos,
   showZones,
@@ -348,6 +351,17 @@ export default function OffersScreen() {
     return raw.filter((o) => o.kind !== 'service' && (seen.has(o.id) ? false : (seen.add(o.id), true)));
   }, [data, rawAllItems]);
   const faces = useMemo(() => bizFaces(nearbyBiz, knownOffers, catalogsByEntity), [nearbyBiz, knownOffers, catalogsByEntity]);
+  // Las ofertas son el tema, por secciones (tablero «Empre Offers»): cada una una vez, sin repetir foto.
+  const offerRails = useMemo(() => (q || category ? [] : offerSections(knownOffers, now)), [knownOffers, now, q, category]);
+  // Un asomo de «Lo que venden cerca»: cuatro fotos de negocios distintos.
+  const nearbyPeek = useMemo(
+    () =>
+      nearbyWall(
+        Object.entries(catalogsByEntity).map(([entityId, list]) => list.map((it) => ({ id: it.id, entityId, photo: it.photos?.[0] ? mediaUrl(it.photos[0]) : undefined, name: it.section || it.name }))),
+        4,
+      ),
+    [catalogsByEntity],
+  );
 
   const pickZone = (id: string) => {
     const z = data?.zones.find((x) => x.id === id);
@@ -601,8 +615,18 @@ export default function OffersScreen() {
               </View>
             ) : null}
 
-            {/* 4 · Lo de la lente elegida: la vitrina que rota con las tres más fuertes y las demás en tarjetas */}
-            {data && show !== 'services' && lensMeta ? (
+            {/* Las ofertas por secciones: terminan hoy, 2x1 y gratis, con descuento, precio especial */}
+            {show !== 'services'
+              ? offerRails.map((r) => (
+                  <View key={r.key} style={styles.sec}>
+                    {header(r.title, r.why)}
+                    {rail(r.items)}
+                  </View>
+                ))
+              : null}
+
+            {/* 4 · Lo de la lente elegida (cuando aún no hay secciones: búsqueda, categoría o pocas ofertas) */}
+            {data && show !== 'services' && lensMeta && offerRails.length === 0 ? (
               <Reveal key={`lens|${key}|${lensKey}`} style={styles.sec}>
                 {header(lensMeta.title, lensKey === 'buscado' || lensKey === 'canjea' ? `${lensMeta.why}${inCity}` : lensMeta.why)}
                 {lensKey === 'buscado' && data.searched.terms.length ? (
@@ -656,6 +680,31 @@ export default function OffersScreen() {
             ) : null}
 
             {alertZone && show !== 'services' ? <OfferAlertCard zoneId={alertZone.id} zoneName={alertZone.name} categoryId={alertCat?.id} categoryName={alertCat?.name} /> : null}
+
+            {/* Aparte: lo que venden cerca. Nunca mezclado con las ofertas */}
+            {!q && nearbyPeek.length ? (
+              <Pressable accessibilityRole="button" accessibilityLabel="Lo que venden cerca: productos y servicios" onPress={() => router.push('/cerca')} style={styles.peek}>
+                <View style={styles.railHead}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.shTitle} accessibilityRole="header">
+                      Lo que venden cerca
+                    </Text>
+                    <Text style={styles.shWhy}>Productos y servicios de los negocios a pie</Text>
+                  </View>
+                  <Text style={styles.seeAllText}>Explorar ›</Text>
+                </View>
+                <View style={styles.peekRow}>
+                  {nearbyPeek.map((x) => (
+                    <View key={x.id} style={styles.peekCell}>
+                      <ExpoImage source={{ uri: x.photo }} style={styles.peekImg} contentFit="cover" accessibilityIgnoresInvertColors />
+                      <Text style={styles.peekText} numberOfLines={1}>
+                        {x.name}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </Pressable>
+            ) : null}
           </>
         ) : null}
 
@@ -920,6 +969,11 @@ function EmptyOffers({ searching }: { searching: boolean }) {
 }
 
 const styles = StyleSheet.create({
+  peek: { marginHorizontal: 20, padding: 14, gap: 12, borderRadius: 20, backgroundColor: colors.surface },
+  peekRow: { flexDirection: 'row', gap: 8 },
+  peekCell: { flex: 1, gap: 4 },
+  peekImg: { width: '100%', aspectRatio: 1, borderRadius: 12, backgroundColor: colors.bg },
+  peekText: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.ink, textAlign: 'center' },
   barrios: { gap: 18, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.line },
   barrio: { minHeight: 44, justifyContent: 'flex-end', gap: 8 },
   barrioText: { fontFamily: fonts.ui.bold, fontSize: 15, color: colors.faint },

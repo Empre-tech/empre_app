@@ -6,7 +6,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { agendaApi } from '@/api/agenda';
 import { catalogApi } from '@/api/catalog';
+import { BookingSheet } from '@/components/agenda/BookingSheet';
 import { entitiesApi } from '@/api/endpoints';
 import { useAuth } from '@/auth/AuthContext';
 import { track } from '@/analytics/track';
@@ -20,6 +22,15 @@ import { safeIcon } from '@/lib/icons';
 import { mediaUrl } from '@/lib/image';
 import { displayIcon } from '@/lib/mapView';
 import { colors, fonts, radius, softShadow, spacing } from '@/theme';
+
+/** «hoy 2:00 pm» o «vie 9:00 am»: la próxima hora libre, corta. */
+function nextSlotLabel(iso: string): string {
+  const d = new Date(iso);
+  const h = d.getHours();
+  const time = `${h % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`;
+  const today = new Date().toDateString() === d.toDateString();
+  return today ? `hoy ${time}` : `${d.toLocaleDateString('es-CO', { weekday: 'short' }).replace('.', '')} ${time}`;
+}
 
 const PHONE_RE = /^[+\d\s()-]{7,}$/;
 const GALLERY_H = 300;
@@ -51,9 +62,12 @@ export default function ProductScreen() {
   const [page, setPage] = useState(0);
   const [viewer, setViewer] = useState<number | null>(null);
   const [asking, setAsking] = useState<string | null>(null);
+  const [booking, setBooking] = useState(false);
 
   // Tu talla, si le dijiste a Agent que la recuerde: se marca y se elige con un toque.
   const mySize = useQuery({ queryKey: ['agent-facts'], queryFn: loadFacts }).data?.find((f) => f.name === 'Talla')?.value ?? null;
+  // Un servicio que se reserva: el botón principal es «Reservar» (tablero «Empre Offers», teléfono 4).
+  const agenda = useQuery({ queryKey: ['agenda-summary', entityId], queryFn: () => agendaApi.summary(entityId), enabled: Boolean(entityId), staleTime: 30_000 });
   const business = useQuery({ queryKey: ['entity', entityId], queryFn: () => entitiesApi.get(entityId), enabled: Boolean(entityId) });
   const catalog = useQuery({ queryKey: ['catalog', entityId, 'sections'], queryFn: () => catalogApi.listWithSections(entityId), enabled: Boolean(entityId), staleTime: 60_000 });
 
@@ -96,6 +110,7 @@ export default function ProductScreen() {
   const contact = b.contact_info?.trim();
   const canCall = Boolean(contact && PHONE_RE.test(contact));
   const askName = parent && item.variant_label ? `${parent.name} (${item.variant_label})` : item.name;
+  const canBook = Boolean(item.kind === 'service' && item.bookable && agenda.data?.enabled && agenda.data.services.some((x) => x.id === item.id && x.active));
   // Lo que se registró se vuelve búsqueda en todo Empre (tablero «Perfil», teléfono 2d).
   const terms = searchTerms({ name: title, section: item.section || parent?.section, audience: item.audience?.length ? item.audience : parent?.audience }, shown.attrs ?? []);
   // De la misma sección: otros productos de ese negocio, sin las variantes de este.
@@ -315,6 +330,13 @@ export default function ProductScreen() {
         ) : null}
         {isOwner ? (
           <Button title="Editar" onPress={() => router.push({ pathname: '/business/products/item', params: { entityId: b.id, itemId: item.id } })} style={{ flex: 1 }} />
+        ) : canBook ? (
+          <>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Preguntar por ${askName}`} onPress={() => setAsking(askName)} style={styles.call}>
+              <Ionicons name="chatbubble-outline" size={22} color={colors.ink} />
+            </Pressable>
+            <Button title={agenda.data?.next_slot ? `Reservar · ${nextSlotLabel(agenda.data.next_slot)}` : 'Reservar'} onPress={() => (status === 'signedIn' ? setBooking(true) : router.push('/(auth)/login'))} style={{ flex: 1 }} />
+          </>
         ) : (
           <Button title={copy.kind === 'service' ? 'Preguntar por este servicio' : 'Preguntar por este producto'} onPress={() => setAsking(askName)} style={{ flex: 1 }} />
         )}
@@ -322,6 +344,20 @@ export default function ProductScreen() {
 
       <AskSheet item={asking} businessName={b.name} copy={copy} onClose={() => setAsking(null)} onSend={send} />
       <PhotoViewer photos={photos} start={viewer} onClose={() => setViewer(null)} />
+      {canBook && agenda.data ? (
+        <BookingSheet
+          visible={booking}
+          entityId={b.id}
+          entityName={b.name}
+          summary={agenda.data}
+          initialServiceId={item.id}
+          onClose={() => setBooking(false)}
+          onBooked={(a) => {
+            setBooking(false);
+            router.push({ pathname: '/appointment/[id]', params: { id: a.id } });
+          }}
+        />
+      ) : null}
     </View>
   );
 }

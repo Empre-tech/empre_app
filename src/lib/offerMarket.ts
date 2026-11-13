@@ -500,3 +500,96 @@ export function filterVitrinaItems(items: MarketItem[], filter: VitrinaFilter): 
       return items;
   }
 }
+
+/** El tipo de beneficio de una oferta, con la misma regla del servidor (offer_facets.go): 2x1, gratis, %, combo o precio. */
+export function benefitOf(o: Pick<MarketItem, 'title' | 'price' | 'special_price'>): 'multi' | 'free' | 'percent' | 'price' | 'other' {
+  const t = `${o.price ?? ''} ${o.title}`.toLowerCase();
+  if (/\b\d\s*x\s*\d\b/.test(t) || /\b\d\s+por\s+\$/.test(t)) return 'multi';
+  if (t.includes('gratis') || o.special_price === 0) return 'free';
+  if (/\d\s*%/.test(t) || t.includes('descuento')) return 'percent';
+  if (o.special_price !== undefined && o.special_price !== null) return 'price';
+  if (/\$\s?\d/.test(o.price ?? '')) return 'price';
+  return 'other';
+}
+
+export interface OfferSection {
+  key: 'hoy' | 'multi' | 'descuento' | 'precio';
+  title: string;
+  why: string;
+  items: MarketItem[];
+}
+
+/**
+ * La portada de Ofertas por secciones (tablero «Empre Offers», teléfono 1): terminan hoy, 2x1 y gratis, descuentos y
+ * precio especial. Cada oferta sale una sola vez y ninguna foto se repite entre secciones. Una sección con menos de 2
+ * no se muestra: sus ofertas pasan a la siguiente que les sirva.
+ */
+export function offerSections(list: MarketItem[], now: number, max = 8): OfferSection[] {
+  const offers = list.filter((o) => o.kind !== 'service' && Date.parse(o.ends_at) > now);
+  const today = new Date(now).toDateString();
+  const defs: { key: OfferSection['key']; title: string; why: string; test: (o: MarketItem) => boolean }[] = [
+    { key: 'hoy', title: 'Terminan hoy', why: 'Quedan horas: lo de tu puerta primero', test: (o) => new Date(o.ends_at).toDateString() === today },
+    { key: 'multi', title: '2x1 y gratis', why: 'Para ir con alguien', test: (o) => ['multi', 'free'].includes(benefitOf(o)) },
+    { key: 'descuento', title: 'Con descuento', why: 'Lo que baja de precio cerca', test: (o) => benefitOf(o) === 'percent' || savePctOf(o) > 0 },
+    { key: 'precio', title: 'Precio especial', why: 'Un precio solo por ahora', test: (o) => benefitOf(o) === 'price' },
+  ];
+  const usedId = new Set<string>();
+  const usedPhoto = new Set<string>();
+  const out: OfferSection[] = [];
+  for (const d of defs) {
+    const items: MarketItem[] = [];
+    const here = new Set<string>();
+    for (const o of offers) {
+      if (items.length >= max || usedId.has(o.id) || (o.photo && (usedPhoto.has(o.photo) || here.has(o.photo))) || !d.test(o)) continue;
+      items.push(o);
+      if (o.photo) here.add(o.photo);
+    }
+    if (items.length < 2) continue;
+    items.forEach((o) => {
+      usedId.add(o.id);
+      if (o.photo) usedPhoto.add(o.photo);
+    });
+    out.push({ key: d.key, title: d.title, why: d.why, items });
+  }
+  return out;
+}
+
+/** El % que se ahorra (sin depender de offerLenses, para no cruzar módulos). */
+function savePctOf(o: Pick<MarketItem, 'price' | 'normal_price' | 'special_price' | 'reference_price'>): number {
+  const n = (s?: string) => {
+    const d = (s ?? '').replace(/[^\d]/g, '');
+    return d ? Number(d) : null;
+  };
+  const now = o.special_price ?? n(o.price);
+  const was = o.special_price !== undefined && o.special_price !== null ? o.reference_price ?? null : n(o.normal_price);
+  return now !== null && was !== null && was > now ? Math.round((1 - now / was) * 100) : 0;
+}
+
+/**
+ * «Lo que venden cerca» (tablero «Empre Offers», teléfono 2): productos o servicios de los negocios cerca, mezclados por
+ * turnos (nunca dos del mismo negocio seguidos), sin repetir foto y solo con foto: el muro es de imágenes.
+ */
+export function nearbyWall<T extends { id: string; entityId: string; photo?: string }>(byBusiness: T[][], max = 40): T[] {
+  const queues = byBusiness.map((l) => l.filter((x) => Boolean(x.photo)));
+  const out: T[] = [];
+  const photos = new Set<string>();
+  let last = '';
+  while (out.length < max && queues.some((q) => q.length)) {
+    let moved = false;
+    for (const q of queues) {
+      if (!q.length || out.length >= max) continue;
+      const next = q.shift()!;
+      if (photos.has(next.photo!)) continue;
+      if (next.entityId === last && queues.some((o) => o !== q && o.length)) {
+        q.unshift(next);
+        continue;
+      }
+      photos.add(next.photo!);
+      out.push(next);
+      last = next.entityId;
+      moved = true;
+    }
+    if (!moved) break;
+  }
+  return out;
+}
