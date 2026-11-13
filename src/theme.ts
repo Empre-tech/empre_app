@@ -4,38 +4,42 @@
 // verde #0B7F3D para la plata y Finance, naranja #FF9A1F (con letra negra) para las ofertas.
 // Los errores van en negro con ícono: el rojo es la marca, no una alarma.
 export const colors = {
-  primary: '#111318', // botón principal en negro (texto blanco, 18,5:1)
+  primary: '#D42020', // botón principal en rojo de Empre (texto blanco, 5,2:1)
   primaryDark: '#D42020', // enlaces y texto de acento sobre blanco (5,2:1)
-  primaryPressed: '#22252B',
+  primaryPressed: '#B01A1A',
   primarySoft: '#FDECEC',
   brand: '#F03232', // el rojo de Empre en formas: punto, foco y lo que pasa ahora
-  selected: '#111318', // lo elegido va en negro...
-  selectedSoft: '#EFF0F2', // ...sobre gris claro
+  selected: '#2B2622', // lo elegido: texto en tinta...
+  selectedSoft: '#EADCBF', // ...sobre arena (el complemento del rojo)
   // Ofertas: naranja solo en sus piezas (etiqueta, «termina hoy», lo que ahorras)
   accent: '#FF9A1F', // fondo de la etiqueta de oferta (texto en negro encima, 8,7:1)
   accentDark: '#E8860A',
   accentInk: '#A35C13', // naranja para TEXTO sobre blanco (4,9:1)
   accentSoft: '#FEF3E9',
-  ink: '#111318', // todo el texto
-  muted: '#5B606B', // texto secundario (6,4:1 sobre blanco)
-  line: '#E4E6EA', // bordes y separadores
-  bg: '#F5F5F6', // fondo de las pantallas
+  ink: '#2B2622', // el texto: tinta cálida, no negro puro. El negro es solo texto (~10 %)
+  muted: '#6B6358', // texto secundario cálido (5,9:1 sobre blanco, 5,3:1 sobre arena clara)
+  line: '#E9E1D3', // bordes y separadores, cálidos
+  bg: '#F7F3EC', // fondo de las pantallas: arena muy clara
   surface: '#FFFFFF', // tarjetas
   verified: '#D42020', // abierto, verificado, hecho
   verifiedSoft: '#FDECEC',
-  danger: '#111318', // errores: negro con ícono, nunca rojo
+  danger: '#2B2622', // errores: negro con ícono, nunca rojo
   success: '#D42020',
-  warning: '#111318', // se acaba pronto: negro y subrayado, no naranja
-  hairline: '#E4E6EA',
-  faint: '#6B7079', // etiquetas pequeñas y pestañas sin elegir
-  placeholder: '#6B7079', // texto de ejemplo en los campos: legible (4,8:1), más claro que el texto
+  warning: '#2B2622', // se acaba pronto: negro y subrayado, no naranja
+  hairline: '#E9E1D3',
+  faint: '#6B6358', // etiquetas pequeñas y pestañas sin elegir
+  placeholder: '#6B6358', // texto de ejemplo en los campos: legible (4,8:1), más claro que el texto
   // Anclas negras y el rojo que brilla sobre ellas
-  night: '#111318',
-  nightLine: '#22252B',
-  nightSoft: '#3A3E46',
+  night: '#2B2622',
+  nightLine: '#3A332D',
+  nightSoft: '#4A423A',
   nightText: '#CBCED4',
   glow: '#FF6B6B', // rojo claro: solo sobre negro (6,6:1)
   glowSoft: 'rgba(240,50,50,0.18)',
+  // Arena: el complemento del rojo, en poca cantidad (chips, lo elegido, etiquetas)
+  sand: '#EADCBF',
+  sandSoft: '#F3EBDD',
+  sandInk: '#7A6236', // arena para texto sobre blanco (5,8:1)
   // Plata y Finance: verde. Lo que entra en verde; gastos y fiado en negro.
   finance: '#0B7F3D', // texto y formas sobre blanco (5,1:1)
   financeLight: '#9FCFA6', // sobre negro
@@ -57,22 +61,22 @@ export const radius = { sm: 10, md: 14, lg: 20, pill: 999 } as const;
  */
 export const fonts = {
   display: {
-    medium: 'Inter_600SemiBold',
-    semibold: 'Inter_700Bold',
-    bold: 'Inter_800ExtraBold',
+    medium: 'Inter_500Medium',
+    semibold: 'Inter_600SemiBold',
+    bold: 'Inter_600SemiBold',
   },
   ui: {
     regular: 'Inter_400Regular',
     medium: 'Inter_500Medium',
     semibold: 'Inter_600SemiBold',
-    bold: 'Inter_700Bold',
-    extrabold: 'Inter_800ExtraBold',
+    bold: 'Inter_600SemiBold',
+    extrabold: 'Inter_700Bold',
   },
 } as const;
 
 /** Sombra de las tarjetas sobre fondo blanco (como en la vitrina). */
 export const cardShadow = {
-  shadowColor: '#111318',
+  shadowColor: '#2B2622',
   shadowOpacity: 0.06,
   shadowRadius: 14,
   shadowOffset: { width: 0, height: 6 },
@@ -81,7 +85,7 @@ export const cardShadow = {
 
 /** Sombra suave para tarjetas sobre el fondo gris alabastro. */
 export const softShadow = {
-  shadowColor: '#111318',
+  shadowColor: '#2B2622',
   shadowOpacity: 0.05,
   shadowRadius: 10,
   shadowOffset: { width: 0, height: 2 },
@@ -90,7 +94,7 @@ export const softShadow = {
 
 /** Sombra suave de los controles que flotan sobre el mapa. */
 export const shadow = {
-  shadowColor: '#111318',
+  shadowColor: '#2B2622',
   shadowOpacity: 0.12,
   shadowRadius: 8,
   shadowOffset: { width: 0, height: 2 },

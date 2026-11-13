@@ -593,7 +593,7 @@ const styles = StyleSheet.create({
     borderColor: colors.selected,
   },
   amountRow: { flexDirection: 'row', alignItems: 'center' },
-  amountSign: { fontSize: 30, fontFamily: fonts.display.bold, color: colors.muted, marginRight: 6 },
+  amountSign: { fontSize: 26, fontFamily: fonts.display.bold, color: colors.muted, marginRight: 6 },
   amountInput: {
     flex: 1,
     minWidth: 0,
@@ -631,5 +631,5 @@ const styles = StyleSheet.create({
   search: { minHeight: 48, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.lg, paddingHorizontal: spacing.md, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink, backgroundColor: colors.bg },
   statTitle: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   statValue: { fontSize: 20, fontFamily: fonts.display.bold },
-  statBig: { fontSize: 34, fontFamily: fonts.display.bold },
+  statBig: { fontSize: 30, fontFamily: fonts.display.bold },
 });

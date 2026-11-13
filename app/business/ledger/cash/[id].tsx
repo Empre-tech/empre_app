@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
   stepNameOff: { fontFamily: fonts.ui.bold, color: colors.muted },
   firstTime: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 16, backgroundColor: colors.ink },
   firstTimeText: { flex: 1, fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.bold, color: '#fff' },
-  hero: { fontSize: 34, fontFamily: fonts.display.bold, color: colors.ink },
+  hero: { fontSize: 30, fontFamily: fonts.display.bold, color: colors.ink },
   openingBox: { gap: 4, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.selectedSoft },
   calcRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingTop: spacing.sm },
   line: { borderTopWidth: 1, borderTopColor: colors.selectedSoft },

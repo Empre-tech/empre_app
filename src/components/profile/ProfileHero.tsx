@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
   logo: { width: 76, height: 76, borderRadius: 20, borderWidth: 4, borderColor: colors.bg, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.15, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 3 },
   logoRing: { borderColor: colors.accent },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  name: { flexShrink: 1, fontSize: 28, lineHeight: 31, fontFamily: fonts.display.bold, color: colors.ink },
+  name: { flexShrink: 1, fontSize: 24, lineHeight: 28, fontFamily: fonts.display.bold, color: colors.ink },
   category: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.muted },
   tagline: { fontSize: 16, lineHeight: 22, fontFamily: fonts.ui.semibold, color: colors.ink },
   stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, marginTop: 10 },

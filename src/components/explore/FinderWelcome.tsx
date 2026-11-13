@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   wave: { position: 'absolute', width: 120, height: 120, borderRadius: 60, borderWidth: 2, borderColor: 'rgba(255,107,107,0.55)' },
   copy: { position: 'absolute', left: 24, right: 24, top: '58%', alignItems: 'center', gap: 4 },
   hello: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.nightText },
-  brand: { fontSize: 34, lineHeight: 38, fontFamily: fonts.display.bold, color: '#FFFFFF', letterSpacing: -0.6 },
+  brand: { fontSize: 30, lineHeight: 34, fontFamily: fonts.display.bold, color: '#FFFFFF', letterSpacing: -0.6 },
   sub: { marginTop: 6, fontSize: 14, fontFamily: fonts.ui.bold, color: colors.nightText, textAlign: 'center' },
   fact: { marginTop: 12, minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)' },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.glow },

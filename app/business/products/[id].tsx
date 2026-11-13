@@ -475,7 +475,7 @@ export default function ProductsScreen() {
 
             {groups.urgent.length > 0 && !stockOn && (filter === 'urgent' || q !== '') ? (
               <View style={{ gap: spacing.sm }}>
-                <Text style={[styles.blockTitle, { color: '#111318' }]}>Se acaba o ya se acabó · {groups.urgent.length}</Text>
+                <Text style={[styles.blockTitle, { color: '#2B2622' }]}>Se acaba o ya se acabó · {groups.urgent.length}</Text>
                 {rowsOf(groups.urgent, 'urgent')}
               </View>
             ) : null}
@@ -656,7 +656,7 @@ export default function ProductsScreen() {
                           {b.title} · {b.items.length}
                         </Text>
                         <View style={styles.row}>
-                          {sum.tone !== 'muted' ? <Text style={[styles.groupSum, { color: sum.tone === 'out' ? '#111318' : colors.ink }]}>{sum.text}</Text> : null}
+                          {sum.tone !== 'muted' ? <Text style={[styles.groupSum, { color: sum.tone === 'out' ? '#2B2622' : colors.ink }]}>{sum.text}</Text> : null}
                           <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
                         </View>
                       </Pressable>
@@ -954,7 +954,7 @@ const styles = StyleSheet.create({
   itemLine: { borderTopWidth: 1, borderTopColor: colors.selectedSoft },
   itemMain: { flex: 1, minWidth: 0, paddingVertical: spacing.sm, paddingLeft: 4, minHeight: 56, justifyContent: 'center' },
   itemName: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  warn: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#111318' },
+  warn: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#2B2622' },
   warnSoft: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
   pill: { minHeight: 36, paddingHorizontal: 10, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 },
   childRow: { marginLeft: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line },

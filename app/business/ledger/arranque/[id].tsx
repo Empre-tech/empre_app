@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
   step: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   track: { height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: colors.line },
   fill: { height: 4, backgroundColor: colors.ink },
-  title: { fontSize: 26, lineHeight: 30, fontFamily: fonts.display.bold, color: colors.ink },
+  title: { fontSize: 22, lineHeight: 26, fontFamily: fonts.display.bold, color: colors.ink },
   why: { fontSize: 14.5, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.muted },
   field: { gap: 10, padding: 14, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
   input: { minHeight: 50, paddingHorizontal: 12, borderWidth: 1.5, borderColor: colors.line, borderRadius: 12, fontSize: 16, fontFamily: fonts.ui.medium, color: colors.ink },

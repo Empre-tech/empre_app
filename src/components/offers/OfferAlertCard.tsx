@@ -37,7 +37,7 @@ export function OfferAlertCard({ zoneId, zoneName, categoryId, categoryName }: {
   return (
     <View style={styles.card}>
       <View style={[styles.icon, current && styles.iconOn]}>
-        <Ionicons name={current ? 'notifications' : 'notifications-outline'} size={18} color={current ? colors.surface : colors.ink} />
+        <Ionicons name={current ? 'notifications' : 'notifications-outline'} size={18} color={colors.ink} />
       </View>
       <View style={styles.texts}>
         <Text style={styles.title}>{title}</Text>
@@ -60,7 +60,7 @@ export function OfferAlertCard({ zoneId, zoneName, categoryId, categoryName }: {
 const styles = StyleSheet.create({
   card: { marginHorizontal: 20, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   icon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
-  iconOn: { backgroundColor: colors.ink },
+  iconOn: { backgroundColor: colors.selectedSoft },
   texts: { flex: 1, minWidth: 0, gap: 2 },
   title: { fontSize: 15, lineHeight: 19, fontFamily: fonts.ui.bold, color: colors.ink },
   sub: { fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.medium, color: colors.muted },

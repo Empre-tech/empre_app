@@ -362,7 +362,7 @@ export default function NewExpenseScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  question: { fontSize: 26, lineHeight: 30, letterSpacing: -0.4, fontFamily: fonts.display.bold, color: colors.ink },
+  question: { fontSize: 22, lineHeight: 26, letterSpacing: -0.4, fontFamily: fonts.display.bold, color: colors.ink },
   sectionTitle: { fontSize: 19, lineHeight: 23, fontFamily: fonts.display.bold, color: colors.ink },
   methods: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   catTile: { width: '48.5%', minHeight: 64, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },

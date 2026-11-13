@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing.sm,
   },
-  title: { fontSize: 22, fontFamily: fonts.display.semibold, color: colors.ink, textAlign: 'center' },
+  title: { fontSize: 20, fontFamily: fonts.display.semibold, color: colors.ink, textAlign: 'center' },
   message: { fontSize: 15, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center', marginBottom: spacing.md },
   button: { alignSelf: 'stretch' },
   link: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.primary, marginTop: spacing.sm },

@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
   text: { position: 'absolute', left: 16, right: 56, bottom: 16, gap: 4 },
   textDots: { bottom: 28 },
   biz: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#fff' },
-  title: { fontSize: 22, lineHeight: 25, fontFamily: fonts.display.bold, color: '#fff' },
+  title: { fontSize: 20, lineHeight: 24, fontFamily: fonts.display.bold, color: '#fff' },
   dots: { position: 'absolute', left: 16, bottom: 12, flexDirection: 'row', gap: 6 },
   dot: { width: 18, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.35)' },
   dotOn: { backgroundColor: '#fff' },

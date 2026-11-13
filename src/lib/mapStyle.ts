@@ -6,9 +6,9 @@
  * 3. Etiquetas en gris claro, sin competir con los pines.
  */
 export const MAP_STYLE = [
-  { elementType: 'geometry', stylers: [{ color: '#111318' }] },
+  { elementType: 'geometry', stylers: [{ color: '#2B2622' }] },
   { elementType: 'labels.text.fill', stylers: [{ color: '#8E929A' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#111318' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#2B2622' }] },
   { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
   { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#22252B' }] },
   { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#CBCED4' }] },

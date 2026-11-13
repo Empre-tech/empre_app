@@ -360,7 +360,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, paddingBottom: 120, gap: 18 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   headerInfo: { flex: 1, minWidth: 0, gap: 2 },
-  name: { fontSize: 22, lineHeight: 27, fontFamily: fonts.display.bold, color: colors.ink },
+  name: { fontSize: 20, lineHeight: 24, fontFamily: fonts.display.bold, color: colors.ink },
   contact: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.faint },
   avatarButton: { width: 64, height: 64, borderRadius: 32 },
   avatarBadge: { position: 'absolute', right: -3, bottom: -3, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.bg, backgroundColor: colors.primary },

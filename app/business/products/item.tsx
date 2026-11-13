@@ -727,8 +727,8 @@ export default function ItemScreen() {
               </View>
               {margin ? (
                 <View style={[styles.margin, margin.amount < 0 ? styles.marginBad : styles.marginOk]}>
-                  <Ionicons name={margin.amount < 0 ? 'alert-circle-outline' : 'trending-up'} size={18} color={margin.amount < 0 ? '#111318' : '#0B7F3D'} />
-                  <Text style={[styles.marginText, { color: margin.amount < 0 ? '#111318' : '#0B7F3D' }]}>
+                  <Ionicons name={margin.amount < 0 ? 'alert-circle-outline' : 'trending-up'} size={18} color={margin.amount < 0 ? '#2B2622' : '#0B7F3D'} />
+                  <Text style={[styles.marginText, { color: margin.amount < 0 ? '#2B2622' : '#0B7F3D' }]}>
                     {margin.amount < 0
                       ? `Pierdes ${formatPesos(-margin.amount)} en cada uno. ¿Revisas el precio?`
                       : margin.amount === 0
@@ -969,7 +969,7 @@ const styles = StyleSheet.create({
   trackHint: { fontSize: 11, fontFamily: fonts.ui.bold, color: '#5B606B' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   stepBtn: { width: 52, height: 52, borderRadius: 14, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
-  count: { fontSize: 30, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center', minWidth: 120, paddingVertical: 0 },
+  count: { fontSize: 26, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center', minWidth: 120, paddingVertical: 0 },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 44 },
   switchLabel: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },

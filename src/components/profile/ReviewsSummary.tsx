@@ -54,7 +54,7 @@ export function VerifiedStamp() {
 const styles = StyleSheet.create({
   card: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.lg, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   score: { alignItems: 'center', minWidth: 72 },
-  average: { fontSize: 34, fontFamily: fonts.display.bold, color: colors.ink },
+  average: { fontSize: 30, fontFamily: fonts.display.bold, color: colors.ink },
   count: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
   bars: { flex: 1, minWidth: 140, gap: 4 },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },

@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
   cameraText: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.semibold, color: '#fff', textAlign: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, padding: spacing.xl },
   okIcon: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.verified, marginBottom: spacing.sm },
-  title: { fontSize: 24, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
+  title: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
   body: { fontSize: 15, lineHeight: 22, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
   actions: { alignSelf: 'stretch', gap: spacing.sm, marginTop: spacing.lg },
 });

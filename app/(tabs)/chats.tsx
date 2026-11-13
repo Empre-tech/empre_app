@@ -311,7 +311,7 @@ function ConversationList({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  title: { fontSize: 28, fontFamily: fonts.display.semibold, color: colors.ink, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  title: { fontSize: 24, fontFamily: fonts.display.semibold, color: colors.ink, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   tabs: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
   tab: {
     flexDirection: 'row',

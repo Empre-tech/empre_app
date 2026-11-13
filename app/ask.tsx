@@ -668,7 +668,7 @@ function ResultRow({ b, tone, onOpen }: { b: AskPlace; tone: number; onOpen: () 
 
 const styles = StyleSheet.create({
   heardRow: { flexDirection: 'row', gap: 8 },
-  heardGo: { flex: 1, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ink },
+  heardGo: { flex: 1, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary },
   heardGoText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.surface },
   heardFix: { flex: 1, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.line },
   heardFixText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },

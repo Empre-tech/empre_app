@@ -128,7 +128,7 @@ export function FiltersSheet({
                         onPress={() => onChange(o.apply(value))}
                         style={({ pressed }) => [styles.option, o.on && styles.optionOn, pressed && styles.pressed]}
                       >
-                        {icon ? <Ionicons name={icon} size={15} color={o.on ? '#FFFFFF' : colors.ink} /> : null}
+                        {icon ? <Ionicons name={icon} size={15} color={colors.ink} /> : null}
                         <Text style={[styles.optionText, o.on && styles.chipTextOn]}>{o.label}</Text>
                       </Pressable>
                     );
@@ -160,9 +160,9 @@ const styles = StyleSheet.create({
   countText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
   divider: { width: 1, height: 24, backgroundColor: colors.line },
   chip: { minHeight: 44, paddingHorizontal: 13, borderRadius: 22, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  chipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
   chipText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  chipTextOn: { color: '#FFFFFF' },
+  chipTextOn: { color: colors.ink },
   openDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#D42020' },
   clear: { minHeight: 44, paddingHorizontal: 8, justifyContent: 'center' },
   clearText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   option: { minHeight: 44, paddingHorizontal: 13, borderRadius: 14, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  optionOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  optionOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
   optionText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   note: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.faint },
   foot: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.hairline },

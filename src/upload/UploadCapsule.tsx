@@ -87,7 +87,7 @@ export function UploadCapsule() {
 const styles = StyleSheet.create({
   layer: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 1000, elevation: 1000 },
   pill: { minHeight: 44, maxWidth: 360, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: radius.pill, backgroundColor: colors.ink, overflow: 'hidden', ...shadow },
-  pillFailed: { backgroundColor: '#111318' },
+  pillFailed: { backgroundColor: '#2B2622' },
   pillDone: { backgroundColor: '#D42020' },
   text: { flexShrink: 1, fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#fff' },
   track: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, backgroundColor: 'rgba(255,255,255,0.2)' },

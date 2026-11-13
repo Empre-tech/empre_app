@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
   sheet: { marginTop: -26, paddingTop: 22, paddingHorizontal: 20, gap: 18, borderTopLeftRadius: 28, borderTopRightRadius: 28, backgroundColor: colors.bg },
   head: { gap: 8 },
   eyebrow: { fontSize: 12, letterSpacing: 1.2, fontFamily: fonts.ui.extrabold, color: colors.faint },
-  title: { fontSize: 28, lineHeight: 30, letterSpacing: -0.28, fontFamily: fonts.display.bold, color: colors.ink },
+  title: { fontSize: 24, lineHeight: 28, letterSpacing: -0.28, fontFamily: fonts.display.bold, color: colors.ink },
   meta: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.muted },
   saving: { alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.accent },
   savingText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },

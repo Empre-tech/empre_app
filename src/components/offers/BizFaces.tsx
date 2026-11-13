@@ -142,6 +142,6 @@ const styles = StyleSheet.create({
   svc: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottomWidth: 1, borderBottomColor: colors.selectedSoft },
   svcName: { flex: 1, fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
   svcPrice: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  go: { minHeight: 52, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.ink },
+  go: { minHeight: 52, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.primary },
   goText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
 });

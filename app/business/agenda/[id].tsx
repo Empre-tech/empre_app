@@ -189,7 +189,7 @@ export default function BusinessAgendaScreen() {
                   <Text style={[styles.dayWeek, active && styles.onText]}>{weekdayShort(d)}</Text>
                   <Text style={[styles.dayNum, active && styles.onText]}>{dayNumber(d)}</Text>
                   <View style={styles.dayDots}>
-                    {marks.appts ? <View style={[styles.dayDot, { backgroundColor: active ? '#fff' : colors.ink }]} /> : null}
+                    {marks.appts ? <View style={[styles.dayDot, { backgroundColor: colors.ink }]} /> : null}
                     {marks.reqs ? <View style={[styles.dayDot, { backgroundColor: colors.warning }]} /> : null}
                   </View>
                 </Pressable>
@@ -590,7 +590,7 @@ const styles = StyleSheet.create({
   daysBar: { flexGrow: 0 },
   daysRow: { flexDirection: 'row', gap: 8, paddingTop: 6, paddingHorizontal: 16, paddingBottom: 10 },
   dayChip: { width: 52, minHeight: 70, gap: 2, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  dayChipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  dayChipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
   dayWeek: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.ink },
   dayNum: { fontSize: 18, fontFamily: fonts.ui.extrabold, color: colors.ink },
 

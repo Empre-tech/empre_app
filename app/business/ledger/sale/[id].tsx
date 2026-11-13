@@ -591,7 +591,7 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 16 },
   bodyWithCart: { paddingBottom: 120 },
   section: { gap: 10 },
-  question: { fontSize: 26, lineHeight: 30, letterSpacing: -0.4, fontFamily: fonts.display.bold, color: colors.ink },
+  question: { fontSize: 22, lineHeight: 26, letterSpacing: -0.4, fontFamily: fonts.display.bold, color: colors.ink },
   sectionTitle: { fontSize: 19, lineHeight: 23, fontFamily: fonts.display.bold, color: colors.ink },
   shortcuts: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   shortcut: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.surface, ...softShadow },

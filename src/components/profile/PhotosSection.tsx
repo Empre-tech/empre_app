@@ -188,7 +188,7 @@ export function UploadTile({ item, size, onRetry, onRemove }: { item: UploadItem
 
 const styles = StyleSheet.create({
   uploadCell: { backgroundColor: colors.ink },
-  uploadFailed: { borderWidth: 2, borderColor: '#111318' },
+  uploadFailed: { borderWidth: 2, borderColor: '#2B2622' },
   uploadVeil: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(10,20,40,0.55)', alignItems: 'center', justifyContent: 'center', gap: 4 },
   uploadVeilDone: { backgroundColor: 'rgba(29,107,61,0.55)' },
   ringWrap: { width: RING, height: RING, alignItems: 'center', justifyContent: 'center' },

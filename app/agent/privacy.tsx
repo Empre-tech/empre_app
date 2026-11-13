@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingBottom: 10 },
   back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  title: { flex: 1, fontSize: 22, lineHeight: 26, fontFamily: fonts.display.bold, color: colors.ink },
+  title: { flex: 1, fontSize: 20, lineHeight: 24, fontFamily: fonts.display.bold, color: colors.ink },
   body: { paddingHorizontal: 16, gap: 12 },
   lead: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.muted },
   eyebrow: { marginTop: 4, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },

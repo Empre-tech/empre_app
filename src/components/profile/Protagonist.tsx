@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
   matchLead: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   matchName: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   noMatch: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted },
-  send: { minHeight: 48, borderRadius: radius.md, backgroundColor: colors.ink, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
+  send: { minHeight: 48, borderRadius: radius.md, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
   sendText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#fff' },
   shelfTitle: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
   shelfRow: { gap: 10, paddingRight: spacing.lg },

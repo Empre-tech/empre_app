@@ -563,7 +563,7 @@ export default function OffersScreen() {
                     onPress={() => setVitrinaFilter(f.key)}
                     style={({ pressed }) => [styles.vitrinaPill, active && styles.vitrinaPillOn, pressed && styles.chipPressed]}
                   >
-                    <Ionicons name={f.icon} size={14} color={active ? '#fff' : colors.ink} />
+                    <Ionicons name={f.icon} size={14} color={colors.ink} />
                     <Text style={[styles.vitrinaPillText, active && styles.vitrinaPillTextOn]}>{f.label}</Text>
                   </Pressable>
                 );
@@ -925,7 +925,7 @@ const styles = StyleSheet.create({
   barrioText: { fontFamily: fonts.ui.bold, fontSize: 15, color: colors.faint },
   barrioOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
   barrioBar: { height: 3, borderRadius: 2, backgroundColor: 'transparent', marginBottom: -1 },
-  barrioBarOn: { backgroundColor: colors.ink },
+  barrioBarOn: { backgroundColor: colors.selectedSoft },
   catGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, rowGap: 12 },
   catBtn: { width: '25%', alignItems: 'center', gap: 6, minHeight: 44 },
   catArt: { width: 64, height: 64, borderRadius: 32, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
@@ -953,9 +953,9 @@ const styles = StyleSheet.create({
   heroSub: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
   vitrinaPills: { gap: 8, paddingHorizontal: 20 },
   vitrinaPill: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 13, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
-  vitrinaPillOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  vitrinaPillOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
   vitrinaPillText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  vitrinaPillTextOn: { color: '#fff' },
+  vitrinaPillTextOn: { color: colors.ink },
   searchWrap: { paddingHorizontal: 20 },
   search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 52, paddingHorizontal: spacing.lg, borderRadius: 26, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, ...softShadow },
   searchInput: { flex: 1, fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink, paddingVertical: 0 },
@@ -989,7 +989,7 @@ const styles = StyleSheet.create({
   planTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   planTag: { flexShrink: 1, fontSize: 12, letterSpacing: 0.9, fontFamily: fonts.ui.extrabold, color: colors.faint },
   planLevel: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.verified },
-  planTitle: { fontSize: 22, lineHeight: 24, fontFamily: fonts.display.bold, color: colors.ink },
+  planTitle: { fontSize: 20, lineHeight: 24, fontFamily: fonts.display.bold, color: colors.ink },
   planStops: { flexDirection: 'row', alignItems: 'flex-start' },
   planLine: { position: 'absolute', left: 20, right: 20, top: 15, borderTopWidth: 1.5, borderStyle: 'dashed', borderTopColor: colors.line },
   planStop: { flex: 1, minWidth: 0, alignItems: 'center', gap: 5 },

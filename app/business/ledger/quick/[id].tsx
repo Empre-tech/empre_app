@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
   },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   brandEyebrow: { fontSize: 11, letterSpacing: 0.8, fontFamily: fonts.ui.extrabold, color: colors.muted },
-  headTitle: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.ink },
+  headTitle: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
   exitBtn: {
     minHeight: 44,
     paddingHorizontal: 16,

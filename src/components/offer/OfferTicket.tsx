@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
   slots: { flex: 1, gap: 5 },
   segments: { flexDirection: 'row', gap: 3 },
   segment: { flex: 1, maxWidth: 16, height: 7, borderRadius: 4 },
-  segmentOn: { backgroundColor: colors.ink },
+  segmentOn: { backgroundColor: colors.selectedSoft },
   segmentOff: { backgroundColor: colors.line },
   slotsText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
   cta: { paddingHorizontal: spacing.lg, minHeight: 46 },

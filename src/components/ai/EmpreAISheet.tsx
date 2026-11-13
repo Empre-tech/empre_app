@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
   sub: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
   close: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  talk: { minHeight: 60, borderRadius: 18, paddingHorizontal: 16, backgroundColor: colors.ink, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  talk: { minHeight: 60, borderRadius: 18, paddingHorizontal: 16, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', gap: 12 },
   talkTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
   talkSub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: '#CBCED4' },
   write: { minHeight: 56, borderRadius: 18, paddingHorizontal: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 12 },

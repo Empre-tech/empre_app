@@ -1480,7 +1480,7 @@ const styles = StyleSheet.create({
   panelSwitch: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.surface },
   panelSwitchText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   switchTrack: { width: 46, height: 28, padding: 3, borderRadius: 14, backgroundColor: colors.placeholder },
-  switchTrackOn: { backgroundColor: colors.ink },
+  switchTrackOn: { backgroundColor: colors.selectedSoft },
   switchKnob: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.surface },
   switchKnobOn: { alignSelf: 'flex-end' },
   panelFoot: { paddingTop: 10, paddingHorizontal: 20, borderTopWidth: 1, borderTopColor: colors.hairline, backgroundColor: colors.surface },

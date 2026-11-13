@@ -50,5 +50,5 @@ const styles = StyleSheet.create({
   titleWrap: { flex: 1, minWidth: 0 },
   subRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   subtitle: { fontSize: 11, letterSpacing: 1.1, fontFamily: fonts.ui.extrabold, color: colors.faint, textTransform: 'uppercase' },
-  title: { fontSize: 22, lineHeight: 27, fontFamily: fonts.display.bold, color: colors.ink },
+  title: { fontSize: 20, lineHeight: 24, fontFamily: fonts.display.bold, color: colors.ink },
 });

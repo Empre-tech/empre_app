@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
   cardFoot: { position: 'absolute', left: 18, right: 18, bottom: 16, gap: 1 },
   cardLabel: { fontSize: 12.5, fontFamily: fonts.ui.extrabold },
   cardAmount: { fontSize: 38, lineHeight: 44, fontFamily: fonts.display.bold, fontVariant: ['tabular-nums'] },
-  cardMissing: { fontSize: 28, lineHeight: 44, fontFamily: fonts.display.bold },
+  cardMissing: { fontSize: 24, lineHeight: 28, fontFamily: fonts.display.bold },
   cardLine: { fontSize: 12.5, fontFamily: fonts.ui.bold },
   edit: { position: 'absolute', right: 10, bottom: 12, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.92)' },
   // Efectivo

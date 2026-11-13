@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.surface },
   write: { flexGrow: 1, paddingHorizontal: 20, gap: spacing.md },
   back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: -spacing.sm },
-  title: { fontSize: 28, lineHeight: 32, fontFamily: fonts.display.bold, color: colors.ink, letterSpacing: -0.4 },
+  title: { fontSize: 24, lineHeight: 28, fontFamily: fonts.display.bold, color: colors.ink, letterSpacing: -0.4 },
   lead: { fontSize: 15, lineHeight: 21, fontFamily: fonts.ui.medium, color: colors.muted },
   input: { minHeight: 110, padding: 14, borderRadius: radius.md, borderWidth: 2, borderColor: colors.ink, fontSize: 16, lineHeight: 22, fontFamily: fonts.ui.medium, color: colors.ink, textAlignVertical: 'top' },
   label: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },

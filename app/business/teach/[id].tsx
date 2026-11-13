@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   switchTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   switchSub: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.semibold, color: colors.muted },
   track: { width: 46, height: 28, padding: 3, borderRadius: 14, backgroundColor: colors.placeholder, alignItems: 'flex-start' },
-  trackOn: { backgroundColor: colors.ink, alignItems: 'flex-end' },
+  trackOn: { backgroundColor: colors.selectedSoft, alignItems: 'flex-end' },
   knob: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.surface },
   editor: { gap: 8, padding: 16, borderRadius: 20, backgroundColor: colors.surface },
   editorTitle: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },

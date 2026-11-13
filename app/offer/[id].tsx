@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
   bizLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   bizName: { flexShrink: 1, fontSize: 18, lineHeight: 22, fontFamily: fonts.display.bold, color: colors.ink },
   bizSub: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.muted },
-  title: { fontSize: 28, lineHeight: 31, letterSpacing: -0.28, fontFamily: fonts.display.bold, color: colors.ink },
+  title: { fontSize: 24, lineHeight: 28, letterSpacing: -0.28, fontFamily: fonts.display.bold, color: colors.ink },
   priceBlock: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   priceSide: { flex: 1, minWidth: 0, gap: 6 },
   priceRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 10 },

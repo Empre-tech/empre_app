@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   markIcon: { position: 'absolute' },
-  brand: { fontSize: 26, fontFamily: fonts.display.bold, color: colors.ink },
+  brand: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.ink },
   tagline: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   card: {
     flex: 1,
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
   },
   content: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl, gap: spacing.xl },
   header: { gap: spacing.xs },
-  title: { fontSize: 26, fontFamily: fonts.display.bold, color: colors.ink },
+  title: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.ink },
   subtitle: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted },
   form: { gap: spacing.lg },
 });

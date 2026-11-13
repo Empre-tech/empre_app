@@ -26,7 +26,7 @@ export function LensTabs({ lenses, active, onPick }: { lenses: Lens[]; active: L
         const on = l.key === active;
         return (
           <Pressable key={l.key} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => onPick(l.key)} style={({ pressed }) => [styles.tab, on && styles.tabOn, pressed && styles.pressed]}>
-            <Ionicons name={LENS_ICON[l.key]} size={16} color={on ? '#FFFFFF' : colors.ink} />
+            <Ionicons name={LENS_ICON[l.key]} size={16} color={colors.ink} />
             <Text style={[styles.tabText, on && { color: '#FFFFFF' }]}>{l.label}</Text>
           </Pressable>
         );
@@ -180,7 +180,7 @@ export function FiltersSheet({
 const styles = StyleSheet.create({
   tabs: { gap: 6, paddingHorizontal: 20, paddingVertical: 2 },
   tab: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
-  tabOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  tabOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
   tabText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   pressed: { transform: [{ scale: 0.97 }] },
   filterWrap: { gap: 8 },
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
   switchRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.bg },
   switchText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   track: { width: 46, height: 28, padding: 3, borderRadius: 14, backgroundColor: colors.placeholder, alignItems: 'flex-start' },
-  trackOn: { backgroundColor: colors.ink, alignItems: 'flex-end' },
+  trackOn: { backgroundColor: colors.selectedSoft, alignItems: 'flex-end' },
   knob: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.surface },
   apply: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.primary },
   applyText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },

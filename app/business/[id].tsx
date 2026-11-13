@@ -1073,7 +1073,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  name: { flexShrink: 1, fontSize: 26, fontFamily: fonts.display.semibold, color: colors.ink },
+  name: { flexShrink: 1, fontSize: 22, fontFamily: fonts.display.semibold, color: colors.ink },
   categoryPill: {
     alignSelf: 'flex-start',
     marginTop: 4,

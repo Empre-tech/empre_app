@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
   cornerBR: { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 20 },
   scanLine: { position: 'absolute', left: 14, right: 14, height: 2.5, borderRadius: 2, backgroundColor: '#2FD3C9' },
   camText: { alignSelf: 'stretch', alignItems: 'center', gap: 10, paddingHorizontal: 8 },
-  camTitle: { fontSize: 22, lineHeight: 27, fontFamily: fonts.display.bold, color: '#fff', textAlign: 'center' },
+  camTitle: { fontSize: 20, lineHeight: 24, fontFamily: fonts.display.bold, color: '#fff', textAlign: 'center' },
   camSub: { fontSize: 14.5, lineHeight: 21, fontFamily: fonts.ui.medium, color: '#E4E6EA', textAlign: 'center' },
   manualCard: { alignSelf: 'stretch', gap: 12, padding: 18, borderRadius: 20, backgroundColor: colors.surface },
   codeInput: { textAlign: 'center', fontSize: 24, letterSpacing: 8 },

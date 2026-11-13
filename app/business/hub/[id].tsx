@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
   dayPending: { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.ink },
   dayOn: { shadowColor: colors.ink, shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 3, transform: [{ scale: 1.08 }] },
   dayNow: { position: 'absolute', top: -5, bottom: -5, width: 2, backgroundColor: colors.brand },
-  daySentence: { fontFamily: fonts.display.bold, fontSize: 24, lineHeight: 29, color: colors.ink, marginBottom: 12 },
+  daySentence: { fontFamily: fonts.display.bold, fontSize: 22, lineHeight: 26, color: colors.ink, marginBottom: 12 },
   dsAgenda: { color: colors.agenda },
   dsUnder: { textDecorationLine: 'underline' },
   dsMoney: { color: colors.finance },
