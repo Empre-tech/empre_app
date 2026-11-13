@@ -25,3 +25,15 @@ test('la vuelta va siempre a la parada más cercana y le pone hora', () => {
   assert.equal(clockOf(14 * 60 + 15), '2:15 pm');
   assert.equal(leaveIn(legs[1], legs[1].arrive - legs[1].walk - 6), 6, 'sal en 6 min');
 });
+
+test('la vuelta se acomoda a las horas libres que se reservan', async () => {
+  const { fitSlots, pickSlot } = await import('./vuelta.ts');
+  assert.equal(pickSlot([13 * 60, 14 * 60 + 15, 16 * 60], 14 * 60 + 5), 14 * 60 + 15);
+  assert.equal(pickSlot([18 * 60], 14 * 60), null, 'no se espera más de hora y media');
+  const home = { latitude: 11.24, longitude: -74.21 };
+  const [e1, e2] = parseErrands('cortarme el pelo y almorzar');
+  const legs = buildRoute(home, [{ errand: e1, place: { id: 'a', name: 'A', latitude: 11.241, longitude: -74.21 } }, { errand: e2, place: { id: 'b', name: 'B', latitude: 11.242, longitude: -74.21 } }], 14 * 60);
+  const fit = fitSlots(legs, [legs[0].arrive + 10, null]);
+  assert.equal(fit[0].arrive, legs[0].arrive + 10);
+  assert.equal(fit[1].arrive, legs[1].arrive + 10, 'la siguiente se corre lo mismo');
+});

@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { RememberSize } from '@/components/ai/RememberSize';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -484,6 +485,7 @@ export default function AskScreen() {
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 20 }]} keyboardShouldPersistTaps="handled">
+        {question ? <RememberSize text={question} /> : null}
         {listening || hasLiveFilters || heard ? (
           <View style={styles.liveCard} accessibilityLiveRegion="polite">
             <View style={styles.liveCardHead}>

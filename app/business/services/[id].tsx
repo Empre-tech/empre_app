@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { loadFacts } from '@/lib/agentPrefsStore';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -29,6 +30,7 @@ export default function CatalogScreen() {
   const [chosen, setChosen] = useState<Record<string, string>>({});
   // Filtros que salen de sus datos: hasta un precio y de poca duración (solo si parten la lista).
   const [cheap, setCheap] = useState(false);
+  const mySize = useQuery({ queryKey: ['agent-facts'], queryFn: loadFacts }).data?.find((f) => f.name === 'Talla')?.value ?? null;
   const [short, setShort] = useState(false);
 
   const business = useQuery({ queryKey: ['entity', id], queryFn: () => entitiesApi.get(id ?? ''), enabled: Boolean(id) });
@@ -56,7 +58,10 @@ export default function CatalogScreen() {
       ),
     [forAudience, chosen, cheap, short, quick],
   );
+  const sizeGroup = attrs.find((g) => g.name.toLowerCase() === 'talla');
+  const sizeValue = mySize && sizeGroup ? sizeGroup.values.find((v) => v.value.toUpperCase() === mySize.toUpperCase())?.value : undefined;
   const quickChips = [
+    ...(sizeValue && sizeGroup ? [{ key: 'size', label: `Tu talla ${sizeValue}`, on: chosen[sizeGroup.name] === sizeValue, toggle: () => choose(sizeGroup.name, chosen[sizeGroup.name] === sizeValue ? null : sizeValue) }] : []),
     ...(quick.maxPrice !== null ? [{ key: 'cheap', label: `Hasta ${formatPesos(quick.maxPrice)}`, on: cheap, toggle: () => setCheap((v) => !v) }] : []),
     ...(quick.maxMin !== null ? [{ key: 'short', label: `${quick.maxMin} min o menos`, on: short, toggle: () => setShort((v) => !v) }] : []),
   ];

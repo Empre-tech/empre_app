@@ -136,3 +136,23 @@ export function clockOf(min: number): string {
 export function leaveIn(leg: Leg, now: number): number {
   return leg.arrive - leg.walk - now;
 }
+
+/** La hora libre que sirve para una parada: la primera desde 5 min antes de llegar, sin esperar más de hora y media. */
+export function pickSlot(slots: number[], arrive: number): number | null {
+  return [...slots].sort((a, b) => a - b).find((s) => s >= arrive - 5 && s - arrive <= 90) ?? null;
+}
+
+/**
+ * Reacomoda la vuelta a las horas reservadas: si una cita es más tarde que la llegada, se espera y las paradas
+ * siguientes se corren lo mismo. `slots[i]` es la hora de la cita de esa parada, o null si no se reserva.
+ */
+export function fitSlots<T extends Place>(legs: Leg<T>[], slots: (number | null)[]): Leg<T>[] {
+  let shift = 0;
+  return legs.map((l, i) => {
+    let arrive = l.arrive + shift;
+    const slot = slots[i];
+    if (slot !== null && slot !== undefined && slot > arrive) arrive = slot;
+    shift = arrive - l.arrive;
+    return { ...l, arrive, leave: arrive + l.errand.stay };
+  });
+}

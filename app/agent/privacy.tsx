@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi } from '@/api/agenda';
 import { useAuth } from '@/auth/AuthContext';
 import { NO_PREFS, preferredPart, usable, usualByBusiness, type AgentPrefs } from '@/lib/agentMemory';
-import { loadAgentPrefs, saveAgentPrefs } from '@/lib/agentPrefsStore';
+import { forgetFact, loadAgentPrefs, loadFacts, saveAgentPrefs } from '@/lib/agentPrefsStore';
 import { colors, fonts } from '@/theme';
 
 const NEVER = 'Pagar sin tu toque · compartir tus datos con otros negocios · escribirle a un negocio a tu nombre sin mostrártelo antes · usar tu voz o tu ubicación exacta fuera de la búsqueda';
@@ -23,6 +23,7 @@ export default function AgentPrivacyScreen() {
   const appts = useQuery({ queryKey: ['appointments'], queryFn: agendaApi.mine, enabled: status === 'signedIn', staleTime: 60_000 });
   const prefsQ = useQuery({ queryKey: ['agent-prefs'], queryFn: loadAgentPrefs });
   const prefs = prefsQ.data ?? NO_PREFS;
+  const facts = useQuery({ queryKey: ['agent-facts'], queryFn: loadFacts }).data ?? [];
 
   const all = (appts.data ?? []).filter((a) => a.status === 'completed');
   const used = usable(appts.data ?? [], prefs);
@@ -35,7 +36,10 @@ export default function AgentPrivacyScreen() {
     await saveAgentPrefs(next);
   };
   const toggle = (id: string, on: boolean) => void save({ ...prefs, paused: on ? prefs.paused.filter((x) => x !== id) : [...prefs.paused, id] });
-  const forget = () => void save({ paused: [], forgetBefore: new Date().toISOString() });
+  const forget = () => {
+    void save({ paused: [], forgetBefore: new Date().toISOString() });
+    void forgetFact('Talla').then((next) => qc.setQueryData(['agent-facts'], next));
+  };
 
   return (
     <View style={styles.screen}>
@@ -50,7 +54,7 @@ export default function AgentPrivacyScreen() {
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 20 }]}>
         <Text style={styles.lead}>Lo aprende de lo que reservas en Empre. Solo lo usa para ayudarte, y nunca se lo da a otros negocios.</Text>
 
-        {usual.length || part ? (
+        {usual.length || part || facts.length ? (
           <View style={styles.card}>
             {usual.map((u) => (
               <View key={u.entityId} style={styles.row}>
@@ -61,6 +65,20 @@ export default function AgentPrivacyScreen() {
                     {u.service} · {u.times === 1 ? 'la última vez' : `${u.times} veces`}
                   </Text>
                 </View>
+              </View>
+            ))}
+            {facts.map((f) => (
+              <View key={f.name} style={styles.row}>
+                <Ionicons name="resize-outline" size={18} color={colors.ink} />
+                <View style={styles.rowText}>
+                  <Text style={styles.rowTitle}>
+                    {f.name} {f.value}
+                  </Text>
+                  <Text style={styles.rowSub}>{f.from} · solo en este teléfono</Text>
+                </View>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Quitar ${f.name} ${f.value}`} onPress={() => void forgetFact(f.name).then((next) => qc.setQueryData(['agent-facts'], next))} style={styles.quit}>
+                  <Text style={styles.quitText}>Quitar</Text>
+                </Pressable>
               </View>
             ))}
             {part ? (
@@ -113,10 +131,10 @@ export default function AgentPrivacyScreen() {
           <Text style={styles.rowSub}>{NEVER}</Text>
         </View>
 
-        {all.length ? (
+        {all.length || facts.length ? (
           <Pressable accessibilityRole="button" onPress={forget} style={styles.forget}>
             <Text style={styles.forgetText}>Olvidar todo</Text>
-            <Text style={styles.forgetSub}>Agent deja de usar tus citas de hasta hoy. No se borran de Mis citas.</Text>
+            <Text style={styles.forgetSub}>Agent deja de usar tus citas de hasta hoy y olvida tu talla. Tus citas no se borran de Mis citas.</Text>
           </Pressable>
         ) : null}
       </ScrollView>
@@ -137,6 +155,8 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, minWidth: 0, gap: 1 },
   rowTitle: { fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
   rowSub: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
+  quit: { minHeight: 44, paddingHorizontal: 12, justifyContent: 'center' },
+  quitText: { fontSize: 13.5, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
   forget: { padding: 14, gap: 2, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center' },
   forgetText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
   forgetSub: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },

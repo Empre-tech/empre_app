@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { loadFacts } from '@/lib/agentPrefsStore';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -51,6 +52,8 @@ export default function ProductScreen() {
   const [viewer, setViewer] = useState<number | null>(null);
   const [asking, setAsking] = useState<string | null>(null);
 
+  // Tu talla, si le dijiste a Agent que la recuerde: se marca y se elige con un toque.
+  const mySize = useQuery({ queryKey: ['agent-facts'], queryFn: loadFacts }).data?.find((f) => f.name === 'Talla')?.value ?? null;
   const business = useQuery({ queryKey: ['entity', entityId], queryFn: () => entitiesApi.get(entityId), enabled: Boolean(entityId) });
   const catalog = useQuery({ queryKey: ['catalog', entityId, 'sections'], queryFn: () => catalogApi.listWithSections(entityId), enabled: Boolean(entityId), staleTime: 60_000 });
 
@@ -178,10 +181,26 @@ export default function ProductScreen() {
                 const current = (shown.attrs ?? []).find((a) => a.name.toLowerCase() === g.name.toLowerCase())?.value;
                 return (
                   <View key={g.name} style={{ gap: spacing.sm }}>
-                    <Text style={styles.label}>
-                      {g.name}
-                      {current ? ` · ${current}` : ''}
-                    </Text>
+                    <View style={styles.sizeRow}>
+                      <Text style={styles.label}>
+                        {g.name}
+                        {current ? ` · ${current}` : ''}
+                      </Text>
+                      {g.name.toLowerCase() === 'talla' && mySize && current !== mySize && g.values.some((v) => v.value.toUpperCase() === mySize.toUpperCase()) ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Elegir tu talla ${mySize}`}
+                          onPress={() => {
+                            const v = g.values.find((x) => x.value.toUpperCase() === mySize.toUpperCase())!;
+                            const next = pickVariant(options, shown, g.name, v.value);
+                            if (next) setSelected(next.id);
+                          }}
+                          style={styles.mySize}
+                        >
+                          <Text style={styles.mySizeText}>Tu talla {mySize} ›</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
                     <View style={styles.options} accessibilityRole="radiogroup" accessibilityLabel={g.name}>
                       {g.values.map((v) => {
                         const on = v.value === current;
@@ -376,4 +395,7 @@ const styles = StyleSheet.create({
   familyNoImg: { alignItems: 'center', justifyContent: 'center' },
   familyName: { fontSize: 13, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.ink },
   familyPrice: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  sizeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  mySize: { minHeight: 36, paddingHorizontal: 12, borderRadius: 999, justifyContent: 'center', backgroundColor: colors.primarySoft },
+  mySizeText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
 });

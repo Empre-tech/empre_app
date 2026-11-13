@@ -33,3 +33,11 @@ test('prefieres las tardes solo con suficientes citas', () => {
   assert.deepEqual(preferredPart(done), { part: 'tardes', of: '3 de 4 citas' });
   assert.equal(preferredPart(done.slice(0, 2)), null);
 });
+
+test('la talla sale de como la dices', async () => {
+  const { extractSize } = await import('./agentMemory.ts');
+  assert.equal(extractSize('¿Tienen tenis talla 40 para hoy?'), '40');
+  assert.equal(extractSize('calzo 38,5'), '38.5');
+  assert.equal(extractSize('camisa talla m'), 'M');
+  assert.equal(extractSize('corte para hoy a las 5'), null);
+});

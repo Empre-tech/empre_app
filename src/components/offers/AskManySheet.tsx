@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { RememberSize } from '@/components/ai/RememberSize';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -312,6 +313,7 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
             />
           ))
         )}
+        {last ? <RememberSize text={last.question} /> : null}
       </ScrollView>
 
       <View style={[styles.composerWrap, { paddingBottom: insets.bottom + 10 }]}>

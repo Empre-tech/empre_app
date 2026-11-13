@@ -69,3 +69,25 @@ export function preferredPart(appts: PastAppt[]): { part: 'mañanas' | 'tardes' 
   }
   return null;
 }
+
+/**
+ * La talla, si la dices al preguntar («tenis talla 40», «calzo 38», «camisa talla M»). Solo se recuerda si la persona
+ * dice que sí, y solo en este teléfono.
+ */
+export function extractSize(text: string): string | null {
+  const t = text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  const m = t.match(/\b(?:talla|calzo|numero|n[°º])\s*(\d{2}(?:[.,]5)?|xxs|xs|s|m|l|xl|xxl)\b/);
+  if (!m) return null;
+  return /^\d/.test(m[1]) ? m[1].replace(',', '.') : m[1].toUpperCase();
+}
+
+export interface Fact {
+  name: 'Talla';
+  value: string;
+  /** De dónde salió, para mostrarlo: «Lo dijiste en una pregunta». */
+  from: string;
+  at: string;
+}
