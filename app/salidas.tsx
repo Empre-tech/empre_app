@@ -13,19 +13,12 @@ import { Avatar } from '@/components/Avatar';
 import { EmptyState } from '@/components/EmptyState';
 import { SignInPrompt } from '@/components/SignInPrompt';
 import { formatWhen, STATUS_LABEL } from '@/lib/agendaFormat';
-import { effectiveClaimStatus, mergeClaims } from '@/lib/claims';
+import { claimDate, effectiveClaimStatus, mergeClaims, savedIn } from '@/lib/claims';
 import { formatPesos } from '@/lib/ledger';
 import { loadSavedPlans, planHour, planKey, planTag, planTitle } from '@/lib/plans';
 import { useNow } from '@/lib/useNow';
 import { colors, fonts, softShadow } from '@/theme';
 
-const claimDate = (c: OfferClaim) => c.redeemed_at ?? c.claimed_at;
-
-/** Lo que se ahorró en un canje: solo si la oferta trae los dos precios. */
-function savedIn(c: OfferClaim): number {
-  const { reference_price: was, special_price: now } = c.offer ?? {};
-  return was && now && was > now ? was - now : 0;
-}
 
 const dayOf = (iso: string) => new Date(iso).toDateString();
 const mmss = (ms: number) => {
@@ -257,7 +250,7 @@ export default function SalidasScreen() {
       ) : null}
 
       {laterAppts.length ? (
-        <Section title="Lo que sigue">
+        <Section title="Lo que viene">
           {laterAppts.map((a, i) => (
             <Row key={a.id} first={i === 0} agenda icon="calendar-outline" title={a.service?.name ?? 'Cita'} sub={[a.entity?.name, formatWhen(a.starts_at)].filter(Boolean).join(' · ')} tag={STATUS_LABEL[a.status]} onPress={() => openAppt(a)} />
           ))}

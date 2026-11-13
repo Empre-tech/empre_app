@@ -6,7 +6,12 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View, Modal } from 'react-native';
 import { notifyError } from '@/components/Notice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { agendaApi } from '@/api/agenda';
 import { entitiesApi, usersApi } from '@/api/endpoints';
+import { claimsApi } from '@/api/offers';
+import { loadSavedClaims } from '@/claims/claimStore';
+import { mergeClaims, monthSummary } from '@/lib/claims';
+import { useNow } from '@/lib/useNow';
 import type { VerificationStatus } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Avatar } from '@/components/Avatar';
@@ -45,6 +50,19 @@ export default function ProfileScreen() {
   const queryClient = useQueryClient();
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
+  // Lo suyo en una franja (tablero «Para el cliente»): salidas del mes, lo ahorrado y las citas que vienen. Solo lo que
+  // hay: una cifra en cero no se muestra.
+  const myClaims = useQuery({ queryKey: ['claims', 'mine'], queryFn: claimsApi.mine, enabled: status === 'signedIn', retry: false, staleTime: 15_000 });
+  const savedClaims = useQuery({ queryKey: ['claims', 'saved', user?.id], queryFn: () => loadSavedClaims(user!.id), enabled: status === 'signedIn' && Boolean(user) });
+  const myAppts = useQuery({ queryKey: ['appointments'], queryFn: agendaApi.mine, enabled: status === 'signedIn' && FEATURES.agenda });
+  const stripNow = useNow(60_000);
+  const month = monthSummary(mergeClaims(myClaims.data ?? [], savedClaims.data ?? []), stripNow);
+  const comingAppts = (myAppts.data ?? []).filter((a) => (a.status === 'requested' || a.status === 'confirmed') && Date.parse(a.starts_at) > stripNow).length;
+  const strip = [
+    ...(month.outings ? [{ v: String(month.outings), t: month.outings === 1 ? 'salida este mes' : 'salidas este mes', c: colors.ink }] : []),
+    ...(month.saved ? [{ v: formatPesos(month.saved), t: 'ahorrados', c: colors.accentInk }] : []),
+    ...(comingAppts ? [{ v: String(comingAppts), t: comingAppts === 1 ? 'cita que viene' : 'citas que vienen', c: colors.primaryDark }] : []),
+  ];
   const mine = useQuery({
     queryKey: ['my-entities'],
     queryFn: entitiesApi.mine,
@@ -241,6 +259,17 @@ export default function ProfileScreen() {
       {hasBusiness || mine.isLoading ? businesses : null}
       {allSheet}
 
+      {strip.length ? (
+        <View style={styles.monthStrip} accessible accessibilityLabel={strip.map((x) => `${x.v} ${x.t}`).join(', ')}>
+          {strip.map((x) => (
+            <View key={x.t} style={styles.monthCell}>
+              <Text style={[styles.monthValue, { color: x.c }]}>{x.v}</Text>
+              <Text style={styles.monthLabel}>{x.t}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
       <View style={styles.section}>
         <Text style={styles.eyebrow} accessibilityRole="header">
           LO TUYO
@@ -257,8 +286,8 @@ export default function ProfileScreen() {
         <Pressable accessibilityRole="button" onPress={() => router.push('/business/new')} style={styles.invite}>
           <Ionicons name="storefront-outline" size={22} color={colors.ink} />
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={styles.rowLabel}>¿Tienes un negocio?</Text>
-            <Text style={styles.rowSub}>Ponlo en el mapa de Empre. Es gratis empezar.</Text>
+            <Text style={styles.rowLabel}>¿Vendes algo o das un servicio?</Text>
+            <Text style={styles.rowSub}>Súmalo gratis en 2 min. Sigues siendo cliente igual.</Text>
           </View>
           <Text style={styles.inviteLink}>Crear ›</Text>
         </Pressable>
@@ -336,6 +365,10 @@ const styles = StyleSheet.create({
   avatarButton: { width: 64, height: 64, borderRadius: 32 },
   avatarBadge: { position: 'absolute', right: -3, bottom: -3, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.bg, backgroundColor: colors.primary },
   section: { gap: 8 },
+  monthStrip: { flexDirection: 'row', gap: 8 },
+  monthCell: { flex: 1, padding: 12, gap: 2, borderRadius: 16, backgroundColor: colors.surface },
+  monthValue: { fontSize: 22, fontFamily: fonts.display.bold, fontVariant: ['tabular-nums'] },
+  monthLabel: { fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.medium, color: colors.muted },
   sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
   eyebrow: { fontSize: 12, letterSpacing: 1.2, fontFamily: fonts.ui.extrabold, color: colors.faint },
   hint: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.faint },

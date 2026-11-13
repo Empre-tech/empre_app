@@ -198,7 +198,7 @@ export default function AgentBookingScreen() {
           <Text style={styles.headTitle} numberOfLines={1} accessibilityRole="header">
             Pedir cita · {biz}
           </Text>
-          <Text style={styles.headSub}>Empre Agent responde por el negocio</Text>
+          <Text style={styles.headSub}>Hace cosas por ti · tú confirmas</Text>
         </View>
       </View>
 
@@ -242,6 +242,7 @@ export default function AgentBookingScreen() {
 
       {step !== 'done' && step !== 'none' ? (
         <View style={[styles.footContainer, { paddingBottom: insets.bottom + 12 }]}>
+          {step === 'confirm' ? <Text style={styles.promise}>Agent no reserva ni paga nada sin tu toque</Text> : null}
           {replies.length ? (
             <View style={styles.footReplies}>
               {replies.map((r, i) => {
@@ -258,7 +259,7 @@ export default function AgentBookingScreen() {
             <TextInput
               value={draft}
               onChangeText={setDraft}
-              placeholder="Escribe o toca una opción…"
+              placeholder="Pídele algo a Agent"
               placeholderTextColor={colors.muted}
               accessibilityLabel="Mensaje para Empre Agent"
               onSubmitEditing={sendFreeText}
@@ -282,6 +283,7 @@ export default function AgentBookingScreen() {
 }
 
 const styles = StyleSheet.create({
+  promise: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
   screen: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingBottom: 10, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.hairline },
   back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
