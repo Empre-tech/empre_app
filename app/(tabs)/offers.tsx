@@ -4,7 +4,6 @@ import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Image as ExpoImage } from 'expo-image';
 import { Avatar } from '@/components/Avatar';
-import { CategoryArt, artKeyFor } from '@/components/CategoryArt';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
@@ -352,6 +351,17 @@ export default function OffersScreen() {
   }, [data, rawAllItems]);
   const faces = useMemo(() => bizFaces(nearbyBiz, knownOffers, catalogsByEntity), [nearbyBiz, knownOffers, catalogsByEntity]);
   // Las ofertas son el tema, por secciones (tablero «Empre Offers»): cada una una vez, sin repetir foto.
+  // Categorías en un solo nivel: las principales; las hijas aparecen al elegir su madre.
+  const allCats = useMemo(() => categories.data ?? [], [categories.data]);
+  const topCats = useMemo(() => {
+    const tops = allCats.filter((c) => !c.parent_id);
+    return (tops.length ? tops : allCats).slice(0, 10);
+  }, [allCats]);
+  const selectedTop = useMemo(() => {
+    const c = allCats.find((x) => x.id === catId);
+    return c ? (c.parent_id ? allCats.find((x) => x.id === c.parent_id) ?? c : c) : undefined;
+  }, [allCats, catId]);
+  const subCats = useMemo(() => (selectedTop ? allCats.filter((c) => c.parent_id === selectedTop.id).slice(0, 12) : []), [allCats, selectedTop]);
   const offerRails = useMemo(() => (q || category ? [] : offerSections(knownOffers, now)), [knownOffers, now, q, category]);
   // Un asomo de «Lo que venden cerca»: cuatro fotos de negocios distintos.
   const nearbyPeek = useMemo(
@@ -421,6 +431,8 @@ export default function OffersScreen() {
     </View>
   );
   const inCity = city ? ` en ${city}` : '';
+  const activeCount = knownOffers.filter((o) => Date.parse(o.ends_at) > now).length;
+  const heroLine = !data ? 'Buscando ofertas cerca…' : activeCount ? `${activeCount === 1 ? '1 oferta activa' : `${activeCount} ofertas activas`} cerca` : 'Hoy no hay ofertas cerca · mira lo que venden';
 
   const home = !showAll;
   const closeAll = () => {
@@ -494,9 +506,7 @@ export default function OffersScreen() {
             <Text style={styles.hero} accessibilityRole="header">
               {home ? zoneTitle : 'Todas las ofertas'}
             </Text>
-            <Text style={styles.heroSub}>
-              Servicios con precio al día, productos y ofertas activas · Pregunta con Empre AI
-            </Text>
+            <Text style={styles.heroSub}>{heroLine}</Text>
           </View>
         </View>
 
@@ -506,7 +516,7 @@ export default function OffersScreen() {
             <Pressable accessibilityRole="search" accessibilityLabel="Buscar un producto, servicio u oferta" onPress={() => openAll(true)} style={styles.field}>
               <Ionicons name="search" size={20} color={colors.ink} />
               <Text style={styles.fieldText} numberOfLines={1}>
-                Busca un servicio, producto o mira si tiene oferta…
+                Busca ofertas, productos o servicios
               </Text>
               <Pressable accessibilityRole="button" accessibilityLabel="Buscar con voz en Empre AI" onPress={() => router.push({ pathname: '/ask', params: { voice: '1' } })} style={styles.fieldMic}>
                 <Ionicons name="mic-outline" size={18} color={colors.primaryDark} />
@@ -540,29 +550,23 @@ export default function OffersScreen() {
                 })}
               </ScrollView>
             ) : null}
-            {/* Categorías: botones con su ilustración, todas al mismo punto */}
-            {(categories.data ?? []).length ? (
-              <View style={styles.catGrid} accessibilityLabel="Categorías">
-                {(categories.data ?? []).slice(0, 8).map((c) => {
-                  const on = catId === c.id;
-                  return (
-                    <Pressable key={c.id} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={c.name} onPress={() => setCatId(on ? undefined : c.id)} style={styles.catBtn}>
-                      <View style={[styles.catArt, on && styles.catArtOn]}>
-                        <CategoryArt k={artKeyFor(c.name, c.icon)} size={60} />
-                      </View>
-                      <Text style={[styles.catName, on && styles.catNameOn]} numberOfLines={1}>
-                        {c.name}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+            {/* Un solo nivel: las categorías principales en una fila, con los filtros al lado */}
+            <FilterRow cats={topCats} catId={selectedTop?.id} onCat={setCatId} tags={tags} onOpen={() => setFiltersOpen(true)} />
+            {/* Lo de adentro (Pescados, Panadería…) solo después de elegir una principal */}
+            {selectedTop && subCats.length ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats} accessibilityLabel={`Dentro de ${selectedTop.name}`}>
+                <Chip label={`Todo ${selectedTop.name.toLowerCase()}`} active={catId === selectedTop.id} onPress={() => setCatId(selectedTop.id)} />
+                {subCats.map((c) => (
+                  <Chip key={c.id} label={c.name} active={catId === c.id} onPress={() => setCatId(catId === c.id ? selectedTop.id : c.id)} />
+                ))}
+              </ScrollView>
+            ) : null}
+            {/* Las lentes solo cuando no hay secciones (búsqueda, categoría o pocas ofertas): si no, repetirían «Terminan hoy» */}
+            {offerRails.length === 0 && lenses.length > 1 ? (
+              <View style={styles.lensBar}>
+                <LensTabs lenses={lenses} active={lensKey} onPick={setLens} />
               </View>
             ) : null}
-            {/* 1 · Lentes de tendencia y 2 · un solo sistema de filtros (3.61) */}
-            <View style={styles.lensBar}>
-              <LensTabs lenses={lenses} active={lensKey} onPick={setLens} />
-              <FilterRow cats={categories.data ?? []} catId={catId} onCat={setCatId} tags={tags} onOpen={() => setFiltersOpen(true)} />
-            </View>
           </>
         ) : (
           <>
@@ -605,7 +609,7 @@ export default function OffersScreen() {
         {home ? (
           <>
             {/* 3 · Los negocios dan la cara */}
-            {show !== 'services' || faces.some((f) => !f.hasOffer) ? <BizFaces faces={show === 'services' ? faces.filter((f) => !f.hasOffer) : faces} onOpen={setFace} /> : null}
+            {show === 'services' ? <BizFaces faces={faces.filter((f) => !f.hasOffer)} onOpen={setFace} /> : <BizFaces faces={faces.filter((f) => f.hasOffer)} onOpen={setFace} />}
 
             {!data && (market.isLoading || !ready) ? (
               <View style={styles.rail}>
@@ -980,12 +984,6 @@ const styles = StyleSheet.create({
   barrioOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
   barrioBar: { height: 3, borderRadius: 2, backgroundColor: 'transparent', marginBottom: -1 },
   barrioBarOn: { backgroundColor: colors.selectedSoft },
-  catGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, rowGap: 12 },
-  catBtn: { width: '25%', alignItems: 'center', gap: 6, minHeight: 44 },
-  catArt: { width: 64, height: 64, borderRadius: 32, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
-  catArtOn: { borderColor: colors.ink },
-  catName: { fontFamily: fonts.ui.bold, fontSize: 12, color: colors.ink, textAlign: 'center', paddingHorizontal: 2 },
-  catNameOn: { fontFamily: fonts.ui.extrabold },
   lensBar: { gap: 10 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 20 },
   emptyCard: { marginHorizontal: 20, padding: 18, gap: 10, borderRadius: 20, backgroundColor: colors.surface },

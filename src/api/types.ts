@@ -44,6 +44,8 @@ export interface BusinessHour {
 export interface Category {
   id: string;
   name: string;
+  /** La categoría madre; vacía en las principales (Comida, Belleza…). */
+  parent_id?: string | null;
   /** Nombre de ícono de Ionicons (ej. "restaurant-outline"), usado en el mapa. */
   icon: string;
   /** Color de marca (hex) para teñir el portal/glifo en el mapa. */
