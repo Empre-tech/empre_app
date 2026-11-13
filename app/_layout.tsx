@@ -18,7 +18,7 @@ import { flushLedger, initLedgerOutbox } from '@/ledger/ledgerStore';
 import { colors } from '@/theme';
 
 // Se mantiene la splash nativa visible hasta que Inter esté
-// listas, así se evita el "parpadeo" de la tipografía del sistema al abrir.
+// lista, así se evita el "parpadeo" de la tipografía del sistema al abrir.
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function AppStack() {
