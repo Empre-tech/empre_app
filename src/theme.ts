@@ -49,21 +49,22 @@ export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as cons
 export const radius = { sm: 10, md: 14, lg: 20, pill: 999 } as const;
 
 /**
- * Tipografía del lienzo: títulos en Nunito 900 y el resto en Manrope.
- * Se cargan con expo-font en app/_layout.tsx; hasta que cargan, RN usa la fuente del sistema.
+ * Tipografía: Inter en toda la app (títulos y texto), como en el lienzo. SF Pro solo se puede usar en Apple; Inter es
+ * su par libre y se ve igual en iPhone, Android y web. Se carga con expo-font en app/_layout.tsx; hasta que carga, RN
+ * usa la fuente del sistema.
  */
 export const fonts = {
   display: {
-    medium: 'Nunito_700Bold',
-    semibold: 'Nunito_800ExtraBold',
-    bold: 'Nunito_900Black',
+    medium: 'Inter_600SemiBold',
+    semibold: 'Inter_700Bold',
+    bold: 'Inter_800ExtraBold',
   },
   ui: {
-    regular: 'Manrope_400Regular',
-    medium: 'Manrope_500Medium',
-    semibold: 'Manrope_600SemiBold',
-    bold: 'Manrope_700Bold',
-    extrabold: 'Manrope_800ExtraBold',
+    regular: 'Inter_400Regular',
+    medium: 'Inter_500Medium',
+    semibold: 'Inter_600SemiBold',
+    bold: 'Inter_700Bold',
+    extrabold: 'Inter_800ExtraBold',
   },
 } as const;
 
