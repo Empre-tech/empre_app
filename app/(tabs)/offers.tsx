@@ -25,12 +25,11 @@ import { ScreenGlow } from '@/components/ScreenGlow';
 import { askApi } from '@/api/ask';
 import { catalogApi } from '@/api/catalog';
 import { categoriesApi } from '@/api/endpoints';
-import { claimsApi, discoveryApi, offersApi } from '@/api/offers';
+import { discoveryApi, offersApi } from '@/api/offers';
 import type { DiscoveryItem } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/Button';
 import { artKeyFor } from '@/components/CategoryArt';
-import { ZoneButton, ZoneList } from '@/components/ZoneButton';
 import { UpdatingBar } from '@/components/explore/LoadingMotion';
 import { BizVitrinaSheet } from '@/components/offers/BizFaces';
 import { AskManySheet } from '@/components/offers/AskManySheet';
@@ -56,7 +55,6 @@ import {
   catalogMarketItem,
   endingToday,
   heroPicks,
-  distanceLabel,
   effectiveSort,
   endText,
   filterVitrinaItems,
@@ -119,7 +117,6 @@ export default function OffersScreen() {
   const [q, setQ] = useState('');
   const [compact, setCompact] = useState(false);
   const [picked, setPicked] = useState<{ id: string; name: string; latitude: number; longitude: number } | null>(null);
-  const [zonesOpen, setZonesOpen] = useState(false);
   const [, setPin] = useState<string | null>(null);
   const [listY, setListY] = useState(0);
   const [showAll, setShowAll] = useState(false);
@@ -131,9 +128,7 @@ export default function OffersScreen() {
   const [face, setFace] = useState<BizFace | null>(null);
   const win = useWindowDimensions();
 
-  const { status, user } = useAuth();
-  const claims = useQuery({ queryKey: ['claims', 'mine'], queryFn: claimsApi.mine, enabled: status === 'signedIn', retry: false, staleTime: 15_000 });
-  const activeClaims = (claims.data ?? []).filter((c) => c.status === 'RECLAMADO').length;
+  const { user } = useAuth();
 
   useFocusEffect(
     useCallback(() => {
@@ -338,7 +333,6 @@ export default function OffersScreen() {
 
   const zonesOn = !q && showZones(data);
   const zoneName = data?.zones.find((z) => z.id === zoneId)?.name;
-  const zoneLabel = picked?.name ?? (data?.zone || (coords ? 'Cerca de ti' : city || 'Tu ciudad'));
 
   const goToList = (id: string | undefined) => {
     setZone(id);
@@ -491,51 +485,38 @@ export default function OffersScreen() {
         aria-hidden={!compact}
         style={[styles.mini, { top: insets.top, opacity: bar, transform: [{ translateY: bar.interpolate({ inputRange: [0, 1], outputRange: [-MINI_H, 0] }) }] }]}
       >
-        <Avatar uri={user?.profile_picture_url} name={user?.name ?? 'Tú'} size={28} />
-        <Pressable accessibilityRole="button" accessibilityLabel={`Zona: ${zoneLabel}. Volver arriba para cambiarla`} onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: !reduce })} style={styles.miniTap}>
-          <Text style={styles.miniCity} numberOfLines={1}>
-            {zoneLabel}
+        <Avatar uri={user?.profile_picture_url} name={user?.name ?? 'Tú'} size={32} />
+        <Pressable accessibilityRole="search" accessibilityLabel="Buscar un producto, servicio u oferta" onPress={() => openAll(true)} style={styles.miniField}>
+          <Ionicons name="search" size={18} color={colors.ink} />
+          <Text style={styles.fieldText} numberOfLines={1}>
+            Comida, cortes, tenis, ofertas…
           </Text>
-          <Ionicons name="chevron-down" size={14} color={colors.ink} />
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Buscar servicios, productos u ofertas" onPress={() => openAll(true)} style={styles.miniBtn}>
-          <Ionicons name="search" size={20} color={colors.ink} />
         </Pressable>
       </Animated.View>
 
       <ScrollView ref={scrollRef} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" onScroll={onScroll} scrollEventThrottle={64}>
         <View style={styles.top}>
           {home ? (
-            <Pressable accessibilityRole="button" accessibilityLabel="Tu perfil" onPress={() => router.push('/(tabs)/profile')} style={styles.round}>
-              <Avatar uri={user?.profile_picture_url} name={user?.name ?? 'Tú'} size={40} />
+            <Pressable accessibilityRole="button" accessibilityLabel="Tu perfil" onPress={() => router.push('/(tabs)/profile')} hitSlop={4}>
+              <Avatar uri={user?.profile_picture_url} name={user?.name ?? 'Tú'} size={44} />
             </Pressable>
           ) : (
             <Pressable accessibilityRole="button" accessibilityLabel="Volver a la vitrina" onPress={closeAll} style={styles.round}>
               <Ionicons name="chevron-back" size={20} color={colors.ink} />
             </Pressable>
           )}
-          <ZoneButton lead={picked ? 'Estás viendo' : 'Estás en'} name={zoneLabel} open={zonesOpen} disabled={!data?.zones.length} onPress={() => setZonesOpen((v) => !v)} />
-          <Pressable accessibilityRole="button" accessibilityLabel={`Mis salidas${activeClaims ? `: ${activeClaims} por usar` : ''}`} onPress={() => router.push('/salidas')} style={styles.round}>
-            <Ionicons name="ticket-outline" size={20} color={colors.ink} style={{ transform: [{ rotate: '45deg' }] }} />
-            {activeClaims ? <View style={styles.roundDot} /> : null}
-          </Pressable>
+          {home ? (
+            <Pressable accessibilityRole="search" accessibilityLabel="Buscar un producto, servicio u oferta" onPress={() => openAll(true)} style={styles.field}>
+              <Ionicons name="search" size={18} color={colors.ink} />
+              <Text style={styles.fieldText} numberOfLines={1}>
+                Comida, cortes, tenis, ofertas…
+              </Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Buscar con voz en Empre AI" onPress={() => router.push({ pathname: '/ask', params: { voice: '1' } })} style={styles.fieldMic}>
+                <Ionicons name="mic-outline" size={17} color={colors.primaryDark} />
+              </Pressable>
+            </Pressable>
+          ) : null}
         </View>
-        {zonesOpen ? (
-          <View style={styles.zoneWrap}>
-            <ZoneList
-              options={[...(coords ? [{ id: '', name: 'Cerca de ti', where: 'aquí' }] : []), ...(data?.zones ?? []).map((z) => ({ id: z.id, name: z.name, where: z.here ? 'aquí' : z.distance_meters ? `a ${distanceLabel(z.distance_meters)}` : null }))]}
-              selected={picked?.id ?? (coords ? '' : null)}
-              onPick={(o) => {
-                const z = data?.zones.find((x) => x.id === o.id);
-                if (!z) setPicked(null);
-                else if (z.latitude && z.longitude) setPicked({ id: z.id, name: z.name, latitude: z.latitude, longitude: z.longitude });
-                else goToList(z.id);
-                setPin(null);
-                setZonesOpen(false);
-              }}
-            />
-          </View>
-        ) : null}
 
         {home ? null : (
           <View style={styles.heroRow}>
@@ -547,20 +528,6 @@ export default function OffersScreen() {
 
         {home ? (
           <>
-            <View style={styles.pad}>
-            <Pressable accessibilityRole="search" accessibilityLabel="Buscar un producto, servicio u oferta" onPress={() => openAll(true)} style={styles.field}>
-              <Ionicons name="search" size={20} color={colors.ink} />
-              <Text style={styles.fieldText} numberOfLines={1}>
-                Busca ofertas, productos o servicios
-              </Text>
-              <Pressable accessibilityRole="button" accessibilityLabel="Buscar con voz en Empre AI" onPress={() => router.push({ pathname: '/ask', params: { voice: '1' } })} style={styles.fieldMic}>
-                <Ionicons name="mic-outline" size={18} color={colors.primaryDark} />
-              </Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel="Abrir el mapa de ofertas" onPress={() => router.push('/map')} style={styles.fieldSlot}>
-                <Ionicons name="map-outline" size={18} color={colors.ink} />
-              </Pressable>
-            </Pressable>
-            </View>
             {/* Barrios: como las pestañas de categoría de las grandes tiendas, pero por ubicación (tablero «Ofertas») */}
             {(data?.zones ?? []).length ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.barrios} accessibilityLabel="Barrios">
@@ -1038,25 +1005,25 @@ const styles = StyleSheet.create({
   peekCellWide: { flex: 0, width: '31%' },
   peekImg: { width: '100%', aspectRatio: 1, borderRadius: 12, backgroundColor: colors.bg },
   peekText: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.ink, textAlign: 'center' },
-  barrios: { gap: 18, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.line },
+  barrios: { gap: 20, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.line, marginTop: -8 },
   barrio: { minHeight: 44, justifyContent: 'flex-end', gap: 8 },
-  barrioText: { fontFamily: fonts.ui.bold, fontSize: 15, color: colors.faint },
+  barrioText: { fontFamily: fonts.ui.semibold, fontSize: 15, color: colors.muted },
   barrioOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
   barrioBar: { height: 3, borderRadius: 2, backgroundColor: 'transparent', marginBottom: -1 },
-  barrioBarOn: { backgroundColor: colors.selectedSoft },
+  barrioBarOn: { backgroundColor: colors.primary },
   lensBar: { gap: 10 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 20 },
   emptyCard: { marginHorizontal: 20, padding: 18, gap: 10, borderRadius: 20, backgroundColor: colors.surface },
   pad: { paddingHorizontal: 20, gap: 14 },
-  field: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 14, paddingRight: 4, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
-  fieldText: { flex: 1, minWidth: 0, fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.faint },
-  fieldMic: { width: 40, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primarySoft },
-  fieldSlot: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
+  field: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 14, paddingRight: 5, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  fieldText: { flex: 1, minWidth: 0, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.muted },
+  fieldMic: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sandSoft },
+  miniField: { flex: 1, minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   tilesLabel: { marginTop: 6, marginBottom: -6, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   screen: { flex: 1, backgroundColor: colors.bg },
   body: { gap: 28, paddingBottom: 120 },
   wash: { position: 'absolute', left: 0, right: 0, top: 0 },
-  top: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingTop: 16 },
+  top: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingTop: 12 },
   round: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   roundDot: { position: 'absolute', top: 9, right: 9, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.brand, borderWidth: 2, borderColor: colors.surface },
   zoneWrap: { marginHorizontal: 20, marginTop: -8 },
@@ -1071,7 +1038,7 @@ const styles = StyleSheet.create({
   searchWrap: { paddingHorizontal: 20 },
   search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 52, paddingHorizontal: spacing.lg, borderRadius: 26, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, ...softShadow },
   searchInput: { flex: 1, fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink, paddingVertical: 0 },
-  mini: { position: 'absolute', left: 0, right: 0, zIndex: 5, height: MINI_H, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 20, paddingRight: 12, backgroundColor: 'rgba(255,255,255,0.94)', borderBottomWidth: 1, borderBottomColor: colors.hairline },
+  mini: { position: 'absolute', left: 0, right: 0, zIndex: 5, height: MINI_H, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, backgroundColor: 'rgba(245,238,225,0.97)', borderBottomWidth: 1, borderBottomColor: colors.hairline },
   miniTap: { flex: 1, minHeight: 44, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
   miniCity: { flexShrink: 1, fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
   miniBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },

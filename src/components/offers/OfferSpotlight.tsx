@@ -9,7 +9,8 @@ import { pesos } from '@/lib/askMany';
 import { categoryColor } from '@/lib/categoryColor';
 import { onFootOrDistance } from '@/lib/format';
 import { resolveImageUrl } from '@/lib/image';
-import { CategoryArt, artKeyFor } from '@/components/CategoryArt';
+import { artKeyFor } from '@/components/CategoryArt';
+import { ART_TINT, CategoryIllustration } from '@/components/CategoryIllustration';
 import { benefitOf, countdown, priceView, timeBadge, type MarketItem } from '@/lib/offerMarket';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
@@ -18,12 +19,12 @@ import { colors, fonts } from '@/theme';
 const walk = (m?: number | null) => (m == null ? null : onFootOrDistance(m / 1000));
 
 /** El fondo que habla de ofertas: etiquetitas de precio muy suaves, repetidas. Va detrás y no se toca. */
-export function TagPattern({ id, opacity = 0.22 }: { id: string; opacity?: number }) {
+export function TagPattern({ id, opacity = 0.22, color = colors.accent }: { id: string; opacity?: number; color?: string }) {
   return (
     <Svg pointerEvents="none" style={StyleSheet.absoluteFill}>
       <Defs>
         <Pattern id={id} width={64} height={64} patternUnits="userSpaceOnUse">
-          <G fill="none" stroke={colors.accent} strokeOpacity={opacity} strokeWidth={1.6} strokeLinejoin="round">
+          <G fill="none" stroke={color} strokeOpacity={opacity} strokeWidth={1.6} strokeLinejoin="round">
             <Path d="M10 14h14l12 12-12 12H10z" transform="rotate(-18 22 26)" />
             <Path d="M40 40h11l9 9-9 9H40z" transform="rotate(14 50 49)" />
           </G>
@@ -155,13 +156,13 @@ export function HeroCarousel({ items, bizById, now, onOpen }: { items: MarketIte
 export function BestPriceRail({ picks, onOpen }: { picks: BestPrice[]; onOpen: (o: MarketItem) => void }) {
   return (
     <View style={styles.band}>
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surface }]} />
-      <TagPattern id="bp" />
+      <Wash id="bw" from="#FBD9D3" to={colors.surface} />
+      <TagPattern id="bp" color={colors.brand} opacity={0.14} />
       <View style={styles.bandHead}>
         <Text style={styles.title} accessibilityRole="header">
           Mejor precio cerca
         </Text>
-        <Text style={styles.why}>Lo mismo en varios negocios: aquí está más barato</Text>
+        <Text style={[styles.why, { color: colors.primaryDark }]}>Lo mismo en varios negocios: aquí está más barato</Text>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
         {picks.map((b) => (
@@ -176,8 +177,8 @@ export function BestPriceRail({ picks, onOpen }: { picks: BestPrice[]; onOpen: (
               {b.item.photo ? (
                 <Image source={{ uri: b.item.photo }} style={styles.bestImg} contentFit="cover" accessibilityIgnoresInvertColors />
               ) : (
-                <View style={[styles.bestImg, styles.bestArt]}>
-                  <CategoryArt k={artKeyFor(b.item.category_name, b.item.category_icon)} size={200} />
+                <View style={[styles.bestImg, styles.bestArt, { backgroundColor: ART_TINT[artKeyFor(b.item.category_name, b.item.category_icon)] }]}>
+                  <CategoryIllustration k={artKeyFor(b.item.category_name, b.item.category_icon)} size={84} />
                 </View>
               )}
               <Text style={styles.bestBadge}>{`El más bajo de ${b.count}`}</Text>
@@ -308,7 +309,7 @@ const styles = StyleSheet.create({
   band: { paddingVertical: 18, gap: 14, overflow: 'hidden' },
   bandHead: { paddingHorizontal: 20, gap: 2 },
   bandHeadRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  best: { width: 200, borderRadius: 18, overflow: 'hidden', backgroundColor: colors.bg },
+  best: { width: 200, borderRadius: 18, overflow: 'hidden', backgroundColor: colors.surface, shadowColor: '#B91C1C', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
   bestImg: { width: '100%', height: 104, backgroundColor: colors.sandSoft },
   bestArt: { overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   bestBadge: { position: 'absolute', left: 8, top: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, overflow: 'hidden', backgroundColor: colors.surface, fontFamily: fonts.ui.semibold, fontSize: 11, color: colors.primaryDark },
@@ -320,7 +321,7 @@ const styles = StyleSheet.create({
   strip: { height: 18, justifyContent: 'center' },
   stripLine: { height: 3, borderRadius: 2, backgroundColor: colors.line },
   stripDot: { position: 'absolute', width: 9, height: 9, borderRadius: 5, backgroundColor: colors.surface, borderWidth: 2, borderColor: '#B5A98F' },
-  stripMe: { position: 'absolute', left: 0, width: 13, height: 13, borderRadius: 7, backgroundColor: colors.primary, borderWidth: 3, borderColor: colors.bg },
+  stripMe: { position: 'absolute', left: 0, width: 13, height: 13, borderRadius: 7, backgroundColor: colors.primary, borderWidth: 3, borderColor: colors.surface },
   stripLabels: { flexDirection: 'row', justifyContent: 'space-between' },
   stripText: { fontFamily: fonts.ui.medium, fontSize: 11, color: colors.muted, fontVariant: ['tabular-nums'] },
   clock: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.surface },

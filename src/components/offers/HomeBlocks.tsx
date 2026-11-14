@@ -3,7 +3,8 @@ import { memo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { DiscoveryItem } from '@/api/types';
-import { CategoryArt, artKeyFor, type ArtKey } from '@/components/CategoryArt';
+import { artKeyFor, type ArtKey } from '@/components/CategoryArt';
+import { BusinessArt, CategoryIllustration } from '@/components/CategoryIllustration';
 import { Ionicons } from '@/components/Icon';
 import type { ServiceItem } from '@/lib/catalog';
 import { priceText } from '@/lib/catalog';
@@ -52,7 +53,7 @@ export const CategoryIcons = memo(function CategoryIcons({ groups, active, onPic
         return (
           <Pressable key={g.key} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={g.label} onPress={() => onPick(on ? undefined : g.key)} style={({ pressed }) => [styles.icon, pressed && styles.pressed]}>
             <View style={[styles.iconArt, on && styles.iconArtOn]}>
-              <CategoryArt k={g.key} size={56} />
+              <CategoryIllustration k={g.key} size={58} />
             </View>
             <Text style={[styles.iconText, on && styles.iconTextOn]} numberOfLines={1}>
               {g.label}
@@ -95,7 +96,11 @@ export function ChosenFaces({ picks, onOpen }: { picks: PopularPick<DiscoveryIte
             style={({ pressed }) => [styles.face, pressed && styles.pressed]}
           >
             <View>
-              <Image source={{ uri: bizPhoto(b) }} style={styles.faceImg} contentFit="cover" accessibilityIgnoresInvertColors />
+              {bizPhoto(b) ? (
+                <Image source={{ uri: bizPhoto(b) }} style={styles.faceImg} contentFit="cover" accessibilityIgnoresInvertColors />
+              ) : (
+                <BusinessArt k={artKeyFor(b.category_name, b.category_icon)} size={62} />
+              )}
               <Text style={styles.rank}>{rank}</Text>
             </View>
             <Text style={styles.faceName} numberOfLines={2}>
@@ -113,11 +118,11 @@ export function ChosenFaces({ picks, onOpen }: { picks: PopularPick<DiscoveryIte
 }
 
 /** Cabecera de un negocio: su cara, minutos y hasta qué hora; tocar lleva al negocio. Nada repetido. */
-function BizHead({ name, photo, distance, closes, closed, onPress }: { name: string; photo?: string; distance?: number | null; closes?: string | null; closed?: boolean; onPress: () => void }) {
+function BizHead({ name, photo, art, distance, closes, closed, onPress }: { name: string; photo?: string; art: ArtKey; distance?: number | null; closes?: string | null; closed?: boolean; onPress: () => void }) {
   const sub = [km(distance), closed ? 'cerrado' : untilLabel(closes)].filter(Boolean).join(' · ');
   return (
     <Pressable accessibilityRole="link" accessibilityLabel={`${name}${sub ? `, ${sub}` : ''}. Ver el negocio`} onPress={onPress} style={({ pressed }) => [styles.bizHead, pressed && styles.pressed]}>
-      <Image source={{ uri: photo }} style={styles.logo} contentFit="cover" accessibilityIgnoresInvertColors />
+      {photo ? <Image source={{ uri: photo }} style={styles.logo} contentFit="cover" accessibilityIgnoresInvertColors /> : <BusinessArt k={art} size={40} />}
       <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
         <Text style={styles.bizName} numberOfLines={1}>
           {name}
@@ -138,7 +143,7 @@ export function BizShelf({ biz, items, onBiz, onItem }: { biz: DiscoveryItem; it
   const art = artKeyFor(biz.category_name, biz.category_icon);
   return (
     <View style={styles.sec}>
-      <BizHead name={biz.name} photo={bizPhoto(biz)} distance={biz.distance_meters} closes={biz.closes_at} closed={!biz.is_open_now} onPress={onBiz} />
+      <BizHead name={biz.name} photo={bizPhoto(biz)} art={art} distance={biz.distance_meters} closes={biz.closes_at} closed={!biz.is_open_now} onPress={onBiz} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
         {items.map((it) => {
           const photo = it.photos?.[0] ? mediaUrl(it.photos[0]) : undefined;
@@ -159,9 +164,7 @@ function Tile({ photo, art, price, was, tag, name, note, noteOn, onPress }: { ph
     // Sin foto no hay un cuadro vacío con el nombre y el nombre otra vez debajo: el nombre se dice una vez.
     return (
       <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.tile, styles.card, pressed && styles.pressed]}>
-        <View style={styles.cardArt}>
-          <CategoryArt k={art} size={36} />
-        </View>
+        <CategoryIllustration k={art} size={44} />
         <Text style={styles.cardName} numberOfLines={3}>
           {name}
         </Text>
@@ -217,7 +220,13 @@ export function ResultsByBusiness({
           const photo = bizPhoto(bizById[g.entityId]) ?? g.items[0]?.photo;
           return (
             <Pressable key={g.entityId} accessibilityRole="button" accessibilityLabel={`${g.name}${g.open === false ? ', cerrado' : ''}`} onPress={() => onBiz(g.entityId)} style={({ pressed }) => [styles.whoFace, pressed && styles.pressed]}>
-              <Image source={{ uri: photo }} style={[styles.whoImg, g.open !== false && styles.whoImgOpen]} contentFit="cover" accessibilityIgnoresInvertColors />
+              {photo ? (
+                <Image source={{ uri: photo }} style={[styles.whoImg, g.open !== false && styles.whoImgOpen]} contentFit="cover" accessibilityIgnoresInvertColors />
+              ) : (
+                <View style={[styles.whoArt, g.open !== false && styles.whoImgOpen]}>
+                  <BusinessArt k={artKeyFor(g.items[0]?.category_name, g.items[0]?.category_icon)} size={52} />
+                </View>
+              )}
               <Text style={styles.whoName} numberOfLines={1}>
                 {g.name}
               </Text>
@@ -231,6 +240,7 @@ export function ResultsByBusiness({
           <BizHead
             name={g.name}
             photo={bizPhoto(bizById[g.entityId]) ?? g.items[0]?.photo}
+            art={artKeyFor(g.items[0]?.category_name, g.items[0]?.category_icon)}
             distance={g.distance}
             closes={g.openUntil}
             closed={g.open === false}
@@ -265,8 +275,8 @@ const styles = StyleSheet.create({
   why: { fontFamily: fonts.ui.medium, fontSize: 12, color: colors.muted },
   icons: { gap: 18, paddingHorizontal: 20 },
   icon: { width: 64, alignItems: 'center', gap: 6, minHeight: 44 },
-  iconArt: { width: 60, height: 60, borderRadius: 30, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
-  iconArtOn: { borderColor: colors.primary },
+  iconArt: { width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  iconArtOn: { backgroundColor: colors.selectedSoft },
   iconText: { fontFamily: fonts.ui.medium, fontSize: 12, color: colors.ink, textAlign: 'center' },
   iconTextOn: { fontFamily: fonts.ui.semibold, color: colors.primaryDark },
   chips: { gap: 8, paddingHorizontal: 20 },
@@ -285,7 +295,6 @@ const styles = StyleSheet.create({
   tile: { width: 118, gap: 4 },
   tileImg: { width: 118, height: 118, borderRadius: 14, backgroundColor: colors.sandSoft },
   card: { minHeight: 172, padding: 10, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, gap: 6 },
-  cardArt: { width: 36, height: 36, borderRadius: 18, overflow: 'hidden' },
   cardName: { flex: 1, fontFamily: fonts.ui.semibold, fontSize: 13, lineHeight: 17, color: colors.ink },
   cardTag: { alignSelf: 'flex-start', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, overflow: 'hidden', backgroundColor: colors.accent, fontFamily: fonts.ui.semibold, fontSize: 11, color: colors.ink },
   tag: { position: 'absolute', left: 6, top: 6, paddingHorizontal: 7, paddingVertical: 2, borderTopLeftRadius: 3, borderBottomLeftRadius: 3, borderTopRightRadius: 8, borderBottomRightRadius: 8, overflow: 'hidden', backgroundColor: colors.accent, fontFamily: fonts.ui.semibold, fontSize: 11, color: colors.ink },
@@ -300,6 +309,7 @@ const styles = StyleSheet.create({
   whoFace: { width: 72, alignItems: 'center', gap: 4 },
   whoImg: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.sandSoft, borderWidth: 2, borderColor: colors.line },
   whoImgOpen: { borderColor: colors.primary },
+  whoArt: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   whoName: { fontFamily: fonts.ui.semibold, fontSize: 12, color: colors.ink, maxWidth: 72 },
   whoClosed: { fontFamily: fonts.ui.medium, fontSize: 11, color: colors.muted },
   ask: { marginHorizontal: 20, padding: 14, gap: 8, borderRadius: 18, backgroundColor: colors.surface },
