@@ -27,6 +27,9 @@ import { ledgerApi } from '@/api/ledger';
 import { formatPesos } from '@/lib/ledger';
 import { todayCO } from '@/lib/finance';
 import { getPhoneFlag, setPhoneFlag } from '@/lib/phoneFlags';
+import { myInterests } from '@/lib/interests';
+import { clearInterests, useInterestSignals } from '@/lib/interestStore';
+import { ART_LABEL } from '@/lib/offerHome';
 import { colors, fonts } from '@/theme';
 
 const version = Constants.expoConfig?.version;
@@ -317,6 +320,7 @@ export default function ProfileScreen() {
               accessibilityLabel="Medición anónima de uso"
             />
           </View>
+          <InterestsRow />
           <MenuRow icon="map-outline" label="Cómo usar el mapa" onPress={() => router.push({ pathname: '/map', params: { guide: '1' } })} />
           {user.role === 'admin' ? <MenuRow icon="settings-outline" label="Panel de administración" onPress={() => router.push('/admin')} /> : null}
           <MenuRow danger icon="log-out-outline" label="Cerrar sesión" onPress={() => void signOut()} />
@@ -324,6 +328,63 @@ export default function ProfileScreen() {
         {version ? <Text style={styles.version}>Empre · versión {version}</Text> : null}
       </View>
     </ScrollView>
+  );
+}
+
+/**
+ * «Para ti» aprende de lo que buscas y miras, solo en este teléfono. Aquí se ve qué cree que te interesa y se puede
+ * borrar; se confirma en la misma fila (sin ventanas), porque no se puede deshacer.
+ */
+function InterestsRow() {
+  const signals = useInterestSignals();
+  const [asking, setAsking] = useState(false);
+  const [cleared, setCleared] = useState(false);
+  const [now] = useState(() => Date.now());
+  const top = [...myInterests(signals, now)]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2)
+    .map(([k]) => ART_LABEL[k].toLowerCase());
+  const sub = cleared && !signals.length ? 'Borrado: «Para ti» empieza de cero' : top.length ? `Ahora cree que te gusta: ${top.join(' y ')}` : 'Aún no hay nada: aprende de lo que buscas';
+  return (
+    <View style={styles.rowLine}>
+      <View style={styles.row}>
+        <View style={styles.rowIcon}>
+          <Ionicons name="search-outline" size={19} color={colors.muted} />
+        </View>
+        <View style={styles.rowText}>
+          <Text style={styles.rowLabel}>Lo que te interesa</Text>
+          <Text style={styles.rowSub}>{sub}</Text>
+          <Text style={styles.rowSub}>Para «Para ti» en Inicio · solo en este teléfono</Text>
+        </View>
+        {signals.length && !asking ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Borrar lo que te interesa" onPress={() => setAsking(true)} hitSlop={6} style={styles.clearBtn}>
+            <Text style={styles.clearText}>Borrar</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      {asking ? (
+        <View style={styles.confirm} accessibilityLiveRegion="polite">
+          <Text style={styles.confirmText}>Se borra lo que buscaste y miraste. No se puede deshacer.</Text>
+          <View style={styles.confirmBtns}>
+            <Pressable accessibilityRole="button" onPress={() => setAsking(false)} style={[styles.confirmBtn, styles.confirmKeep]}>
+              <Text style={styles.confirmKeepText}>Cancelar</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Sí, borrar lo que te interesa"
+              onPress={() => {
+                void clearInterests();
+                setAsking(false);
+                setCleared(true);
+              }}
+              style={[styles.confirmBtn, styles.confirmGo]}
+            >
+              <Text style={styles.confirmGoText}>Borrar</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -405,6 +466,16 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, minWidth: 0, gap: 1 },
   rowLabel: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   rowSub: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.faint },
+  clearBtn: { minHeight: 44, minWidth: 44, paddingHorizontal: 12, borderRadius: 999, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line },
+  clearText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
+  confirm: { gap: 10, padding: 12, marginBottom: 10, borderRadius: 14, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line },
+  confirmText: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.ink },
+  confirmBtns: { flexDirection: 'row', gap: 8 },
+  confirmBtn: { flex: 1, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  confirmKeep: { borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  confirmKeepText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
+  confirmGo: { backgroundColor: colors.ink },
+  confirmGoText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.surface },
   version: { paddingTop: 6, fontSize: 12, fontFamily: fonts.ui.medium, color: colors.faint, textAlign: 'center' },
   veil: { flex: 1, backgroundColor: 'rgba(14,35,70,0.38)' },
   sheet: { gap: 8, paddingTop: 16, paddingHorizontal: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.surface },
