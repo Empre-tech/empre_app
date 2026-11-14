@@ -333,3 +333,46 @@ export function decisionPoints(item: MarketItem, pool: MarketItem[], max = 4): {
   }
   return { peers: peers.length, points: points.slice(0, max) };
 }
+
+export interface BestPrice {
+  item: MarketItem;
+  /** Cuántos negocios cerca lo tienen (con este). */
+  count: number;
+  min: number;
+  max: number;
+  /** Dónde quedan los otros precios en la franja, de 0 a 1. */
+  others: number[];
+}
+
+/**
+ * Mejor precio cerca: el mismo producto o servicio en varios negocios del catálogo cargado; sale el más barato de
+ * cada grupo, con la franja de los demás precios. Solo con dos negocios o más (si no, no hay con qué comparar).
+ */
+export function bestPrices(pool: MarketItem[], max = 6): BestPrice[] {
+  const priced = pool.filter((it) => it.kind !== 'offer' && (priceOf(it) ?? 0) > 0);
+  const used = new Set<string>();
+  const out: BestPrice[] = [];
+  for (const it of priced) {
+    if (used.has(it.id)) continue;
+    const perBiz = new Map<string, MarketItem>();
+    for (const o of priced) {
+      if (used.has(o.id) || !similarItem(it.title, o.title)) continue;
+      const prev = perBiz.get(o.entity_id);
+      if (!prev || priceOf(o)! < priceOf(prev)!) perBiz.set(o.entity_id, o);
+    }
+    const group = [...perBiz.values()];
+    group.forEach((g) => used.add(g.id));
+    used.add(it.id);
+    if (group.length < 2) continue;
+    group.sort((a, b) => priceOf(a)! - priceOf(b)!);
+    const lo = priceOf(group[0])!;
+    const hi = priceOf(group[group.length - 1])!;
+    if (hi <= lo) continue;
+    out.push({ item: group[0], count: group.length, min: lo, max: hi, others: group.slice(1).map((g) => (priceOf(g)! - lo) / (hi - lo)) });
+  }
+  const photos = new Set<string>();
+  return out
+    .sort((a, b) => b.count - a.count || (b.max - b.min) / b.max - (a.max - a.min) / a.max)
+    .filter((b) => (b.item.photo ? (photos.has(b.item.photo) ? false : (photos.add(b.item.photo), true)) : true))
+    .slice(0, max);
+}

@@ -34,6 +34,7 @@ import { ZoneButton, ZoneList } from '@/components/ZoneButton';
 import { UpdatingBar } from '@/components/explore/LoadingMotion';
 import { BizVitrinaSheet } from '@/components/offers/BizFaces';
 import { AskManySheet } from '@/components/offers/AskManySheet';
+import { BestPriceRail, HeroCarousel, Relampago } from '@/components/offers/OfferSpotlight';
 import { BizShelf, ChosenFaces, CategoryIcons, ResultsByBusiness, SearchedChips, SectionHead } from '@/components/offers/HomeBlocks';
 import { FilterRow, FiltersSheet, LensTabs, type FilterTag, type ShowFilter } from '@/components/offers/LensFilters';
 import { MarketItemSheet } from '@/components/offers/MarketItemSheet';
@@ -43,15 +44,18 @@ import { FeaturedOffer, OfferRow, OfferTile, TILE_GAP, TILE_W, ZONE_W, ZoneCard 
 import { Showcase } from '@/components/offers/Showcase';
 import { SkeletonBlock } from '@/components/Skeleton';
 import { publicCatalog, type ServiceItem } from '@/lib/catalog';
-import { mediaUrl } from '@/lib/image';
+import { mediaUrl, resolveImageUrl } from '@/lib/image';
 import { onFootOrDistance } from '@/lib/format';
 import { loadLastCity, saveLastCity } from '@/lib/lastCityStore';
 import { displayIcon } from '@/lib/mapView';
+import { bestPrices } from '@/lib/askMany';
 import { groupResults, iconGroups, mostPopular } from '@/lib/offerHome';
 import { applyFilters, availableLenses, lensItems, type BizFace, type LensKey } from '@/lib/offerLenses';
 import {
   askItemsToMarketItems,
   catalogMarketItem,
+  endingToday,
+  heroPicks,
   distanceLabel,
   effectiveSort,
   endText,
@@ -324,7 +328,7 @@ export default function OffersScreen() {
   // Todo lo que la Vitrina ya cargó: de aquí salen los negocios que ofrecen lo mismo (3.64). Sin otra consulta.
   // Todo el catálogo cargado de los negocios cerca: con él «Para decidir» compara el mismo producto entre negocios.
   const catalogPool = useMemo(
-    () => nearbyBiz.flatMap((b) => publicCatalog(catalogsByEntity[b.id] ?? []).map((it) => catalogMarketItem(b, it, resolvePhoto(it.photos?.[0]) ?? b.photos?.[0] ?? b.profile_url ?? undefined))),
+    () => nearbyBiz.flatMap((b) => publicCatalog(catalogsByEntity[b.id] ?? []).map((it) => catalogMarketItem(b, it, resolvePhoto(it.photos?.[0]) ?? resolveImageUrl(b.photos?.[0] ?? b.profile_url) ?? undefined))),
     [nearbyBiz, catalogsByEntity, resolvePhoto],
   );
   const askPool = useMemo(() => [...mergedNear, ...items, ...catalogPool], [mergedNear, items, catalogPool]);
@@ -375,7 +379,16 @@ export default function OffersScreen() {
   }, [data, rawAllItems]);
   // Lo de adentro del ícono elegido (Jugos, Almuerzos…), solo si hay más de una.
   const subCats = useMemo(() => (artGroup && artGroup.ids.length > 1 ? allCats.filter((c) => artGroup.ids.includes(c.id)).slice(0, 14) : []), [allCats, artGroup]);
-  const offerRails = useMemo(() => (q || category ? [] : offerSections(knownOffers, now)), [knownOffers, now, q, category]);
+  // Lo llamativo (tablero «Empre Offers» v41): las que más ahorran en un carrusel, las que terminan hoy con su cuenta
+  // atrás y, aparte, el mejor precio del mismo producto entre negocios. Ninguna oferta sale dos veces.
+  const hero = useMemo(() => (q || category ? [] : heroPicks(knownOffers, now)), [knownOffers, now, q, category]);
+  const flash = useMemo(() => (q || category ? [] : endingToday(knownOffers, now, new Set(hero.map((o) => o.id)))), [knownOffers, now, q, category, hero]);
+  const best = useMemo(() => (q || category ? [] : bestPrices(catalogPool)), [catalogPool, q, category]);
+  const offerRails = useMemo(() => {
+    if (q || category) return [];
+    const taken = new Set([...hero, ...flash].map((o) => o.id));
+    return offerSections(knownOffers.filter((o) => !taken.has(o.id)), now).filter((r) => r.key !== 'hoy');
+  }, [knownOffers, now, q, category, hero, flash]);
   // Cada negocio cerca con lo que vende (productos y servicios): el volumen de la portada.
   // A tu puerta: los más cercanos con lo que venden, abiertos primero, sin repetir a los de «Los más elegidos».
   const shelves = useMemo(() => {
@@ -640,9 +653,11 @@ export default function OffersScreen() {
         {home ? (
           <>
             {/* Lo más pegado: los mejor reseñados cerca */}
+            {hero.length ? <HeroCarousel items={hero} bizById={bizById} now={now} onOpen={open} /> : null}
             {!q && !category && data?.searched.terms.length ? (
               <SearchedChips title={city ? `Lo más buscado en ${city}` : 'Lo más buscado cerca'} terms={data.searched.terms.slice(0, 6)} onPick={searchTerm} />
             ) : null}
+            {best.length ? <BestPriceRail picks={best} onOpen={open} /> : null}
             {!q && !category && popular.length ? <ChosenFaces picks={popular} onOpen={(id) => router.push({ pathname: '/business/[id]', params: { id } })} /> : null}
 
             {!data && (market.isLoading || !ready) ? (
@@ -653,7 +668,8 @@ export default function OffersScreen() {
               </View>
             ) : null}
 
-            {/* Las ofertas por secciones: terminan hoy, 2x1 y gratis, con descuento, precio especial */}
+            {show !== 'services' && flash.length ? <Relampago items={flash} onOpen={open} /> : null}
+            {/* Las demás ofertas por secciones: 2x1 y gratis, con descuento, precio especial */}
             {show !== 'services'
               ? offerRails.map((r) => (
                   <View key={r.key} style={styles.sec}>
@@ -761,7 +777,7 @@ export default function OffersScreen() {
                     biz={x.biz}
                     items={x.items}
                     onBiz={() => router.push({ pathname: '/business/[id]', params: { id: x.biz.id } })}
-                    onItem={(it) => open(catalogMarketItem(x.biz, it, resolvePhoto(it.photos?.[0]) ?? x.biz.photos?.[0] ?? x.biz.profile_url ?? undefined))}
+                    onItem={(it) => open(catalogMarketItem(x.biz, it, resolvePhoto(it.photos?.[0]) ?? resolveImageUrl(x.biz.photos?.[0] ?? x.biz.profile_url) ?? undefined))}
                   />
                 ))
               : null}

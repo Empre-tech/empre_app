@@ -599,3 +599,48 @@ export function nearbyWall<T extends { id: string; entityId: string; photo?: str
   }
   return out;
 }
+
+/** Qué tan fuerte es una oferta para el carrusel: gratis y 2x1 primero, luego el % que se ahorra. */
+function strength(o: MarketItem): number {
+  const b = benefitOf(o);
+  return b === 'free' ? 100 : b === 'multi' ? 50 : savePctOf(o);
+}
+
+/**
+ * Las mejores de hoy (carrusel de Ofertas): las vigentes que más ahorran, una por negocio y sin foto repetida.
+ * Con menos de dos no hay carrusel (no se rellena).
+ */
+export function heroPicks(list: MarketItem[], now: number, max = 5): MarketItem[] {
+  const live = list.filter((o) => o.kind !== 'service' && Date.parse(o.ends_at) > now && strength(o) > 0);
+  live.sort((a, b) => strength(b) - strength(a) || Date.parse(a.ends_at) - Date.parse(b.ends_at));
+  const out: MarketItem[] = [];
+  const biz = new Set<string>();
+  const photos = new Set<string>();
+  for (const o of live) {
+    if (out.length >= max || biz.has(o.entity_id) || (o.photo && photos.has(o.photo))) continue;
+    out.push(o);
+    biz.add(o.entity_id);
+    if (o.photo) photos.add(o.photo);
+  }
+  return out.length >= 2 ? out : [];
+}
+
+/** Relámpago: las que terminan hoy, la más próxima primero; sin las que ya salieron arriba. */
+export function endingToday(list: MarketItem[], now: number, skip: Set<string>, max = 6): MarketItem[] {
+  const today = new Date(now).toDateString();
+  const seen = new Set<string>();
+  return list
+    .filter((o) => o.kind !== 'service' && !skip.has(o.id) && Date.parse(o.ends_at) > now && new Date(o.ends_at).toDateString() === today)
+    .sort((a, b) => Date.parse(a.ends_at) - Date.parse(b.ends_at))
+    .filter((o) => (seen.has(o.id) ? false : (seen.add(o.id), true)))
+    .slice(0, max);
+}
+
+/** «2 h 14:37» / «14:37» hasta `endsAt`. */
+export function countdown(endsAt: string, now: number): string {
+  const t = Math.max(0, Math.floor((Date.parse(endsAt) - now) / 1000));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = t % 60;
+  return `${h ? `${h} h ` : ''}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}

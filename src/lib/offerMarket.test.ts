@@ -36,3 +36,21 @@ test('lo que venden cerca se mezcla por negocio y no repite foto', async () => {
   const wall = nearbyWall([[it('a1', 'A', 'p1'), it('a2', 'A', 'p2'), it('a3', 'A', 'p1')], [it('b1', 'B', 'p3'), it('b2', 'B')]]);
   assert.deepEqual(wall.map((x) => x.id), ['a1', 'b1', 'a2']);
 });
+
+test('carrusel y relámpago: las que más ahorran, una por negocio; las de hoy sin repetir', async () => {
+  const { heroPicks, endingToday, countdown } = await import('./offerMarket.ts');
+  const now = Date.parse('2026-11-13T15:00:00');
+  const o = (id: string, e: string, extra: Record<string, unknown>) => ({ id, entity_id: e, title: id, type: 'PERCENT', ends_at: '2026-11-13T22:00:00', entity_name: e, category_name: 'x', kind: 'offer', ...extra }) as never;
+  const list = [
+    o('a', 'A', { special_price: 9000, reference_price: 10000 }),
+    o('b', 'B', { special_price: 5000, reference_price: 10000 }),
+    o('c', 'B', { special_price: 1000, reference_price: 10000 }),
+    o('d', 'D', { special_price: 7000, reference_price: 10000, ends_at: '2026-11-15T22:00:00' }),
+  ];
+  const hero = heroPicks(list, now) as { id: string }[];
+  assert.deepEqual(hero.map((x) => x.id), ['c', 'd', 'a']);
+  const ending = endingToday(list, now, new Set(['c'])) as { id: string }[];
+  assert.deepEqual(ending.map((x) => x.id), ['a', 'b']);
+  assert.equal(countdown('2026-11-13T17:14:37', now), '2 h 14:37');
+  assert.deepEqual(heroPicks(list.slice(0, 1), now), []);
+});
