@@ -16,13 +16,15 @@ interface Props {
   onFocusChange?: (focused: boolean) => void;
   /** Sin el botón de filtros: los filtros viven en el panel de búsqueda. */
   hideFilters?: boolean;
+  /** Se abre escribiendo: al llegar desde «Buscar» del inicio. */
+  autoFocus?: boolean;
 }
 
 /**
  * Buscador de Explorar en doble nivel (pregunta principal + contexto debajo cuando está en reposo)
  * o versión compacta de 1 línea sobre el mapa, con el botón de Filtros dentro a la derecha.
  */
-export function SearchBar({ value, onChangeText, onOpenFilters, filterCount, compact, onFocusChange, hideFilters }: Props) {
+export function SearchBar({ value, onChangeText, onOpenFilters, filterCount, compact, onFocusChange, hideFilters, autoFocus }: Props) {
   const active = filterCount > 0;
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
@@ -49,6 +51,7 @@ export function SearchBar({ value, onChangeText, onOpenFilters, filterCount, com
         ) : null}
         <TextInput
           ref={inputRef}
+          autoFocus={autoFocus}
           value={value}
           onChangeText={onChangeText}
           onFocus={() => {

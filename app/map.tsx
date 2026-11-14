@@ -99,7 +99,10 @@ export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
 
-  const [categoryId, setCategoryId] = useState<string | undefined>();
+  // Desde las categorías del inicio se llega con el filtro puesto (?cat=ids separados por coma&catName=Comida), y desde
+  // «Buscar» con el campo abierto (?buscar=1).
+  const fromHome = useLocalSearchParams<{ cat?: string; catName?: string; buscar?: string }>();
+  const [categoryId, setCategoryId] = useState<string | undefined>(() => (typeof fromHome.cat === 'string' && fromHome.cat ? fromHome.cat : undefined));
   // El grupo elegido (filtra por todas sus categorías) y, dentro, opcionalmente una categoría.
   const [groupId, setGroupId] = useState<GroupId | undefined>();
   const [subcategoryId, setSubcategoryId] = useState<string | undefined>();
@@ -759,7 +762,9 @@ export default function MapScreen() {
   const selectedCategory = (categories.data ?? []).find((c) => c.id === categoryId) ?? null;
   const selectedGroup = groups.find((g) => g.id === groupId) ?? null;
   const selectedSubcategory = (selectedCategory?.subcategories ?? []).find((s) => s.id === subcategoryId) ?? null;
-  const selectedCategoryName = selectedSubcategory ? null : selectedCategory?.name ?? null;
+  // Varias categorías juntas (las de un dibujo del inicio) no tienen un nombre propio: se usa el de la pastilla.
+  const homeCatName = categoryId && categoryId === fromHome.cat && typeof fromHome.catName === 'string' ? fromHome.catName : null;
+  const selectedCategoryName = selectedSubcategory ? null : selectedCategory?.name ?? homeCatName;
 
   // Fila de contexto (F12): zona, alcance y filtros activos, cada uno con su ✕.
   const contextFilters: { id: FilterId; label: string }[] = [];
@@ -1385,7 +1390,7 @@ export default function MapScreen() {
             )}
           </View>
           <Animated.View style={[styles.topRows, { opacity: topFade }]} pointerEvents={mapMoving ? 'none' : 'box-none'}>
-          <SearchBar value={search} onChangeText={setSearch} onOpenFilters={() => setFiltersOpen(true)} filterCount={activeFilterCount} compact hideFilters={showFilterRow} onFocusChange={(f) => f && setSearchOpen(true)} />
+          <SearchBar value={search} onChangeText={setSearch} onOpenFilters={() => setFiltersOpen(true)} filterCount={activeFilterCount} compact hideFilters={showFilterRow} autoFocus={fromHome.buscar === '1'} onFocusChange={(f) => f && setSearchOpen(true)} />
 
           {tall || selectedEntity || searchOpen || !showFilterRow ? null : (
             <View style={styles.filterBleed}>

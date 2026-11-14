@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { iconGroups, mostPopular, openLine } from './offerHome.ts';
+import { artCounts, closeChip, hourLabel } from './offerHome.ts';
 
 const art = (name: string) => (/jugo|almuerzo/i.test(name) ? 'comida' : /corte/i.test(name) ? 'barberia' : 'tienda') as never;
 
@@ -78,4 +79,34 @@ test('sedes del mismo negocio en una sola fila', async () => {
     { biz: { name: 'El Rincón del Sabor' }, items: [{ name: 'Bandeja paisa' }] },
   ]);
   assert.deepEqual(r.map((x) => [x.biz.name, x.branches]), [['El Rincón Samario Mamatoco', 2], ['El Rincón del Sabor', 1]]);
+});
+
+test('closeChip avisa cuándo cierra y en rojo si falta una hora o menos', () => {
+  const at = (h: number, m: number) => new Date(2026, 10, 14, h, m).getTime();
+  assert.deepEqual(closeChip('21:00', at(17, 20)), { text: 'Cierra 9 pm', soon: false });
+  assert.deepEqual(closeChip('18:00', at(17, 20)), { text: 'Cierra en 40 min', soon: true });
+  assert.deepEqual(closeChip('00:30', at(23, 50)), { text: 'Cierra en 40 min', soon: true });
+  assert.deepEqual(closeChip('24h', at(12, 0)), { text: 'Abierto 24 h', soon: false });
+  assert.equal(closeChip(undefined, at(12, 0)), null);
+});
+
+test('hourLabel dice la hora corta', () => {
+  assert.equal(hourLabel(new Date(2026, 10, 14, 18, 0).toISOString()), '6 pm');
+  assert.equal(hourLabel(new Date(2026, 10, 14, 9, 30).toISOString()), '9:30 am');
+  assert.equal(hourLabel('no es fecha'), null);
+});
+
+test('artCounts junta por dibujo, cuenta negocios y no repite dibujos', () => {
+  const art = (name: string) => (/jugo|almuerzo/i.test(name) ? 'comida' : /corte/i.test(name) ? 'barberia' : 'tienda') as never;
+  const r = artCounts(
+    [
+      { category_id: 'a', category_name: 'Jugos' },
+      { category_id: 'b', category_name: 'Almuerzos' },
+      { category_id: 'b', category_name: 'Almuerzos' },
+      { category_id: 'c', category_name: 'Cortes' },
+    ],
+    art,
+  );
+  assert.deepEqual(r.map((x) => [x.key, x.label, x.ids, x.count]), [['comida', 'Comida', 'a,b', 3], ['barberia', 'Barbería', 'c', 1]]);
+  assert.deepEqual(artCounts([], art), []);
 });

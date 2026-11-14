@@ -156,6 +156,61 @@ export function untilLabel(closes?: string | null): string | null {
   return `hasta ${h % 12 || 12}${m ? `:${String(m).padStart(2, '0')}` : ''} ${h < 12 ? 'am' : 'pm'}`;
 }
 
+/**
+ * El aviso de una tarjeta abierta en Inicio: «Cierra 9 pm», «Cierra en 40 min» si falta una hora o menos (`soon`, va
+ * en rojo) o «Abierto 24 h». Sin horario no hay aviso.
+ */
+export function closeChip(closes: string | null | undefined, now: number): { text: string; soon: boolean } | null {
+  if (!closes) return null;
+  if (closes === '24h') return { text: 'Abierto 24 h', soon: false };
+  const [h, m] = closes.split(':').map(Number);
+  if (Number.isNaN(h)) return null;
+  const d = new Date(now);
+  let left = h * 60 + (m || 0) - (d.getHours() * 60 + d.getMinutes());
+  if (left <= 0) left += 24 * 60; // cierra pasada la medianoche
+  if (left <= 60) return { text: `Cierra en ${left} min`, soon: true };
+  return { text: `Cierra ${(untilLabel(closes) ?? '').replace('hasta ', '')}`, soon: false };
+}
+
+/** «6 pm» o «6:30 pm» de una fecha: para «La primera termina a las 6 pm». */
+export function hourLabel(iso: string): string | null {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return (untilLabel(`${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`) ?? '').replace('hasta ', '') || null;
+}
+
+export interface ArtCount {
+  key: ArtKey;
+  label: string;
+  /** Las categorías que caben en el dibujo, separadas por coma: así filtra el mapa. */
+  ids: string;
+  count: number;
+}
+
+/**
+ * Las categorías de Inicio: los negocios cerca juntados por su dibujo (comida, barbería…), con cuántos hay. Solo las
+ * que tienen alguno, de más a menos; nunca dos pastillas con el mismo dibujo.
+ */
+export function artCounts(
+  list: { category_id: string; category_name: string; category_icon?: string | null }[],
+  artOf: (name: string, icon?: string | null) => ArtKey,
+  max = 8,
+): ArtCount[] {
+  const byKey = new Map<ArtKey, { ids: Set<string>; count: number }>();
+  for (const b of list) {
+    const key = artOf(b.category_name, b.category_icon);
+    const g = byKey.get(key) ?? { ids: new Set<string>(), count: 0 };
+    g.ids.add(b.category_id);
+    g.count += 1;
+    byKey.set(key, g);
+  }
+  const order = Object.keys(ART_LABEL) as ArtKey[];
+  return [...byKey.entries()]
+    .map(([key, g]) => ({ key, label: ART_LABEL[key], ids: [...g.ids].join(','), count: g.count }))
+    .sort((a, b) => b.count - a.count || order.indexOf(a.key) - order.indexOf(b.key))
+    .slice(0, max);
+}
+
 /** Las dos primeras palabras que importan del nombre: «El Rincón Samario Mamatoco» y «El Rincón Samario» dan lo mismo. */
 function brandKey(name: string): string {
   return plainText(name)

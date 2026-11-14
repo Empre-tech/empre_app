@@ -8,7 +8,10 @@ import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts } from '@/theme';
 import type { DoorRect } from './HomeDoors';
 
-const H = 300;
+// Más bajo (2026-11-14): buscar, categorías y lo abierto entran en la primera pantalla sin bajar.
+const H = 196;
+/** Dónde estás tú dentro de la tarjeta (alto). */
+const CY = 92;
 
 /**
  * Los colores de mapa (2026-11-14): los mismos del mapa real de Finder (el estándar de Google), no la arena del fondo.
@@ -28,18 +31,18 @@ const MAP = {
 /** Un barrio cualquiera: calles un poco torcidas, una avenida, agua en una esquina y dos parques. No es tu calle. */
 function MapBase({ w }: { w: number }) {
   if (!w) return null;
-  const roads = [...[58, 148, 236].map((y) => `M0 ${y} L${w} ${y + 8}`), ...[0.2, 0.5, 0.8].map((f) => `M${w * f} 0 L${w * f + 10} ${H}`)].join(' ');
-  const avenue = `M0 ${H - 32} L${w} 96`;
+  const roads = [...[36, 98, 160].map((y) => `M0 ${y} L${w} ${y + 6}`), ...[0.2, 0.5, 0.8].map((f) => `M${w * f} 0 L${w * f + 8} ${H}`)].join(' ');
+  const avenue = `M0 ${H - 20} L${w} 50`;
   return (
     <Svg width="100%" height={H} style={StyleSheet.absoluteFill}>
-      <Rect x={w * 0.5 + 9} y={-6} width={w * 0.3 - 14} height={56} rx={6} fill={MAP.park} />
-      <Rect x={w * 0.8 + 12} y={162} width={w * 0.2} height={70} rx={6} fill={MAP.park} />
+      <Rect x={w * 0.5 + 9} y={-6} width={w * 0.3 - 14} height={38} rx={6} fill={MAP.park} />
+      <Rect x={w * 0.8 + 12} y={112} width={w * 0.2} height={40} rx={6} fill={MAP.park} />
       <Path d={roads} stroke={MAP.roadEdge} strokeWidth={10} />
       <Path d={roads} stroke={MAP.road} strokeWidth={8} />
       <Path d={avenue} stroke={MAP.avenueEdge} strokeWidth={13} />
       <Path d={avenue} stroke={MAP.avenue} strokeWidth={11} />
-      <Path d={`M0 0 H${w * 0.2 + 4} C${w * 0.17} 60 ${w * 0.1} 110 0 130 Z`} fill={MAP.water} />
-      <Circle cx={w / 2} cy={128} r={70} fill="rgba(212,32,32,0.05)" stroke="rgba(43,38,34,.3)" strokeWidth={1.5} strokeDasharray="4 6" />
+      <Path d={`M0 0 H${w * 0.2 + 4} C${w * 0.17} 40 ${w * 0.1} 70 0 84 Z`} fill={MAP.water} />
+      <Circle cx={w / 2} cy={CY} r={50} fill="rgba(212,32,32,0.05)" stroke="rgba(43,38,34,.3)" strokeWidth={1.5} strokeDasharray="4 6" />
     </Svg>
   );
 }
@@ -49,7 +52,7 @@ function place(items: DiscoveryItem[], center: { latitude: number; longitude: nu
   if (!center || !w) return [];
   const pts = items.filter((b) => b.latitude && b.longitude).map((b) => ({ id: b.id, dx: (b.longitude as number) - center.longitude, dy: (b.latitude as number) - center.latitude }));
   const max = Math.max(0.0008, ...pts.map((p) => Math.max(Math.abs(p.dx), Math.abs(p.dy))));
-  return pts.map((p) => ({ id: p.id, x: w / 2 + (p.dx / max) * (w / 2 - 28), y: 128 + (-p.dy / max) * 92 }));
+  return pts.map((p) => ({ id: p.id, x: w / 2 + (p.dx / max) * (w / 2 - 28), y: CY + (-p.dy / max) * 62 }));
 }
 
 function Dot({ x, y, live }: { x: number; y: number; live: boolean }) {
@@ -114,7 +117,7 @@ export function PuertaMapa({
     <Pressable
       ref={ref}
       accessibilityRole="button"
-      accessibilityLabel={`Entrar y ver los negocios. ${openCount} abiertos ahora.`}
+      accessibilityLabel={`Ver el mapa. ${openCount} abiertos ahora.`}
       onPress={go}
       onLayout={(e) => setW(e.nativeEvent.layout.width)}
       style={({ pressed }) => [styles.card, pressed && { opacity: 0.94 }]}
@@ -124,7 +127,7 @@ export function PuertaMapa({
         <Dot key={p.id} x={p.x} y={p.y} live={i === 0} />
       ))}
       <View pointerEvents="none" style={[styles.you, { left: w / 2 - 8 }]} />
-      <View pointerEvents="none" style={[styles.youTag, { left: w / 2 - 70 }]}>
+      <View pointerEvents="none" style={[styles.youTag, { left: w / 2 - 36 }]}>
         <Text style={styles.youText}>Tu puerta</Text>
       </View>
       <View style={styles.count}>
@@ -146,8 +149,8 @@ export function PuertaMapa({
           </Animated.View>
         ) : null}
         <View style={styles.cta}>
-          <Text style={styles.ctaText}>Entrar y ver los negocios</Text>
-          <Ionicons name="arrow-forward" size={18} color={colors.ink} />
+          <Text style={styles.ctaText}>Ver el mapa</Text>
+          <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
         </View>
       </View>
     </Pressable>
@@ -155,22 +158,23 @@ export function PuertaMapa({
 }
 
 const styles = StyleSheet.create({
-  card: { height: H, borderRadius: 26, overflow: 'hidden', backgroundColor: MAP.land, borderWidth: 1, borderColor: 'rgba(43,38,34,0.06)' },
+  card: { height: H, borderRadius: 22, overflow: 'hidden', backgroundColor: MAP.land, borderWidth: 1, borderColor: 'rgba(43,38,34,0.06)' },
   dotWrap: { position: 'absolute', width: 26, height: 26, alignItems: 'center', justifyContent: 'center' },
   dotHalo: { position: 'absolute', width: 26, height: 26, borderRadius: 13, backgroundColor: colors.brand },
   dot: { width: 15, height: 15, borderRadius: 8, backgroundColor: colors.primary, borderWidth: 2.5, borderColor: '#FFFFFF', shadowColor: '#2B2622', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
-  you: { position: 'absolute', top: 120, width: 16, height: 16, borderRadius: 8, backgroundColor: colors.ink, borderWidth: 3, borderColor: '#FFFFFF', shadowColor: '#2B2622', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 3 },
-  youTag: { position: 'absolute', top: 86, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.surface, shadowColor: '#2B2622', shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+  you: { position: 'absolute', top: CY - 8, width: 16, height: 16, borderRadius: 8, backgroundColor: colors.ink, borderWidth: 3, borderColor: '#FFFFFF', shadowColor: '#2B2622', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 3 },
+  youTag: { position: 'absolute', top: CY - 36, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.surface, shadowColor: '#2B2622', shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
   youText: { fontFamily: fonts.ui.extrabold, fontSize: 10.5, color: colors.ink },
-  count: { position: 'absolute', left: 14, top: 14, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.surface },
+  count: { position: 'absolute', left: 12, top: 12, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.surface, shadowColor: '#2B2622', shadowOpacity: 0.1, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
   countDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.glow },
   countText: { fontFamily: fonts.ui.semibold, fontSize: 13, color: colors.primaryDark },
-  bottom: { position: 'absolute', left: 12, right: 12, bottom: 12, gap: 8 },
-  tick: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  bottom: { position: 'absolute', left: 12, right: 12, bottom: 12, gap: 8, alignItems: 'flex-end' },
+  tick: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   tickIcon: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   tickBody: { flex: 1, minWidth: 0 },
   tickTitle: { fontFamily: fonts.ui.extrabold, fontSize: 13.5, color: colors.ink },
   tickWhen: { fontFamily: fonts.ui.bold, fontSize: 12, color: colors.nightText },
-  cta: { minHeight: 50, borderRadius: 14, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  ctaText: { fontFamily: fonts.ui.extrabold, fontSize: 15, color: colors.ink },
+  // El botón, compacto: una pastilla roja abajo a la derecha que no tapa el mapa.
+  cta: { minHeight: 44, paddingHorizontal: 16, borderRadius: 999, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', gap: 6, shadowColor: colors.primary, shadowOpacity: 0.28, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 3 },
+  ctaText: { fontFamily: fonts.ui.extrabold, fontSize: 14, color: '#FFFFFF' },
 });

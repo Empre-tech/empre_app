@@ -4,7 +4,12 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Animated, Easing, Linking, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
 import { ScreenGlow } from '@/components/ScreenGlow';
+import { artKeyFor } from '@/components/CategoryArt';
+import { BusinessArt, CategoryIllustration } from '@/components/CategoryIllustration';
+import { artCounts, closeChip, hourLabel } from '@/lib/offerHome';
+import { endingToday } from '@/lib/offerMarket';
 import { catalogApi } from '@/api/catalog';
 import type { ServiceItem } from '@/lib/catalog';
 import { novedadesApi } from '@/api/novedades';
@@ -20,7 +25,7 @@ import { PuertaMapa } from '@/components/home/PuertaMapa';
 import { MarketItemSheet } from '@/components/offers/MarketItemSheet';
 import { SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
 import { ZoneButton, ZoneList } from '@/components/ZoneButton';
-import { mediaUrl } from '@/lib/image';
+import { mediaUrl, resolveImageUrl } from '@/lib/image';
 import { dayLabel, stripEntries } from '@/lib/novedades';
 import { onFootOrDistance } from '@/lib/format';
 import { mergeCatalogIntoMarket, priceView, type MarketItem } from '@/lib/offerMarket';
@@ -38,10 +43,10 @@ function whenLabel(iso: string, now: number): string {
 }
 
 /**
- * Inicio (tablero «Inicio a la puerta»): solo dos cosas, una entrada al mapa y las novedades. Buscar, Empre AI, tus citas
- * y tus salidas viven en el mapa y en el botón Empre; aquí no se repiten. Arriba, lo nuevo de los negocios que sigues; al
- * bajar, el muro de lo que publicaron los negocios cerca. Con pocos datos cada parte se encoge o no se dibuja: nunca se
- * rellena con datos inventados.
+ * Inicio (tablero «Inicio a la puerta», 2026-11-14), en el orden de las apps de barrio que más se usan: dónde estás,
+ * buscar (abre el buscador del mapa), las categorías con cuántos negocios hay, el mapa, tus negocios, lo abierto ahora
+ * con cuándo cierra, una línea hacia Ofertas y, al bajar, el muro. Empre AI sigue en el botón Empre. Con pocos datos
+ * cada parte se esconde (buscar y el mapa siempre están): nunca se rellena con datos inventados.
  */
 export default function HomeScreen() {
   const router = useRouter();
@@ -75,7 +80,7 @@ export default function HomeScreen() {
     }, []),
   );
 
-  const open = useQuery({ queryKey: ['home-near', ...placeKey], queryFn: () => discoveryApi.discover({ ...place, limit: 12 }), staleTime: 60_000 });
+  const open = useQuery({ queryKey: ['home-near', ...placeKey], queryFn: () => discoveryApi.discover({ ...place, limit: 40 }), staleTime: 60_000 });
   const market = useQuery({ queryKey: ['home-market', ...placeKey], queryFn: () => offersApi.market(place), staleTime: 60_000 });
   const news = useQuery({ queryKey: ['novedades'], queryFn: novedadesApi.list, enabled: signedIn, staleTime: 60_000 });
 
@@ -111,6 +116,12 @@ export default function HomeScreen() {
   const discovery = useMemo(() => open.data?.items ?? [], [open.data]);
   const openNear = useMemo(() => discovery.filter((b) => b.is_open_now), [discovery]);
   const mapItems = useMemo(() => openNear.filter((b) => b.latitude && b.longitude).slice(0, 8), [openNear]);
+  // Las categorías de arriba: solo las que tienen negocios cerca, juntadas por su dibujo, con el número real.
+  const cats = useMemo(() => artCounts(discovery, artKeyFor, 8), [discovery]);
+  // Abierto ahora cerca: lo más cercano primero, con cuándo cierra.
+  const openCards = useMemo(() => [...openNear].sort((a, b) => a.distance_meters - b.distance_meters).slice(0, 8), [openNear]);
+  // Hoy en tu barrio: las ofertas que terminan hoy; aquí solo se cuentan, se ven en Ofertas.
+  const endingSoon = useMemo(() => endingToday(marketItems, now, new Set(), 20), [marketItems, now]);
 
   const newsAll = useMemo(() => news.data ?? [], [news.data]);
   const unseen = newsAll.filter((n) => n.unseen);
@@ -178,13 +189,26 @@ export default function HomeScreen() {
             />
           ) : null}
 
-          {/* La invitación, explícita */}
-          <View style={styles.greet}>
-            <Text style={styles.title} accessibilityRole="header">
-              {nearCount > 1 ? `${nearCount} negocios a la puerta de tu casa` : 'Los negocios a la puerta de tu casa'}
+          {/* Buscar: abre el buscador del mapa ya escribiendo, no otra pantalla */}
+          <Pressable accessibilityRole="button" accessibilityLabel="Buscar en Empre" onPress={() => router.push({ pathname: '/map', params: { q: '', buscar: '1' } })} style={({ pressed }) => [styles.search, pressed && styles.pressed]}>
+            <Ionicons name="search" size={20} color={colors.ink} />
+            <Text style={styles.searchText} numberOfLines={1}>
+              Busca negocios, cortes, almuerzos…
             </Text>
-            <Text style={styles.lead}>Entra y mira quién está abierto ahora, a pocos pasos.</Text>
-          </View>
+          </Pressable>
+
+          {/* Las categorías con lo que hay: cada una abre el mapa ya filtrado */}
+          {cats.length ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.catsIn}>
+              {cats.map((c) => (
+                <Pressable key={c.key} accessibilityRole="button" accessibilityLabel={`${c.label}, ${c.count} ${c.count === 1 ? 'negocio' : 'negocios'} cerca`} onPress={() => router.push({ pathname: '/map', params: { q: '', cat: c.ids, catName: c.label } })} style={({ pressed }) => [styles.cat, pressed && styles.pressed]}>
+                  <CategoryIllustration k={c.key} size={34} />
+                  <Text style={styles.catText}>{c.label}</Text>
+                  <Text style={styles.catCount}>{c.count}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          ) : null}
 
           {location.denied && !coords && !zone ? (
             // Sin ubicación también funciona (tablero «Estados», teléfono 5): se elige el barrio y sigue igual.
@@ -209,18 +233,30 @@ export default function HomeScreen() {
           ) : open.isLoading && !open.data ? (
             // Cargando: la forma de lo que viene, nunca una rueda sola (tablero «Estados», teléfono 1).
             <View accessibilityLabel="Buscando negocios cerca" accessibilityLiveRegion="polite">
-              <SkeletonBlock height={278} borderRadius={26} />
+              <SkeletonBlock height={196} borderRadius={22} />
               <Text style={styles.loadingText}>Buscando negocios cerca…</Text>
             </View>
           ) : (
-            <PuertaMapa items={mapItems} center={center} openCount={openNear.length} ticker={[]} whenOf={(iso) => whenLabel(iso, now)} onExplore={openExplore} />
+            <View style={styles.mapBlock}>
+              {/* La promesa, como título de sección: ya no ocupa media pantalla */}
+              <View style={styles.secHead}>
+                <Text style={styles.secTitle} accessibilityRole="header">
+                  A la puerta de tu casa
+                </Text>
+                {nearCount > 1 ? <Text style={styles.secCount}>{`${nearCount} negocios`}</Text> : null}
+              </View>
+              <PuertaMapa items={mapItems} center={center} openCount={openNear.length} ticker={[]} whenOf={(iso) => whenLabel(iso, now)} onExplore={openExplore} />
+            </View>
           )}
 
           {strip.length ? (
             <View style={styles.section}>
-              <Text style={styles.secTitle} accessibilityRole="header">
-                Lo nuevo de los que sigues
-              </Text>
+              <View>
+                <Text style={styles.secTitle} accessibilityRole="header">
+                  Tus negocios
+                </Text>
+                <Text style={styles.secSub}>El anillo rojo: publicó algo nuevo</Text>
+              </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.followIn}>
                 {strip.map((w) => (
                   <Pressable key={w.entityId} accessibilityRole="button" accessibilityLabel={`${w.name}${w.ring === 'offer' ? ', oferta nueva' : w.ring === 'post' ? ', publicó' : ''}`} onPress={() => router.push({ pathname: '/business/[id]', params: { id: w.entityId } })} style={styles.follow}>
@@ -234,6 +270,62 @@ export default function HomeScreen() {
                 ))}
               </ScrollView>
             </View>
+          ) : null}
+
+          {/* Abierto ahora cerca: cuándo cierra y a cuántos pasos (como DoorDash y Too Good To Go) */}
+          {openCards.length ? (
+            <View style={styles.section}>
+              <View style={styles.secHead}>
+                <Text style={styles.secTitle} accessibilityRole="header">
+                  Abierto ahora cerca
+                </Text>
+                <Pressable accessibilityRole="link" accessibilityLabel="Ver todos en el mapa" hitSlop={8} onPress={() => router.push('/map')} style={styles.seeAll}>
+                  <Text style={styles.seeAllText}>Ver todos</Text>
+                </Pressable>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.openIn}>
+                {openCards.map((b) => {
+                  const photo = resolveImageUrl(b.photos?.[0]) ?? resolveImageUrl(b.profile_url);
+                  const chip = closeChip(b.closes_at, now);
+                  const walk = onFootOrDistance(b.distance_meters / 1000);
+                  return (
+                    <Pressable key={b.id} accessibilityRole="button" accessibilityLabel={[b.name, b.category_name, chip?.text, walk].filter(Boolean).join(', ')} onPress={() => router.push({ pathname: '/business/[id]', params: { id: b.id } })} style={({ pressed }) => [styles.openCard, pressed && styles.pressed]}>
+                      <View style={styles.openImg}>
+                        {photo ? <Image source={{ uri: photo }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors /> : <BusinessArt k={artKeyFor(b.category_name, b.category_icon)} size={156} round={false} />}
+                        {chip ? <Text style={[styles.openChip, chip.soon && { color: colors.primaryDark }]}>{chip.text}</Text> : null}
+                      </View>
+                      <Text style={styles.openName} numberOfLines={1}>
+                        {b.name}
+                      </Text>
+                      <Text style={styles.openSub} numberOfLines={1}>
+                        {[b.category_name, walk].filter(Boolean).join(' · ')}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          ) : null}
+
+          {/* Hoy en tu barrio: una línea que lleva a Ofertas; aquí las ofertas no se repiten */}
+          {endingSoon.length ? (
+            <Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/offers')} style={({ pressed }) => [styles.today, pressed && styles.pressed]}>
+              <View style={styles.todayIcon}>
+                <Ionicons name="pricetag-outline" size={20} color={colors.ink} />
+              </View>
+              <View style={styles.todayBody}>
+                <Text style={styles.todayTitle}>{endingSoon.length === 1 ? '1 oferta termina hoy' : `${endingSoon.length} ofertas terminan hoy`}</Text>
+                <Text style={styles.todaySub} numberOfLines={1}>
+                  {[
+                    hourLabel(endingSoon[0].ends_at) ? `La primera termina a las ${hourLabel(endingSoon[0].ends_at)}` : null,
+                    endingSoon[0].distance_meters != null ? `a ${onFootOrDistance(endingSoon[0].distance_meters / 1000)}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(', ')}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+            </Pressable>
           ) : null}
         </View>
 
@@ -270,7 +362,7 @@ export default function HomeScreen() {
               top: grow.interpolate({ inputRange: [0, 1], outputRange: [door.y, 0] }),
               width: grow.interpolate({ inputRange: [0, 1], outputRange: [door.w, win.width] }),
               height: grow.interpolate({ inputRange: [0, 1], outputRange: [door.h, win.height] }),
-              borderRadius: grow.interpolate({ inputRange: [0, 1], outputRange: [26, 0] }),
+              borderRadius: grow.interpolate({ inputRange: [0, 1], outputRange: [22, 0] }),
             },
           ]}
         />
@@ -290,7 +382,29 @@ const styles = StyleSheet.create({
   zone: { flex: 1, minWidth: 0 },
   bell: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: colors.surface },
   bellDot: { position: 'absolute', top: 10, right: 10, width: 9, height: 9, borderRadius: 5, borderWidth: 2, borderColor: colors.surface, backgroundColor: colors.brand },
-  greet: { gap: 4 },
+  pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
+  search: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  searchText: { flex: 1, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.muted },
+  catsIn: { gap: 8, paddingHorizontal: 16, paddingVertical: 2 },
+  cat: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 5, paddingRight: 14, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  catText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
+  catCount: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, fontVariant: ['tabular-nums'] },
+  mapBlock: { gap: 10, marginTop: 4 },
+  secHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 },
+  secCount: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
+  seeAll: { minHeight: 44, justifyContent: 'center' },
+  seeAllText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
+  openIn: { gap: 12, paddingHorizontal: 16 },
+  openCard: { width: 156, gap: 5 },
+  openImg: { width: 156, height: 104, borderRadius: 16, overflow: 'hidden', backgroundColor: colors.sandSoft },
+  openChip: { position: 'absolute', left: 8, bottom: 8, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, overflow: 'hidden', backgroundColor: 'rgba(255,254,251,0.95)', fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.ink },
+  openName: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink, paddingHorizontal: 2 },
+  openSub: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted, paddingHorizontal: 2, marginTop: -3 },
+  today: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  todayIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent },
+  todayBody: { flex: 1, gap: 2 },
+  todayTitle: { fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
+  todaySub: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
   where: { gap: 12, padding: 16, borderRadius: 22, backgroundColor: colors.surface },
   whereTitle: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
   whereText: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.muted },
@@ -300,8 +414,6 @@ const styles = StyleSheet.create({
   whereZone: { minHeight: 44, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1.5, borderColor: colors.line, justifyContent: 'center' },
   whereZoneText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   loadingText: { position: 'absolute', left: 16, bottom: 16, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
-  title: { fontSize: 26, lineHeight: 30, fontFamily: fonts.display.bold, color: colors.ink, letterSpacing: -0.3 },
-  lead: { fontSize: 15, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.muted },
   section: { gap: 12 },
   secTitle: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
   secSub: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, marginTop: 2 },
