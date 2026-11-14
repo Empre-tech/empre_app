@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { memo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import type { DiscoveryItem } from '@/api/types';
@@ -219,128 +219,55 @@ function BizHead({ name, photo, art, distance, closes, closed, extra, onPress }:
 }
 
 /**
- * A tu puerta como carrusel (tablero «Empre Offers»): cada negocio es un banner con todo lo suyo (foto o su
- * ilustración arriba, si está abierto, a cuánto queda y lo que vende) y se desliza desde la derecha para ver el
- * siguiente. Se asoma el borde del próximo para que se entienda que hay más. Igual con fotos o sin ellas.
+ * Un negocio de «A tu puerta»: su cabecera y una fila de fichas que se desliza, como la página de una tienda en el
+ * celular (foto cuadrada, precio grande, el de antes tachado, lo que ahorras, nombre y detalle). Tocar una ficha abre
+ * la media hoja.
  */
-export function BizCarousel({
-  shelves,
-  onBiz,
-  onItem,
-}: {
-  shelves: { biz: DiscoveryItem; items: ServiceItem[]; branches?: number }[];
-  onBiz: (id: string) => void;
-  onItem: (biz: DiscoveryItem, item: ServiceItem) => void;
-}) {
-  const { width } = useWindowDimensions();
-  const w = Math.min(320, width - 72);
+export function BizShelf({ biz, items, branches = 1, onBiz, onItem }: { biz: DiscoveryItem; items: ServiceItem[]; branches?: number; onBiz: () => void; onItem: (item: ServiceItem) => void }) {
+  const art = artKeyFor(biz.category_name, biz.category_icon);
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.bannerRail}
-      snapToInterval={w + 12}
-      decelerationRate="fast"
-      snapToAlignment="start"
-      accessibilityLabel="Negocios a tu puerta; desliza para ver más"
-    >
-      {shelves.map(({ biz, items, branches = 1 }) => {
-        const art = artKeyFor(biz.category_name, biz.category_icon);
-        const cover = resolveImageUrl(biz.photos?.[0]) ?? resolveImageUrl(biz.profile_url) ?? undefined;
-        const logo = resolveImageUrl(biz.profile_url) ?? undefined;
-        const status = biz.is_open_now ? ['Abierto', untilLabel(biz.closes_at)].filter(Boolean).join(' · ') : 'Cerrado ahora';
-        const meta = [km(biz.distance_meters), biz.category_name, branches > 1 ? `${branches} sedes cerca` : null].filter(Boolean).join(' · ');
-        return (
-          <View key={biz.id} style={[styles.banner, { width: w }]}>
-            <Pressable accessibilityRole="link" accessibilityLabel={`${biz.name}. ${status}. ${meta}. Ver el negocio`} onPress={() => onBiz(biz.id)} style={({ pressed }) => [pressed && styles.pressed]}>
-              <View style={[styles.bannerTop, { backgroundColor: ART_TINT[art] }]}>
-                {cover ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors /> : <View style={styles.bannerArt}><CategoryIllustration k={art} size={92} /></View>}
-                <Text style={[styles.bannerStatus, !biz.is_open_now && styles.bannerClosed]}>{status}</Text>
-              </View>
-              <View style={styles.bannerHead}>
-                <View style={styles.bannerLogo}>{logo ? <Image source={{ uri: logo }} style={styles.bannerLogoImg} contentFit="cover" accessibilityIgnoresInvertColors /> : <BusinessArt k={art} size={44} />}</View>
-                <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
-                  <Text style={styles.bannerName} numberOfLines={1}>
-                    {biz.name}
-                  </Text>
-                  <Text style={styles.why} numberOfLines={1}>
-                    {meta}
-                  </Text>
-                </View>
-              </View>
-            </Pressable>
-            <View style={styles.bannerList}>
-              {items.slice(0, 3).map((it, i) => {
-                const photo = it.photos?.[0] ? mediaUrl(it.photos[0]) : undefined;
-                const price = priceText(it);
-                const detail = it.kind === 'service' ? [it.duration_min ? `${it.duration_min} min` : null, it.bookable ? 'Se reserva' : null].filter(Boolean).join(' · ') : it.sold_out ? 'Agotado' : it.section || '';
-                return (
-                  <Pressable
-                    key={it.id}
-                    accessibilityRole="button"
-                    accessibilityLabel={[it.name, price, detail].filter(Boolean).join(', ')}
-                    onPress={() => onItem(biz, it)}
-                    style={({ pressed }) => [styles.bannerRow, i > 0 && styles.menuRowLine, pressed && styles.pressed]}
-                  >
-                    {photo ? <Image source={{ uri: photo }} style={styles.menuImg} contentFit="cover" accessibilityIgnoresInvertColors /> : null}
-                    <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
-                      <Text style={styles.bannerItem} numberOfLines={1}>
-                        {it.name}
-                      </Text>
-                      {detail ? (
-                        <Text style={[styles.menuDetail, it.kind === 'service' && it.bookable && styles.noteOn]} numberOfLines={1}>
-                          {detail}
-                        </Text>
-                      ) : null}
-                    </View>
-                    {price ? <Text style={styles.bannerPrice}>{price}</Text> : null}
-                  </Pressable>
-                );
-              })}
-            </View>
-            <Pressable accessibilityRole="link" onPress={() => onBiz(biz.id)} style={({ pressed }) => [styles.bannerMore, pressed && styles.pressed]}>
-              <Text style={styles.menuMore}>{items.length > 3 ? `Ver las ${items.length} cosas que vende` : 'Ver el negocio'}</Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-            </Pressable>
-          </View>
-        );
-      })}
-    </ScrollView>
+    <View style={styles.sec}>
+      <BizHead name={biz.name} photo={bizPhoto(biz)} art={art} distance={biz.distance_meters} closes={biz.closes_at} closed={!biz.is_open_now} extra={branches > 1 ? `${branches} sedes cerca` : null} onPress={onBiz} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
+        {items.map((it) => {
+          const photo = it.photos?.[0] ? mediaUrl(it.photos[0]) : undefined;
+          const price = priceText(it);
+          const note = it.kind === 'service' ? (it.bookable ? 'Se reserva' : null) : it.sold_out ? 'Agotado' : null;
+          const detail = it.kind === 'service' && it.duration_min ? `${it.duration_min} min` : it.section || null;
+          return <Tile key={it.id} photo={photo} art={art} price={price} name={it.name} detail={detail} note={note} noteOn={it.kind === 'service'} onPress={() => onItem(it)} />;
+        })}
+      </ScrollView>
+    </View>
   );
 }
 
-function Tile({ photo, art, price, was, tag, name, note, noteOn, onPress }: { photo?: string; art: ArtKey; price: string | null; was?: string | null; tag?: string | null; name: string; note?: string | null; noteOn?: boolean; onPress: () => void }) {
-  const label = [name, price, tag, note].filter(Boolean).join(', ');
-  if (!photo) {
-    // Sin foto no hay un cuadro vacío con el nombre y el nombre otra vez debajo: el nombre se dice una vez.
-    return (
-      <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.tile, styles.card, pressed && styles.pressed]}>
-        <CategoryIllustration k={art} size={44} />
-        <Text style={styles.cardName} numberOfLines={3}>
-          {name}
-        </Text>
-        <View style={styles.priceRow}>
-          {price ? <Text style={styles.price}>{price}</Text> : null}
-          {was ? <Text style={styles.was}>{was}</Text> : null}
-        </View>
-        {tag ? <Text style={styles.cardTag}>{tag}</Text> : note ? <Text style={[styles.note, noteOn && styles.noteOn]}>{note}</Text> : null}
-      </Pressable>
-    );
-  }
+function Tile({ photo, art, price, was, tag, name, detail, note, noteOn, onPress }: { photo?: string; art: ArtKey; price: string | null; was?: string | null; tag?: string | null; name: string; detail?: string | null; note?: string | null; noteOn?: boolean; onPress: () => void }) {
+  const label = [name, price, was ? `antes ${was}` : null, tag, detail, note].filter(Boolean).join(', ');
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.tile, pressed && styles.pressed]}>
-      <View>
-        <Image source={{ uri: photo }} style={styles.tileImg} contentFit="cover" accessibilityIgnoresInvertColors />
-        {tag ? <Text style={styles.tag}>{tag}</Text> : null}
+      <View style={styles.tileImg}>
+        {photo ? (
+          <Image source={{ uri: photo }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
+        ) : (
+          <View style={[StyleSheet.absoluteFill, styles.tileNoImg, { backgroundColor: ART_TINT[art] }]}>
+            <CategoryIllustration k={art} size={64} />
+          </View>
+        )}
+        {note ? <Text style={[styles.tileNote, noteOn && styles.noteOn]}>{note}</Text> : null}
       </View>
       <View style={styles.priceRow}>
         {price ? <Text style={styles.price}>{price}</Text> : null}
         {was ? <Text style={styles.was}>{was}</Text> : null}
       </View>
+      {tag ? <Text style={styles.save}>{tag}</Text> : null}
       <Text style={styles.tileName} numberOfLines={2}>
         {name}
       </Text>
-      {note ? <Text style={[styles.note, noteOn && styles.noteOn]}>{note}</Text> : null}
+      {detail ? (
+        <Text style={styles.tileDetail} numberOfLines={1}>
+          {detail}
+        </Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -454,37 +381,17 @@ const styles = StyleSheet.create({
   logo: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.sandSoft },
   bizName: { fontFamily: fonts.ui.semibold, fontSize: 16, color: colors.ink },
   rail: { gap: 12, paddingHorizontal: 20 },
-  menuRowLine: { borderTopWidth: 1, borderTopColor: colors.line },
-  menuImg: { width: 40, height: 40, borderRadius: 10, backgroundColor: colors.sandSoft },
-  menuDetail: { fontFamily: fonts.ui.medium, fontSize: 12, color: colors.muted },
-  menuMore: { flex: 1, fontFamily: fonts.ui.semibold, fontSize: 14, color: colors.ink },
-  bannerRail: { gap: 12, paddingHorizontal: 20 },
-  banner: { borderRadius: 22, overflow: 'hidden', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
-  bannerTop: { height: 112, overflow: 'hidden' },
-  bannerArt: { position: 'absolute', right: 12, bottom: 4 },
-  bannerStatus: { position: 'absolute', left: 12, top: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, overflow: 'hidden', backgroundColor: colors.surface, fontFamily: fonts.ui.semibold, fontSize: 12, color: colors.primaryDark },
-  bannerClosed: { color: colors.muted },
-  bannerHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingHorizontal: 14, paddingTop: 8 },
-  bannerLogo: { width: 48, height: 48, marginTop: -32, borderRadius: 24, borderWidth: 3, borderColor: colors.surface, overflow: 'hidden', backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  bannerLogoImg: { width: 44, height: 44, borderRadius: 22 },
-  bannerName: { fontFamily: fonts.ui.semibold, fontSize: 16, color: colors.ink },
-  bannerList: { paddingHorizontal: 14, marginTop: 8 },
-  bannerRow: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
-  bannerItem: { fontFamily: fonts.ui.medium, fontSize: 14, color: colors.ink },
-  bannerPrice: { fontFamily: fonts.ui.semibold, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
-  bannerMore: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: colors.line },
-  tile: { width: 118, gap: 4 },
-  tileImg: { width: 118, height: 118, borderRadius: 14, backgroundColor: colors.sandSoft },
-  card: { minHeight: 172, padding: 10, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, gap: 6 },
-  cardName: { flex: 1, fontFamily: fonts.ui.semibold, fontSize: 13, lineHeight: 17, color: colors.ink },
-  cardTag: { alignSelf: 'flex-start', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, overflow: 'hidden', backgroundColor: colors.accent, fontFamily: fonts.ui.semibold, fontSize: 11, color: colors.ink },
-  tag: { position: 'absolute', left: 6, top: 6, paddingHorizontal: 7, paddingVertical: 2, borderTopLeftRadius: 3, borderBottomLeftRadius: 3, borderTopRightRadius: 8, borderBottomRightRadius: 8, overflow: 'hidden', backgroundColor: colors.accent, fontFamily: fonts.ui.semibold, fontSize: 11, color: colors.ink },
-  priceRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 5 },
-  price: { fontFamily: fonts.ui.extrabold, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
-  was: { fontFamily: fonts.ui.medium, fontSize: 11, color: colors.muted, textDecorationLine: 'line-through' },
-  tileName: { fontFamily: fonts.ui.medium, fontSize: 12, lineHeight: 16, color: colors.ink },
-  note: { fontFamily: fonts.ui.semibold, fontSize: 11, color: colors.muted },
   noteOn: { color: colors.primaryDark },
+  tile: { width: 132, gap: 3 },
+  tileImg: { width: 132, height: 132, borderRadius: 16, overflow: 'hidden', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, marginBottom: 5 },
+  tileNoImg: { alignItems: 'center', justifyContent: 'center' },
+  tileNote: { position: 'absolute', left: 6, bottom: 6, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: 'hidden', backgroundColor: colors.surface, fontFamily: fonts.ui.semibold, fontSize: 11, color: colors.muted },
+  priceRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 5 },
+  price: { fontFamily: fonts.ui.extrabold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
+  was: { fontFamily: fonts.ui.medium, fontSize: 11, color: colors.muted, textDecorationLine: 'line-through' },
+  save: { fontFamily: fonts.ui.semibold, fontSize: 12, color: colors.primaryDark },
+  tileName: { fontFamily: fonts.ui.medium, fontSize: 13, lineHeight: 17, color: colors.ink },
+  tileDetail: { fontFamily: fonts.ui.medium, fontSize: 12, color: colors.muted },
   results: { gap: 28 },
   who: { gap: 14, paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.line },
   whoFace: { width: 72, alignItems: 'center', gap: 4 },

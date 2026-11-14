@@ -34,7 +34,7 @@ import { UpdatingBar } from '@/components/explore/LoadingMotion';
 import { BizVitrinaSheet } from '@/components/offers/BizFaces';
 import { AskManySheet } from '@/components/offers/AskManySheet';
 import { BestPriceRail, HeroCarousel, Relampago } from '@/components/offers/OfferSpotlight';
-import { BizCarousel, ChosenFaces, CategoryIcons, ResultsByBusiness, SearchedChips, SectionDivider, SectionHead, ZoneHeader } from '@/components/offers/HomeBlocks';
+import { BizShelf, ChosenFaces, CategoryIcons, ResultsByBusiness, SearchedChips, SectionDivider, SectionHead, ZoneHeader } from '@/components/offers/HomeBlocks';
 import { FilterRow, FiltersSheet, LensTabs, type FilterTag, type ShowFilter } from '@/components/offers/LensFilters';
 import { MarketItemSheet } from '@/components/offers/MarketItemSheet';
 import { OfferAlertCard } from '@/components/offers/OfferAlertCard';
@@ -407,7 +407,7 @@ export default function OffersScreen() {
       .filter((x) => x.items.length > 0)
       .sort((a, b) => Number(b.biz.is_open_now) - Number(a.biz.is_open_now) || (a.biz.distance_meters ?? 0) - (b.biz.distance_meters ?? 0));
     // Dos sedes con la misma carta salen en una sola fila («2 sedes cerca»), no dos filas iguales.
-    return mergeBranches(list).slice(0, 8);
+    return mergeBranches(list).slice(0, 3);
   }, [nearbyBiz, catalogsByEntity, popular]);
   const shelvesOpen = shelves.some((x) => x.biz.is_open_now);
   // Resultados de una búsqueda: un grupo por negocio con solo lo que coincide.
@@ -774,14 +774,19 @@ export default function OffersScreen() {
         {home ? (
           <>
             {/* A tu puerta: dos o tres negocios cercanos con lo que venden; el resto sale al buscar o con un ícono */}
-            {!q && show !== 'offers' && shelves.length ? <SectionHead title={zoneSel ? `Lo que venden en ${zoneSel.name}` : shelvesOpen ? 'A tu puerta, abiertos ahora' : 'A tu puerta'} sub={zoneSel ? 'Desliza para ver cada negocio' : 'Los más cercanos · desliza para ver más'} /> : null}
-            {!q && show !== 'offers' && shelves.length ? (
-              <BizCarousel
-                shelves={shelves}
-                onBiz={(id) => router.push({ pathname: '/business/[id]', params: { id } })}
-                onItem={(b, it) => open(catalogMarketItem(b, it, resolvePhoto(it.photos?.[0]) ?? resolveImageUrl(b.photos?.[0] ?? b.profile_url) ?? undefined))}
-              />
-            ) : null}
+            {!q && show !== 'offers' && shelves.length ? <SectionHead title={zoneSel ? `Lo que venden en ${zoneSel.name}` : shelvesOpen ? 'A tu puerta, abiertos ahora' : 'A tu puerta'} sub={zoneSel ? 'Productos y servicios de sus negocios' : 'Lo que venden los más cercanos'} /> : null}
+            {!q && show !== 'offers'
+              ? shelves.map((x) => (
+                  <BizShelf
+                    key={x.biz.id}
+                    biz={x.biz}
+                    items={x.items}
+                    branches={x.branches}
+                    onBiz={() => router.push({ pathname: '/business/[id]', params: { id: x.biz.id } })}
+                    onItem={(it) => open(catalogMarketItem(x.biz, it, resolvePhoto(it.photos?.[0]) ?? resolveImageUrl(x.biz.photos?.[0] ?? x.biz.profile_url) ?? undefined))}
+                  />
+                ))
+              : null}
 
             {/* Pocas ofertas: el barrio vecino, con lo mismo que estás viendo */}
             {vecino && vecinoItems.length && show !== 'services' ? (
