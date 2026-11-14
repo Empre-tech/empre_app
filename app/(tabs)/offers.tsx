@@ -35,7 +35,7 @@ import { BizVitrinaSheet } from '@/components/offers/BizFaces';
 import { AskManySheet } from '@/components/offers/AskManySheet';
 import { BestPriceRail, HeroCarousel, Relampago } from '@/components/offers/OfferSpotlight';
 import { BizShelf, ChosenFaces, CategoryIcons, ResultsByBusiness, SearchedChips, SectionDivider, SectionHead, ZoneHeader } from '@/components/offers/HomeBlocks';
-import { FilterRow, FiltersSheet, LensTabs, type FilterTag, type ShowFilter } from '@/components/offers/LensFilters';
+import { FiltersSheet, LensTabs, type FilterTag, type ShowFilter } from '@/components/offers/LensFilters';
 import { MarketItemSheet } from '@/components/offers/MarketItemSheet';
 import { OfferAlertCard } from '@/components/offers/OfferAlertCard';
 import { Reveal } from '@/components/offers/MarketMotion';
@@ -429,7 +429,6 @@ export default function OffersScreen() {
   };
   const show: ShowFilter = vitrinaFilter === 'offers' || vitrinaFilter === 'services' ? vitrinaFilter : 'all';
   const tags: FilterTag[] = [
-    ...(picked ? [{ key: 'zone', label: picked.name, onRemove: () => setPicked(null) }] : []),
     ...(show !== 'all' ? [{ key: 'show', label: show === 'offers' ? 'Solo ofertas' : 'Solo catálogo', onRemove: () => setVitrinaFilter('all') }] : []),
     ...(sort !== 'near' ? [{ key: 'sort', label: sort === 'ends' ? 'Terminan pronto' : 'Mayor ahorro', onRemove: () => setSort('near') }] : []),
     ...(openOnly ? [{ key: 'open', label: 'Abiertos ahora', onRemove: () => setOpenOnly(false) }] : []),
@@ -531,7 +530,21 @@ export default function OffersScreen() {
               <Text style={styles.fieldText} numberOfLines={1}>
                 Comida, cortes, tenis, ofertas…
               </Text>
-              <Pressable accessibilityRole="button" accessibilityLabel="Buscar con voz en Empre AI" onPress={() => router.push({ pathname: '/ask', params: { voice: '1' } })} style={styles.fieldMic}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={tags.length ? `Filtros, ${tags.length} puestos` : 'Filtros'}
+                onPress={() => setFiltersOpen(true)}
+                hitSlop={4}
+                style={styles.fieldBtn}
+              >
+                <Ionicons name="options-outline" size={18} color={colors.ink} />
+                {tags.length ? (
+                  <View style={styles.fieldBadge}>
+                    <Text style={styles.fieldBadgeText}>{tags.length}</Text>
+                  </View>
+                ) : null}
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Buscar con voz en Empre AI" onPress={() => router.push({ pathname: '/ask', params: { voice: '1' } })} hitSlop={4} style={styles.fieldMic}>
                 <Ionicons name="mic-outline" size={17} color={colors.primaryDark} />
               </Pressable>
             </Pressable>
@@ -583,6 +596,30 @@ export default function OffersScreen() {
                 })}
               </ScrollView>
             ) : null}
+            {tags.length ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activeTags} accessibilityLabel="Filtros puestos">
+                {tags.map((t) => (
+                  <Pressable key={t.key} accessibilityRole="button" accessibilityLabel={`Quitar filtro ${t.label}`} onPress={t.onRemove} hitSlop={6} style={({ pressed }) => [styles.activeTag, pressed && { opacity: 0.8 }]}>
+                    <Text style={styles.activeTagText}>{t.label}</Text>
+                    <Ionicons name="close" size={13} color={colors.ink} />
+                  </Pressable>
+                ))}
+                {tags.length > 1 ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      setVitrinaFilter('all');
+                      setSort('near');
+                      setOpenOnly(false);
+                    }}
+                    hitSlop={6}
+                    style={styles.activeClear}
+                  >
+                    <Text style={styles.activeClearText}>Quitar todo</Text>
+                  </Pressable>
+                ) : null}
+              </ScrollView>
+            ) : null}
             {/* La zona elegida: sus negocios de una vez (tablero 1c) */}
             {zoneSel && !q ? (
               <ZoneHeader
@@ -603,7 +640,6 @@ export default function OffersScreen() {
                 }}
               />
             ) : null}
-            {tags.length ? <FilterRow cats={[]} tags={tags} onCat={() => undefined} onOpen={() => setFiltersOpen(true)} /> : null}
             {artGroup && subCats.length ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats} accessibilityLabel={`Dentro de ${artGroup.label}`}>
                 <Chip label={`Todo ${artGroup.label.toLowerCase()}`} active={!catId} onPress={() => setCatId(undefined)} />
@@ -1070,6 +1106,14 @@ const styles = StyleSheet.create({
   field: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 14, paddingRight: 5, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   fieldText: { flex: 1, minWidth: 0, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.muted },
   fieldMic: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sandSoft },
+  fieldBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sandSoft },
+  fieldBadge: { position: 'absolute', top: -3, right: -3, minWidth: 16, height: 16, paddingHorizontal: 4, borderRadius: 8, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.surface },
+  fieldBadgeText: { fontFamily: fonts.ui.extrabold, fontSize: 10, color: '#FFFFFF' },
+  activeTags: { gap: 8, paddingHorizontal: 20, alignItems: 'center' },
+  activeTag: { minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: 17, backgroundColor: colors.selectedSoft },
+  activeTagText: { fontFamily: fonts.ui.semibold, fontSize: 13, color: colors.ink },
+  activeClear: { minHeight: 34, paddingHorizontal: 6, justifyContent: 'center' },
+  activeClearText: { fontFamily: fonts.ui.semibold, fontSize: 13, color: colors.primaryDark },
   miniField: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   tilesLabel: { marginTop: 6, marginBottom: -6, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   screen: { flex: 1, backgroundColor: colors.bg },
