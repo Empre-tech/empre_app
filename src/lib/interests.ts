@@ -1,5 +1,5 @@
 import type { ArtKey } from '@/components/CategoryArt';
-import { ART_LABEL } from './offerHome.ts';
+import { ART_LABEL, brandKey } from './offerHome.ts';
 
 /**
  * «Para ti» (2026-11-14): lo que más buscas manda, como en TikTok, pero explicado y solo en tu teléfono. Cada cosa que
@@ -72,7 +72,7 @@ export function peopleInterests(terms: string[], match: (text: string) => ArtKey
   return normalized(m);
 }
 
-export type PickSource = 'tuyo' | 'visto' | 'gente' | 'descubrir';
+export type PickSource = 'tuyo' | 'visto' | 'gente' | 'descubrir' | 'cerca';
 
 export interface ForYouPick<T> {
   item: T;
@@ -82,6 +82,7 @@ export interface ForYouPick<T> {
 
 interface Candidate {
   id: string;
+  name: string;
   category_name: string;
   category_icon?: string | null;
   distance_meters: number;
@@ -94,8 +95,10 @@ const label = (a: ArtKey) => ART_LABEL[a].toLowerCase();
 
 /**
  * Los negocios de «Para ti»: lo tuyo primero (lo que más buscas, lo que ya miraste), después lo que busca la gente, y
- * un hueco para descubrir algo de otro tipo, así no se vuelve siempre lo mismo. Como mucho `perArt` del mismo tipo.
- * Cada uno dice por qué está. Sin señales tuyas ni de la gente, no hay lista (no se inventa).
+ * un hueco para descubrir algo de otro tipo, así no se vuelve siempre lo mismo. Como mucho `perArt` del mismo tipo y
+ * una sola sede por negocio («El Rincón Samario» y «El Rincón Samario Mamatoco» salen una vez). Si quedan menos de
+ * `fillTo`, se completa con lo abierto más cerca («Abierto cerca»). Cada uno dice por qué está. Sin señales tuyas ni
+ * de la gente, no hay lista (no se inventa).
  */
 export function forYou<T extends Candidate>(
   list: T[],
@@ -105,6 +108,7 @@ export function forYou<T extends Candidate>(
   artOf: (name: string, icon?: string | null) => ArtKey,
   max = 8,
   perArt = 2,
+  fillTo = 4,
 ): ForYouPick<T>[] {
   const scored = list
     .map((item) => {
@@ -129,23 +133,42 @@ export function forYou<T extends Candidate>(
 
   const out: typeof scored = [];
   const perKey = new Map<ArtKey, number>();
+  const brands = new Set<string>();
+  const brandOf = (item: T) => brandKey(item.name) || item.id;
   for (const x of scored) {
     if (out.length >= max) break;
-    if ((perKey.get(x.art) ?? 0) >= perArt) continue;
+    if ((perKey.get(x.art) ?? 0) >= perArt || brands.has(brandOf(x.pick.item))) continue;
     out.push(x);
     perKey.set(x.art, (perKey.get(x.art) ?? 0) + 1);
+    brands.add(brandOf(x.pick.item));
   }
 
   // Para descubrir: si todo es de tus dos tipos de siempre, entra el mejor de otro tipo en el tercer lugar.
   const myTop = [...mine].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k]) => k);
   if (myTop.length && out.length >= 3 && out.every((x) => myTop.includes(x.art))) {
-    const other = scored.find((x) => !myTop.includes(x.art) && !out.includes(x));
+    const other = scored.find((x) => !myTop.includes(x.art) && !out.includes(x) && !brands.has(brandOf(x.pick.item)));
     if (other) {
-      if (out.length >= max) out.pop();
+      const dropped = out.length >= max ? out.pop() : undefined;
+      if (dropped) brands.delete(brandOf(dropped.pick.item));
+      brands.add(brandOf(other.pick.item));
       out.splice(2, 0, { ...other, pick: { item: other.pick.item, reason: (people.get(other.art) ?? 0) >= 0.3 ? 'Lo buscan cerca' : 'Para descubrir', source: 'descubrir' } });
     }
   }
-  return out.map((x) => x.pick);
+
+  const picks = out.map((x) => x.pick);
+  // Fila corta: se completa con lo abierto más cerca, de otros negocios, diciendo por qué está.
+  if (picks.length && picks.length < fillTo) {
+    const rest = list
+      .filter((item) => !brands.has(brandOf(item)))
+      .sort((a, b) => Number(b.is_open_now) - Number(a.is_open_now) || a.distance_meters - b.distance_meters);
+    for (const item of rest) {
+      if (picks.length >= fillTo) break;
+      if (brands.has(brandOf(item))) continue;
+      brands.add(brandOf(item));
+      picks.push({ item, reason: item.is_open_now ? 'Abierto cerca' : 'Cerca de ti', source: 'cerca' });
+    }
+  }
+  return picks;
 }
 
 /** El título de la fila y su porqué. Sin señales, nada. */

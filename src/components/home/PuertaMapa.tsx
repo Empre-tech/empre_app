@@ -74,7 +74,8 @@ function Dot({ x, y, live }: { x: number; y: number; live: boolean }) {
 
 /**
  * El ancla del inicio (tablero «Inicio · los negocios a la puerta de tu casa»): un mapa con colores de mapa, los
- * negocios abiertos en rojo y sobre él corre lo último que pasó cerca. Un solo botón: entrar a ver los negocios.
+ * negocios abiertos en rojo y sobre él corre lo último que pasó cerca. Toda la tarjeta abre el mapa; abajo a la
+ * derecha, un ícono de expandir lo dice sin botón rojo (el rojo, en el mapa, es lo abierto).
  */
 export function PuertaMapa({
   items,
@@ -120,7 +121,7 @@ export function PuertaMapa({
       accessibilityLabel={`Ver el mapa. ${openCount} abiertos ahora.`}
       onPress={go}
       onLayout={(e) => setW(e.nativeEvent.layout.width)}
-      style={({ pressed }) => [styles.card, pressed && { opacity: 0.94 }]}
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
     >
       <MapBase w={w} />
       {pts.map((p, i) => (
@@ -148,9 +149,9 @@ export function PuertaMapa({
             </View>
           </Animated.View>
         ) : null}
-        <View style={styles.cta}>
-          <Text style={styles.ctaText}>Ver el mapa</Text>
-          <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+        {/* Toda la tarjeta abre el mapa: el ícono de expandir lo dice sin tapar el mapa ni competir con el rojo de lo abierto */}
+        <View style={styles.expand}>
+          <Ionicons name="resize" size={18} color={colors.ink} />
         </View>
       </View>
     </Pressable>
@@ -174,7 +175,7 @@ const styles = StyleSheet.create({
   tickBody: { flex: 1, minWidth: 0 },
   tickTitle: { fontFamily: fonts.ui.extrabold, fontSize: 13.5, color: colors.ink },
   tickWhen: { fontFamily: fonts.ui.bold, fontSize: 12, color: colors.nightText },
-  // El botón, compacto: una pastilla roja abajo a la derecha que no tapa el mapa.
-  cta: { minHeight: 44, paddingHorizontal: 16, borderRadius: 999, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', gap: 6, shadowColor: colors.primary, shadowOpacity: 0.28, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 3 },
-  ctaText: { fontFamily: fonts.ui.extrabold, fontSize: 14, color: '#FFFFFF' },
+  cardPressed: { opacity: 0.94, transform: [{ scale: 0.985 }] },
+  // Sin botón rojo (2026-11-14): un círculo blanco con el ícono de expandir, como las vistas previas de los mapas.
+  expand: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, shadowColor: '#2B2622', shadowOpacity: 0.16, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
 });

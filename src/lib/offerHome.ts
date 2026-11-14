@@ -212,7 +212,7 @@ export function artCounts(
 }
 
 /** Las dos primeras palabras que importan del nombre: «El Rincón Samario Mamatoco» y «El Rincón Samario» dan lo mismo. */
-function brandKey(name: string): string {
+export function brandKey(name: string): string {
   return plainText(name)
     .split(/\s+/)
     .filter((w) => w.length > 2 && !['los', 'las', 'del'].includes(w))

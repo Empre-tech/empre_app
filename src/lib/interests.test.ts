@@ -6,7 +6,7 @@ import { addSignal, decay, forYou, forYouHeader, myInterests, peopleInterests, s
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 10, 14, 17);
 const art = (name: string) => (/jugo|almuerzo|comida/i.test(name) ? 'comida' : /corte|barber/i.test(name) ? 'barberia' : /uña/i.test(name) ? 'unas' : 'tienda') as never;
-const biz = (id: string, category_name: string, distance_meters = 300, is_open_now = true) => ({ id, category_name, distance_meters, is_open_now });
+const biz = (id: string, category_name: string, distance_meters = 300, is_open_now = true, name = id) => ({ id, name, category_name, distance_meters, is_open_now });
 
 test('las señales se apagan a la mitad cada 10 días', () => {
   assert.equal(decay(NOW, NOW), 1);
@@ -47,14 +47,23 @@ test('forYou: lo tuyo primero, con su porqué, y no más de dos del mismo tipo',
   const mine = myInterests([{ kind: 'search', art: 'barberia' as never, at: NOW }], NOW);
   const list = [biz('b1', 'Barbería', 200), biz('b2', 'Barbería', 400), biz('b3', 'Barbería', 600), biz('c1', 'Comida', 100)];
   const r = forYou(list, mine, new Map(), new Map(), art);
-  assert.deepEqual(r.map((x) => x.item.id), ['b1', 'b2']);
+  assert.deepEqual(r.slice(0, 2).map((x) => x.item.id), ['b1', 'b2']);
   assert.equal(r[0].reason, 'Buscas barbería');
+  // La fila se completa hasta 4 con lo abierto más cerca, diciendo por qué está.
+  assert.deepEqual(r.slice(2).map((x) => [x.item.id, x.reason, x.source]), [['c1', 'Abierto cerca', 'cerca'], ['b3', 'Abierto cerca', 'cerca']]);
+});
+
+test('forYou: una sola sede por negocio', () => {
+  const mine = myInterests([{ kind: 'search', art: 'comida' as never, at: NOW }], NOW);
+  const list = [biz('r1', 'Comida', 200, true, 'El Rincón Samario'), biz('r2', 'Comida', 400, true, 'El Rincón Samario Mamatoco'), biz('v1', 'Comida', 500, true, 'Verde Vivo')];
+  const r = forYou(list, mine, new Map(), new Map(), art);
+  assert.deepEqual(r.map((x) => x.item.id), ['r1', 'v1']);
 });
 
 test('forYou: sin señales tuyas, lo que busca la gente; sin nada, no inventa', () => {
   const people = new Map([['comida' as never, 1]]);
   const r = forYou([biz('c1', 'Almuerzos'), biz('b1', 'Barbería')], new Map(), people, new Map(), art);
-  assert.deepEqual(r.map((x) => [x.item.id, x.reason]), [['c1', 'Lo buscan cerca']]);
+  assert.deepEqual(r.map((x) => [x.item.id, x.reason]), [['c1', 'Lo buscan cerca'], ['b1', 'Abierto cerca']]);
   assert.deepEqual(forYou([biz('c1', 'Almuerzos')], new Map(), new Map(), new Map(), art), []);
 });
 
