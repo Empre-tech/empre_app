@@ -640,7 +640,7 @@ const styles = StyleSheet.create({
   heroTopRow: { position: 'absolute', top: 12, left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   heroOfferBadge: { minWidth: 52, height: 52, paddingHorizontal: 8, borderRadius: 26, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-8deg' }] },
   heroOfferBadgeText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  heroCatalogBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(255,252,247,0.94)' },
+  heroCatalogBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(255,254,251,0.94)' },
   heroCatalogBadgeText: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.ink },
   closeBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.94)', alignItems: 'center', justifyContent: 'center' },
   heroBottomRow: { position: 'absolute', bottom: 12, left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

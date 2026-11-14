@@ -1131,7 +1131,7 @@ const styles = StyleSheet.create({
   vitrinaPillTextOn: { color: colors.ink },
   search: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   searchInput: { flex: 1, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink, paddingVertical: 0 },
-  mini: { position: 'absolute', left: 0, right: 0, zIndex: 5, height: MINI_H, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, backgroundColor: 'rgba(250,246,238,0.97)', borderBottomWidth: 1, borderBottomColor: colors.hairline },
+  mini: { position: 'absolute', left: 0, right: 0, zIndex: 5, height: MINI_H, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, backgroundColor: 'rgba(254,250,242,0.97)', borderBottomWidth: 1, borderBottomColor: colors.hairline },
   miniTap: { flex: 1, minHeight: 44, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
   miniCity: { flexShrink: 1, fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
   miniBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },

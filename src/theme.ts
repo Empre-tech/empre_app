@@ -6,7 +6,7 @@
 // Los errores van en negro con ícono: el rojo es la marca, no una alarma.
 export const colors = {
   primary: '#D42020', // botón principal en rojo de Empre (texto blanco, 5,2:1)
-  primaryDark: '#B91C1C', // texto rojo y enlaces sobre arena (6:1) y crema (6:1)
+  primaryDark: '#B91C1C', // texto rojo y enlaces sobre arena (6,2:1) y crema (6,3:1)
   primaryPressed: '#B01A1A',
   primarySoft: '#FDECEC',
   brand: '#F03232', // el rojo de Empre en formas: punto, foco y lo que pasa ahora
@@ -18,12 +18,13 @@ export const colors = {
   accentInk: '#8C4E10', // naranja para TEXTO sobre arena (5,1:1)
   accentSoft: '#FEF3E9',
   ink: '#2B2622', // el texto: tinta cálida, no negro puro. El negro es solo texto (~10 %)
-  muted: '#5C5448', // texto secundario (6,9:1 sobre arena, 5,5:1 sobre arena elegida)
+  muted: '#5C5448', // texto secundario (7,2:1 sobre arena, 5,5:1 sobre arena elegida)
   line: '#E6DAC3', // bordes y separadores, cálidos
-  // ARENA casi blanca, ~65 %: el fondo de todas las pantallas (2026-11-14: más cerca del blanco, mismo tono arena).
+  // ARENA casi blanca, ~65 %: el fondo de todas las pantallas (2026-11-14: a medio camino del blanco, con la misma
+  // intensidad de arena para que el tono se note).
   // Arriba, un degradado apenas más hondo: ScreenGlow.
-  bg: '#FAF6EE',
-  surface: '#FFFCF7', // CREMA, ~20 %: tarjetas, hojas y barras
+  bg: '#FEFAF2',
+  surface: '#FFFEFB', // CREMA, ~20 %: tarjetas, hojas y barras, un paso más claras que el fondo
   verified: '#B91C1C', // abierto, verificado, hecho (texto)
   verifiedSoft: '#FDECEC',
   danger: '#2B2622', // errores: negro con ícono, nunca rojo
