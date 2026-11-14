@@ -74,7 +74,7 @@ import { sameIds } from '@/lib/pinsCache';
 import { loadPinsCache, savePinsCache } from '@/lib/pinsCacheStore';
 import { isBubbleLevel } from '@/lib/mapLevels';
 import { NEAR_ME_M, zoneAt } from '@/lib/zoneName';
-import { cameraTargets, emphasize, isFarResult } from '@/lib/proximity';
+import { emphasize, isFarResult, searchFrame } from '@/lib/proximity';
 import { MAP_STYLE } from '@/lib/mapStyle';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
 
@@ -676,8 +676,9 @@ export default function MapScreen() {
     if (fittedRef.current === key) return;
     fittedRef.current = key;
     if (sheet.getAnchor() === 'peek') sheet.snapTo('medium');
-    // La cámara encuadra los más cercanos (a menos de 1,5 km), no todos: los lejanos no deben alejar el mapa.
-    const coords = (plan ? cameraTargets(plan) : []).filter(hasLocation).map((e) => ({ latitude: e.latitude, longitude: e.longitude }));
+    // La cámara encuadra TODOS los resultados de tu ciudad y a ti (2026-11-14), nunca más cerca que un barrio: buscar
+    // «helado» muestra todas las heladerías, no hace zoom a la más cercana.
+    const coords = searchFrame(items.filter(hasLocation).map((e) => ({ latitude: e.latitude, longitude: e.longitude })), userCoords ?? null);
     // Si ninguno cabe cerca, el mapa se queda en la zona de la persona.
     if (coords.length === 0 && searchScope !== 'zone' && userCoords) {
       mapRef.current?.animateToRegion({ ...userCoords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 500);
@@ -689,7 +690,7 @@ export default function MapScreen() {
         animated: true,
       });
     }
-  }, [searching, resultsStatus, debouncedSearch, catFilter, searchScope, plan, sheet, userCoords, topH]);
+  }, [searching, resultsStatus, debouncedSearch, catFilter, searchScope, items, sheet, userCoords, topH]);
 
   // Medición (anónima): una búsqueda cuenta una vez por consulta y alcance, cuando llegan los resultados.
   const trackedSearch = useRef('');
