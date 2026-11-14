@@ -497,7 +497,7 @@ export default function OffersScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <ScreenGlow height={insets.top + 340} />
+      <ScreenGlow />
       {(market.isFetching && data) || (all.isFetching && !all.isFetchingNextPage && all.data) ? <UpdatingBar /> : null}
       <Animated.View
         pointerEvents={compact ? 'auto' : 'none'}
@@ -702,7 +702,7 @@ export default function OffersScreen() {
               </Reveal>
             ) : !data && (market.isLoading || !ready) ? (
               <View style={styles.pad}>
-                <SkeletonBlock height={212} borderRadius={24} />
+                <SkeletonBlock height={232} borderRadius={24} />
               </View>
             ) : null}
             {!q && !category && data?.searched.terms.length ? (

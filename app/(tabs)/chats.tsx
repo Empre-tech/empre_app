@@ -15,6 +15,7 @@ import { SignInPrompt } from '@/components/SignInPrompt';
 import { useInboxSummary } from '@/chat/useInboxSummary';
 import { formatMessageTime } from '@/lib/format';
 import { requestsLabel } from '@/lib/inbox';
+import { ScreenGlow } from '@/components/ScreenGlow';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 type Tab = 'personal' | 'business';
@@ -62,6 +63,7 @@ export default function ChatsScreen() {
   if (status !== 'signedIn') {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <ScreenGlow />
         <SignInPrompt title="Habla con los negocios" message="Pregunta por horarios, precios o envíos directo con cada negocio." variant="messages" />
       </View>
     );
@@ -87,6 +89,7 @@ export default function ChatsScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
+      <ScreenGlow />
       <Text style={styles.title}>Mensajes</Text>
 
       <View style={styles.tabs}>

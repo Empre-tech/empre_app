@@ -30,6 +30,7 @@ import { getPhoneFlag, setPhoneFlag } from '@/lib/phoneFlags';
 import { myInterests } from '@/lib/interests';
 import { clearInterests, useInterestSignals } from '@/lib/interestStore';
 import { ART_LABEL } from '@/lib/offerHome';
+import { ScreenGlow } from '@/components/ScreenGlow';
 import { colors, fonts } from '@/theme';
 
 const version = Constants.expoConfig?.version;
@@ -99,6 +100,7 @@ export default function ProfileScreen() {
   if (status !== 'signedIn' || !user) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <ScreenGlow />
         <SignInPrompt title="Tu perfil" message="Inicia sesión para ver tu cuenta y administrar tus negocios." variant="profile" />
       </View>
     );
@@ -243,7 +245,9 @@ export default function ProfileScreen() {
   );
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: insets.top + 18 }]}>
+    <View style={styles.screen}>
+      <ScreenGlow />
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: insets.top + 18 }]}>
       <View style={styles.header}>
         <Pressable accessibilityRole="button" accessibilityLabel="Cambiar foto de perfil" onPress={() => void changePhoto()} style={styles.avatarButton}>
           <Avatar uri={user.profile_picture_url} name={user.name} size={64} />
@@ -327,7 +331,8 @@ export default function ProfileScreen() {
         </View>
         {version ? <Text style={styles.version}>Empre · versión {version}</Text> : null}
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -418,6 +423,7 @@ const styles = StyleSheet.create({
   anchorTotal: { fontFamily: fonts.display.bold, fontSize: 30, lineHeight: 34, color: colors.financeLight, fontVariant: ['tabular-nums'] },
   anchorSub: { fontFamily: fonts.ui.extrabold, fontSize: 13, color: colors.glow },
   screen: { flex: 1, backgroundColor: colors.bg },
+  scroll: { flex: 1 },
   content: { paddingHorizontal: 16, paddingBottom: 120, gap: 18 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   headerInfo: { flex: 1, minWidth: 0, gap: 2 },

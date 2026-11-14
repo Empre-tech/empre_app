@@ -54,6 +54,8 @@ export const colors = {
   agendaSoft: '#FDECEC',
   // El degradado de arriba en Inicio y Ofertas: arena más honda que se funde con el fondo.
   glowTop: '#F2E8D5',
+  // Abajo, el fondo termina en blanco (el usuario lo pidió así, 2026-11-14): arena arriba → blanco abajo (ScreenGlow).
+  bgEnd: '#FFFFFF',
 } as const;
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;

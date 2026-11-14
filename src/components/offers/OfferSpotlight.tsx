@@ -76,10 +76,28 @@ const sealOf = (o: MarketItem) => {
   return b === 'multi' ? '2x1' : b === 'free' ? 'Gratis' : 'Oferta';
 };
 
+/** El velo de la foto: un poco arriba (para las barras) y fuerte abajo (para leer el precio en blanco). */
+function Scrim({ id }: { id: string }) {
+  return (
+    <Svg pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <Defs>
+        <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor="#14100C" stopOpacity={0.3} />
+          <Stop offset="0.26" stopColor="#14100C" stopOpacity={0} />
+          <Stop offset="0.42" stopColor="#14100C" stopOpacity={0} />
+          <Stop offset="1" stopColor="#14100C" stopOpacity={0.84} />
+        </LinearGradient>
+      </Defs>
+      <Rect width="100%" height="100%" fill={`url(#${id})`} />
+    </Svg>
+  );
+}
+
 /**
- * Las mejores de hoy (tablero «Empre Offers», teléfono 1): tarjetas grandes que pasan solas cada 4 s, cada una con el
- * fondo de su categoría, el precio grande y un sello que entra con un rebote. Con «Reducir movimiento» no pasan solas
- * ni rebotan; se deslizan a mano.
+ * Las mejores de hoy (tablero «Empre Offers», teléfono 1, 2026-11-14): la foto a todo el ancho, como Uber Eats y las
+ * historias; arriba, una barra por oferta que se llena en 4,2 s y entonces pasa a la siguiente; abajo, sobre un velo,
+ * el negocio, el precio grande y cuándo termina; el sello entra con un rebote. Sin foto, el fondo de su categoría con
+ * su dibujo. Si la persona la toca o la desliza, deja de pasar sola. Con «Reducir movimiento» no pasan solas ni rebotan.
  */
 export function HeroCarousel({ items, bizById, now, onOpen }: { items: MarketItem[]; bizById: Record<string, DiscoveryItem>; now: number; onOpen: (o: MarketItem) => void }) {
   const { width } = useWindowDimensions();
@@ -90,13 +108,20 @@ export function HeroCarousel({ items, bizById, now, onOpen }: { items: MarketIte
   // Si la persona lo toca o lo desliza, deja de pasar solo: manda ella.
   const [held, setHeld] = useState(false);
   const [pop] = useState(() => new Animated.Value(1));
+  const [fill] = useState(() => new Animated.Value(0));
   const n = items.length;
 
+  // La barra de la que se ve se llena y, al llenarse, pasa a la siguiente.
   useEffect(() => {
-    if (reduce || held || n < 2) return;
-    const t = setTimeout(() => setI((k) => (k + 1) % n), 4200);
-    return () => clearTimeout(t);
-  }, [i, n, reduce, held]);
+    const still = reduce || held || n < 2;
+    fill.setValue(still ? 1 : 0);
+    if (still) return;
+    const a = Animated.timing(fill, { toValue: 1, duration: 4200, easing: Easing.linear, useNativeDriver: true });
+    a.start(({ finished }) => {
+      if (finished) setI((k) => (k + 1) % n);
+    });
+    return () => a.stop();
+  }, [i, n, reduce, held, fill]);
   useEffect(() => {
     ref.current?.scrollTo({ x: i * w, animated: !reduce });
     if (reduce) return;
@@ -107,65 +132,75 @@ export function HeroCarousel({ items, bizById, now, onOpen }: { items: MarketIte
   }, [i, w, reduce, pop]);
 
   return (
-    <View style={styles.heroWrap}>
-      <View style={[styles.hero, { width: w }]}>
-        <ScrollView
-          ref={ref}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          onTouchStart={() => setHeld(true)}
-          onScrollBeginDrag={() => setHeld(true)}
-          onMomentumScrollEnd={(e) => setI(Math.round(e.nativeEvent.contentOffset.x / w))}
-          accessibilityLabel="Las mejores ofertas de hoy"
-        >
-          {items.map((o, k) => {
-            const p = priceView(o);
-            const tint = categoryColor(o.category_color).bg;
-            const biz = bizById[o.entity_id];
-            const when = [timeBadge(o.ends_at, now).text, walk(o.distance_meters)].filter(Boolean).join(' · ');
-            return (
-              <Pressable
-                key={o.id}
-                accessibilityRole="button"
-                accessibilityLabel={[o.title, p.now, p.was ? `antes ${p.was}` : null, o.entity_name, when].filter(Boolean).join(', ')}
-                onPress={() => onOpen(o)}
-                style={[styles.slide, { width: w }]}
-              >
-                <Wash id={`hw${k}`} from={tint} to={colors.surface} />
-                <View style={styles.slideText}>
-                  <View style={styles.slideBiz}>
-                    <Image source={{ uri: resolveImageUrl(biz?.profile_url) ?? o.photo }} style={styles.slideLogo} contentFit="cover" accessibilityIgnoresInvertColors />
-                    <Text style={styles.slideBizName} numberOfLines={1}>
-                      {o.entity_name}
-                    </Text>
+    <View style={[styles.hero, { width: w }]}>
+      <ScrollView
+        ref={ref}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onTouchStart={() => setHeld(true)}
+        onScrollBeginDrag={() => setHeld(true)}
+        onMomentumScrollEnd={(e) => setI(Math.round(e.nativeEvent.contentOffset.x / w))}
+        accessibilityLabel="Las mejores ofertas de hoy"
+      >
+        {items.map((o, k) => {
+          const p = priceView(o);
+          const tint = categoryColor(o.category_color).bg;
+          const biz = bizById[o.entity_id];
+          const when = [timeBadge(o.ends_at, now).text, walk(o.distance_meters)].filter(Boolean).join(' · ');
+          const onPhoto = Boolean(o.photo);
+          return (
+            <Pressable
+              key={o.id}
+              accessibilityRole="button"
+              accessibilityLabel={[o.title, p.now, p.was ? `antes ${p.was}` : null, o.entity_name, when].filter(Boolean).join(', ')}
+              onPress={() => onOpen(o)}
+              style={[styles.slide, { width: w }]}
+            >
+              {onPhoto ? (
+                <>
+                  <Image source={{ uri: o.photo }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
+                  <Scrim id={`hs${k}`} />
+                </>
+              ) : (
+                <>
+                  <Wash id={`hw${k}`} from={tint} to={colors.surface} />
+                  <View style={styles.slideArt}>
+                    <CategoryIllustration k={artKeyFor(o.category_name, o.category_icon)} size={150} />
                   </View>
-                  <View style={{ gap: 2 }}>
-                    <Text style={styles.slideName} numberOfLines={2}>
-                      {o.title}
-                    </Text>
-                    <View style={styles.slidePriceRow}>
-                      {p.now ? <Text style={styles.slidePrice}>{p.now}</Text> : null}
-                      {p.was ? <Text style={styles.slideWas}>{p.was}</Text> : null}
-                    </View>
-                    <Text style={styles.slideWhen} numberOfLines={1}>
-                      {when}
-                    </Text>
-                  </View>
+                </>
+              )}
+              <View style={styles.slideText}>
+                <View style={styles.slideBiz}>
+                  <Image source={{ uri: resolveImageUrl(biz?.profile_url) ?? o.photo }} style={styles.slideLogo} contentFit="cover" accessibilityIgnoresInvertColors />
+                  <Text style={[styles.slideBizName, onPhoto && styles.onPhoto]} numberOfLines={1}>
+                    {o.entity_name}
+                  </Text>
                 </View>
-                {o.photo ? <Image source={{ uri: o.photo }} style={styles.slideImg} contentFit="cover" accessibilityIgnoresInvertColors /> : null}
-                <Animated.View style={[styles.seal, { transform: [{ rotate: '-8deg' }, { scale: k === i ? pop : 1 }] }]}>
-                  <Text style={styles.sealText}>{sealOf(o)}</Text>
-                </Animated.View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
+                <Text style={[styles.slideName, onPhoto && styles.onPhoto]} numberOfLines={1}>
+                  {o.title}
+                </Text>
+                <View style={styles.slidePriceRow}>
+                  {p.now ? <Text style={[styles.slidePrice, onPhoto && styles.onPhoto]}>{p.now}</Text> : null}
+                  {p.was ? <Text style={[styles.slideWas, onPhoto && styles.onPhotoSoft]}>{p.was}</Text> : null}
+                </View>
+                <Text style={[styles.slideWhen, onPhoto && styles.onPhotoSoft]} numberOfLines={1}>
+                  {when}
+                </Text>
+              </View>
+              <Animated.View style={[styles.seal, { transform: [{ rotate: '-8deg' }, { scale: k === i ? pop : 1 }] }]}>
+                <Text style={styles.sealText}>{sealOf(o)}</Text>
+              </Animated.View>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
       {n > 1 ? (
-        <View style={styles.dots} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <View style={styles.bars} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           {items.map((o, k) => (
-            <View key={o.id} style={[styles.dot, k === i && styles.dotOn]} />
+            <View key={o.id} style={styles.bar}>
+              <Animated.View style={[styles.barFill, { transform: [{ scaleX: k < i ? 1 : k === i ? fill : 0 }] }]} />
+            </View>
           ))}
         </View>
       ) : null}
@@ -310,24 +345,27 @@ const styles = StyleSheet.create({
   title: { fontFamily: fonts.display.semibold, fontSize: 17, color: colors.ink },
   why: { fontFamily: fonts.ui.medium, fontSize: 12, color: colors.muted },
   rail: { gap: 12, paddingHorizontal: 20 },
-  heroWrap: { gap: 12 },
-  hero: { marginHorizontal: 20, height: 212, borderRadius: 24, overflow: 'hidden' },
-  slide: { height: 212, flexDirection: 'row', overflow: 'hidden' },
-  slideText: { flex: 1, paddingVertical: 18, paddingLeft: 18, paddingRight: 8, justifyContent: 'space-between', zIndex: 1 },
-  slideBiz: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  slideLogo: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: colors.surface, backgroundColor: colors.sandSoft },
+  hero: { marginHorizontal: 20, height: 232, borderRadius: 24, overflow: 'hidden', backgroundColor: colors.ink, shadowColor: '#2B2622', shadowOpacity: 0.14, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 4 },
+  slide: { height: 232, overflow: 'hidden' },
+  slideArt: { position: 'absolute', right: -6, bottom: -4 },
+  slideText: { position: 'absolute', left: 16, right: 16, bottom: 14, gap: 3 },
+  slideBiz: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
+  slideLogo: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: '#FFFFFF', backgroundColor: colors.sandSoft },
   slideBizName: { flexShrink: 1, fontFamily: fonts.ui.semibold, fontSize: 13, color: colors.ink },
   slideName: { fontFamily: fonts.ui.semibold, fontSize: 15, lineHeight: 19, color: colors.ink },
   slidePriceRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 8 },
   slidePrice: { fontFamily: fonts.ui.extrabold, fontSize: 32, letterSpacing: -0.5, color: colors.ink, fontVariant: ['tabular-nums'] },
   slideWas: { fontFamily: fonts.ui.medium, fontSize: 14, color: colors.muted, textDecorationLine: 'line-through' },
   slideWhen: { fontFamily: fonts.ui.semibold, fontSize: 12, color: colors.accentInk },
-  slideImg: { width: 150, height: '100%', borderTopLeftRadius: 60, borderBottomLeftRadius: 60 },
-  seal: { position: 'absolute', right: 14, top: 14, width: 62, height: 62, borderRadius: 31, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', shadowColor: '#A35C13', shadowOpacity: 0.28, shadowRadius: 10, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
+  // Sobre la foto el texto va en blanco, con una sombra suave para que se lea en cualquier foto.
+  onPhoto: { color: '#FFFFFF', textShadowColor: 'rgba(0,0,0,0.35)', textShadowRadius: 6, textShadowOffset: { width: 0, height: 1 } },
+  onPhotoSoft: { color: 'rgba(255,255,255,0.86)' },
+  seal: { position: 'absolute', right: 14, top: 22, width: 62, height: 62, borderRadius: 31, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', shadowColor: '#A35C13', shadowOpacity: 0.28, shadowRadius: 10, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
   sealText: { fontFamily: fonts.ui.extrabold, fontSize: 16, color: colors.ink },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 6 },
-  dot: { width: 22, height: 5, borderRadius: 3, backgroundColor: colors.line },
-  dotOn: { backgroundColor: colors.primary },
+  // Las barras de arriba, como las historias: una por oferta; la de la que se ve se llena.
+  bars: { position: 'absolute', top: 10, left: 12, right: 12, flexDirection: 'row', gap: 4 },
+  bar: { flex: 1, height: 3, borderRadius: 2, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.42)' },
+  barFill: { height: '100%', backgroundColor: '#FFFFFF', transformOrigin: 'left' },
   // Una franja especial va de lado a lado y sin borde: su color sale del fondo y vuelve a él (BandGlow). El aire de
   // arriba y abajo es donde el color se desvanece; el título y las tarjetas quedan en la parte llena.
   band: { marginVertical: -14, paddingTop: 40, paddingBottom: 44, gap: 14 },

@@ -178,8 +178,8 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]} keyboardShouldPersistTaps="handled">
-        <ScreenGlow />
+      <ScreenGlow />
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]} keyboardShouldPersistTaps="handled">
         <View style={styles.pad}>
           {/* Arriba: tú (no el logo), dónde estás y lo nuevo */}
           <View style={styles.topRow}>
@@ -420,6 +420,7 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
+  scroll: { flex: 1 },
   door: { position: 'absolute', zIndex: 20, backgroundColor: colors.sand },
   content: { paddingBottom: 96, gap: 14 }, // el botón Empre flota encima: lo último no queda debajo
   pad: { paddingHorizontal: 16, gap: 14 },
