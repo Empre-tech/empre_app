@@ -3,7 +3,7 @@ import { memo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { DiscoveryItem } from '@/api/types';
-import { CategoryArt } from '@/components/CategoryArt';
+import { CategoryArt, artKeyFor, type ArtKey } from '@/components/CategoryArt';
 import { Ionicons } from '@/components/Icon';
 import type { ServiceItem } from '@/lib/catalog';
 import { priceText } from '@/lib/catalog';
@@ -15,6 +15,7 @@ import { priceView, type MarketItem } from '@/lib/offerMarket';
 import { colors, fonts } from '@/theme';
 
 const km = (m?: number | null) => onFootOrDistance((m ?? 0) / 1000);
+const kmShort = (m?: number | null) => km(m)?.replace(' a pie', '') ?? null;
 const bizPhoto = (b?: DiscoveryItem) => (b ? (resolveImageUrl(b.profile_url) ?? resolveImageUrl(b.photos?.[0]) ?? undefined) : undefined);
 
 /**
@@ -97,12 +98,12 @@ export function ChosenFaces({ picks, onOpen }: { picks: PopularPick<DiscoveryIte
               <Image source={{ uri: bizPhoto(b) }} style={styles.faceImg} contentFit="cover" accessibilityIgnoresInvertColors />
               <Text style={styles.rank}>{rank}</Text>
             </View>
-            <Text style={styles.faceName} numberOfLines={1}>
+            <Text style={styles.faceName} numberOfLines={2}>
               {b.name}
             </Text>
             <Text style={styles.faceMeta} numberOfLines={1}>
               ★ {b.avg_rating.toFixed(1).replace('.', ',')}
-              {km(b.distance_meters) ? ` · ${km(b.distance_meters)}` : ''}
+              {kmShort(b.distance_meters) ? ` · ${kmShort(b.distance_meters)}` : ''}
             </Text>
           </Pressable>
         ))}
@@ -134,6 +135,7 @@ function BizHead({ name, photo, distance, closes, closed, onPress }: { name: str
 
 /** Un negocio de «A tu puerta» con lo que vende. Tocar un producto abre la media hoja. */
 export function BizShelf({ biz, items, onBiz, onItem }: { biz: DiscoveryItem; items: ServiceItem[]; onBiz: () => void; onItem: (item: ServiceItem) => void }) {
+  const art = artKeyFor(biz.category_name, biz.category_icon);
   return (
     <View style={styles.sec}>
       <BizHead name={biz.name} photo={bizPhoto(biz)} distance={biz.distance_meters} closes={biz.closes_at} closed={!biz.is_open_now} onPress={onBiz} />
@@ -143,7 +145,7 @@ export function BizShelf({ biz, items, onBiz, onItem }: { biz: DiscoveryItem; it
           const price = priceText(it);
           const note = it.kind === 'service' ? (it.bookable ? 'Se reserva' : null) : it.sold_out ? 'Agotado' : null;
           return (
-            <Tile key={it.id} photo={photo} price={price} name={it.name} note={note} noteOn={it.kind === 'service'} onPress={() => onItem(it)} />
+            <Tile key={it.id} photo={photo} art={art} price={price} name={it.name} note={note} noteOn={it.kind === 'service'} onPress={() => onItem(it)} />
           );
         })}
       </ScrollView>
@@ -151,19 +153,30 @@ export function BizShelf({ biz, items, onBiz, onItem }: { biz: DiscoveryItem; it
   );
 }
 
-function Tile({ photo, price, was, tag, name, note, noteOn, onPress }: { photo?: string; price: string | null; was?: string | null; tag?: string | null; name: string; note?: string | null; noteOn?: boolean; onPress: () => void }) {
+function Tile({ photo, art, price, was, tag, name, note, noteOn, onPress }: { photo?: string; art: ArtKey; price: string | null; was?: string | null; tag?: string | null; name: string; note?: string | null; noteOn?: boolean; onPress: () => void }) {
+  const label = [name, price, tag, note].filter(Boolean).join(', ');
+  if (!photo) {
+    // Sin foto no hay un cuadro vacío con el nombre y el nombre otra vez debajo: el nombre se dice una vez.
+    return (
+      <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.tile, styles.card, pressed && styles.pressed]}>
+        <View style={styles.cardArt}>
+          <CategoryArt k={art} size={36} />
+        </View>
+        <Text style={styles.cardName} numberOfLines={3}>
+          {name}
+        </Text>
+        <View style={styles.priceRow}>
+          {price ? <Text style={styles.price}>{price}</Text> : null}
+          {was ? <Text style={styles.was}>{was}</Text> : null}
+        </View>
+        {tag ? <Text style={styles.cardTag}>{tag}</Text> : note ? <Text style={[styles.note, noteOn && styles.noteOn]}>{note}</Text> : null}
+      </Pressable>
+    );
+  }
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={[name, price, tag, note].filter(Boolean).join(', ')} onPress={onPress} style={({ pressed }) => [styles.tile, pressed && styles.pressed]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.tile, pressed && styles.pressed]}>
       <View>
-        {photo ? (
-          <Image source={{ uri: photo }} style={styles.tileImg} contentFit="cover" accessibilityIgnoresInvertColors />
-        ) : (
-          <View style={[styles.tileImg, styles.tileNoImg]}>
-            <Text style={styles.tileNoImgText} numberOfLines={3}>
-              {name}
-            </Text>
-          </View>
-        )}
+        <Image source={{ uri: photo }} style={styles.tileImg} contentFit="cover" accessibilityIgnoresInvertColors />
         {tag ? <Text style={styles.tag}>{tag}</Text> : null}
       </View>
       <View style={styles.priceRow}>
@@ -226,7 +239,7 @@ export function ResultsByBusiness({
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
             {g.items.map((it) => {
               const p = priceView(it);
-              return <Tile key={it.id} photo={it.photo} price={p.now} was={p.was} tag={p.save ?? (it.kind === 'offer' ? 'Oferta' : null)} name={it.title} onPress={() => onItem(it)} />;
+              return <Tile key={it.id} photo={it.photo} art={artKeyFor(it.category_name, it.category_icon)} price={p.now} was={p.was} tag={p.save ?? (it.kind === 'offer' ? 'Oferta' : null)} name={it.title} onPress={() => onItem(it)} />;
             })}
           </ScrollView>
         </View>
@@ -259,11 +272,11 @@ const styles = StyleSheet.create({
   chips: { gap: 8, paddingHorizontal: 20 },
   chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
   chipText: { fontFamily: fonts.ui.medium, fontSize: 14, color: colors.ink },
-  faces: { gap: 14, paddingHorizontal: 20 },
-  face: { width: 78, alignItems: 'center', gap: 4 },
+  faces: { gap: 12, paddingHorizontal: 20 },
+  face: { width: 84, alignItems: 'center', gap: 4 },
   faceImg: { width: 62, height: 62, borderRadius: 31, backgroundColor: colors.sandSoft, borderWidth: 2, borderColor: colors.surface },
   rank: { position: 'absolute', left: -2, top: -2, width: 22, height: 22, borderRadius: 11, overflow: 'hidden', backgroundColor: colors.surface, textAlign: 'center', lineHeight: 22, fontFamily: fonts.ui.extrabold, fontSize: 12, color: colors.primaryDark },
-  faceName: { fontFamily: fonts.ui.semibold, fontSize: 12, color: colors.ink, maxWidth: 78 },
+  faceName: { fontFamily: fonts.ui.semibold, fontSize: 12, lineHeight: 15, color: colors.ink, maxWidth: 84, textAlign: 'center' },
   faceMeta: { fontFamily: fonts.ui.medium, fontSize: 11, color: colors.muted },
   bizHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, minHeight: 44 },
   logo: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.sandSoft },
@@ -271,8 +284,10 @@ const styles = StyleSheet.create({
   rail: { gap: 12, paddingHorizontal: 20 },
   tile: { width: 118, gap: 4 },
   tileImg: { width: 118, height: 118, borderRadius: 14, backgroundColor: colors.sandSoft },
-  tileNoImg: { padding: 10, justifyContent: 'flex-end' },
-  tileNoImgText: { fontFamily: fonts.ui.semibold, fontSize: 13, color: colors.sandInk },
+  card: { minHeight: 172, padding: 10, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, gap: 6 },
+  cardArt: { width: 36, height: 36, borderRadius: 18, overflow: 'hidden' },
+  cardName: { flex: 1, fontFamily: fonts.ui.semibold, fontSize: 13, lineHeight: 17, color: colors.ink },
+  cardTag: { alignSelf: 'flex-start', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, overflow: 'hidden', backgroundColor: colors.accent, fontFamily: fonts.ui.semibold, fontSize: 11, color: colors.ink },
   tag: { position: 'absolute', left: 6, top: 6, paddingHorizontal: 7, paddingVertical: 2, borderTopLeftRadius: 3, borderBottomLeftRadius: 3, borderTopRightRadius: 8, borderBottomRightRadius: 8, overflow: 'hidden', backgroundColor: colors.accent, fontFamily: fonts.ui.semibold, fontSize: 11, color: colors.ink },
   priceRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 5 },
   price: { fontFamily: fonts.ui.extrabold, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
