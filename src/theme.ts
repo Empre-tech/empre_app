@@ -4,6 +4,9 @@
 // #D42020 (5,2:1). Los logos nunca van en rojo. Solo dos tonos más, cada uno en su parte:
 // verde #0B7F3D para la plata y Finance, naranja #FF9A1F (con letra negra) para las ofertas.
 // Los errores van en negro con ícono: el rojo es la marca, no una alarma.
+// El rojo es un ACENTO (2026-11-14, «el rojo es como el negro: si resalta mucho, pesa»): relleno solo en el botón
+// principal, el botón Empre, la pestaña activa y los puntos del mapa; en texto, solo lo urgente («Cierra en 40 min»).
+// «Abierto» va en tinta con un punto rojo; enlaces y subtítulos en tinta o gris; contadores en rojo suave (#FDECEC).
 export const colors = {
   primary: '#D42020', // botón principal en rojo de Empre (texto blanco, 5,2:1)
   primaryDark: '#B91C1C', // texto rojo y enlaces sobre arena (6,2:1) y crema (6,3:1)

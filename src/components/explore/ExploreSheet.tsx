@@ -311,6 +311,7 @@ function Body(p: Props) {
       return (
         <View style={styles.body}>
           {nearItems.slice(0, 3).map((m) => <MiniRow key={m.id} model={m} rank={rankOf(m.id)} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
+          {nearItems.length > 3 || farItems.length || r.related.length ? (
           <Pressable accessibilityRole="button" onPress={() => p.sheet.snapTo('full')} style={styles.more}>
             <Text style={styles.link}>
               Ver los {nearItems.length}
@@ -318,6 +319,7 @@ function Body(p: Props) {
               {r.related.length ? ' y recomendaciones' : ''}
             </Text>
           </Pressable>
+          ) : null}
         </View>
       );
     }
@@ -365,9 +367,11 @@ function Body(p: Props) {
       <View style={styles.body}>
         {filterHint}
         {everything.slice(0, 3).map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
-        <Pressable accessibilityRole="button" onPress={() => p.sheet.snapTo('full')} style={styles.more}>
-          <Text style={styles.link}>Ver los {everything.length}</Text>
-        </Pressable>
+        {everything.length > 3 ? (
+          <Pressable accessibilityRole="button" onPress={() => p.sheet.snapTo('full')} style={styles.more}>
+            <Text style={styles.link}>Ver los {everything.length}</Text>
+          </Pressable>
+        ) : null}
       </View>
     );
   }
@@ -426,7 +430,7 @@ const styles = StyleSheet.create({
   headRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   headText: { flex: 1, minWidth: 0 },
   expandedHeadLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  expandedMeta: { flexShrink: 1, fontSize: 12, fontFamily: fonts.ui.bold, color: colors.verified },
+  expandedMeta: { flexShrink: 1, fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
   title: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
   subtitle: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   avatars: { flexDirection: 'row' },
@@ -448,7 +452,7 @@ const styles = StyleSheet.create({
   hintAction: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.primary, textDecorationLine: 'underline' },
   secHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingTop: spacing.xs + 2, paddingBottom: spacing.sm },
   secTitle: { fontSize: 15.5, fontFamily: fonts.display.bold, color: colors.ink },
-  link: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primary },
+  link: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   hscroll: { flexGrow: 0 },
   hrow: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   more: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },

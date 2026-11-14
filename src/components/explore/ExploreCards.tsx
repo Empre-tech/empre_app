@@ -89,7 +89,14 @@ export function PillView({ pill, mine, floating }: { pill?: Pill | null; mine?: 
 
 function StatusText({ open }: { open: boolean | null }) {
   if (open === null) return null;
-  return <Text style={open ? styles.open : styles.closed}>{open ? 'Abierto' : 'Cerrado'}</Text>;
+  // Abierto: el punto rojo dice que está vivo; la palabra va en tinta (el rojo es acento, no un texto que pese).
+  return open ? (
+    <Text style={styles.open}>
+      <Text style={styles.openDot}>● </Text>Abierto
+    </Text>
+  ) : (
+    <Text style={styles.closed}>Cerrado</Text>
+  );
 }
 
 /**
@@ -226,8 +233,8 @@ export function MiniRow({ model, selected, onPress, rank }: { model: CardModel; 
 }
 
 const styles = StyleSheet.create({
-  rank: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary },
-  rankText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
+  rank: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primarySoft },
+  rankText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   circle: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 24, paddingHorizontal: 9, borderRadius: radius.pill, alignSelf: 'flex-start' },
   pillFloating: { position: 'absolute', left: 8, bottom: 8 },
@@ -237,12 +244,13 @@ const styles = StyleSheet.create({
   pillText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.ink },
   pillTextNew: { color: colors.ink },
   pillTextMine: { color: '#D42020' },
-  open: { color: '#D42020', fontFamily: fonts.ui.bold },
+  open: { color: colors.ink, fontFamily: fonts.ui.semibold },
+  openDot: { color: colors.brand, fontSize: 9 },
   closed: { color: '#9B2C2C', fontFamily: fonts.ui.bold },
-  why: { color: colors.primaryDark },
+  why: { color: colors.muted },
   pressed: { opacity: 0.85 },
-  nearChip: { height: 22, paddingHorizontal: 9, borderRadius: radius.pill, backgroundColor: colors.primary, justifyContent: 'center' },
-  nearChipText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  nearChip: { height: 22, paddingHorizontal: 9, borderRadius: radius.pill, backgroundColor: colors.sandSoft, justifyContent: 'center' },
+  nearChipText: { fontSize: 11, fontFamily: fonts.ui.semibold, color: colors.ink },
   nearBorder: { borderColor: colors.primary },
   topRight: { alignItems: 'flex-end', gap: 4 },
   selected: { borderColor: colors.primary, borderWidth: 1.5 },

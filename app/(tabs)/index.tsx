@@ -311,7 +311,7 @@ export default function HomeScreen() {
                     <Text style={styles.followName} numberOfLines={2}>
                       {b.name}
                     </Text>
-                    <Text style={[styles.forWhy, source === 'tuyo' && { color: colors.primaryDark }]} numberOfLines={2}>
+                    <Text style={styles.forWhy} numberOfLines={2}>
                       {reason}
                     </Text>
                   </Pressable>
@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
   secHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 },
   secCount: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   seeAll: { minHeight: 44, justifyContent: 'center' },
-  seeAllText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
+  seeAllText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   openIn: { gap: 12, paddingHorizontal: 16 },
   openCard: { width: 156, gap: 5 },
   openImg: { width: 156, height: 104, borderRadius: 16, overflow: 'hidden', backgroundColor: colors.sandSoft },

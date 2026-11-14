@@ -220,7 +220,7 @@ export function BestPriceRail({ picks, onOpen }: { picks: BestPrice[]; onOpen: (
         <Text style={styles.title} accessibilityRole="header">
           Mejor precio cerca
         </Text>
-        <Text style={[styles.why, { color: colors.primaryDark }]}>Lo mismo en varios negocios: aquí está más barato</Text>
+        <Text style={styles.why}>Lo mismo en varios negocios: aquí está más barato</Text>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bandRail}>
         {picks.map((b) => (
@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
   best: { width: 200, borderRadius: 18, overflow: 'hidden', backgroundColor: colors.surface, shadowColor: '#B91C1C', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
   bestImg: { width: '100%', height: 104, backgroundColor: colors.sandSoft },
   bestArt: { overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  bestBadge: { position: 'absolute', left: 8, top: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, overflow: 'hidden', backgroundColor: colors.surface, fontFamily: fonts.ui.semibold, fontSize: 11, color: colors.primaryDark },
+  bestBadge: { position: 'absolute', left: 8, top: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, overflow: 'hidden', backgroundColor: colors.surface, fontFamily: fonts.ui.semibold, fontSize: 11, color: colors.ink },
   bestBody: { padding: 12, gap: 6 },
   bestName: { fontFamily: fonts.ui.medium, fontSize: 13, color: colors.ink },
   bestPriceRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 },

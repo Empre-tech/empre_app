@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
   youText: { fontFamily: fonts.ui.extrabold, fontSize: 10.5, color: colors.ink },
   count: { position: 'absolute', left: 12, top: 12, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.surface, shadowColor: '#2B2622', shadowOpacity: 0.1, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
   countDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.glow },
-  countText: { fontFamily: fonts.ui.semibold, fontSize: 13, color: colors.primaryDark },
+  countText: { fontFamily: fonts.ui.semibold, fontSize: 13, color: colors.ink },
   bottom: { position: 'absolute', left: 12, right: 12, bottom: 12, gap: 8, alignItems: 'flex-end' },
   tick: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   tickIcon: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },

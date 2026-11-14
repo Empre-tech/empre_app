@@ -73,6 +73,7 @@ export function BusinessTag({ entity, qrOfferId, onProfile, onClose, onHeight }:
           </Text>
           {status ? (
             <Text style={[styles.status, status.tone === 'open' && styles.statusOpen]} numberOfLines={1}>
+              {status.tone === 'open' ? <Text style={styles.openDot}>● </Text> : null}
               {status.text}
             </Text>
           ) : null}
@@ -102,7 +103,8 @@ const styles = StyleSheet.create({
   name: { fontSize: 16, lineHeight: 20, fontFamily: fonts.display.semibold, color: colors.ink },
   line: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
   status: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
-  statusOpen: { color: colors.primaryDark },
+  statusOpen: { color: colors.ink },
+  openDot: { color: colors.brand, fontSize: 9 },
   pill: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, borderTopLeftRadius: 3, borderBottomLeftRadius: 3, borderTopRightRadius: 8, borderBottomRightRadius: 8, backgroundColor: colors.accent, maxWidth: '100%' },
   pillMine: { borderRadius: 999, backgroundColor: colors.verifiedSoft },
   pillText: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.ink },
