@@ -33,9 +33,29 @@ function nextSlotLabel(iso: string): string {
 }
 
 const PHONE_RE = /^[+\d\s()-]{7,}$/;
-const GALLERY_H = 300;
-/** Sin foto no hay nada que mostrar en grande: una portada corta y la información arriba. */
-const COVER_H = 132;
+/** Las fotos, dentro de la hoja: se ven bien sin ocupar la pantalla. */
+const GALLERY_H = 220;
+
+/**
+ * La hoja (2026-11-14): el producto se abre encima de lo que estabas viendo, como en Ofertas, no en una página entera.
+ * Ocupa un poco más de media pantalla y se agranda al deslizar o al tocar la barrita; tocar fuera o la ✕ la cierra.
+ */
+function SheetFrame({ expanded, onClose, onToggle, children }: { expanded: boolean; onClose: () => void; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <View style={styles.root}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} style={styles.backdrop} />
+      <View style={[styles.sheet, { height: expanded ? '92%' : '64%' }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={expanded ? 'Achicar' : 'Ver todo'} onPress={onToggle} style={styles.grabberHit}>
+          <View style={styles.grabber} />
+        </Pressable>
+        {children}
+        <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} hitSlop={4} style={styles.close}>
+          <Ionicons name="close" size={20} color={colors.ink} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
 
 function Fact({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
   return (
@@ -63,6 +83,9 @@ export default function ProductScreen() {
   const [viewer, setViewer] = useState<number | null>(null);
   const [asking, setAsking] = useState<string | null>(null);
   const [booking, setBooking] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const close = () => router.back();
+  const toggle = () => setExpanded((e) => !e);
 
   // Tu talla, si le dijiste a Agent que la recuerde: se marca y se elige con un toque.
   const mySize = useQuery({ queryKey: ['agent-facts'], queryFn: loadFacts }).data?.find((f) => f.name === 'Talla')?.value ?? null;
@@ -83,17 +106,19 @@ export default function ProductScreen() {
 
   if (catalog.isLoading || business.isLoading) {
     return (
-      <View style={[styles.screen, { paddingTop: insets.top }]}>
+      <SheetFrame expanded={false} onClose={close} onToggle={toggle}>
         <ActivityIndicator style={{ marginTop: spacing.xxl }} color={colors.primary} />
-      </View>
+      </SheetFrame>
     );
   }
   if (!item || !business.data) {
     return (
-      <View style={[styles.screen, { paddingTop: insets.top + spacing.lg, paddingHorizontal: spacing.lg, gap: spacing.md }]}>
-        <Text style={styles.name}>Este producto ya no está</Text>
-        <Button title="Volver" variant="secondary" onPress={() => router.back()} />
-      </View>
+      <SheetFrame expanded={false} onClose={close} onToggle={toggle}>
+        <View style={{ padding: spacing.lg, gap: spacing.md }}>
+          <Text style={styles.name}>Este producto ya no está</Text>
+          <Button title="Volver" variant="secondary" onPress={close} />
+        </View>
+      </SheetFrame>
     );
   }
 
@@ -140,23 +165,23 @@ export default function ProductScreen() {
   };
 
   return (
-    <View style={styles.screen}>
-      <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
-        <View style={{ height: (photos.length ? GALLERY_H : COVER_H) + insets.top }}>
-          {photos.length ? (
-            <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onScroll}>
-              {photos.map((id, i) => (
-                <Pressable key={id} accessibilityRole="imagebutton" accessibilityLabel={`Foto ${i + 1} de ${photos.length}. Ver en grande`} onPress={() => setViewer(i)}>
-                  <Image source={{ uri: mediaUrl(id) }} style={{ width, height: GALLERY_H + insets.top }} contentFit="cover" transition={150} />
-                </Pressable>
-              ))}
-            </ScrollView>
-          ) : (
-            <Cover category={b.category?.name} icon={b.category?.icon} iconName={icon} iconSize={72} style={StyleSheet.absoluteFill} />
-          )}
-          <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={() => router.back()} style={[styles.round, { top: insets.top + spacing.sm, left: spacing.lg }]}>
-            <Ionicons name="chevron-back" size={22} color={colors.ink} />
-          </Pressable>
+    <SheetFrame expanded={expanded} onClose={close} onToggle={toggle}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: spacing.xl }}
+        scrollEventThrottle={64}
+        onScroll={(e) => {
+          if (!expanded && e.nativeEvent.contentOffset.y > 24) setExpanded(true);
+        }}
+      >
+        {photos.length ? (
+        <View style={{ height: GALLERY_H }}>
+          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onScroll}>
+            {photos.map((id, i) => (
+              <Pressable key={id} accessibilityRole="imagebutton" accessibilityLabel={`Foto ${i + 1} de ${photos.length}. Ver en grande`} onPress={() => setViewer(i)}>
+                <Image source={{ uri: mediaUrl(id) }} style={{ width, height: GALLERY_H }} contentFit="cover" transition={150} />
+              </Pressable>
+            ))}
+          </ScrollView>
           {photos.length > 1 ? (
             <>
               <View style={styles.counter}>
@@ -172,11 +197,13 @@ export default function ProductScreen() {
             </>
           ) : null}
         </View>
+        ) : null}
 
         <View style={styles.body}>
-          <View style={styles.head}>
+          <View style={[styles.head, !photos.length && styles.headFlat]}>
             {meta ? <Text style={styles.meta}>{meta}</Text> : null}
             <View style={styles.titleRow}>
+              {photos.length ? null : <Cover category={b.category?.name} icon={b.category?.icon} iconName={icon} iconSize={30} style={styles.thumb} />}
               <Text style={styles.name}>{title}</Text>
               <Text style={price ? styles.price : styles.consult}>{price ?? 'Consultar'}</Text>
             </View>
@@ -275,7 +302,7 @@ export default function ProductScreen() {
               <Text style={styles.desc}>{description}</Text>
             </View>
           ) : null}
-          {terms.length >= 2 ? (
+          {isOwner && terms.length >= 2 ? (
             <View style={styles.terms}>
               <Text style={styles.label}>Así lo encuentran en Empre</Text>
               <View style={styles.termRow}>
@@ -358,7 +385,7 @@ export default function ProductScreen() {
           }}
         />
       ) : null}
-    </View>
+    </SheetFrame>
   );
 }
 
@@ -391,7 +418,14 @@ function PhotoViewer({ photos, start, onClose }: { photos: string[]; start: numb
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
+  root: { flex: 1, justifyContent: 'flex-end' },
+  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(43,38,34,0.32)' },
+  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden', backgroundColor: colors.bg },
+  grabberHit: { height: 22, alignItems: 'center', justifyContent: 'center' },
+  grabber: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.line },
+  close: { position: 'absolute', top: 8, right: 12, zIndex: 2, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,254,251,0.92)' },
+  headFlat: { marginTop: 0, paddingRight: 52 },
+  thumb: { width: 56, height: 56, borderRadius: 16, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   round: { position: 'absolute', width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center' },
   counter: { position: 'absolute', right: spacing.lg, bottom: spacing.lg, paddingHorizontal: 10, height: 26, borderRadius: 13, backgroundColor: 'rgba(22,35,58,0.72)', justifyContent: 'center' },
   counterText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },

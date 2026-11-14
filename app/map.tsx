@@ -8,9 +8,7 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   Animated,
-  Linking,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -21,10 +19,8 @@ import { categoriesApi, entitiesApi } from '@/api/endpoints';
 import { claimsApi, discoverApi, discoveryApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
 import type { DiscoverItem, DiscoveryItem, DiscoverSectionId } from '@/api/types';
-import { BusinessSheet } from '@/components/explore/BusinessSheet';
+import { BusinessTag } from '@/components/explore/BusinessTag';
 import { type CardModel } from '@/components/explore/ExploreCards';
-import { AllCategoriesModal } from '@/components/explore/AllCategoriesModal';
-import { GroupRow } from '@/components/explore/GroupRow';
 import { ExploreSheet } from '@/components/explore/ExploreSheet';
 import { type WithDistance } from '@/components/explore/FeaturedCard';
 import { PinMarker } from '@/components/explore/PinMarker';
@@ -47,12 +43,12 @@ import { hourIdeas } from '@/lib/askChips';
 import { ExploreGuide, type GuideRect } from '@/components/explore/ExploreGuide';
 import { StackMarker } from '@/components/explore/StackMarker';
 import { SearchBar } from '@/components/explore/SearchBar';
-import { FilterRow, FiltersSheet } from '@/components/search/SearchFilters';
+import { FilterRow } from '@/components/search/SearchFilters';
 import { activeCount, applyFilters, NO_FILTERS as NO_SEARCH, walkMeters, type FilterCaps, type SearchFilters, type WalkMin } from '@/lib/searchFilters';
 import { useFeaturedSheet } from '@/components/explore/useFeaturedSheet';
 import { DEFAULT_REGION } from '@/config';
 import { categoryColor } from '@/lib/categoryColor';
-import { buildGroups, categoryFilter, groupIdOf, type GroupId } from '@/lib/categoryGroups';
+import { buildGroups, categoryFilter, type GroupId } from '@/lib/categoryGroups';
 import { focusCenterLat } from '@/lib/placeCard';
 import { stripText } from '@/lib/locationStrip';
 import { photoTotal } from '@/lib/photoStrip';
@@ -108,7 +104,6 @@ export default function MapScreen() {
   // El grupo elegido (filtra por todas sus categorías) y, dentro, opcionalmente una categoría.
   const [groupId, setGroupId] = useState<GroupId | undefined>();
   const [subcategoryId, setSubcategoryId] = useState<string | undefined>();
-  const [allCatsOpen, setAllCatsOpen] = useState(false);
   // Alto medido de la ficha del negocio elegido (0 = aún no medido).
   const [sheetH, setSheetH] = useState(0);
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
@@ -197,7 +192,6 @@ export default function MapScreen() {
   const [openNow, setOpenNow] = useState(false);
   // Un solo buscador (3.66): lo que la fila de filtros suma a «abierto», distancia y tipo.
   const [extra, setExtra] = useState<Pick<SearchFilters, 'offer' | 'delivery' | 'verified' | 'sort'>>({ offer: false, delivery: false, verified: false, sort: 'near' });
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
   // Distingue "sin permiso" de "tardó/falló obteniendo el GPS", para poder mostrar
@@ -731,10 +725,6 @@ export default function MapScreen() {
     );
   };
 
-  const directionsTo = (latitude: number, longitude: number) => {
-    void Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`);
-  };
-
   const clearAllFilters = () => {
     setGroupId(undefined);
     setCategoryId(undefined);
@@ -761,7 +751,8 @@ export default function MapScreen() {
 
   // Sobre el mapa, lo justo (3.67): la fila de filtros aparece al buscar o con algún filtro puesto; si no, basta el
   // botón de filtros de la barra. Mientras sale la bienvenida, nada.
-  const showFilterRow = !welcome && (searching || activeCount(searchFilters) > 0);
+  // Un solo filtro (2026-11-14): la fila va siempre bajo el buscador; no hay otra hoja ni botón de filtros.
+  const showFilterRow = !welcome;
   const activeFilterCount = activeCount(searchFilters) + (subcategoryId ? 1 : 0) + (categoryId && !groupId ? 1 : 0);
   const selectedCategory = (categories.data ?? []).find((c) => c.id === categoryId) ?? null;
   const selectedGroup = groups.find((g) => g.id === groupId) ?? null;
@@ -809,11 +800,6 @@ export default function MapScreen() {
     setCategoryId(undefined);
     setSubcategoryId(undefined);
   };
-  const chooseCategory = (id: string | undefined) => {
-    setCategoryId(id);
-    setSubcategoryId(undefined);
-    setGroupId(id ? groupIdOf(id, groups) : undefined);
-  };
 
   // La reseña verificada más reciente de los destacados que se ven (y los adicionales): una sola consulta, hasta 12.
   const extraEntities = useMemo(() => (searching ? [] : pickExtras(known, listBox, EXTRAS_MAX)), [searching, known, listBox]);
@@ -832,15 +818,6 @@ export default function MapScreen() {
     staleTime: 10 * 60_000,
   });
   const snippets = useMemo(() => ({ ...snippetStore.data, ...(snippetsQuery.data ?? {}) }), [snippetStore.data, snippetsQuery.data]);
-  // La ficha del negocio elegido: su reseña viene de los destacados ya cargados o, si no está entre ellos, de una consulta.
-  const selectedSnippetQuery = useQuery({
-    queryKey: ['review-snippet', selectedId],
-    queryFn: () => discoveryApi.reviewSnippets([selectedId ?? '']),
-    enabled: selectedId !== null && !snippets?.[selectedId],
-    staleTime: 10 * 60_000,
-  });
-  const selectedSnippet = selectedId ? (snippets?.[selectedId] ?? selectedSnippetQuery.data?.[selectedId]) : undefined;
-  const selectedReview = selectedSnippet ? snippetLines(selectedSnippet, now) : undefined;
 
   const toModel = useCallback((e: WithDistance, line?: string): CardModel => ({
     id: e.id,
@@ -1256,30 +1233,15 @@ export default function MapScreen() {
             </Animated.View>
           ) : null}
 
+          {/* Tocar un negocio: una etiqueta (nombre, a pie, abierto hasta); tocarla entra al perfil. Sin botones de más. */}
           {selectedEntity ? (
-            <BusinessSheet
+            <BusinessTag
               entity={selectedEntity}
-              isMine={myEntityIds.has(selectedEntity.id)}
               qrOfferId={qrByEntity.get(selectedEntity.id) ?? null}
               onClose={() => setSelectedId(null)}
-              onDirections={() => {
-                track('directions_tapped', selectedEntity.id, { origin: 'map' });
-                directionsTo(selectedEntity.latitude, selectedEntity.longitude);
-              }}
-              onMessage={() => {
-                if (authStatus !== 'signedIn') {
-                  router.push('/(auth)/login');
-                  return;
-                }
-                track('contact_started', selectedEntity.id);
-                router.push({ pathname: '/chat/[entityId]', params: { entityId: selectedEntity.id, name: selectedEntity.name, avatar: selectedEntity.profile_url } });
-              }}
               onProfile={(offerId) =>
                 router.push({ pathname: '/business/[id]', params: offerId ? { id: selectedEntity.id, offer: offerId } : { id: selectedEntity.id } })
               }
-              onScan={() => router.push('/business/scan')}
-              onPublishOffer={() => router.push({ pathname: '/business/offers', params: { entityId: selectedEntity.id } })}
-              review={selectedReview}
               onHeight={onSheetHeight}
             />
           ) : null}
@@ -1294,87 +1256,32 @@ export default function MapScreen() {
           ) : null}
         </View>
 
-        {searchOpen ? (
-          <View style={[styles.searchPanel, { paddingTop: insets.top + spacing.sm + 112 }]}>
-            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelBody}>
-              {debouncedSearch ? null : (
-                <View style={styles.panelGroup}>
-                  <Text style={styles.panelLabel}>Para esta hora · {hourIdeas(new Date().getHours())[0].name.toLowerCase()}</Text>
-                  <View style={styles.panelTiles}>
-                    {hourIdeas(new Date().getHours()).map((q) => (
-                      <ActionTile
-                        key={q.label}
-                        icon={q.icon}
-                        label={q.label}
-                        onPress={() => {
-                          setSearch(q.ask);
-                          closeSearch();
-                        }}
-                      />
-                    ))}
-                  </View>
-                </View>
-              )}
-              {userCoords ? null : (
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={locationDenied || locating}
-                  onPress={() => void requestLocation()}
-                  style={styles.panelSwitch}
-                >
-                  <Text style={[styles.panelSwitchText, { flex: 1 }]}>{locating ? 'Buscando tu ubicación…' : locationDenied ? 'Activa tu ubicación en los ajustes del celular para filtrar por cercanía' : locationError ?? 'Usar mi ubicación para ver lo cercano'}</Text>
-                  {locating ? <ActivityIndicator size="small" color={colors.primary} /> : locationDenied ? null : <Ionicons name="navigate" size={18} color={colors.ink} />}
-                </Pressable>
-              )}
-              <View style={styles.panelGroup}>
-                <Text style={styles.panelLabel}>Qué tipo de negocio</Text>
-                <GroupRow
-                  groups={groups}
-                  groupId={groupId}
-                  categoryId={categoryId}
-                  onGroup={chooseGroup}
-                  onCategory={(id) => {
-                    setCategoryId(id);
-                    setSubcategoryId(undefined);
+        {/* Buscar (2026-11-14): el mapa sigue a la vista; antes de escribir, una lista corta con ideas para esta hora. */}
+        {searchOpen && !debouncedSearch ? (
+          <View style={[styles.suggest, { top: insets.top + spacing.sm + 112 }]}>
+            <Text style={styles.panelLabel}>Para esta hora · {hourIdeas(new Date().getHours())[0].name.toLowerCase()}</Text>
+            <View style={styles.panelTiles}>
+              {hourIdeas(new Date().getHours()).map((q) => (
+                <ActionTile
+                  key={q.label}
+                  icon={q.icon}
+                  label={q.label}
+                  onPress={() => {
+                    setSearch(q.ask);
+                    closeSearch();
                   }}
-                  onSeeAll={() => setAllCatsOpen(true)}
                 />
-                {(selectedCategory?.subcategories ?? []).length > 0 ? (
-                  <View style={styles.panelSubs}>
-                    {(selectedCategory?.subcategories ?? []).map((sub) => {
-                      const on = subcategoryId === sub.id;
-                      return (
-                        <Pressable key={sub.id} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setSubcategoryId(on ? undefined : sub.id)} style={[styles.panelSub, on && styles.walkChoiceOn]}>
-                          <Text style={styles.walkChoiceText}>{sub.name}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                ) : null}
-              </View>
-            </ScrollView>
-            <View style={[styles.panelFoot, { paddingBottom: insets.bottom + 16 }]}>
-              {activeFilterCount > 0 ? (
-                <Pressable accessibilityRole="button" onPress={clearAllFilters} style={styles.panelClear}>
-                  <Text style={styles.panelClearText}>Quitar filtros</Text>
-                </Pressable>
-              ) : null}
-              <Pressable accessibilityRole="button" onPress={closeSearch} style={styles.panelGo}>
-                <Text style={styles.panelGoText}>Ver en el mapa</Text>
-              </Pressable>
+              ))}
             </View>
+            {userCoords ? null : (
+              <Pressable accessibilityRole="button" disabled={locationDenied || locating} onPress={() => void requestLocation()} style={styles.panelSwitch}>
+                <Text style={[styles.panelSwitchText, { flex: 1 }]}>{locating ? 'Buscando tu ubicación…' : locationDenied ? 'Activa tu ubicación en los ajustes del celular para filtrar por cercanía' : locationError ?? 'Usar mi ubicación para ver lo cercano'}</Text>
+                {locating ? <ActivityIndicator size="small" color={colors.primary} /> : locationDenied ? null : <Ionicons name="navigate" size={18} color={colors.ink} />}
+              </Pressable>
+            )}
           </View>
         ) : null}
 
-        <FiltersSheet
-          visible={filtersOpen}
-          value={searchFilters}
-          onChange={changeFilters}
-          onClose={() => setFiltersOpen(false)}
-          caps={filterCaps}
-          groups={groups.map((g) => ({ id: g.id, name: g.name }))}
-          resultCount={fetched.length}
-        />
 
         {/* Arriba, dónde estás (o qué zona mira el mapa); debajo, el buscador con el filtro y las categorías. Flotan sobre el
             mapa: mientras el dedo lo mueve, la franja se atenúa y el resto se desvanece. */}
@@ -1394,11 +1301,11 @@ export default function MapScreen() {
             )}
           </View>
           <Animated.View style={[styles.topRows, { opacity: topFade }]} pointerEvents={mapMoving ? 'none' : 'box-none'}>
-          <SearchBar value={search} onChangeText={setSearch} onOpenFilters={() => setFiltersOpen(true)} filterCount={activeFilterCount} compact hideFilters={showFilterRow} autoFocus={fromHome.buscar === '1'} onFocusChange={(f) => f && setSearchOpen(true)} />
+          <SearchBar value={search} onChangeText={setSearch} onOpenFilters={() => undefined} filterCount={activeFilterCount} compact hideFilters autoFocus={fromHome.buscar === '1'} onFocusChange={setSearchOpen} />
 
           {tall || selectedEntity || searchOpen || !showFilterRow ? null : (
             <View style={styles.filterBleed}>
-              <FilterRow value={searchFilters} onChange={changeFilters} caps={filterCaps} groupName={selectedGroup?.name} onOpenSheet={() => setFiltersOpen(true)} tone="map" />
+              <FilterRow value={searchFilters} onChange={changeFilters} caps={filterCaps} groupName={selectedGroup?.name} single tone="map" />
             </View>
           )}
           {tall || selectedEntity || searchOpen ? null : searching ? (
@@ -1443,13 +1350,6 @@ export default function MapScreen() {
         }}
       />
 
-      <AllCategoriesModal
-        visible={allCatsOpen}
-        groups={groups}
-        selectedId={categoryId}
-        onSelect={chooseCategory}
-        onClose={() => setAllCatsOpen(false)}
-      />
     </View>
   );
 }
@@ -1479,7 +1379,7 @@ function ActiveChip({
 const styles = StyleSheet.create({
   filterBleed: { marginHorizontal: -spacing.md },
   whereRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  searchPanel: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: 5, backgroundColor: colors.bg },
+  suggest: { position: 'absolute', left: 12, right: 12, zIndex: 5, gap: 10, padding: 14, borderRadius: 20, backgroundColor: colors.surface, shadowColor: '#2B2622', shadowOpacity: 0.14, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 6 },
   panelBody: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 20, gap: 20 },
   panelGroup: { gap: 8 },
   panelLabel: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },

@@ -42,6 +42,8 @@ function AppStack() {
       {/* Al mapa se entra abriendo la puerta Explorar del inicio (3.60): un fundido corto, no el deslizamiento lateral. */}
       <Stack.Screen name="map" options={{ animation: 'fade', animationDuration: 180 }} />
       <Stack.Screen name="business/[id]" />
+      {/* El producto se abre como hoja sobre lo que estabas viendo (2026-11-14), no como página entera. */}
+      <Stack.Screen name="business/product" options={{ presentation: 'transparentModal', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="chat/[entityId]" />
     </Stack>
   );

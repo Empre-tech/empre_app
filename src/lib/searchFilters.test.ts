@@ -73,3 +73,12 @@ test('ida y vuelta con los filtros del servidor de Pregúntale', () => {
   assert.equal(back.sort, 'near');
   assert.equal(back.delivery, true);
 });
+
+test('Finder: un solo filtro, sin «Tipo» y con «Mejor valorados»', () => {
+  const ALL2 = { rating: true, cheap: true, distance: true };
+  assert.deepEqual(quickChips(NO_FILTERS, ALL2, undefined, { group: false, top: true }).map((c) => c.label), ['Abierto ahora', 'Cerca', 'Con oferta', 'Domicilio', 'Mejor valorados']);
+  assert.equal(quickChips(NO_FILTERS, { ...ALL2, rating: false }, undefined, { group: false, top: true }).some((c) => c.key === 'top'), false, 'sin notas no hay «Mejor valorados»');
+  const top = toggleQuick(NO_FILTERS, 'top');
+  assert.equal(top.sort, 'rating');
+  assert.equal(toggleQuick(top, 'top').sort, 'near');
+});

@@ -32,36 +32,44 @@ export function FilterRow({
   caps,
   groupName,
   onOpenSheet,
+  single = false,
   tone = 'light',
 }: {
   value: SearchFilters;
   onChange: (f: SearchFilters) => void;
   caps: FilterCaps;
   groupName?: string;
-  onOpenSheet: () => void;
+  /** Sin hoja (Finder): no hay botón «Filtros»; todo está en la fila. */
+  onOpenSheet?: () => void;
+  /** Finder: sin «Tipo» y con «Mejor valorados». */
+  single?: boolean;
   /** Sobre el mapa los filtros apagados llevan sombra para leerse. */
   tone?: 'light' | 'map';
 }) {
   const n = activeCount(value);
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row} keyboardShouldPersistTaps="handled" accessibilityRole="toolbar" accessibilityLabel="Filtros de búsqueda">
-      <Pressable accessibilityRole="button" accessibilityLabel={n ? `Filtros, ${n} activos` : 'Filtros'} onPress={onOpenSheet} style={({ pressed }) => [styles.filtersBtn, tone === 'map' && styles.onMap, pressed && styles.pressed]}>
-        <Ionicons name="options-outline" size={17} color={colors.ink} />
-        <Text style={styles.chipText}>Filtros</Text>
-        {n ? (
-          <View style={styles.count}>
-            <Text style={styles.countText}>{n}</Text>
-          </View>
-        ) : null}
-      </Pressable>
-      <View style={styles.divider} />
-      {quickChips(value, caps, groupName).map((c) => (
+      {onOpenSheet ? (
+        <>
+          <Pressable accessibilityRole="button" accessibilityLabel={n ? `Filtros, ${n} activos` : 'Filtros'} onPress={onOpenSheet} style={({ pressed }) => [styles.filtersBtn, tone === 'map' && styles.onMap, pressed && styles.pressed]}>
+            <Ionicons name="options-outline" size={17} color={colors.ink} />
+            <Text style={styles.chipText}>Filtros</Text>
+            {n ? (
+              <View style={styles.count}>
+                <Text style={styles.countText}>{n}</Text>
+              </View>
+            ) : null}
+          </Pressable>
+          <View style={styles.divider} />
+        </>
+      ) : null}
+      {quickChips(value, caps, groupName, single ? { group: false, top: true } : {}).map((c) => (
         <Pressable
           key={c.key}
           accessibilityRole="button"
           accessibilityState={{ selected: c.on }}
           accessibilityLabel={c.on && c.key !== 'group' ? `${c.label}, toca para quitar` : c.label}
-          onPress={() => (c.key === 'group' ? (c.on ? onChange({ ...value, group: null }) : onOpenSheet()) : onChange(toggleQuick(value, c.key)))}
+          onPress={() => (c.key === 'group' ? (c.on ? onChange({ ...value, group: null }) : onOpenSheet?.()) : onChange(toggleQuick(value, c.key)))}
           style={({ pressed }) => [styles.chip, c.on ? styles.chipOn : tone === 'map' && styles.onMap, pressed && styles.pressed]}
         >
           {c.key === 'open' && !c.on ? <View style={styles.openDot} /> : null}

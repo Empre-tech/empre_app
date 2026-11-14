@@ -38,20 +38,28 @@ export function activeCount(f: SearchFilters): number {
   return Number(f.open) + Number(f.walk !== null) + Number(f.offer) + Number(f.delivery) + Number(f.verified) + Number(f.group !== null) + Number(f.sort !== 'near');
 }
 
-export type QuickKey = 'open' | 'walk' | 'offer' | 'delivery' | 'group';
+export type QuickKey = 'open' | 'walk' | 'offer' | 'delivery' | 'group' | 'top';
 
 /** Los filtros rápidos al lado de «Filtros», siempre en este orden. «Tipo» abre la hoja; los demás se encienden. */
-export function quickChips(f: SearchFilters, caps: FilterCaps, groupName?: string): { key: QuickKey; label: string; on: boolean }[] {
+export function quickChips(
+  f: SearchFilters,
+  caps: FilterCaps,
+  groupName?: string,
+  /** Finder (2026-11-14): un solo filtro, sin «Tipo» (se elige buscando) y con «Mejor valorados» en la misma fila. */
+  opts: { group?: boolean; top?: boolean } = {},
+): { key: QuickKey; label: string; on: boolean }[] {
   const out: { key: QuickKey; label: string; on: boolean }[] = [{ key: 'open', label: 'Abierto ahora', on: f.open }];
   if (caps.distance) out.push({ key: 'walk', label: f.walk ? `A ${f.walk} min` : 'Cerca', on: f.walk !== null });
   out.push({ key: 'offer', label: 'Con oferta', on: f.offer }, { key: 'delivery', label: 'Domicilio', on: f.delivery });
-  out.push({ key: 'group', label: f.group && groupName ? groupName : 'Tipo', on: f.group !== null });
+  if (opts.top && caps.rating) out.push({ key: 'top', label: 'Mejor valorados', on: f.sort === 'rating' });
+  if (opts.group !== false) out.push({ key: 'group', label: f.group && groupName ? groupName : 'Tipo', on: f.group !== null });
   return out;
 }
 
 /** Tocar un filtro rápido: lo enciende o lo quita. «Cerca» enciende 10 min. */
 export function toggleQuick(f: SearchFilters, key: Exclude<QuickKey, 'group'>): SearchFilters {
   if (key === 'walk') return { ...f, walk: f.walk ? null : 10 };
+  if (key === 'top') return { ...f, sort: f.sort === 'rating' ? 'near' : 'rating' };
   return { ...f, [key]: !f[key] };
 }
 
