@@ -46,7 +46,7 @@ const QUICK_REPLIES = ['¿Horario?', '¿Precios?', '¿Hacen envíos?'];
 
 /** Lo que Empre AI agrega a la conversación (3.62, F1). Vive solo en este teléfono hasta F2. */
 type AiRow =
-  | { id: string; created_at: string; ai: 'answer'; intent: Intent; answer: Answer }
+  | { id: string; created_at: string; ai: 'answer'; intent: Intent; answer: Answer; serviceId?: string; taughtId?: string }
   | { id: string; created_at: string; ai: 'status'; text: string };
 interface PendingQuestion {
   id: string;
@@ -63,6 +63,9 @@ interface PendingQuestion {
   /** La pregunta del cliente que se responde (su id en el servidor): la respuesta se guarda atada a ella (3.71). */
   replyTo?: string;
 }
+
+/** Qué se respondió: la intención y, si habla de algo del catálogo, de qué (igual que el servidor al no repetir). */
+const answerKey = (intent: string, serviceId?: string | null, taughtId?: string | null) => `${intent}|${serviceId ?? ''}|${taughtId ?? ''}`;
 
 /** El id guardado de la pregunta (la copia local aún no lo tiene): el mensaje del cliente con ese texto, de ese momento. */
 function askedIdOf(msgs: ChatMessage[], q: { text: string; askedAt: string }): string | undefined {
@@ -94,6 +97,8 @@ export default function ChatScreen() {
   const [pending, setPending] = useState<PendingQuestion[]>([]);
   // «Escribiendo…» (3.68): desde que llega tu pregunta hasta que hay respuesta o se le pasa al negocio.
   const [typing, setTyping] = useState(false);
+  // De qué trata la primera pregunta que se está respondiendo: lo que dice «Revisando…» (no cambia mientras se guardan).
+  const [about, setAbout] = useState<{ intent: Intent; service?: string }>({ intent: 'unknown' });
   // La hora con que se arman las respuestas guardadas (si una oferta ya venció, no se presenta como vigente).
   const [openedAt] = useState(() => Date.now());
 
@@ -249,8 +254,8 @@ export default function ChatScreen() {
     if (!list.length) return;
     const today = new Date().toDateString();
     const answered = new Set<string>([
-      ...msgs.filter((m) => m.kind === 'ai_answer' && m.ai_intent && new Date(m.created_at).toDateString() === today).map((m) => m.ai_intent!),
-      ...rows.flatMap((r) => (r.ai === 'answer' ? [r.intent] : [])),
+      ...msgs.filter((m) => m.kind === 'ai_answer' && m.ai_intent && new Date(m.created_at).toDateString() === today).map((m) => answerKey(m.ai_intent!, m.ai_service_id, m.ai_answer_id)),
+      ...rows.flatMap((r) => (r.ai === 'answer' ? [answerKey(r.intent, r.serviceId, r.taughtId)] : [])),
     ]);
     const hasStatus = rows.some((r) => r.ai === 'status');
     const keep: PendingQuestion[] = [];
@@ -260,7 +265,7 @@ export default function ChatScreen() {
       for (const q of list) {
         const step = autoAnswerStep({
           answerable: !q.answer.unanswered && q.intent !== 'unknown',
-          intent: q.intent,
+          intent: answerKey(q.intent, q.serviceId, q.taughtId),
           ownerOnline: online,
           ownerReplied: ownerRepliedSince(msgs, q.askedAt),
           elapsedMs: Date.now() - Date.parse(q.askedAt),
@@ -268,7 +273,7 @@ export default function ChatScreen() {
         });
         if (step === 'wait') keep.push(q);
         else if (step === 'answer') {
-          answered.add(q.intent);
+          answered.add(answerKey(q.intent, q.serviceId, q.taughtId));
           saveToServer.push(q);
         } else if (step === 'status') {
           const askedId = q.replyTo ?? askedIdOf(msgs, q);
@@ -284,14 +289,32 @@ export default function ChatScreen() {
     latest.current = { ...latest.current, pending: keep, aiRows: add.length ? [...add, ...rows] : rows };
     setPending(keep);
     if (add.length) setAiRows((prev) => [...add, ...prev]);
-    setTyping(false);
-    for (const q of saveToServer) {
-      // Atada a su pregunta: el servidor no la repite y todos la ven justo debajo de ella (3.71).
-      chatApi
-        .aiAnswer(entityId, q.intent, q.serviceId, q.taughtId, q.replyTo ?? askedIdOf(msgs, q))
-        .then((m) => setLive((prev) => (prev.some((x) => x.id === m.id) ? prev : [m, ...prev])))
-        .catch(() => setAiRows((prev) => [{ id: `ai-${q.id}`, created_at: q.anchor ?? new Date().toISOString(), ai: 'answer', intent: q.intent, answer: q.answer }, ...prev]));
+    if (!saveToServer.length) {
+      setTyping(false);
+      return;
     }
+    // Una respuesta por pregunta, en el orden en que se hicieron (2026-11-14). Se guardan una tras otra: en paralelo
+    // el servidor les ponía la hora en cualquier orden. «Revisando…» sigue hasta que están todas y aparecen juntas,
+    // una sola vez (antes llegaban de a una y la burbuja se borraba y volvía a aparecer con cada una).
+    void (async () => {
+      const saved: ChatMessage[] = [];
+      const local: AiRow[] = [];
+      for (const [i, q] of saveToServer.entries()) {
+        // Atada a su pregunta: el servidor no la repite y todos la ven justo debajo de ella (3.71).
+        const m = await chatApi.aiAnswer(entityId, q.intent, q.serviceId, q.taughtId, q.replyTo ?? askedIdOf(msgs, q)).catch(() => null);
+        if (m && !saved.some((x) => x.id === m.id)) {
+          saved.push(m);
+          continue;
+        }
+        // Sin servidor, o el servidor devolvió la misma respuesta de otra pregunta del mensaje (otro producto, la misma
+        // intención): se muestra aquí, justo después de la anterior.
+        const base = q.anchor ? Date.parse(q.anchor) : Date.now();
+        local.push({ id: `ai-${q.id}`, created_at: new Date(base + i).toISOString(), ai: 'answer', intent: q.intent, answer: q.answer, serviceId: q.serviceId, taughtId: q.taughtId });
+      }
+      setTyping(false);
+      if (saved.length) setLive((prev) => [...saved.filter((m) => !prev.some((x) => x.id === m.id)).reverse(), ...prev]);
+      if (local.length) setAiRows((prev) => [...local.reverse(), ...prev]);
+    })();
   }, [answerData?.name, name, entityId, user?.id]);
 
   // Mientras haya preguntas en espera, se revisa cada segundo (el dueño puede contestar o pasar los 45 s).
@@ -306,9 +329,15 @@ export default function ChatScreen() {
    * varias preguntas (3.68) se responde pregunta por pregunta y la pantalla lo junta en una sola burbuja.
    */
   const greeted = useRef(false);
+  // Lo que ya se le pasó a Empre AI en esta apertura: al ponerse al día no vuelve a responder lo que se acaba de preguntar.
+  const asked = useRef(new Map<string, number>());
   const askEmpreAI = async (content: string, preset?: Intent, opts: { catchUp?: boolean; anchor?: string; replyTo?: string } = {}) => {
     const { catchUp = false, anchor, replyTo } = opts;
     if (sentByEntity || !answerData || answerData.aiChatOff || !entityId) return;
+    const askedKey = content.trim().toLocaleLowerCase('es');
+    const askedAt = asked.current.get(askedKey);
+    if (catchUp && askedAt && Date.now() - askedAt < 120_000) return;
+    asked.current.set(askedKey, Date.now());
     // Un saludo solo se contesta con un saludo de Empre AI, una vez por conversación; si ya hablaron, no se repite.
     if (!preset && isGreetingOnly(content)) {
       const already = greeted.current || latest.current.aiRows.some((r) => r.id.startsWith('ai-hola')) || latest.current.messages.some((m) => m.kind === 'ai_answer');
@@ -335,6 +364,8 @@ export default function ChatScreen() {
     let found: Found[] = preset ? [{ intent: preset, services: [] }] : parts.map((part) => detectIntent(part, answerData.services, answerData.taught));
     // Modelo de uso (3.64): de dónde sale la respuesta, para medir cuánto se responde sin IA.
     let source = found.some((f) => f.taughtId) ? 'taught' : 'rule';
+    const aboutOf = (f: Found): { intent: Intent; service?: string } => ({ intent: f.intent, service: f.services.length === 1 ? answerData.services.find((s) => s.id === f.services[0].id)?.name : undefined });
+    setAbout(aboutOf(found.find((f) => f.intent !== 'unknown') ?? found[0]));
     // F4: si las reglas no entienden nada del mensaje, el servidor lo clasifica una vez (solo la intención).
     setTyping(true);
     if (!catchUp && found.every((f) => f.intent === 'unknown')) {
@@ -342,9 +373,12 @@ export default function ChatScreen() {
       if (c && c.intent !== 'unknown') {
         found = [{ intent: c.intent as Intent, services: [], taughtId: c.answer_id }];
         source = 'classify';
+        setAbout(aboutOf(found[0]));
       }
     }
-    const known = found.filter((f, i) => f.intent !== 'unknown' && found.findIndex((g) => g.intent === f.intent) === i);
+    // Una respuesta por cosa preguntada: la misma intención sobre otro producto sí se responde («¿tienen X? ¿y Y?»).
+    const keyOf = (f: Found) => answerKey(f.intent, f.services.length === 1 ? f.services[0].id : undefined, f.taughtId);
+    const known = found.filter((f, i) => f.intent !== 'unknown' && found.findIndex((g) => keyOf(g) === keyOf(f)) === i);
     // Lo que nadie entiende igual le llega al negocio; si además hubo respuestas, se avisa con una sola línea.
     const list: Found[] = known.length ? [...known, ...(found.some((f) => f.intent === 'unknown') ? [{ intent: 'unknown' as Intent, services: [] }] : [])] : [found[0]];
     const now = new Date();
@@ -385,7 +419,7 @@ export default function ChatScreen() {
     if (!answerData) return;
     const now = new Date();
     const ans = buildAnswer(answerData, intent, { serviceId, weekday: now.getDay(), now: now.getTime() });
-    setAiRows((prev) => [{ id: `ai-${now.getTime()}`, created_at: now.toISOString(), ai: 'answer', intent, answer: ans }, ...prev]);
+    setAiRows((prev) => [{ id: `ai-${now.getTime()}`, created_at: now.toISOString(), ai: 'answer', intent, answer: ans, serviceId }, ...prev]);
   };
 
   const rows = useMemo<(ChatMessage | AiRow)[]>(
@@ -566,7 +600,7 @@ export default function ChatScreen() {
             data={rows}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.messages}
-            ListHeaderComponent={typing && !sentByEntity ? <AiThinking understood={understoodLabel(pending[0]?.intent ?? 'unknown', answerData?.noun ?? 'Carta')} looking={lookedLabel(pending[0]?.intent ?? 'unknown', answerData?.noun ?? 'Carta')} /> : null}
+            ListHeaderComponent={typing && !sentByEntity ? <AiThinking understood={understoodLabel(about.intent, answerData?.noun ?? 'Carta', about.service)} looking={lookedLabel(about.intent, answerData?.noun ?? 'Carta')} /> : null}
             renderItem={({ item: row }) => {
             if ('ai' in row && row.ai === 'status') return <AiRelay text={row.text} />;
             if (!('ai' in row) && row.kind === 'ai_answer' && row.ai_intent && sentByEntity) {
@@ -578,9 +612,14 @@ export default function ChatScreen() {
             if ('ai' in row || (row.kind === 'ai_answer' && row.ai_intent)) {
               // Una burbuja por grupo (3.68): la fila más nueva la dibuja con todas las respuestas, en orden.
               if (aiGroups.hidden.has(row.id)) return null;
+              const seen = new Set<string>();
               const parts = (aiGroups.lead.get(row.id) ?? [row.id]).flatMap((id) => {
                 const r = rowById.get(id);
                 if (!r) return [];
+                // Una sola vez cada cosa respondida, aunque haya quedado guardada y también aquí.
+                const key = 'ai' in r ? (r.ai === 'answer' ? answerKey(r.intent, r.serviceId, r.taughtId) : '') : answerKey(r.ai_intent ?? '', r.ai_service_id, r.ai_answer_id);
+                if (key && seen.has(key)) return [];
+                if (key) seen.add(key);
                 if ('ai' in r) return r.ai === 'answer' ? [{ answer: r.answer, intent: r.intent as string }] : [];
                 if (r.kind !== 'ai_answer' || !r.ai_intent || !answerData) return [];
                 const when = new Date(r.created_at);

@@ -47,11 +47,11 @@ export function voice(answer: Answer): Voiced {
 }
 
 /** Qué entendió, para el paso «Entendí: …» mientras piensa. */
-export function understoodLabel(intent: Intent | string, noun: string): string {
+export function understoodLabel(intent: Intent | string, noun: string, service?: string): string {
   const n = noun.toLocaleLowerCase('es');
   switch (intent) {
     case 'services':
-      return `Entendí: lo que hay en su ${n}`;
+      return service ? `Entendí: si tienen ${service.toLocaleLowerCase('es')}` : `Entendí: lo que hay en su ${n}`;
     case 'price':
       return 'Entendí: cuánto cuesta';
     case 'duration':

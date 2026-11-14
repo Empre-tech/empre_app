@@ -27,6 +27,8 @@ export interface AnswerService {
   price_from: boolean;
   duration_min?: number | null;
   bookable?: boolean;
+  /** El negocio lo marcó agotado por ahora. */
+  sold_out?: boolean;
 }
 
 export interface AnswerOffer {
@@ -216,6 +218,9 @@ const WORDS: [Intent, RegExp][] = [
   ['services', /\b(servicio\w*|que tienen|que hacen|carta|menu|producto\w*|catalogo|que venden|ofrecen)\b/],
 ];
 
+const STOCK = /\b(tienen|tiene|hay|queda\w*|disponib\w*|venden|vende|manejan|maneja|consigo|consigue|traen)\b/;
+const NOT_STOCK = /\b(cuesta|cuestan|vale|valen|precio\w*|cobran|tarifa\w*|dura\w*|demora\w*|tarda\w*|reserv\w*|agend\w*|cita|turno|oferta\w*|promo\w*|descuento\w*)\b/;
+
 /** Servicios del catálogo que el texto nombra (todas las palabras largas del nombre aparecen en el texto). */
 export function mentionedServices(text: string, services: AnswerService[]): AnswerService[] {
   const t = ` ${plain(text)} `;
@@ -253,6 +258,9 @@ export function matchTaught(text: string, taught: TaughtAnswer[] = []): TaughtAn
 export function detectIntent(text: string, services: AnswerService[], taught?: TaughtAnswer[]): { intent: Intent; services: AnswerService[]; taughtId?: string } {
   const t = ` ${plain(text)} `;
   const named = mentionedServices(text, services);
+  // «¿Tienen bloqueador solar disponible?»: si nombra algo de su catálogo y pregunta si lo tienen (sin hablar de precio,
+  // duración, citas u ofertas), se responde con el catálogo, no con los cupos de la agenda (2026-11-14).
+  if (named.length && STOCK.test(t) && !NOT_STOCK.test(t)) return { intent: 'services', services: named };
   const hit = WORDS.find(([, re]) => re.test(t));
   if (hit) return { intent: hit[0], services: named };
   const own = matchTaught(text, taught);
@@ -308,6 +316,18 @@ function baseAnswer(d: AnswerData, intent: Intent, opts: { serviceId?: string; t
 
   switch (intent) {
     case 'services': {
+      // «¿Lo tienen?» de algo que nombró: sí está en su catálogo, con su precio; si lo marcaron agotado, se dice.
+      if (svc) {
+        const noun = d.noun.toLocaleLowerCase('es');
+        const price = priceLabel(svc);
+        return {
+          intent,
+          unanswered: false,
+          source: `Según su ${noun}`,
+          blocks: [{ kind: 'text', title: `Sí, ${svc.name} está en su ${noun}${price ? `: ${price}` : ''}`, body: svc.sold_out ? 'Lo marcaron agotado por ahora.' : 'Para confirmar que lo tienen hoy, pregúntale.' }],
+          actions: [{ kind: 'message', label: 'Preguntar si lo tienen hoy', draft: draftFor(d, `¿tienen ${svc.name.toLocaleLowerCase('es')} hoy?`) }],
+        };
+      }
       if (!d.services.length) return missing(d, intent, `su ${d.noun.toLocaleLowerCase('es')}`, question);
       const top = d.services.slice(0, 5);
       return {
@@ -403,7 +423,8 @@ function baseAnswer(d: AnswerData, intent: Intent, opts: { serviceId?: string; t
     }
     case 'delivery': {
       if (d.serviceMode === '') return missing(d, intent, 'si hace domicilios', question);
-      const text = d.serviceMode === 'delivery' ? 'Atiende a domicilio' : d.serviceMode === 'both' ? 'Atiende en el local y a domicilio' : 'Atiende solo en el local';
+      // Primero el sí o el no (es lo que preguntaron), después cómo atiende.
+      const text = d.serviceMode === 'delivery' ? 'Sí, hace domicilios' : d.serviceMode === 'both' ? 'Sí, hace domicilios y también atiende en el local' : 'No hace domicilios: atiende solo en el local';
       return { intent, unanswered: false, source: 'Según su perfil', blocks: [{ kind: 'text', title: text }], actions: d.serviceMode === 'in_place' ? [] : [{ kind: 'message', label: `Pedir a ${d.name}`, draft: draftFor(d, question) }] };
     }
     default:

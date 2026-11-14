@@ -94,7 +94,10 @@ export interface TurnRow {
 }
 
 export interface AiGroups {
-  /** La fila que dibuja la burbuja de cada grupo (la más nueva) → las del grupo, de la más vieja a la más nueva. */
+  /**
+   * La fila que dibuja la burbuja de cada grupo (la MÁS VIEJA, 2026-11-14: así la burbuja no se desmonta y vuelve a
+   * aparecer cada vez que llega otra respuesta) → las del grupo, de la más vieja a la más nueva.
+   */
   lead: Map<string, string[]>;
   /** Filas que no se dibujan porque ya van dentro de la burbuja de su grupo. */
   hidden: Set<string>;
@@ -111,8 +114,8 @@ export function groupAiAnswers(rows: TurnRow[], gapMs = 120_000): AiGroups {
   const close = () => {
     if (!run.length) return;
     const ids = run.map((r) => r.id).reverse();
-    lead.set(run[0].id, ids);
-    for (const r of run.slice(1)) hidden.add(r.id);
+    lead.set(ids[0], ids);
+    for (const id of ids.slice(1)) hidden.add(id);
     run = [];
   };
   for (const r of rows) {

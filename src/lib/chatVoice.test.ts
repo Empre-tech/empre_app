@@ -32,6 +32,7 @@ test('una oferta se nombra en la frase y se ve en la tarjeta', () => {
 
 test('los pasos dicen qué entendió y dónde buscó', () => {
   assert.equal(understoodLabel('services', 'Carta'), 'Entendí: lo que hay en su carta');
+  assert.equal(understoodLabel('services', 'Catálogo', 'Bloqueador solar'), 'Entendí: si tienen bloqueador solar');
   assert.equal(lookedLabel('delivery', 'Carta'), 'Revisé cómo atiende');
   assert.equal(understoodLabel('unknown', 'Carta'), 'Leyendo tu mensaje');
 });

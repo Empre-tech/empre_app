@@ -5,8 +5,10 @@ import { groupAiAnswers, isGreetingOnly, splitQuestions, timelineOrder, unanswer
 
 test('el mensaje de la captura: cada pregunta con su intención', () => {
   const services = [{ id: 's1', name: 'Corrientazo del día', price: 16000, price_from: false }];
-  const intents = splitQuestions('Hola, ¿hoy tienen corrientazo? ¿Hacen domicilio?').map((q) => detectIntent(q, services).intent);
-  assert.deepEqual(intents, ['price', 'delivery'], 'antes solo se contestaba el domicilio');
+  const found = splitQuestions('Hola, ¿hoy tienen corrientazo? ¿Hacen domicilio?').map((q) => detectIntent(q, services));
+  // «¿Tienen corrientazo?» se contesta con su menú (sí está, y su precio), no con la agenda (2026-11-14).
+  assert.deepEqual(found.map((f) => f.intent), ['services', 'delivery'], 'antes solo se contestaba el domicilio');
+  assert.equal(found[0].services[0]?.id, 's1');
 });
 
 test('separar las preguntas de un mensaje, sin el saludo', () => {
@@ -30,9 +32,9 @@ test('respuestas automáticas seguidas, una sola burbuja', () => {
     { id: 'yo1', created_at: at(0), ai: false },
   ];
   const g = groupAiAnswers(rows);
-  assert.deepEqual(g.lead.get('ai2'), ['ai1', 'ai2'], 'de la más vieja a la más nueva');
+  assert.deepEqual(g.lead.get('ai1'), ['ai1', 'ai2'], 'la dibuja la más vieja, de la más vieja a la más nueva');
   assert.deepEqual(g.lead.get('ai3'), ['ai3']);
-  assert.ok(g.hidden.has('ai1') && !g.hidden.has('ai2'));
+  assert.ok(g.hidden.has('ai2') && !g.hidden.has('ai1'), 'la burbuja no cambia de fila cuando llega otra respuesta');
   assert.equal(g.first, 'ai1', 'el aviso va una sola vez, en la primera');
 });
 
