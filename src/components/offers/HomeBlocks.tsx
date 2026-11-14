@@ -198,8 +198,8 @@ export function ChosenFaces({ picks, onOpen }: { picks: PopularPick<DiscoveryIte
 }
 
 /** Cabecera de un negocio: su cara, minutos y hasta qué hora; tocar lleva al negocio. Nada repetido. */
-function BizHead({ name, photo, art, distance, closes, closed, onPress }: { name: string; photo?: string; art: ArtKey; distance?: number | null; closes?: string | null; closed?: boolean; onPress: () => void }) {
-  const sub = [km(distance), closed ? 'cerrado' : untilLabel(closes)].filter(Boolean).join(' · ');
+function BizHead({ name, photo, art, distance, closes, closed, extra, onPress }: { name: string; photo?: string; art: ArtKey; distance?: number | null; closes?: string | null; closed?: boolean; extra?: string | null; onPress: () => void }) {
+  const sub = [km(distance), closed ? 'cerrado' : untilLabel(closes), extra].filter(Boolean).join(' · ');
   return (
     <Pressable accessibilityRole="link" accessibilityLabel={`${name}${sub ? `, ${sub}` : ''}. Ver el negocio`} onPress={onPress} style={({ pressed }) => [styles.bizHead, pressed && styles.pressed]}>
       {photo ? <Image source={{ uri: photo }} style={styles.logo} contentFit="cover" accessibilityIgnoresInvertColors /> : <BusinessArt k={art} size={40} />}
@@ -218,22 +218,68 @@ function BizHead({ name, photo, art, distance, closes, closed, onPress }: { name
   );
 }
 
-/** Un negocio de «A tu puerta» con lo que vende. Tocar un producto abre la media hoja. */
-export function BizShelf({ biz, items, onBiz, onItem }: { biz: DiscoveryItem; items: ServiceItem[]; onBiz: () => void; onItem: (item: ServiceItem) => void }) {
+/**
+ * Un negocio de «A tu puerta» con lo que vende. Con fotos, una fila de fichas; sin fotos, una carta: cada cosa en su
+ * renglón (nombre, detalle y precio) con aire entre ellas, en vez de fichas iguales con el mismo dibujo. Tocar una
+ * cosa abre la media hoja.
+ */
+export function BizShelf({ biz, items, branches = 1, onBiz, onItem }: { biz: DiscoveryItem; items: ServiceItem[]; branches?: number; onBiz: () => void; onItem: (item: ServiceItem) => void }) {
   const art = artKeyFor(biz.category_name, biz.category_icon);
+  const withPhoto = items.filter((it) => it.photos?.[0]).length;
+  const asMenu = withPhoto * 2 < items.length;
+  const extra = branches > 1 ? `${branches} sedes cerca` : null;
   return (
     <View style={styles.sec}>
-      <BizHead name={biz.name} photo={bizPhoto(biz)} art={art} distance={biz.distance_meters} closes={biz.closes_at} closed={!biz.is_open_now} onPress={onBiz} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
-        {items.map((it) => {
-          const photo = it.photos?.[0] ? mediaUrl(it.photos[0]) : undefined;
-          const price = priceText(it);
-          const note = it.kind === 'service' ? (it.bookable ? 'Se reserva' : null) : it.sold_out ? 'Agotado' : null;
-          return (
-            <Tile key={it.id} photo={photo} art={art} price={price} name={it.name} note={note} noteOn={it.kind === 'service'} onPress={() => onItem(it)} />
-          );
-        })}
-      </ScrollView>
+      <BizHead name={biz.name} photo={bizPhoto(biz)} art={art} distance={biz.distance_meters} closes={biz.closes_at} closed={!biz.is_open_now} extra={extra} onPress={onBiz} />
+      {asMenu ? (
+        <View style={styles.menu}>
+          {items.slice(0, 4).map((it, i) => {
+            const photo = it.photos?.[0] ? mediaUrl(it.photos[0]) : undefined;
+            const price = priceText(it);
+            const detail = [it.kind === 'service' && it.duration_min ? `${it.duration_min} min` : null, it.kind === 'service' && it.bookable ? 'Se reserva' : null, it.sold_out ? 'Agotado' : null, it.section || null]
+              .filter(Boolean)
+              .slice(0, 2)
+              .join(' · ');
+            return (
+              <Pressable
+                key={it.id}
+                accessibilityRole="button"
+                accessibilityLabel={[it.name, price, detail].filter(Boolean).join(', ')}
+                onPress={() => onItem(it)}
+                style={({ pressed }) => [styles.menuRow, i > 0 && styles.menuRowLine, pressed && styles.pressed]}
+              >
+                {photo ? <Image source={{ uri: photo }} style={styles.menuImg} contentFit="cover" accessibilityIgnoresInvertColors /> : null}
+                <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                  <Text style={styles.menuName} numberOfLines={1}>
+                    {it.name}
+                  </Text>
+                  {detail ? (
+                    <Text style={[styles.menuDetail, it.kind === 'service' && it.bookable && styles.noteOn]} numberOfLines={1}>
+                      {detail}
+                    </Text>
+                  ) : null}
+                </View>
+                {price ? <Text style={styles.menuPrice}>{price}</Text> : null}
+              </Pressable>
+            );
+          })}
+          {items.length > 4 ? (
+            <Pressable accessibilityRole="link" onPress={onBiz} style={({ pressed }) => [styles.menuRow, styles.menuRowLine, pressed && styles.pressed]}>
+              <Text style={styles.menuMore}>{`Ver las ${items.length} cosas que vende`}</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+            </Pressable>
+          ) : null}
+        </View>
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
+          {items.map((it) => {
+            const photo = it.photos?.[0] ? mediaUrl(it.photos[0]) : undefined;
+            const price = priceText(it);
+            const note = it.kind === 'service' ? (it.bookable ? 'Se reserva' : null) : it.sold_out ? 'Agotado' : null;
+            return <Tile key={it.id} photo={photo} art={art} price={price} name={it.name} note={note} noteOn={it.kind === 'service'} onPress={() => onItem(it)} />;
+          })}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -383,6 +429,14 @@ const styles = StyleSheet.create({
   logo: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.sandSoft },
   bizName: { fontFamily: fonts.ui.semibold, fontSize: 16, color: colors.ink },
   rail: { gap: 12, paddingHorizontal: 20 },
+  menu: { marginHorizontal: 20, paddingHorizontal: 16, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  menuRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  menuRowLine: { borderTopWidth: 1, borderTopColor: colors.line },
+  menuImg: { width: 40, height: 40, borderRadius: 10, backgroundColor: colors.sandSoft },
+  menuName: { fontFamily: fonts.ui.medium, fontSize: 15, color: colors.ink },
+  menuDetail: { fontFamily: fonts.ui.medium, fontSize: 12, color: colors.muted },
+  menuPrice: { fontFamily: fonts.ui.semibold, fontSize: 15, color: colors.ink, fontVariant: ['tabular-nums'] },
+  menuMore: { flex: 1, fontFamily: fonts.ui.semibold, fontSize: 14, color: colors.ink },
   tile: { width: 118, gap: 4 },
   tileImg: { width: 118, height: 118, borderRadius: 14, backgroundColor: colors.sandSoft },
   card: { minHeight: 172, padding: 10, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, gap: 6 },

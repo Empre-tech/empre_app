@@ -68,3 +68,14 @@ test('resultados por negocio: solo lo que coincide, abiertos y cerca primero', a
   assert.equal(untilLabel('21:00'), 'hasta 9 pm');
   assert.equal(untilLabel('09:30'), 'hasta 9:30 am');
 });
+
+test('sedes del mismo negocio en una sola fila', async () => {
+  const { mergeBranches } = await import('./offerHome.ts');
+  const menu = [{ name: 'Mojarra frita' }, { name: 'Arroz con coco' }, { name: 'Patacones' }];
+  const r = mergeBranches([
+    { biz: { name: 'El Rincón Samario Mamatoco' }, items: menu },
+    { biz: { name: 'El Rincón Samario' }, items: menu },
+    { biz: { name: 'El Rincón del Sabor' }, items: [{ name: 'Bandeja paisa' }] },
+  ]);
+  assert.deepEqual(r.map((x) => [x.biz.name, x.branches]), [['El Rincón Samario Mamatoco', 2], ['El Rincón del Sabor', 1]]);
+});

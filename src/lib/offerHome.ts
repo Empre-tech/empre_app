@@ -155,3 +155,31 @@ export function untilLabel(closes?: string | null): string | null {
   if (Number.isNaN(h)) return null;
   return `hasta ${h % 12 || 12}${m ? `:${String(m).padStart(2, '0')}` : ''} ${h < 12 ? 'am' : 'pm'}`;
 }
+
+/** Las dos primeras palabras que importan del nombre: «El Rincón Samario Mamatoco» y «El Rincón Samario» dan lo mismo. */
+function brandKey(name: string): string {
+  return plainText(name)
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !['los', 'las', 'del'].includes(w))
+    .slice(0, 2)
+    .join(' ');
+}
+
+/**
+ * Sedes del mismo negocio (mismo nombre y casi la misma carta) salen en una sola fila, la más cercana, con cuántas
+ * sedes hay cerca. Así no hay dos filas iguales en la misma pantalla.
+ */
+export function mergeBranches<T extends { biz: { name: string }; items: { name: string }[] }>(list: T[]): (T & { branches: number })[] {
+  const out: (T & { branches: number })[] = [];
+  for (const x of list) {
+    const names = new Set(x.items.map((i) => plainText(i.name).trim()));
+    const twin = out.find((o) => {
+      if (brandKey(o.biz.name) !== brandKey(x.biz.name) || !brandKey(x.biz.name)) return false;
+      const shared = o.items.filter((i) => names.has(plainText(i.name).trim())).length;
+      return shared >= 2 && shared >= Math.min(o.items.length, x.items.length) * 0.6;
+    });
+    if (twin) twin.branches += 1;
+    else out.push({ ...x, branches: 1 });
+  }
+  return out;
+}

@@ -48,7 +48,7 @@ import { onFootOrDistance } from '@/lib/format';
 import { loadLastCity, saveLastCity } from '@/lib/lastCityStore';
 import { displayIcon } from '@/lib/mapView';
 import { bestPrices } from '@/lib/askMany';
-import { groupResults, iconGroups, mostPopular } from '@/lib/offerHome';
+import { groupResults, iconGroups, mergeBranches, mostPopular } from '@/lib/offerHome';
 import { applyFilters, availableLenses, lensItems, type BizFace, type LensKey } from '@/lib/offerLenses';
 import {
   askItemsToMarketItems,
@@ -401,12 +401,13 @@ export default function OffersScreen() {
   // A tu puerta: los más cercanos con lo que venden, abiertos primero, sin repetir a los de «Los más elegidos».
   const shelves = useMemo(() => {
     const chosen = new Set(popular.map((x) => x.item.id));
-    return nearbyBiz
+    const list = nearbyBiz
       .filter((b) => !chosen.has(b.id))
       .map((b) => ({ biz: b, items: publicCatalog(catalogsByEntity[b.id] ?? []).slice(0, 10) }))
       .filter((x) => x.items.length > 0)
-      .sort((a, b) => Number(b.biz.is_open_now) - Number(a.biz.is_open_now) || (a.biz.distance_meters ?? 0) - (b.biz.distance_meters ?? 0))
-      .slice(0, 3);
+      .sort((a, b) => Number(b.biz.is_open_now) - Number(a.biz.is_open_now) || (a.biz.distance_meters ?? 0) - (b.biz.distance_meters ?? 0));
+    // Dos sedes con la misma carta salen en una sola fila («2 sedes cerca»), no dos filas iguales.
+    return mergeBranches(list).slice(0, 3);
   }, [nearbyBiz, catalogsByEntity, popular]);
   const shelvesOpen = shelves.some((x) => x.biz.is_open_now);
   // Resultados de una búsqueda: un grupo por negocio con solo lo que coincide.
@@ -780,6 +781,7 @@ export default function OffersScreen() {
                     key={x.biz.id}
                     biz={x.biz}
                     items={x.items}
+                    branches={x.branches}
                     onBiz={() => router.push({ pathname: '/business/[id]', params: { id: x.biz.id } })}
                     onItem={(it) => open(catalogMarketItem(x.biz, it, resolvePhoto(it.photos?.[0]) ?? resolveImageUrl(x.biz.photos?.[0] ?? x.biz.profile_url) ?? undefined))}
                   />
