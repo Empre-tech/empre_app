@@ -33,6 +33,8 @@ import { useMapLevel, useMapMarkers } from '@/components/explore/useMapMarkers';
 import { useRevealedMarkers } from '@/components/explore/useRevealedMarkers';
 import { useZoneName, useZones } from '@/components/explore/useZoneName';
 import { track } from '@/analytics/track';
+import { artKeyMatch } from '@/components/CategoryArt';
+import { noteInterest } from '@/lib/interestStore';
 import { ContextRow } from '@/components/explore/ContextRow';
 import { FinderWelcome } from '@/components/explore/FinderWelcome';
 import { LoadingChip } from '@/components/explore/LoadingChip';
@@ -652,6 +654,8 @@ export default function MapScreen() {
     if (trackedSearch.current === key) return;
     trackedSearch.current = key;
     track('search_submitted', undefined, { query: debouncedSearch, results: items.length, scope: searchScope });
+    // Para ti: lo que buscas es la señal más clara de lo que te interesa (solo se guarda el tipo, en el teléfono).
+    noteInterest('search', artKeyMatch(debouncedSearch));
     if (items.length === 0) track('search_no_results', undefined, { query: debouncedSearch, scope: searchScope });
   }, [searching, resultsStatus, debouncedSearch, searchScope, items.length]);
 

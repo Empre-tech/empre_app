@@ -39,6 +39,13 @@ const WORDS: [ArtKey, RegExp][] = [
   ['hogar', /hogar|ferreter|casa|mueble|home|limpieza/i],
 ];
 
+/** De un texto libre (lo que alguien buscó) al tipo de negocio, o null si no se reconoce: no se adivina «tienda». */
+export function artKeyMatch(text?: string | null): ArtKey | null {
+  if (!text?.trim()) return null;
+  for (const [key, re] of WORDS) if (re.test(text)) return key;
+  return /tienda|almac|minimerc|supermerc|abarrot/i.test(text) ? 'tienda' : null;
+}
+
 /** De la categoría (nombre o ícono) a su ilustración; lo que no reconoce va a «tienda». */
 export function artKeyFor(name?: string | null, icon?: string | null): ArtKey {
   const text = `${name ?? ''} ${icon ?? ''}`;

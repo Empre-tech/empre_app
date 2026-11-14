@@ -33,6 +33,8 @@ import { BookingSheet } from '@/components/agenda/BookingSheet';
 import { AskEmpreCard, AskEmpreSheet } from '@/components/profile/AskEmpre';
 import type { AnswerData, Intent } from '@/lib/answers';
 import { track } from '@/analytics/track';
+import { artKeyFor } from '@/components/CategoryArt';
+import { noteInterest } from '@/lib/interestStore';
 import { FEATURES } from '@/config';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
@@ -132,7 +134,9 @@ export default function BusinessScreen() {
     if (!business?.id || isOwner || trackedProfile.current === business.id) return;
     trackedProfile.current = business.id;
     track('profile_opened', business.id, { origin: src ?? 'direct' });
-  }, [business?.id, isOwner, src]);
+    // Para ti (solo en el teléfono): mirar un negocio dice un poco de lo que te gusta.
+    noteInterest('view', artKeyFor(business.category?.name, business.category?.icon), business.id);
+  }, [business?.id, business?.category?.name, business?.category?.icon, isOwner, src]);
 
   // Las ofertas viven en la ficha del perfil (un boleto a la vez, sin pestaña ni cantidades).
   const activeOffers = useActiveOffers(id);
@@ -195,6 +199,7 @@ export default function BusinessScreen() {
     try {
       await (next ? entitiesApi.favorite(business.id) : entitiesApi.unfavorite(business.id));
       track('follow_toggled', business.id, { following: next });
+      if (next) noteInterest('follow', artKeyFor(business.category?.name, business.category?.icon), business.id);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['entity', id] }),
         queryClient.invalidateQueries({ queryKey: ['my-favorites'] }),
@@ -361,6 +366,7 @@ export default function BusinessScreen() {
       return;
     }
     track('contact_started', business.id);
+    noteInterest('contact', artKeyFor(business.category?.name, business.category?.icon), business.id);
     router.push({ pathname: '/chat/[entityId]', params: { entityId: business.id, name: business.name, avatar: business.profile_url } });
   };
 
@@ -371,6 +377,7 @@ export default function BusinessScreen() {
       return;
     }
     track('contact_started', business.id);
+    noteInterest('contact', artKeyFor(business.category?.name, business.category?.icon), business.id);
     // Si pregunta por un producto, la tarjeta viaja con el mensaje.
     const item = about
       ? chatItemParam({
@@ -389,6 +396,7 @@ export default function BusinessScreen() {
 
   const onDirections = () => {
     track('directions_tapped', business.id, { origin: 'profile' });
+    noteInterest('directions', artKeyFor(business.category?.name, business.category?.icon), business.id);
     const { latitude, longitude } = business;
     const url = Platform.select({
       ios: `http://maps.apple.com/?daddr=${latitude},${longitude}`,
@@ -432,6 +440,7 @@ export default function BusinessScreen() {
         return;
       }
       track('booking_started', business.id, { origin: 'ask' });
+      noteInterest('booking', artKeyFor(business.category?.name, business.category?.icon), business.id);
       setBookingFor({ serviceId });
     },
     onMessage: (draft: string) => {
@@ -763,6 +772,7 @@ export default function BusinessScreen() {
                   agenda={FEATURES.agenda ? agendaSummary.data : undefined}
                   onPickSlot={(slot) => {
                     track('booking_started', business.id, { origin: slot ? 'free_slot' : 'protagonist' });
+                    noteInterest('booking', artKeyFor(business.category?.name, business.category?.icon), business.id);
                     setBookingFor({ slot });
                   }}
                   onAgent={() => router.push({ pathname: '/agent/[id]', params: { id: business.id, name: business.name } })}

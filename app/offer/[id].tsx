@@ -7,6 +7,8 @@ import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Share, Sty
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { track } from '@/analytics/track';
+import { artKeyFor } from '@/components/CategoryArt';
+import { noteInterest } from '@/lib/interestStore';
 import { entitiesApi } from '@/api/endpoints';
 import { claimsApi, offersApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
@@ -69,6 +71,14 @@ export default function OfferScreen() {
       track('offer_viewed', entityId, { offer_id: offer.id });
     }
   }, [offer, entityId]);
+
+  // Para ti (solo en el teléfono): abrir una oferta dice un poco de lo que te gusta. Espera a saber el tipo de negocio.
+  const noted = useRef(false);
+  useEffect(() => {
+    if (noted.current || !offer || !entityId || !biz?.category?.name) return;
+    noted.current = true;
+    noteInterest('offer', artKeyFor(biz.category.name, biz.category.icon), entityId);
+  }, [offer, entityId, biz?.category?.name, biz?.category?.icon]);
 
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/offers'));
   const openBiz = () => router.push({ pathname: '/business/[id]', params: { id: entityId! } });

@@ -6,7 +6,9 @@ import { Animated, Easing, Linking, Pressable, ScrollView, StyleSheet, Text, Vie
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { ScreenGlow } from '@/components/ScreenGlow';
-import { artKeyFor } from '@/components/CategoryArt';
+import { artKeyFor, artKeyMatch } from '@/components/CategoryArt';
+import { forYou, forYouHeader, myInterests, peopleInterests, seenBusinesses } from '@/lib/interests';
+import { noteInterest, useInterestSignals } from '@/lib/interestStore';
 import { BusinessArt, CategoryIllustration } from '@/components/CategoryIllustration';
 import { artCounts, closeChip, hourLabel } from '@/lib/offerHome';
 import { endingToday } from '@/lib/offerMarket';
@@ -118,14 +120,29 @@ export default function HomeScreen() {
   const mapItems = useMemo(() => openNear.filter((b) => b.latitude && b.longitude).slice(0, 8), [openNear]);
   // Las categorías de arriba: solo las que tienen negocios cerca, juntadas por su dibujo, con el número real.
   const cats = useMemo(() => artCounts(discovery, artKeyFor, 8), [discovery]);
-  // Abierto ahora cerca: lo más cercano primero, con cuándo cierra.
-  const openCards = useMemo(() => [...openNear].sort((a, b) => a.distance_meters - b.distance_meters).slice(0, 8), [openNear]);
   // Hoy en tu barrio: las ofertas que terminan hoy; aquí solo se cuentan, se ven en Ofertas.
   const endingSoon = useMemo(() => endingToday(marketItems, now, new Set(), 20), [marketItems, now]);
 
   const newsAll = useMemo(() => news.data ?? [], [news.data]);
   const unseen = newsAll.filter((n) => n.unseen);
   const strip = useMemo(() => stripEntries(newsAll), [newsAll]);
+
+  // Para ti (cuando todavía no sigues a nadie): lo que más buscas manda, lo que ya miraste vuelve y lo que busca la
+  // gente del barrio completa. Todo sale de señales guardadas solo en este teléfono (src/lib/interests.ts).
+  const signals = useInterestSignals();
+  const mine = useMemo(() => myInterests(signals, now), [signals, now]);
+  const seen = useMemo(() => seenBusinesses(signals, now), [signals, now]);
+  const people = useMemo(() => peopleInterests((market.data?.searched.terms ?? []).map((t) => t.label || t.term), artKeyMatch), [market.data]);
+  const forYouPicks = useMemo(() => (strip.length ? [] : forYou(discovery, mine, people, seen, artKeyFor, 8)), [strip.length, discovery, mine, people, seen]);
+  const forYouHead = forYouPicks.length ? forYouHeader(mine, people) : null;
+
+  // Abierto ahora cerca: lo más cercano primero, con cuándo cierra; sin repetir lo que ya salió en «Para ti».
+  const openCards = useMemo(() => {
+    const sorted = [...openNear].sort((a, b) => a.distance_meters - b.distance_meters);
+    const shown = new Set(forYouPicks.map((p) => p.item.id));
+    const rest = sorted.filter((b) => !shown.has(b.id));
+    return (rest.length >= 2 ? rest : sorted).slice(0, 8);
+  }, [openNear, forYouPicks]);
 
   // Al bajar: un muro de lo que ofrecen los negocios cerca (tablero «Inicio», teléfono 2). Solo lo que publicaron.
   const pins: MuroPin[] = marketItems.slice(0, 12).map((m) => {
@@ -201,7 +218,10 @@ export default function HomeScreen() {
           {cats.length ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.catsIn}>
               {cats.map((c) => (
-                <Pressable key={c.key} accessibilityRole="button" accessibilityLabel={`${c.label}, ${c.count} ${c.count === 1 ? 'negocio' : 'negocios'} cerca`} onPress={() => router.push({ pathname: '/map', params: { q: '', cat: c.ids, catName: c.label } })} style={({ pressed }) => [styles.cat, pressed && styles.pressed]}>
+                <Pressable key={c.key} accessibilityRole="button" accessibilityLabel={`${c.label}, ${c.count} ${c.count === 1 ? 'negocio' : 'negocios'} cerca`} onPress={() => {
+                    noteInterest('category', c.key);
+                    router.push({ pathname: '/map', params: { q: '', cat: c.ids, catName: c.label } });
+                  }} style={({ pressed }) => [styles.cat, pressed && styles.pressed]}>
                   <CategoryIllustration k={c.key} size={34} />
                   <Text style={styles.catText}>{c.label}</Text>
                   <Text style={styles.catCount}>{c.count}</Text>
@@ -265,6 +285,33 @@ export default function HomeScreen() {
                     </View>
                     <Text style={styles.followName} numberOfLines={2}>
                       {w.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
+
+          {/* Para ti: cuando no sigues a nadie, lo que más buscas y lo que busca la gente; cada uno dice por qué está */}
+          {forYouHead && forYouPicks.length ? (
+            <View style={styles.section}>
+              <View>
+                <Text style={styles.secTitle} accessibilityRole="header">
+                  {forYouHead.title}
+                </Text>
+                <Text style={styles.secSub}>{forYouHead.sub}</Text>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.followIn}>
+                {forYouPicks.map(({ item: b, reason, source }) => (
+                  <Pressable key={b.id} accessibilityRole="button" accessibilityLabel={`${b.name}. ${reason}`} onPress={() => router.push({ pathname: '/business/[id]', params: { id: b.id } })} style={({ pressed }) => [styles.follow, styles.forYou, pressed && styles.pressed]}>
+                    <View style={[styles.followRing, { borderColor: source === 'visto' ? colors.ink : colors.line }]}>
+                      <Avatar uri={b.profile_url} name={b.name} size={56} />
+                    </View>
+                    <Text style={styles.followName} numberOfLines={2}>
+                      {b.name}
+                    </Text>
+                    <Text style={[styles.forWhy, source === 'tuyo' && { color: colors.primaryDark }]} numberOfLines={2}>
+                      {reason}
                     </Text>
                   </Pressable>
                 ))}
@@ -422,4 +469,6 @@ const styles = StyleSheet.create({
   follow: { width: 72, alignItems: 'center', gap: 6 },
   followRing: { width: 64, height: 64, borderRadius: 32, borderWidth: 2.5, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   followName: { fontSize: 12, lineHeight: 15, fontFamily: fonts.ui.medium, color: colors.ink, textAlign: 'center' },
+  forYou: { width: 84 },
+  forWhy: { fontSize: 11, lineHeight: 14, fontFamily: fonts.ui.semibold, color: colors.muted, textAlign: 'center', marginTop: -3 },
 });
