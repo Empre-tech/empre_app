@@ -501,8 +501,8 @@ export default function OffersScreen() {
               <Avatar uri={user?.profile_picture_url} name={user?.name ?? 'Tú'} size={44} />
             </Pressable>
           ) : (
-            <Pressable accessibilityRole="button" accessibilityLabel="Volver a la vitrina" onPress={closeAll} style={styles.round}>
-              <Ionicons name="chevron-back" size={20} color={colors.ink} />
+            <Pressable accessibilityRole="button" accessibilityLabel="Volver a Ofertas" onPress={closeAll} hitSlop={6} style={styles.round}>
+              <Ionicons name="chevron-back" size={22} color={colors.ink} />
             </Pressable>
           )}
           {home ? (
@@ -515,16 +515,27 @@ export default function OffersScreen() {
                 <Ionicons name="mic-outline" size={17} color={colors.primaryDark} />
               </Pressable>
             </Pressable>
-          ) : null}
+          ) : (
+            <View style={styles.search}>
+              <Ionicons name="search" size={18} color={colors.muted} />
+              <TextInput
+                ref={searchRef}
+                value={text}
+                onChangeText={setText}
+                placeholder={city ? `Busca un servicio, producto u oferta en ${city}` : 'Busca un servicio, producto u oferta'}
+                placeholderTextColor={colors.muted}
+                style={styles.searchInput}
+                accessibilityLabel="Buscar en el catálogo y ofertas"
+                returnKeyType="search"
+              />
+              {text ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Borrar búsqueda" onPress={() => setText('')} hitSlop={10}>
+                  <Ionicons name="close-circle" size={18} color={colors.muted} />
+                </Pressable>
+              ) : null}
+            </View>
+          )}
         </View>
-
-        {home ? null : (
-          <View style={styles.heroRow}>
-            <Text style={styles.hero} accessibilityRole="header">
-              Todas las ofertas
-            </Text>
-          </View>
-        )}
 
         {home ? (
           <>
@@ -780,27 +791,6 @@ export default function OffersScreen() {
 
         {showAll ? (
           <>
-            <View style={styles.searchWrap}>
-              <View style={styles.search}>
-                <Ionicons name="search" size={18} color={colors.muted} />
-                <TextInput
-                  ref={searchRef}
-                  value={text}
-                  onChangeText={setText}
-                  placeholder={city ? `Busca un servicio, producto u oferta en ${city}` : 'Busca un servicio, producto u oferta'}
-                  placeholderTextColor={colors.muted}
-                  style={styles.searchInput}
-                  accessibilityLabel="Buscar en el catálogo y ofertas"
-                  returnKeyType="search"
-                />
-                {text ? (
-                  <Pressable accessibilityRole="button" accessibilityLabel="Borrar búsqueda" onPress={() => setText('')} hitSlop={10}>
-                    <Ionicons name="close-circle" size={18} color={colors.muted} />
-                  </Pressable>
-                ) : null}
-              </View>
-            </View>
-
             {data?.featured && !q && vitrinaFilter !== 'services' ? (
               <Reveal key={`featured|${key}|${data.featured.id}`} style={styles.sec}>
                 <FeaturedOffer item={data.featured} now={now} onPress={() => open(data.featured!)} />
@@ -1027,17 +1017,14 @@ const styles = StyleSheet.create({
   round: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   roundDot: { position: 'absolute', top: 9, right: 9, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.brand, borderWidth: 2, borderColor: colors.surface },
   zoneWrap: { marginHorizontal: 20, marginTop: -8 },
-  heroRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, paddingHorizontal: 20 },
-  hero: { fontSize: 20, lineHeight: 24, fontFamily: fonts.display.bold, color: colors.ink },
   quietLine: { paddingHorizontal: 20, fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   vitrinaPills: { gap: 8, paddingHorizontal: 20 },
   vitrinaPill: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 13, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   vitrinaPillOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
   vitrinaPillText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   vitrinaPillTextOn: { color: colors.ink },
-  searchWrap: { paddingHorizontal: 20 },
-  search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 52, paddingHorizontal: spacing.lg, borderRadius: 26, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, ...softShadow },
-  searchInput: { flex: 1, fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink, paddingVertical: 0 },
+  search: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  searchInput: { flex: 1, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink, paddingVertical: 0 },
   mini: { position: 'absolute', left: 0, right: 0, zIndex: 5, height: MINI_H, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, backgroundColor: 'rgba(245,238,225,0.97)', borderBottomWidth: 1, borderBottomColor: colors.hairline },
   miniTap: { flex: 1, minHeight: 44, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
   miniCity: { flexShrink: 1, fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },

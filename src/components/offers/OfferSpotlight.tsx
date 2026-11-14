@@ -164,7 +164,7 @@ export function BestPriceRail({ picks, onOpen }: { picks: BestPrice[]; onOpen: (
         </Text>
         <Text style={[styles.why, { color: colors.primaryDark }]}>Lo mismo en varios negocios: aquí está más barato</Text>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bandRail}>
         {picks.map((b) => (
           <Pressable
             key={b.item.id}
@@ -252,7 +252,7 @@ export function Relampago({ items, onOpen }: { items: MarketItem[]; onOpen: (o: 
           </View>
         ) : null}
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bandRail}>
         {items.map((o) => {
           const p = priceView(o);
           const left = Math.max(0, Date.parse(o.ends_at) - now);
@@ -306,8 +306,10 @@ const styles = StyleSheet.create({
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 6 },
   dot: { width: 22, height: 5, borderRadius: 3, backgroundColor: colors.line },
   dotOn: { backgroundColor: colors.primary },
-  band: { paddingVertical: 18, gap: 14, overflow: 'hidden' },
-  bandHead: { paddingHorizontal: 20, gap: 2 },
+  // Una franja es un panel con esquinas redondas y su propio degradado: se ve como otra sección, sin un corte recto.
+  band: { marginHorizontal: 12, borderRadius: 28, paddingVertical: 18, gap: 14, overflow: 'hidden' },
+  bandRail: { gap: 12, paddingHorizontal: 16 },
+  bandHead: { paddingHorizontal: 16, gap: 2 },
   bandHeadRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   best: { width: 200, borderRadius: 18, overflow: 'hidden', backgroundColor: colors.surface, shadowColor: '#B91C1C', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
   bestImg: { width: '100%', height: 104, backgroundColor: colors.sandSoft },
