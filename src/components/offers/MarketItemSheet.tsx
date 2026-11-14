@@ -1,5 +1,6 @@
 import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
@@ -22,8 +23,8 @@ import { answersApi } from '@/api/answers';
 import { chatApi, entitiesApi } from '@/api/endpoints';
 import { offersApi, statusApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
-import { Avatar } from '@/components/Avatar';
-import { Cover } from '@/components/Cover';
+import { ART_TINT, CategoryIllustration } from '@/components/CategoryIllustration';
+import { artKeyFor } from '@/components/CategoryArt';
 import { Chispa, type ChispaMood } from '@/components/ai/Chispa';
 import { AskManySheet } from '@/components/offers/AskManySheet';
 import { FEATURES } from '@/config';
@@ -41,9 +42,9 @@ import {
 import { decisionPoints, sameItemPeers } from '@/lib/askMany';
 import { askMessage, catalogCopy, formatPesos } from '@/lib/catalog';
 import { chatItemParam } from '@/lib/chatItem';
-import { displayIcon } from '@/lib/mapView';
 import { formatEndsWhen } from '@/lib/offer';
 import { distanceLabel, itemStatusBadge, priceView, type MarketItem } from '@/lib/offerMarket';
+import { untilLabel } from '@/lib/offerHome';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, softShadow } from '@/theme';
@@ -128,6 +129,16 @@ function SheetContent({ item, onClose, pool, onPick }: { item: MarketItem; onClo
   const dist = distanceLabel(item.distance_meters);
   const p = priceView(item);
   const badge = itemStatusBadge(item, now);
+  const art = artKeyFor(item.category_name, item.category_icon);
+  const isOpen = biz?.is_open_now ?? item.open_now ?? null;
+  const until = untilLabel(item.open_until ?? null);
+  const openLabel = isOpen === true ? `Abierto${until ? ` ${until}` : ''}` : isOpen === false ? 'Cerrado ahora' : null;
+  const facts: { key: string; icon: IconName; text: string; urgent?: boolean }[] = [
+    ...(!isService ? [{ key: 'ends', icon: 'alarm-outline' as IconName, text: badge.text, urgent: badge.urgent }] : []),
+    ...(item.bookable ? [{ key: 'book', icon: 'calendar-outline' as IconName, text: 'Se puede reservar' }] : []),
+    ...(isService && item.duration_min ? [{ key: 'dur', icon: 'time-outline' as IconName, text: `${item.duration_min} min` }] : []),
+    ...(biz?.service_mode === 'delivery' || biz?.service_mode === 'both' ? [{ key: 'del', icon: 'bicycle-outline' as IconName, text: 'Hacen domicilio' }] : []),
+  ];
 
   // Detectar si este servicio específico está incluido dentro de alguna oferta activa del negocio
   const matchingOffer = useMemo(() => {
@@ -323,46 +334,44 @@ function SheetContent({ item, onClose, pool, onPick }: { item: MarketItem; onClo
           }}
           scrollEventThrottle={64}
         >
-          {/* HERO FOTO (Inspirado en Referencia 2 Swiggy Card Modal) */}
-          <View style={[styles.heroWrap, !full && styles.heroWrapHalf]}>
-            <Cover
-              photo={item.photo}
-              category={item.category_name}
-              icon={item.category_icon}
-              iconName={displayIcon(item.category_icon) as IconName}
-              iconSize={76}
-              style={styles.heroPhoto}
-            />
-            <View style={styles.heroTopRow}>
+          {/* CABECERA (tablero «Empre Offers», teléfono 3): todo al mismo margen. Foto o su ilustración, nombre, precio y
+              el negocio en una línea con si está abierto (texto legible, no sobre la foto). Sin repetir la sección. */}
+          <View style={styles.top}>
+            <View>
+              <View style={styles.topMedia}>
+                {item.photo ? (
+                  <Image source={{ uri: item.photo }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
+                ) : (
+                  <View style={[StyleSheet.absoluteFill, styles.topArt, { backgroundColor: ART_TINT[art] }]}>
+                    <CategoryIllustration k={art} size={58} />
+                  </View>
+                )}
+              </View>
               {p.save ? (
-                <View style={styles.heroOfferBadge}>
-                  <Text style={styles.heroOfferBadgeText}>{p.save.replace(' ', '')}</Text>
+                <View style={styles.topSeal}>
+                  <Text style={styles.topSealText}>{p.save.replace(' ', '')}</Text>
                 </View>
-              ) : (
-                <View style={styles.heroCatalogBadge}>
-                  <Ionicons name="pricetag-outline" size={12} color={colors.ink} />
-                  <Text style={styles.heroCatalogBadgeText}>{item.section || copy.noun}</Text>
-                </View>
-              )}
-              <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} style={styles.closeBtn}>
-                <Ionicons name="close" size={20} color={colors.ink} />
+              ) : null}
+            </View>
+            <View style={styles.topText}>
+              <Text style={styles.itemTitle} numberOfLines={2}>
+                {item.title}
+              </Text>
+              <View style={styles.topPriceRow}>
+                {p.now ? <Text style={styles.topPrice}>{p.now}</Text> : <Text style={styles.consultText}>Precio a consultar</Text>}
+                {p.was ? <Text style={styles.priceWas}>{p.was}</Text> : null}
+              </View>
+              <Pressable accessibilityRole="link" accessibilityLabel={`Ver ${biz?.name ?? item.entity_name}${openLabel ? `, ${openLabel}` : ''}`} onPress={openBusiness} hitSlop={6} style={styles.topBiz}>
+                <Text style={styles.topBizText} numberOfLines={1}>
+                  {[biz?.name ?? item.entity_name, dist].filter(Boolean).join(' · ')}
+                  {openLabel ? <Text style={[styles.topBizText, isOpen ? styles.topOpen : null]}>{` · ${openLabel}`}</Text> : null}
+                </Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.muted} />
               </Pressable>
             </View>
-
-            <View style={styles.heroBottomRow}>
-              {biz?.is_open_now ?? item.open_now ? (
-                <View style={styles.openBadge}>
-                  <View style={styles.openDot} />
-                  <Text style={styles.openBadgeText}>Abierto ahora</Text>
-                </View>
-              ) : null}
-              {(biz?.avg_rating ?? item.rating ?? 0) >= 4.0 ? (
-                <View style={styles.ratingBadge}>
-                  <Ionicons name="star" size={11} color={colors.ink} />
-                  <Text style={styles.ratingBadgeText}>{(biz?.avg_rating ?? item.rating ?? 0).toFixed(1)}</Text>
-                </View>
-              ) : null}
-            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} style={styles.closeBtn}>
+              <Ionicons name="close" size={20} color={colors.ink} />
+            </Pressable>
           </View>
 
           <View style={styles.body}>
@@ -393,57 +402,22 @@ function SheetContent({ item, onClose, pool, onPick }: { item: MarketItem; onClo
               </Pressable>
             ) : null}
 
-            {/* ENCABEZADO DEL PRODUCTO / SERVICIO / OFERTA */}
-            <View style={styles.headBlock}>
-              <View style={styles.titlePriceRow}>
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={styles.itemTitle}>{item.title}</Text>
-                  <Text style={styles.itemCategory}>
-                    {[item.category_name, item.section, dist ? `a ${dist}` : null].filter(Boolean).join(' · ')}
-                  </Text>
-                </View>
-                <View style={styles.priceColumn}>
-                  {p.now ? (
-                    <View style={[p.was ? styles.promoPriceBox : styles.catalogPriceBox]}>
-                      <Text style={styles.priceNow}>{p.now}</Text>
-                    </View>
-                  ) : (
-                    <Text style={styles.consultText}>Consultar</Text>
-                  )}
-                  {p.was ? <Text style={styles.priceWas}>Antes {p.was}</Text> : null}
-                </View>
-              </View>
-
-              {/* ATRIBUTOS RÁPIDOS (FAB: Features -> Benefits) */}
+            {/* Lo que suma a decidir, sin repetir la sección: hasta cuándo va la oferta, si se reserva, si llevan a domicilio */}
+            {facts.length ? (
               <View style={styles.factsRow}>
-                <View style={[styles.factPill, badge.urgent && styles.factPillUrgent]}>
-                  <Ionicons
-                    name={isService ? 'time-outline' : 'alarm-outline'}
-                    size={13}
-                    color={badge.urgent ? '#8F4300' : colors.ink}
-                  />
-                  <Text style={[styles.factPillText, badge.urgent && { color: '#8F4300' }]}>{badge.text}</Text>
-                </View>
-                {item.bookable ? (
-                  <View style={styles.factPill}>
-                    <Ionicons name="calendar-outline" size={13} color={colors.verified} />
-                    <Text style={[styles.factPillText, { color: colors.verified }]}>Se puede reservar</Text>
+                {facts.map((f) => (
+                  <View key={f.key} style={[styles.factPill, f.urgent && styles.factPillUrgent]}>
+                    <Ionicons name={f.icon} size={13} color={f.urgent ? colors.accentInk : colors.ink} />
+                    <Text style={[styles.factPillText, f.urgent && { color: colors.accentInk }]}>{f.text}</Text>
                   </View>
-                ) : null}
-                {biz?.service_mode === 'delivery' || biz?.service_mode === 'both' ? (
-                  <View style={styles.factPill}>
-                    <Ionicons name="bicycle-outline" size={13} color={colors.ink} />
-                    <Text style={styles.factPillText}>Hacen domicilio</Text>
-                  </View>
-                ) : null}
+                ))}
               </View>
-
-              {item.description ? (
-                <Text style={styles.descText} numberOfLines={3}>
-                  {item.description}
-                </Text>
-              ) : null}
-            </View>
+            ) : null}
+            {item.description ? (
+              <Text style={styles.descText} numberOfLines={3}>
+                {item.description}
+              </Text>
+            ) : null}
 
             {/* PARA DECIDIR: el mismo producto en otros negocios, sin favorecer a ninguno */}
             {decide.points.length ? (
@@ -551,30 +525,6 @@ function SheetContent({ item, onClose, pool, onPick }: { item: MarketItem; onClo
                 </Pressable>
               </View>
             </View>
-            {/* TARJETA DEL NEGOCIO (Acceso directo al perfil completo) */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Ir al negocio ${biz?.name ?? item.entity_name}`}
-              onPress={openBusiness}
-              style={({ pressed }) => [styles.bizCard, pressed && styles.pressed]}
-            >
-              <Avatar uri={biz?.profile_url} name={biz?.name ?? item.entity_name} size={42} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={styles.bizNameRow}>
-                  <Text style={styles.bizName} numberOfLines={1}>
-                    {biz?.name ?? item.entity_name}
-                  </Text>
-                  {biz?.is_verified ? <Ionicons name="checkmark-circle" size={15} color={colors.verified} /> : null}
-                </View>
-                <Text style={styles.bizMeta} numberOfLines={1}>
-                  Ver todo su catálogo, horarios y ubicación
-                </Text>
-              </View>
-              <View style={styles.bizGoPill}>
-                <Text style={styles.bizGoText}>Ver local</Text>
-                <Ionicons name="chevron-forward" size={14} color={colors.ink} />
-              </View>
-            </Pressable>
           </View>
         </ScrollView>
 
@@ -667,6 +617,17 @@ const styles = StyleSheet.create({
   handleWrap: { alignItems: 'center', paddingTop: 10, paddingBottom: 6, backgroundColor: colors.surface },
   handle: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.line },
   scrollContent: { paddingBottom: 16 },
+  top: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, paddingHorizontal: 20, paddingTop: 6, paddingBottom: 4 },
+  topMedia: { width: 84, height: 84, borderRadius: 18, overflow: 'hidden', backgroundColor: colors.sandSoft },
+  topArt: { alignItems: 'center', justifyContent: 'center' },
+  topSeal: { position: 'absolute', right: -8, top: -8, minWidth: 40, height: 40, paddingHorizontal: 5, borderRadius: 20, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.bg, transform: [{ rotate: '-8deg' }] },
+  topSealText: { fontFamily: fonts.ui.extrabold, fontSize: 12, color: colors.ink },
+  topText: { flex: 1, minWidth: 0, gap: 3 },
+  topPriceRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 8 },
+  topPrice: { fontFamily: fonts.ui.extrabold, fontSize: 20, color: colors.ink, fontVariant: ['tabular-nums'] },
+  topBiz: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 28 },
+  topBizText: { flexShrink: 1, fontFamily: fonts.ui.medium, fontSize: 13, color: colors.muted },
+  topOpen: { fontFamily: fonts.ui.semibold, color: colors.primaryDark },
   heroWrap: { height: 188, position: 'relative', backgroundColor: colors.sand },
   heroWrapHalf: { height: 132 },
   decideCard: { padding: 14, gap: 4, borderRadius: 18, backgroundColor: colors.surface },
@@ -688,7 +649,7 @@ const styles = StyleSheet.create({
   openBadgeText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   ratingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.sand },
   ratingBadgeText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  body: { paddingHorizontal: 18, paddingTop: 14, gap: 12 },
+  body: { paddingHorizontal: 20, paddingTop: 14, gap: 12 },
   offerBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 16, backgroundColor: colors.accentSoft },
   offerBannerIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   offerBannerTag: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.accentInk },
@@ -741,7 +702,7 @@ const styles = StyleSheet.create({
   aiInput: { flex: 1, height: 42, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line, fontSize: 13, fontFamily: fonts.ui.medium, color: colors.ink },
   aiSendBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   aiSendBtnDisabled: { opacity: 0.4 },
-  footerBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18, paddingTop: 12, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
+  footerBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingTop: 12, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
   chatBtn: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 16, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line },
   chatBtnText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   primaryBtn: { flex: 1, minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16, borderRadius: 16, backgroundColor: colors.primary },
