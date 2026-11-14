@@ -40,8 +40,8 @@ const config: ExpoConfig = {
   android: {
     package: 'co.empre.app',
     adaptiveIcon: {
-      foregroundImage: './assets/icon.png',
-      backgroundColor: '#F6F8FB',
+      foregroundImage: './assets/adaptive-icon.png',
+      backgroundColor: '#D42020',
     },
     permissions: ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION'],
     config: {

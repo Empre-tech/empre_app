@@ -1,9 +1,9 @@
 import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import Svg, { Defs, Mask, Path, Rect } from 'react-native-svg';
 import { entitiesApi } from '@/api/endpoints';
 import type { EntityOwnerItem } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
@@ -40,13 +40,23 @@ const SIDE = 16;
 const FADE_MS = 140;
 
 /** El símbolo de Empre (blanco o negro, nunca rojo), con su punto naranja (tablero «Dirección clara»). */
+/**
+ * El logo de Empre (2026-11-13): una casa con techo en punta y una «e» calada adentro. La «e» es un hueco (máscara),
+ * así que sobre rojo, arena o una foto se ve lo de atrás. Va en blanco sobre rojo o en tinta sobre claro; nunca en rojo.
+ */
 export function EmpreMark({ size = 34, color = '#FFFFFF' }: { size?: number; color?: string }) {
+  const id = `em${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   return (
     <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
-      <Path d="M15 25V18C15 14.686 17.686 12 21 12H47" stroke={color} strokeWidth={7} strokeLinecap="round" />
-      <Path d="M15 39V46C15 49.314 17.686 52 21 52H43C46.314 52 49 49.314 49 46V42" stroke={color} strokeWidth={7} strokeLinecap="round" />
-      <Rect x={15} y={28.5} width={22} height={7} rx={3.5} fill={color} />
-      <Circle cx={45} cy={32} r={6} fill={colors.accent} />
+      <Defs>
+        <Mask id={id} maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+          <Rect width="64" height="64" fill="#FFFFFF" />
+          <Path d="M20.5 30.5 C20.5 22.5 29 19.5 36.5 19.5 C45 19.5 49.5 23.5 49 28.5 C48.5 34 41 36.5 33 36.5 C27 36.5 22 35 20.5 30.5 Z" stroke="#000000" strokeWidth={6.5} strokeLinejoin="round" />
+          <Path d="M20.5 30.5 C17.5 41 23 50 34 50.5 C43 51 51 48.5 61 46" stroke="#000000" strokeWidth={6.5} strokeLinecap="round" />
+          <Path d="M23 23.5 L14.5 13" stroke="#000000" strokeWidth={5.5} strokeLinecap="round" />
+        </Mask>
+      </Defs>
+      <Path d="M31 5.5 L58.5 27 L58.5 52 Q58.5 58.5 52 58.5 L11 58.5 Q5.5 58.5 5.5 52 L5.5 27 Z" fill={color} stroke={color} strokeWidth={3} strokeLinejoin="round" mask={`url(#${id})`} />
     </Svg>
   );
 }
