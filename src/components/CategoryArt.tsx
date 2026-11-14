@@ -30,7 +30,7 @@ const WORDS: [ArtKey, RegExp][] = [
   ['barberia', /barber|pelu|corte|cabello/i],
   ['unas', /uña|unas|manicur|pedicur|nail/i],
   ['belleza', /belle|estétic|estetic|spa|maquill|cosmét|cosmet/i],
-  ['comida', /comid|restaur|almuerz|café|cafe|panader|pizza|food|bebid|jugo|postre|asader|rapida|rápida|fast/i],
+  ['comida', /comid|restaur|almuerz|café|cafe|panader|pizza|food|bebid|jugo|postre|helad|asader|rapida|rápida|fast/i],
   ['calzado', /calzad|zapat|tenis|shoe/i],
   ['ropa', /ropa|moda|vestu|boutique|shirt/i],
   ['tecnologia', /tecno|celular|comput|electr|phone|móvil|movil/i],

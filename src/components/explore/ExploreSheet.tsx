@@ -111,7 +111,7 @@ function ExploreSheetView(p: Props) {
               </Pressable>
             ) : (
               <View style={styles.expandedHeadLeft}>
-                <Tabs searching={p.searching} view={p.view} onView={p.onView} count={count} />
+                <Tabs searching={p.searching} view={p.view} onView={p.onView} count={p.searching && p.results.status === 'loading' ? null : count} />
                 {p.header.subtitle ? (
                   <Text style={styles.expandedMeta} numberOfLines={1}>
                     {p.header.subtitle}
@@ -147,10 +147,11 @@ function ExploreSheetView(p: Props) {
 
 export const ExploreSheet = memo(ExploreSheetView);
 
-function Tabs({ searching, view, onView, count }: { searching: boolean; view: 'discover' | 'results'; onView: (v: 'discover' | 'results') => void; count: number }) {
+function Tabs({ searching, view, onView, count }: { searching: boolean; view: 'discover' | 'results'; onView: (v: 'discover' | 'results') => void; count: number | null }) {
+  const n = count === null ? '' : ` (${count})`;
   const tabs: ['discover' | 'results', string][] = searching
-    ? [['results', `Resultados (${count})`], ['discover', 'Descubre']]
-    : [['discover', 'Descubre'], ['results', `Todos (${count})`]];
+    ? [['results', `Resultados${n}`], ['discover', 'Descubre']]
+    : [['discover', 'Descubre'], ['results', `Todos${n}`]];
   return (
     <View style={styles.seg} accessibilityRole="tablist">
       {tabs.map(([v, label]) => (

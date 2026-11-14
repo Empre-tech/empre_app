@@ -213,11 +213,17 @@ export default function MapScreen() {
   // (p. ej. al alternar entre mapa y lista); solo centramos la primera vez.
   const didCenterRef = useRef(false);
 
-  // No golpeamos el backend en cada tecla: esperamos una pausa corta.
+  // Buscar con calma (2026-11-14): no en cada letra. Se busca cuando dejas de escribir (0,8 s) y hay al menos 3 letras, o
+  // al tocar «Buscar» en el teclado. Así el mapa no salta con «Co», «Cor», «Cort»… mientras escribes.
   useEffect(() => {
-    const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    const q = search.trim();
+    const timeout = setTimeout(() => setDebouncedSearch(q.length >= 3 || q.length === 0 ? q : ''), q.length === 0 ? 0 : 800);
     return () => clearTimeout(timeout);
   }, [search]);
+  const submitSearch = () => {
+    setDebouncedSearch(search.trim());
+    closeSearch();
+  };
 
   const requestLocation = async () => {
     setLocating(true);
@@ -1207,7 +1213,8 @@ export default function MapScreen() {
                 />
               ) : null}
               {/* Sin círculo ni nombre de la zona (3.30): la franja de arriba ya dice dónde estás. */}
-              {revealed.map((m) =>
+              {/* Mientras llega una búsqueda nueva no se muestran los pines de la anterior (no salen 18 de otra cosa). */}
+              {(searching && resultsStatus === 'loading' ? [] : revealed).map((m) =>
                 m.kind === 'bubble' ? (
                   <BubbleMarker
                     key={`${m.key}-${catColors.get(m.categoryId ?? '') ?? ''}`}
@@ -1394,7 +1401,7 @@ export default function MapScreen() {
             )}
           </View>
           <Animated.View style={[styles.topRows, { opacity: topFade }]} pointerEvents={mapMoving ? 'none' : 'box-none'}>
-          <SearchBar value={search} onChangeText={setSearch} onOpenFilters={() => undefined} filterCount={activeFilterCount} compact hideFilters autoFocus={fromHome.buscar === '1'} onFocusChange={setSearchOpen} />
+          <SearchBar value={search} onChangeText={setSearch} onOpenFilters={() => undefined} filterCount={activeFilterCount} compact hideFilters autoFocus={fromHome.buscar === '1'} onFocusChange={setSearchOpen} onSubmit={submitSearch} />
 
           {tall || selectedEntity || searchOpen || !showFilterRow ? null : (
             <View style={styles.filterBleed}>

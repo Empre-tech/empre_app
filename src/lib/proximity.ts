@@ -3,8 +3,11 @@
 
 /** Dentro de este radio un resultado puede destacar; más lejos solo sale tenue si la persona lo pide. */
 export const NEAR_RESULT_M = 5000;
-/** Cuántos resultados van con pin grande (nombre y distancia). */
-export const BIG_COUNT = 3;
+/**
+ * Cuántos resultados van con pin grande (nombre y distancia). Desde 2026-11-14, ninguno: los pines grandes con nombre
+ * aparecían de golpe y tapaban el mapa; todos van del mismo tamaño con su número, y el nombre está en la lista.
+ */
+export const BIG_COUNT = 0;
 /** Cuántos van con pin mediano después de los grandes. */
 export const MID_COUNT = 10;
 /** Cuántos de los más cercanos encuadra la cámara. */

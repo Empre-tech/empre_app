@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
   offerBadge: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#fff', marginBottom: -2 },
   pinFar: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: '#fff' },
   pinFarSelected: { borderColor: colors.primary, borderWidth: 3 },
-  pinMid: { width: 34, height: 34, borderRadius: 17, borderWidth: 3, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
+  pinMid: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   pinNear: { width: 46, height: 46, borderRadius: 23, borderWidth: 3, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   thumbMid: { width: 28, height: 28, borderRadius: 14 },
   emphWrap: { alignItems: 'center', justifyContent: 'center', padding: 8 },

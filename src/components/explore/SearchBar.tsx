@@ -18,13 +18,15 @@ interface Props {
   hideFilters?: boolean;
   /** Se abre escribiendo: al llegar desde «Buscar» del inicio. */
   autoFocus?: boolean;
+  /** «Buscar» en el teclado: busca ya, sin esperar. */
+  onSubmit?: () => void;
 }
 
 /**
  * Buscador de Explorar en doble nivel (pregunta principal + contexto debajo cuando está en reposo)
  * o versión compacta de 1 línea sobre el mapa, con el botón de Filtros dentro a la derecha.
  */
-export function SearchBar({ value, onChangeText, onOpenFilters, filterCount, compact, onFocusChange, hideFilters, autoFocus }: Props) {
+export function SearchBar({ value, onChangeText, onOpenFilters, filterCount, compact, onFocusChange, hideFilters, autoFocus, onSubmit }: Props) {
   const active = filterCount > 0;
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
@@ -66,6 +68,7 @@ export function SearchBar({ value, onChangeText, onOpenFilters, filterCount, com
           placeholderTextColor={colors.muted}
           style={[styles.input, showTwoLevel && styles.inputTransparent]}
           returnKeyType="search"
+          onSubmitEditing={onSubmit}
           autoCorrect={false}
           accessibilityLabel="Buscar negocios, ofertas o barrios"
         />
