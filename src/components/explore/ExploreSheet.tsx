@@ -177,9 +177,8 @@ function Hint({ text, action, onAction, warn }: { text: string; action: string; 
   );
 }
 
+// A cualquier altura del panel la lista se puede bajar (2026-11-14): nada se corta en 3 ni se bloquea a media altura.
 function Body(p: Props) {
-  const anchor = p.sheet.anchor;
-  const mid = anchor === 'medium';
 
   // ---- Descubre ----
   if (p.view === 'discover') {
@@ -234,10 +233,9 @@ function Body(p: Props) {
         />
       );
     } else {
-      const shown = mid ? data.slice(0, 1) : data;
       content = (
         <>
-          {shown.map((sec) => (
+          {data.map((sec) => (
             <View key={sec.id}>
               <View style={styles.secHead}>
                 <Text style={styles.secTitle}>{sec.title}</Text>
@@ -245,23 +243,18 @@ function Body(p: Props) {
                   <Text style={styles.link}>Ver más ›</Text>
                 </Pressable>
               </View>
-              {oneBranch((mid ? sec.items.slice(0, 4) : sec.items).map((it) => p.sections.models(it, sec.id))).slice(0, mid ? 3 : undefined).map((m) => {
+              {oneBranch(sec.items.map((it) => p.sections.models(it, sec.id))).map((m) => {
                 return <MiniRow key={`${sec.id}-${m.id}`} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={(i) => p.onPhoto(m, i)} />;
               })}
             </View>
           ))}
-          {mid && data.length > 1 ? (
-            <Pressable accessibilityRole="button" onPress={() => p.sheet.snapTo('full')} style={styles.more}>
-              <Text style={styles.link}>Ver todo Descubre</Text>
-            </Pressable>
-          ) : null}
         </>
       );
     }
     // Lo nuevo entra con un fundido (la llave cambia solo cuando cambian los negocios mostrados).
     const sig = firstLoad ? 'loading' : data.length > 0 ? data.map((sec) => `${sec.id}:${sec.items.map((it) => it.entity_id).join('.')}`).join('|') : `zona:${p.zone.items.map((m) => m.id).join('.')}`;
     return (
-      <ScrollView style={styles.body} scrollEnabled={!mid} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
         {keep}
         <FadeIn key={sig}>{content}</FadeIn>
       </ScrollView>
@@ -308,22 +301,6 @@ function Body(p: Props) {
       return i >= 0 && i < 9 ? i + 1 : undefined;
     };
     const farItems = r.items.filter((m) => m.far);
-    if (mid) {
-      return (
-        <View style={styles.body}>
-          {nearItems.slice(0, 3).map((m) => <MiniRow key={m.id} model={m} rank={rankOf(m.id)} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={(i) => p.onPhoto(m, i)} />)}
-          {nearItems.length > 3 || farItems.length || r.related.length ? (
-          <Pressable accessibilityRole="button" onPress={() => p.sheet.snapTo('full')} style={styles.more}>
-            <Text style={styles.link}>
-              Ver los {nearItems.length}
-              {farItems.length ? ` y ${farItems.length} más lejos` : ''}
-              {r.related.length ? ' y recomendaciones' : ''}
-            </Text>
-          </Pressable>
-          ) : null}
-        </View>
-      );
-    }
     return (
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
         <Group title="Coinciden con tu búsqueda" count={nearItems.length} />
@@ -360,19 +337,6 @@ function Body(p: Props) {
           <Text style={styles.stateTitle}>Nada para mostrar aquí</Text>
           <Text style={styles.stateText}>Mueve el mapa o cambia de vista.</Text>
         </View>
-      </View>
-    );
-  }
-  if (mid) {
-    return (
-      <View style={styles.body}>
-        {filterHint}
-        {everything.slice(0, 3).map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={(i) => p.onPhoto(m, i)} />)}
-        {everything.length > 3 ? (
-          <Pressable accessibilityRole="button" onPress={() => p.sheet.snapTo('full')} style={styles.more}>
-            <Text style={styles.link}>Ver los {everything.length}</Text>
-          </Pressable>
-        ) : null}
       </View>
     );
   }
