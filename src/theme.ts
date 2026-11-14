@@ -1,48 +1,49 @@
-// Identidad de Empre (lienzo «Empre · Marca», 2026-11-12): blanco, negro y el rojo de Empre.
+// Identidad de Empre (lienzo «Empre · Marca», 2026-11-13): 65 % arena (fondos), 20 % crema (tarjetas), 10 % rojo
+// (lo que se toca y la marca) y 5 % tonos oscuros (el texto). El blanco puro solo como letra sobre rojo.
 // El rojo #F03232 va en formas (punto, botón Empre, lo elegido que brilla); para TEXTO rojo o fondo con letra blanca,
 // #D42020 (5,2:1). Los logos nunca van en rojo. Solo dos tonos más, cada uno en su parte:
 // verde #0B7F3D para la plata y Finance, naranja #FF9A1F (con letra negra) para las ofertas.
 // Los errores van en negro con ícono: el rojo es la marca, no una alarma.
 export const colors = {
   primary: '#D42020', // botón principal en rojo de Empre (texto blanco, 5,2:1)
-  primaryDark: '#D42020', // enlaces y texto de acento sobre blanco (5,2:1)
+  primaryDark: '#B91C1C', // texto rojo y enlaces sobre arena (5,1:1) y crema (6:1)
   primaryPressed: '#B01A1A',
   primarySoft: '#FDECEC',
   brand: '#F03232', // el rojo de Empre en formas: punto, foco y lo que pasa ahora
   selected: '#2B2622', // lo elegido: texto en tinta...
-  selectedSoft: '#EADCBF', // ...sobre arena (el complemento del rojo)
+  selectedSoft: '#E0CEA8', // ...sobre arena (el complemento del rojo)
   // Ofertas: naranja solo en sus piezas (etiqueta, «termina hoy», lo que ahorras)
   accent: '#FF9A1F', // fondo de la etiqueta de oferta (texto en negro encima, 8,7:1)
   accentDark: '#E8860A',
-  accentInk: '#A35C13', // naranja para TEXTO sobre blanco (4,9:1)
+  accentInk: '#8C4E10', // naranja para TEXTO sobre arena (5,1:1)
   accentSoft: '#FEF3E9',
   ink: '#2B2622', // el texto: tinta cálida, no negro puro. El negro es solo texto (~10 %)
-  muted: '#6B6358', // texto secundario cálido (5,9:1 sobre blanco, 5,3:1 sobre arena clara)
-  line: '#E9E1D3', // bordes y separadores, cálidos
-  bg: '#F7F3EC', // fondo de las pantallas: arena muy clara
-  surface: '#FFFFFF', // tarjetas
-  verified: '#D42020', // abierto, verificado, hecho
+  muted: '#5C5448', // texto secundario (5,9:1 sobre arena, 4,8:1 sobre arena elegida)
+  line: '#DDCFB3', // bordes y separadores, cálidos
+  bg: '#EDE3CF', // ARENA, ~65 %: el fondo de todas las pantallas
+  surface: '#FBF7EF', // CREMA, ~20 %: tarjetas, hojas y barras
+  verified: '#B91C1C', // abierto, verificado, hecho (texto)
   verifiedSoft: '#FDECEC',
   danger: '#2B2622', // errores: negro con ícono, nunca rojo
-  success: '#D42020',
+  success: '#B91C1C',
   warning: '#2B2622', // se acaba pronto: negro y subrayado, no naranja
-  hairline: '#E9E1D3',
-  faint: '#6B6358', // etiquetas pequeñas y pestañas sin elegir
-  placeholder: '#6B6358', // texto de ejemplo en los campos: legible (4,8:1), más claro que el texto
+  hairline: '#DDCFB3',
+  faint: '#5C5448', // etiquetas pequeñas y pestañas sin elegir
+  placeholder: '#5C5448', // texto de ejemplo en los campos: legible (4,8:1), más claro que el texto
   // Anclas negras y el rojo que brilla sobre ellas
-  night: '#F3EBDD', // las anclas ya no son negras: arena clara
-  nightLine: '#E2D5BC',
-  nightSoft: '#D9C9A8',
-  nightText: '#6B6358',
-  glow: '#D42020', // lo vivo en rojo (sobre arena 4,7:1)
+  night: '#F3EADA', // las anclas ya no son negras: arena clara
+  nightLine: '#DDCFB3',
+  nightSoft: '#D3C29C',
+  nightText: '#5C5448',
+  glow: '#B91C1C', // lo vivo en rojo, como texto (sobre arena 5,1:1)
   glowSoft: 'rgba(212,32,32,0.12)',
   // Arena: el complemento del rojo, en poca cantidad (chips, lo elegido, etiquetas)
-  sand: '#EADCBF',
-  sandSoft: '#F3EBDD',
-  sandInk: '#7A6236', // arena para texto sobre blanco (5,8:1)
+  sand: '#E0CEA8',
+  sandSoft: '#F3EADA',
+  sandInk: '#6E5830', // arena para texto sobre crema
   // Plata y Finance: verde. Lo que entra en verde; gastos y fiado en negro.
-  finance: '#0B7F3D', // texto y formas sobre blanco (5,1:1)
-  financeLight: '#0B7F3D', // ya no hay fondos negros: el verde de siempre
+  finance: '#0A6E35', // texto y formas sobre arena (5:1)
+  financeLight: '#0A6E35', // ya no hay fondos negros: el verde de siempre
   financeSoft: '#E8F5EC',
   // La agenda es de Empre: rojo y negro
   agenda: '#D42020',

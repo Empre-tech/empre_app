@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1.5,
     borderColor: colors.brand,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
   },
   starterChipText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
   bubbleRow: { flexDirection: 'row' },

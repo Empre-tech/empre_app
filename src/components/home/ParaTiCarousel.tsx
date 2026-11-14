@@ -110,6 +110,6 @@ const styles = StyleSheet.create({
   why: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
   title: { fontSize: 20, lineHeight: 24, fontFamily: fonts.display.bold, color: colors.ink },
   proof: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted },
-  cta: { alignSelf: 'flex-start', marginTop: 4, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, borderRadius: 12, backgroundColor: '#FFFFFF' },
+  cta: { alignSelf: 'flex-start', marginTop: 4, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, borderRadius: 12, backgroundColor: colors.surface },
   ctaText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

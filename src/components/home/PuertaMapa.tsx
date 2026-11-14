@@ -141,6 +141,6 @@ const styles = StyleSheet.create({
   tickBody: { flex: 1, minWidth: 0 },
   tickTitle: { fontFamily: fonts.ui.extrabold, fontSize: 13.5, color: colors.ink },
   tickWhen: { fontFamily: fonts.ui.bold, fontSize: 12, color: colors.nightText },
-  cta: { minHeight: 50, borderRadius: 14, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  cta: { minHeight: 50, borderRadius: 14, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   ctaText: { fontFamily: fonts.ui.extrabold, fontSize: 15, color: colors.ink },
 });
