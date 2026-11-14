@@ -6,40 +6,40 @@
 // Los errores van en negro con ícono: el rojo es la marca, no una alarma.
 export const colors = {
   primary: '#D42020', // botón principal en rojo de Empre (texto blanco, 5,2:1)
-  primaryDark: '#B91C1C', // texto rojo y enlaces sobre arena (5,1:1) y crema (6:1)
+  primaryDark: '#B91C1C', // texto rojo y enlaces sobre arena (5,6:1) y crema (6:1)
   primaryPressed: '#B01A1A',
   primarySoft: '#FDECEC',
   brand: '#F03232', // el rojo de Empre en formas: punto, foco y lo que pasa ahora
   selected: '#2B2622', // lo elegido: texto en tinta...
-  selectedSoft: '#E0CEA8', // ...sobre arena (el complemento del rojo)
+  selectedSoft: '#E8DCC2', // ...sobre arena (el complemento del rojo)
   // Ofertas: naranja solo en sus piezas (etiqueta, «termina hoy», lo que ahorras)
   accent: '#FF9A1F', // fondo de la etiqueta de oferta (texto en negro encima, 8,7:1)
   accentDark: '#E8860A',
   accentInk: '#8C4E10', // naranja para TEXTO sobre arena (5,1:1)
   accentSoft: '#FEF3E9',
   ink: '#2B2622', // el texto: tinta cálida, no negro puro. El negro es solo texto (~10 %)
-  muted: '#5C5448', // texto secundario (5,9:1 sobre arena, 4,8:1 sobre arena elegida)
-  line: '#DDCFB3', // bordes y separadores, cálidos
-  bg: '#EDE3CF', // ARENA, ~65 %: el fondo de todas las pantallas
-  surface: '#FBF7EF', // CREMA, ~20 %: tarjetas, hojas y barras
+  muted: '#5C5448', // texto secundario (6,5:1 sobre arena, 5,5:1 sobre arena elegida)
+  line: '#E6DAC3', // bordes y separadores, cálidos
+  bg: '#F5EEE1', // ARENA clara, ~65 %: el fondo de todas las pantallas (arriba, un degradado más hondo: ScreenGlow)
+  surface: '#FFFCF7', // CREMA, ~20 %: tarjetas, hojas y barras
   verified: '#B91C1C', // abierto, verificado, hecho (texto)
   verifiedSoft: '#FDECEC',
   danger: '#2B2622', // errores: negro con ícono, nunca rojo
   success: '#B91C1C',
   warning: '#2B2622', // se acaba pronto: negro y subrayado, no naranja
-  hairline: '#DDCFB3',
+  hairline: '#E6DAC3',
   faint: '#5C5448', // etiquetas pequeñas y pestañas sin elegir
   placeholder: '#5C5448', // texto de ejemplo en los campos: legible (4,8:1), más claro que el texto
   // Anclas negras y el rojo que brilla sobre ellas
-  night: '#F3EADA', // las anclas ya no son negras: arena clara
-  nightLine: '#DDCFB3',
+  night: '#F2E9D8', // las anclas ya no son negras: arena clara
+  nightLine: '#E6DAC3',
   nightSoft: '#D3C29C',
   nightText: '#5C5448',
   glow: '#B91C1C', // lo vivo en rojo, como texto (sobre arena 5,1:1)
   glowSoft: 'rgba(212,32,32,0.12)',
   // Arena: el complemento del rojo, en poca cantidad (chips, lo elegido, etiquetas)
-  sand: '#E0CEA8',
-  sandSoft: '#F3EADA',
+  sand: '#E8DCC2',
+  sandSoft: '#F2E9D8',
   sandInk: '#6E5830', // arena para texto sobre crema
   // Plata y Finance: verde. Lo que entra en verde; gastos y fiado en negro.
   finance: '#0A6E35', // texto y formas sobre arena (5:1)
@@ -49,6 +49,8 @@ export const colors = {
   agenda: '#D42020',
   agendaLight: '#F7A8A8',
   agendaSoft: '#FDECEC',
+  // El degradado de arriba en Inicio y Ofertas: arena más honda que se funde con el fondo.
+  glowTop: '#EADCBF',
 } as const;
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;

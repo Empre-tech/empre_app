@@ -4,6 +4,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Animated, Easing, Linking, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScreenGlow } from '@/components/ScreenGlow';
 import { catalogApi } from '@/api/catalog';
 import type { ServiceItem } from '@/lib/catalog';
 import { novedadesApi } from '@/api/novedades';
@@ -150,6 +151,7 @@ export default function HomeScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]} keyboardShouldPersistTaps="handled">
+        <ScreenGlow />
         <View style={styles.pad}>
           {/* Arriba: tú (no el logo), dónde estás y lo nuevo */}
           <View style={styles.topRow}>

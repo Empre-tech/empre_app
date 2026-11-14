@@ -20,6 +20,7 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScreenGlow } from '@/components/ScreenGlow';
 
 import { askApi } from '@/api/ask';
 import { catalogApi } from '@/api/catalog';
@@ -458,6 +459,7 @@ export default function OffersScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
+      <ScreenGlow height={insets.top + 340} />
       {(market.isFetching && data) || (all.isFetching && !all.isFetchingNextPage && all.data) ? <UpdatingBar /> : null}
       <Animated.View
         pointerEvents={compact ? 'auto' : 'none'}

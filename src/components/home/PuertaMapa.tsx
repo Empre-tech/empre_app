@@ -87,8 +87,8 @@ export function PuertaMapa({
     >
       <Svg width="100%" height={H} style={StyleSheet.absoluteFill}>
         <Path d={`M0 60 H${w} M0 150 H${w} M0 240 H${w} M${w * 0.2} 0 V${H} M${w * 0.5} 0 V${H} M${w * 0.8} 0 V${H}`} stroke={colors.nightLine} strokeWidth={11} />
-        <Path d={`M0 0 H${w * 0.2} C${w * 0.17} 60 ${w * 0.1} 110 0 130 Z`} fill="#22252B" />
-        <Circle cx={w / 2} cy={128} r={70} fill="none" stroke="rgba(255,255,255,.14)" strokeWidth={1.5} strokeDasharray="4 6" />
+        <Path d={`M0 0 H${w * 0.2} C${w * 0.17} 60 ${w * 0.1} 110 0 130 Z`} fill="#CFE2E4" />
+        <Circle cx={w / 2} cy={128} r={70} fill="none" stroke="rgba(43,38,34,.16)" strokeWidth={1.5} strokeDasharray="4 6" />
       </Svg>
       {pts.map((p, i) => (
         <Dot key={p.id} x={p.x} y={p.y} live={i === 0} />
@@ -132,9 +132,9 @@ const styles = StyleSheet.create({
   you: { position: 'absolute', top: 120, width: 16, height: 16, borderRadius: 8, backgroundColor: '#FFFFFF', borderWidth: 4, borderColor: colors.line },
   youTag: { position: 'absolute', top: 86, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, backgroundColor: 'rgba(43,38,34,0.06)' },
   youText: { fontFamily: fonts.ui.extrabold, fontSize: 10.5, color: colors.ink },
-  count: { position: 'absolute', left: 14, top: 14, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(17,19,24,0.72)' },
+  count: { position: 'absolute', left: 14, top: 14, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.surface },
   countDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.glow },
-  countText: { fontFamily: fonts.ui.extrabold, fontSize: 13, color: colors.glow },
+  countText: { fontFamily: fonts.ui.semibold, fontSize: 13, color: colors.primaryDark },
   bottom: { position: 'absolute', left: 12, right: 12, bottom: 12, gap: 8 },
   tick: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 16, backgroundColor: 'rgba(43,38,34,0.06)', borderWidth: 1, borderColor: colors.line },
   tickIcon: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
