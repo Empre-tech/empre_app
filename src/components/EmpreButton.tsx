@@ -50,10 +50,11 @@ export function EmpreMark({ size = 34, color = '#FFFFFF' }: { size?: number; col
     <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
       <Defs>
         <Mask id={id} maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+          {/* En la máscara, blanco = se ve y negro = hueco: es la «e» calada, no un color de la pantalla. */}
           <Rect width="64" height="64" fill="#FFFFFF" />
-          <Path d="M20.5 30.5 C20.5 22.5 29 19.5 36.5 19.5 C45 19.5 49.5 23.5 49 28.5 C48.5 34 41 36.5 33 36.5 C27 36.5 22 35 20.5 30.5 Z" stroke="#000000" strokeWidth={6.5} strokeLinejoin="round" />
-          <Path d="M20.5 30.5 C17.5 41 23 50 34 50.5 C43 51 51 48.5 61 46" stroke="#000000" strokeWidth={6.5} strokeLinecap="round" />
-          <Path d="M23 23.5 L14.5 13" stroke="#000000" strokeWidth={5.5} strokeLinecap="round" />
+          <Path d="M20.5 30.5 C20.5 22.5 29 19.5 36.5 19.5 C45 19.5 49.5 23.5 49 28.5 C48.5 34 41 36.5 33 36.5 C27 36.5 22 35 20.5 30.5 Z" stroke="black" strokeWidth={6.5} strokeLinejoin="round" />
+          <Path d="M20.5 30.5 C17.5 41 23 50 34 50.5 C43 51 51 48.5 61 46" stroke="black" strokeWidth={6.5} strokeLinecap="round" />
+          <Path d="M23 23.5 L14.5 13" stroke="black" strokeWidth={5.5} strokeLinecap="round" />
         </Mask>
       </Defs>
       <Path d="M31 5.5 L58.5 27 L58.5 52 Q58.5 58.5 52 58.5 L11 58.5 Q5.5 58.5 5.5 52 L5.5 27 Z" fill={color} stroke={color} strokeWidth={3} strokeLinejoin="round" mask={`url(#${id})`} />
