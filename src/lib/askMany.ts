@@ -7,7 +7,7 @@
 import type { Intent } from './answers';
 import type { MarketItem } from './offerMarket';
 
-export type ManyIntent = 'price' | 'open' | 'offers' | 'duration';
+export type ManyIntent = 'best' | 'price' | 'open' | 'offers' | 'duration';
 
 /** El negocio de la ficha y hasta 3 más: lo que cabe en una pantalla sin desplazarse. */
 export const MANY_MAX = 4;
@@ -23,6 +23,8 @@ export interface ManyRow {
   minutes: number | null;
   offer: string | null;
   openUntil: string | null;
+  /** Nota de las reseñas del negocio; null si no tiene. */
+  rating: number | null;
 }
 
 export interface ManyLine {
@@ -117,7 +119,16 @@ export function toRow(it: MarketItem): ManyRow {
     minutes: it.duration_min && it.duration_min > 0 ? it.duration_min : null,
     offer: it.linked_offer_title?.trim() || null,
     openUntil: it.open_until?.trim() || null,
+    rating: it.rating && it.rating > 0 ? it.rating : null,
   };
+}
+
+/**
+ * «¿Cuál es mejor?», «¿cuál me recomiendas?», «¿dónde está más barato?»: comparar a los negocios con lo que ya se sabe
+ * de cada uno. Se reconoce por las palabras, sin gastar en el servidor.
+ */
+export function bestIntentOf(text: string): ManyIntent | null {
+  return /\b(mejor|recomien|conviene|convien|elij|escoj|vale la pena|cual voy|donde voy|mas barat|mas economic|mas cerca|compar)/.test(plain(text)) ? 'best' : null;
 }
 
 /** De una intención del motor de reglas a una que se puede responder para varios; null si no aplica. */
@@ -140,6 +151,7 @@ export function manyIntentOf(intent: Intent | string): ManyIntent | null {
 }
 
 export const MANY_LABEL: Record<ManyIntent, { ask: string; short: string }> = {
+  best: { ask: '¿Cuál me conviene?', short: 'Cuál conviene' },
   price: { ask: '¿Cuánto cuesta en cada uno?', short: 'Precio en cada uno' },
   open: { ask: '¿Quién atiende ahora?', short: 'Quién atiende ahora' },
   offers: { ask: '¿Alguno tiene oferta?', short: 'Si alguno tiene oferta' },
@@ -149,6 +161,7 @@ export const MANY_LABEL: Record<ManyIntent, { ask: string; short: string }> = {
 /** Las preguntas que vale la pena sugerir: solo las que al menos un negocio puede responder con lo publicado. */
 export function manySuggestions(rows: ManyRow[]): ManyIntent[] {
   const out: ManyIntent[] = [];
+  if (rows.length > 1) out.push('best');
   if (rows.some((r) => r.price)) out.push('price');
   if (rows.some((r) => r.open !== null)) out.push('open');
   out.push('offers');
@@ -167,6 +180,8 @@ function lineFor(intent: ManyIntent, r: ManyRow): ManyLine {
       return { row: r, main: r.open === null ? null : r.open ? 'Abierto' : 'Cerrado', sub: tail([r.price, r.dist]), known: r.open !== null };
     case 'offers':
       return { row: r, main: r.price, sub: tail([r.price ? 'precio normal' : null, r.dist]), known: true };
+    case 'best':
+      return { row: r, main: r.price, sub: tail([r.rating ? `★ ${r.rating.toFixed(1).replace('.', ',')}` : null, r.dist, r.open === true ? 'abierto' : r.open === false ? 'cerrado' : null, r.offer ? 'con oferta' : null]), known: true };
   }
 }
 
@@ -174,6 +189,7 @@ const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
 /** La respuesta para todos: frase corta, la mejor opción ahora, los demás y a quiénes falta preguntarles. */
 export function answerMany(intent: ManyIntent, input: ManyRow[], product: string): ManyAnswer {
+  if (intent === 'best') return answerBest(input, product);
   const rows = orderRows(input);
   const n = rows.length;
   let lines = rows.map((r) => lineFor(intent, r));
@@ -243,6 +259,55 @@ export function answerMany(intent: ManyIntent, input: ManyRow[], product: string
     }
   }
   return { intent, summary: s, top, topTag, rest, missing };
+}
+
+/**
+ * ¿Cuál conviene? Cada negocio gana puntos por lo que se sabe: el precio más bajo, el más cerca, la mejor nota, si
+ * atiende ahora y si tiene oferta. Se dice quién gana en qué (hechos, no opiniones) y cuál junta más; si nadie publicó
+ * nada con qué comparar, se ofrece preguntarles.
+ */
+function answerBest(input: ManyRow[], product: string): ManyAnswer {
+  const rows = orderRows(input);
+  const lines = rows.map((r) => lineFor('best', r));
+  const priced = rows.filter((r) => r.priceNum !== null && r.priceNum > 0);
+  const located = rows.filter((r) => r.item.distance_meters != null && r.item.distance_meters >= 0);
+  const rated = rows.filter((r) => r.rating !== null);
+  const cheap = priced.length > 1 ? priced.reduce((a, b) => (b.priceNum! < a.priceNum! ? b : a)) : null;
+  const near = located.length > 1 ? located.reduce((a, b) => (b.item.distance_meters! < a.item.distance_meters! ? b : a)) : null;
+  const best = rated.length > 1 ? rated.reduce((a, b) => (b.rating! > a.rating! ? b : a)) : null;
+  const why = new Map<string, string[]>();
+  const add = (r: ManyRow | null, w: string) => {
+    if (!r) return;
+    why.set(r.entityId, [...(why.get(r.entityId) ?? []), w]);
+  };
+  add(cheap, 'el más barato');
+  add(near, 'el más cerca');
+  add(best, 'el mejor reseñado');
+  if (rows.some((r) => r.open === false)) rows.filter((r) => r.open === true).forEach((r) => add(r, 'abierto ahora'));
+  rows.filter((r) => r.offer).forEach((r) => add(r, 'con oferta'));
+  if (!why.size) {
+    return { intent: 'best', summary: { lead: `Con lo que publicaron no hay con qué comparar ${product}. `, bold: 'Se lo puedo preguntar a los dueños', tail: ' por chat.' }, top: null, topTag: '', rest: lines, missing: rows };
+  }
+  const topRow = rows.reduce((a, b) => ((why.get(b.entityId)?.length ?? 0) > (why.get(a.entityId)?.length ?? 0) ? b : a));
+  const top = lines.find((l) => l.row === topRow) ?? null;
+  const facts = [
+    cheap ? `Más barato: ${cheap.name} (${cheap.price})` : null,
+    near ? `Más cerca: ${near.name}${near.dist ? ` (${near.dist})` : ''}` : null,
+    best ? `Mejor reseñado: ${best.name} (★ ${best.rating!.toFixed(1).replace('.', ',')})` : null,
+  ].filter(Boolean);
+  const reasons = why.get(topRow.entityId) ?? [];
+  return {
+    intent: 'best',
+    summary: {
+      lead: `${facts.length ? `${facts.join('. ')}. ` : ''}${reasons.length > 1 ? 'El que junta más: ' : 'Por lo publicado, '}`,
+      bold: topRow.name,
+      tail: reasons.length ? ` (${reasons.join(', ')}).` : '.',
+    },
+    top,
+    topTag: reasons.length > 1 ? 'JUNTA MÁS A FAVOR' : 'A FAVOR',
+    rest: lines.filter((l) => l !== top),
+    missing: [],
+  };
 }
 
 /** Lo que no está en lo publicado: nadie lo adivina; se ofrece preguntarles a todos. */

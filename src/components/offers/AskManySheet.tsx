@@ -29,6 +29,7 @@ import {
   answerMany,
   askDraft,
   MANY_LABEL,
+  bestIntentOf,
   manyIntentOf,
   manySuggestions,
   toRow,
@@ -67,12 +68,14 @@ const keyOf = (t: string) =>
     .trim();
 
 const ICON: Record<ManyIntent, keyof typeof Ionicons.glyphMap> = {
+  best: 'git-compare-outline',
   price: 'cash-outline',
   open: 'time-outline',
   offers: 'pricetag-outline',
   duration: 'hourglass-outline',
 };
 const TINT: Record<ManyIntent, { bg: string; ink: string }> = {
+  best: { bg: colors.primarySoft, ink: colors.primaryDark },
   price: { bg: colors.selectedSoft, ink: colors.ink },
   open: { bg: colors.verifiedSoft, ink: colors.verified },
   offers: { bg: colors.accentSoft, ink: colors.accentInk },
@@ -149,7 +152,8 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
     let source: Source = 'rule';
     if (!mi && typed) {
       const d = detectIntent(typed, []);
-      mi = manyIntentOf(d.intent);
+      // «¿Cuál es mejor?» se responde comparando lo que se sabe de cada uno.
+      mi = bestIntentOf(typed) ?? manyIntentOf(d.intent);
       // Nivel 3: nadie la entendió. Una sola clasificación por pregunta, no por negocio, y guardada.
       if (!mi && d.intent === 'unknown' && status === 'signedIn' && entityId) {
         const key = keyOf(typed);
@@ -338,7 +342,23 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
             <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
           </Pressable>
         </View>
-        <Text style={styles.disclaimer}>Responde con lo publicado. Los precios los confirma el negocio.</Text>
+        <View style={styles.footRow}>
+          <Text style={[styles.disclaimer, { flex: 1, textAlign: 'left' }]}>Responde con lo publicado. Los precios los confirma el negocio.</Text>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel="Seguir en Empre AI, en su propia pantalla"
+            onPress={() => {
+              const q = text.trim() || [...turns].reverse().find((t) => t.text)?.text || product;
+              onClose();
+              router.push({ pathname: '/ask', params: { q } });
+            }}
+            hitSlop={8}
+            style={({ pressed }) => [styles.footLink, pressed && styles.pressed]}
+          >
+            <Text style={styles.footLinkText}>Seguir en Empre AI</Text>
+            <Ionicons name="arrow-forward" size={14} color={colors.primaryDark} />
+          </Pressable>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -514,6 +534,7 @@ function TopCard({ line, tag, onBook, onOpen }: { line: ManyLine; tag: string; o
 }
 
 const MISSING_TEXT: Record<ManyIntent | 'unknown', string> = {
+  best: 'Puede responderte el dueño',
   price: 'No publicó su precio',
   duration: 'No publicó cuánto demora',
   open: 'No publicó su horario',
@@ -644,5 +665,8 @@ const styles = StyleSheet.create({
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   sendOff: { opacity: 0.35 },
   disclaimer: { marginTop: 6, textAlign: 'center', fontFamily: fonts.ui.bold, fontSize: 11, color: colors.faint },
+  footRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 },
+  footLink: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44, paddingHorizontal: 12, borderRadius: 22, backgroundColor: colors.primarySoft },
+  footLinkText: { fontFamily: fonts.ui.semibold, fontSize: 12, color: colors.primaryDark },
   pressed: { opacity: 0.85 },
 });

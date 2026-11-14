@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { answerMany, askDraft, bestPrices, decisionPoints, manyIntentOf, manySuggestions, sameItem, sameItemPeers, similarItem, toRow, unknownMany } from './askMany.ts';
+import { answerMany, askDraft, bestIntentOf, bestPrices, decisionPoints, manyIntentOf, manySuggestions, sameItem, sameItemPeers, similarItem, toRow, unknownMany } from './askMany.ts';
 import type { MarketItem } from './offerMarket.ts';
 
 function svc(p: Partial<MarketItem> & Pick<MarketItem, 'id' | 'entity_id'>): MarketItem {
@@ -68,7 +68,7 @@ test('quién atiende y cuánto demora', () => {
 });
 
 test('sugerencias solo con lo que alguien puede responder', () => {
-  assert.deepEqual(manySuggestions(rows), ['price', 'open', 'offers', 'duration']);
+  assert.deepEqual(manySuggestions(rows), ['best', 'price', 'open', 'offers', 'duration']);
   assert.deepEqual(manySuggestions([toRow({ ...norte, open_now: undefined })]), ['offers']);
 });
 
@@ -102,4 +102,17 @@ test('mejor precio cerca: el más barato del mismo producto en dos negocios o m�
   assert.equal(b[0].count, 3);
   assert.deepEqual([b[0].min, b[0].max], [15000, 22000]);
   assert.deepEqual(b[0].others.map((x) => Math.round(x * 100)), [43, 100]);
+});
+
+test('¿cuál es mejor?: dice quién gana en qué y cuál junta más, con lo publicado', () => {
+  assert.equal(bestIntentOf('Cuál es mejor?'), 'best');
+  assert.equal(bestIntentOf('¿dónde está más barato?'), 'best');
+  assert.equal(bestIntentOf('¿abren el domingo?'), null);
+  const a = answerMany('best', [toRow({ ...lucho, rating: 4.9 }), toRow({ ...navaja, rating: 4.2 }), toRow(fino)], 'Corte clásico');
+  assert.match(a.summary.lead, /Más barato: Corte Fino/);
+  assert.match(a.summary.lead, /Mejor reseñado: Don Lucho/);
+  assert.equal(a.summary.bold, 'Don Lucho');
+  assert.match(a.summary.tail, /mejor reseñado/);
+  const none = answerMany('best', [toRow(norte), toRow({ ...norte, id: '9', entity_id: 'X', distance_meters: undefined as never })], 'Corte');
+  assert.match(none.summary.bold, /preguntar a los dueños/);
 });
