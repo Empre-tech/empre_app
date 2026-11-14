@@ -1,11 +1,11 @@
 import { Image } from 'expo-image';
 import { memo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import type { DiscoveryItem } from '@/api/types';
 import { artKeyFor, type ArtKey } from '@/components/CategoryArt';
-import { BusinessArt, CategoryIllustration } from '@/components/CategoryIllustration';
+import { ART_TINT, BusinessArt, CategoryIllustration } from '@/components/CategoryIllustration';
 import { Ionicons } from '@/components/Icon';
 import type { ServiceItem } from '@/lib/catalog';
 import { priceText } from '@/lib/catalog';
@@ -219,68 +219,93 @@ function BizHead({ name, photo, art, distance, closes, closed, extra, onPress }:
 }
 
 /**
- * Un negocio de «A tu puerta» con lo que vende. Con fotos, una fila de fichas; sin fotos, una carta: cada cosa en su
- * renglón (nombre, detalle y precio) con aire entre ellas, en vez de fichas iguales con el mismo dibujo. Tocar una
- * cosa abre la media hoja.
+ * A tu puerta como carrusel (tablero «Empre Offers»): cada negocio es un banner con todo lo suyo (foto o su
+ * ilustración arriba, si está abierto, a cuánto queda y lo que vende) y se desliza desde la derecha para ver el
+ * siguiente. Se asoma el borde del próximo para que se entienda que hay más. Igual con fotos o sin ellas.
  */
-export function BizShelf({ biz, items, branches = 1, onBiz, onItem }: { biz: DiscoveryItem; items: ServiceItem[]; branches?: number; onBiz: () => void; onItem: (item: ServiceItem) => void }) {
-  const art = artKeyFor(biz.category_name, biz.category_icon);
-  const withPhoto = items.filter((it) => it.photos?.[0]).length;
-  const asMenu = withPhoto * 2 < items.length;
-  const extra = branches > 1 ? `${branches} sedes cerca` : null;
+export function BizCarousel({
+  shelves,
+  onBiz,
+  onItem,
+}: {
+  shelves: { biz: DiscoveryItem; items: ServiceItem[]; branches?: number }[];
+  onBiz: (id: string) => void;
+  onItem: (biz: DiscoveryItem, item: ServiceItem) => void;
+}) {
+  const { width } = useWindowDimensions();
+  const w = Math.min(320, width - 72);
   return (
-    <View style={styles.sec}>
-      <BizHead name={biz.name} photo={bizPhoto(biz)} art={art} distance={biz.distance_meters} closes={biz.closes_at} closed={!biz.is_open_now} extra={extra} onPress={onBiz} />
-      {asMenu ? (
-        <View style={styles.menu}>
-          {items.slice(0, 4).map((it, i) => {
-            const photo = it.photos?.[0] ? mediaUrl(it.photos[0]) : undefined;
-            const price = priceText(it);
-            const detail = [it.kind === 'service' && it.duration_min ? `${it.duration_min} min` : null, it.kind === 'service' && it.bookable ? 'Se reserva' : null, it.sold_out ? 'Agotado' : null, it.section || null]
-              .filter(Boolean)
-              .slice(0, 2)
-              .join(' · ');
-            return (
-              <Pressable
-                key={it.id}
-                accessibilityRole="button"
-                accessibilityLabel={[it.name, price, detail].filter(Boolean).join(', ')}
-                onPress={() => onItem(it)}
-                style={({ pressed }) => [styles.menuRow, i > 0 && styles.menuRowLine, pressed && styles.pressed]}
-              >
-                {photo ? <Image source={{ uri: photo }} style={styles.menuImg} contentFit="cover" accessibilityIgnoresInvertColors /> : null}
-                <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                  <Text style={styles.menuName} numberOfLines={1}>
-                    {it.name}
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.bannerRail}
+      snapToInterval={w + 12}
+      decelerationRate="fast"
+      snapToAlignment="start"
+      accessibilityLabel="Negocios a tu puerta; desliza para ver más"
+    >
+      {shelves.map(({ biz, items, branches = 1 }) => {
+        const art = artKeyFor(biz.category_name, biz.category_icon);
+        const cover = resolveImageUrl(biz.photos?.[0]) ?? resolveImageUrl(biz.profile_url) ?? undefined;
+        const logo = resolveImageUrl(biz.profile_url) ?? undefined;
+        const status = biz.is_open_now ? ['Abierto', untilLabel(biz.closes_at)].filter(Boolean).join(' · ') : 'Cerrado ahora';
+        const meta = [km(biz.distance_meters), biz.category_name, branches > 1 ? `${branches} sedes cerca` : null].filter(Boolean).join(' · ');
+        return (
+          <View key={biz.id} style={[styles.banner, { width: w }]}>
+            <Pressable accessibilityRole="link" accessibilityLabel={`${biz.name}. ${status}. ${meta}. Ver el negocio`} onPress={() => onBiz(biz.id)} style={({ pressed }) => [pressed && styles.pressed]}>
+              <View style={[styles.bannerTop, { backgroundColor: ART_TINT[art] }]}>
+                {cover ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors /> : <View style={styles.bannerArt}><CategoryIllustration k={art} size={92} /></View>}
+                <Text style={[styles.bannerStatus, !biz.is_open_now && styles.bannerClosed]}>{status}</Text>
+              </View>
+              <View style={styles.bannerHead}>
+                <View style={styles.bannerLogo}>{logo ? <Image source={{ uri: logo }} style={styles.bannerLogoImg} contentFit="cover" accessibilityIgnoresInvertColors /> : <BusinessArt k={art} size={44} />}</View>
+                <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
+                  <Text style={styles.bannerName} numberOfLines={1}>
+                    {biz.name}
                   </Text>
-                  {detail ? (
-                    <Text style={[styles.menuDetail, it.kind === 'service' && it.bookable && styles.noteOn]} numberOfLines={1}>
-                      {detail}
-                    </Text>
-                  ) : null}
+                  <Text style={styles.why} numberOfLines={1}>
+                    {meta}
+                  </Text>
                 </View>
-                {price ? <Text style={styles.menuPrice}>{price}</Text> : null}
-              </Pressable>
-            );
-          })}
-          {items.length > 4 ? (
-            <Pressable accessibilityRole="link" onPress={onBiz} style={({ pressed }) => [styles.menuRow, styles.menuRowLine, pressed && styles.pressed]}>
-              <Text style={styles.menuMore}>{`Ver las ${items.length} cosas que vende`}</Text>
+              </View>
+            </Pressable>
+            <View style={styles.bannerList}>
+              {items.slice(0, 3).map((it, i) => {
+                const photo = it.photos?.[0] ? mediaUrl(it.photos[0]) : undefined;
+                const price = priceText(it);
+                const detail = it.kind === 'service' ? [it.duration_min ? `${it.duration_min} min` : null, it.bookable ? 'Se reserva' : null].filter(Boolean).join(' · ') : it.sold_out ? 'Agotado' : it.section || '';
+                return (
+                  <Pressable
+                    key={it.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={[it.name, price, detail].filter(Boolean).join(', ')}
+                    onPress={() => onItem(biz, it)}
+                    style={({ pressed }) => [styles.bannerRow, i > 0 && styles.menuRowLine, pressed && styles.pressed]}
+                  >
+                    {photo ? <Image source={{ uri: photo }} style={styles.menuImg} contentFit="cover" accessibilityIgnoresInvertColors /> : null}
+                    <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
+                      <Text style={styles.bannerItem} numberOfLines={1}>
+                        {it.name}
+                      </Text>
+                      {detail ? (
+                        <Text style={[styles.menuDetail, it.kind === 'service' && it.bookable && styles.noteOn]} numberOfLines={1}>
+                          {detail}
+                        </Text>
+                      ) : null}
+                    </View>
+                    {price ? <Text style={styles.bannerPrice}>{price}</Text> : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Pressable accessibilityRole="link" onPress={() => onBiz(biz.id)} style={({ pressed }) => [styles.bannerMore, pressed && styles.pressed]}>
+              <Text style={styles.menuMore}>{items.length > 3 ? `Ver las ${items.length} cosas que vende` : 'Ver el negocio'}</Text>
               <Ionicons name="chevron-forward" size={18} color={colors.muted} />
             </Pressable>
-          ) : null}
-        </View>
-      ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
-          {items.map((it) => {
-            const photo = it.photos?.[0] ? mediaUrl(it.photos[0]) : undefined;
-            const price = priceText(it);
-            const note = it.kind === 'service' ? (it.bookable ? 'Se reserva' : null) : it.sold_out ? 'Agotado' : null;
-            return <Tile key={it.id} photo={photo} art={art} price={price} name={it.name} note={note} noteOn={it.kind === 'service'} onPress={() => onItem(it)} />;
-          })}
-        </ScrollView>
-      )}
-    </View>
+          </View>
+        );
+      })}
+    </ScrollView>
   );
 }
 
@@ -429,14 +454,25 @@ const styles = StyleSheet.create({
   logo: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.sandSoft },
   bizName: { fontFamily: fonts.ui.semibold, fontSize: 16, color: colors.ink },
   rail: { gap: 12, paddingHorizontal: 20 },
-  menu: { marginHorizontal: 20, paddingHorizontal: 16, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
-  menuRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
   menuRowLine: { borderTopWidth: 1, borderTopColor: colors.line },
   menuImg: { width: 40, height: 40, borderRadius: 10, backgroundColor: colors.sandSoft },
-  menuName: { fontFamily: fonts.ui.medium, fontSize: 15, color: colors.ink },
   menuDetail: { fontFamily: fonts.ui.medium, fontSize: 12, color: colors.muted },
-  menuPrice: { fontFamily: fonts.ui.semibold, fontSize: 15, color: colors.ink, fontVariant: ['tabular-nums'] },
   menuMore: { flex: 1, fontFamily: fonts.ui.semibold, fontSize: 14, color: colors.ink },
+  bannerRail: { gap: 12, paddingHorizontal: 20 },
+  banner: { borderRadius: 22, overflow: 'hidden', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  bannerTop: { height: 112, overflow: 'hidden' },
+  bannerArt: { position: 'absolute', right: 12, bottom: 4 },
+  bannerStatus: { position: 'absolute', left: 12, top: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, overflow: 'hidden', backgroundColor: colors.surface, fontFamily: fonts.ui.semibold, fontSize: 12, color: colors.primaryDark },
+  bannerClosed: { color: colors.muted },
+  bannerHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingHorizontal: 14, paddingTop: 8 },
+  bannerLogo: { width: 48, height: 48, marginTop: -32, borderRadius: 24, borderWidth: 3, borderColor: colors.surface, overflow: 'hidden', backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  bannerLogoImg: { width: 44, height: 44, borderRadius: 22 },
+  bannerName: { fontFamily: fonts.ui.semibold, fontSize: 16, color: colors.ink },
+  bannerList: { paddingHorizontal: 14, marginTop: 8 },
+  bannerRow: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
+  bannerItem: { fontFamily: fonts.ui.medium, fontSize: 14, color: colors.ink },
+  bannerPrice: { fontFamily: fonts.ui.semibold, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
+  bannerMore: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: colors.line },
   tile: { width: 118, gap: 4 },
   tileImg: { width: 118, height: 118, borderRadius: 14, backgroundColor: colors.sandSoft },
   card: { minHeight: 172, padding: 10, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, gap: 6 },
