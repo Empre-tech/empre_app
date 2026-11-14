@@ -6,7 +6,7 @@
 // Los errores van en negro con ícono: el rojo es la marca, no una alarma.
 export const colors = {
   primary: '#D42020', // botón principal en rojo de Empre (texto blanco, 5,2:1)
-  primaryDark: '#B91C1C', // texto rojo y enlaces sobre arena (5,6:1) y crema (6:1)
+  primaryDark: '#B91C1C', // texto rojo y enlaces sobre arena (6:1) y crema (6:1)
   primaryPressed: '#B01A1A',
   primarySoft: '#FDECEC',
   brand: '#F03232', // el rojo de Empre en formas: punto, foco y lo que pasa ahora
@@ -18,9 +18,11 @@ export const colors = {
   accentInk: '#8C4E10', // naranja para TEXTO sobre arena (5,1:1)
   accentSoft: '#FEF3E9',
   ink: '#2B2622', // el texto: tinta cálida, no negro puro. El negro es solo texto (~10 %)
-  muted: '#5C5448', // texto secundario (6,5:1 sobre arena, 5,5:1 sobre arena elegida)
+  muted: '#5C5448', // texto secundario (6,9:1 sobre arena, 5,5:1 sobre arena elegida)
   line: '#E6DAC3', // bordes y separadores, cálidos
-  bg: '#F5EEE1', // ARENA clara, ~65 %: el fondo de todas las pantallas (arriba, un degradado más hondo: ScreenGlow)
+  // ARENA casi blanca, ~65 %: el fondo de todas las pantallas (2026-11-14: más cerca del blanco, mismo tono arena).
+  // Arriba, un degradado apenas más hondo: ScreenGlow.
+  bg: '#FAF6EE',
   surface: '#FFFCF7', // CREMA, ~20 %: tarjetas, hojas y barras
   verified: '#B91C1C', // abierto, verificado, hecho (texto)
   verifiedSoft: '#FDECEC',
@@ -50,7 +52,7 @@ export const colors = {
   agendaLight: '#F7A8A8',
   agendaSoft: '#FDECEC',
   // El degradado de arriba en Inicio y Ofertas: arena más honda que se funde con el fondo.
-  glowTop: '#EADCBF',
+  glowTop: '#F2E8D5',
 } as const;
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
