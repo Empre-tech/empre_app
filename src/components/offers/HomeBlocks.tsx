@@ -4,18 +4,48 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { DiscoveryItem } from '@/api/types';
 import { CategoryArt } from '@/components/CategoryArt';
+import { Ionicons } from '@/components/Icon';
 import type { ServiceItem } from '@/lib/catalog';
 import { priceText } from '@/lib/catalog';
 import { onFootOrDistance } from '@/lib/format';
 import { mediaUrl, resolveImageUrl } from '@/lib/image';
-import type { IconGroup, PopularPick } from '@/lib/offerHome';
-import { openLine } from '@/lib/offerHome';
+import type { IconGroup, PopularPick, ResultGroup } from '@/lib/offerHome';
+import { untilLabel } from '@/lib/offerHome';
+import { priceView, type MarketItem } from '@/lib/offerMarket';
 import { colors, fonts } from '@/theme';
 
-/** Dos filas de íconos a la vista (tablero «Empre Offers», teléfono 1): un toque y filtra, sin deslizar para encontrarlos. */
+const km = (m?: number | null) => onFootOrDistance((m ?? 0) / 1000);
+const bizPhoto = (b?: DiscoveryItem) => (b ? (resolveImageUrl(b.profile_url) ?? resolveImageUrl(b.photos?.[0]) ?? undefined) : undefined);
+
+/**
+ * El título de una sección es lo que se toca (tablero «Empre Offers»): sin «Ver todos», solo un chevrón cuando lleva
+ * a algo. Así cada sección tiene a lo sumo un botón.
+ */
+export function SectionHead({ title, sub, onPress }: { title: string; sub?: string | null; onPress?: () => void }) {
+  const body = (
+    <>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={styles.title} accessibilityRole="header">
+          {title}
+        </Text>
+        {sub ? <Text style={styles.why}>{sub}</Text> : null}
+      </View>
+      {onPress ? <Ionicons name="chevron-forward" size={20} color={colors.muted} /> : null}
+    </>
+  );
+  return onPress ? (
+    <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={({ pressed }) => [styles.head, pressed && styles.pressed]}>
+      {body}
+    </Pressable>
+  ) : (
+    <View style={styles.head}>{body}</View>
+  );
+}
+
+/** Los íconos por tipo, en una fila que se desliza: un toque y filtra. */
 export const CategoryIcons = memo(function CategoryIcons({ groups, active, onPick }: { groups: IconGroup[]; active?: string; onPick: (key: string | undefined) => void }) {
   return (
-    <View style={styles.icons} accessibilityLabel="Categorías">
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.icons} accessibilityLabel="Categorías">
       {groups.map((g) => {
         const on = active === g.key;
         return (
@@ -29,104 +59,91 @@ export const CategoryIcons = memo(function CategoryIcons({ groups, active, onPic
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 });
 
-const km = (m?: number) => onFootOrDistance((m ?? 0) / 1000);
-const bizPhoto = (b: DiscoveryItem) => resolveImageUrl(b.photos?.[0] ?? b.profile_url) ?? undefined;
-
-/** «Lo más pegado»: los mejor reseñados cerca, con lo que venden. Solo con reseñas reales. */
-export function PopularRail({ title, picks, catalogs, onOpen }: { title: string; picks: PopularPick<DiscoveryItem>[]; catalogs: Record<string, ServiceItem[]>; onOpen: (id: string) => void }) {
+/** Lo más buscado de la semana (palabras reales): un toque y estás en los resultados. */
+export function SearchedChips({ title, terms, onPick }: { title: string; terms: { term: string; label: string }[]; onPick: (label: string) => void }) {
   return (
     <View style={styles.sec}>
-      <View style={styles.head}>
-        <Text style={styles.title} accessibilityRole="header">
-          {title}
-        </Text>
-        <Text style={styles.why}>Los que más y mejor reseñan quienes fueron</Text>
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
-        {picks.map(({ item: b, rank }) => {
-          const sells = (catalogs[b.id] ?? []).slice(0, 2).map((i) => i.name);
-          return (
-            <Pressable
-              key={b.id}
-              accessibilityRole="button"
-              accessibilityLabel={`Puesto ${rank}: ${b.name}, ${b.avg_rating.toFixed(1)} estrellas, ${b.review_count} reseñas`}
-              onPress={() => onOpen(b.id)}
-              style={({ pressed }) => [styles.pop, pressed && styles.pressed]}
-            >
-              <View>
-                <Image source={{ uri: bizPhoto(b) }} style={styles.popImg} contentFit="cover" accessibilityIgnoresInvertColors />
-                <Text style={styles.rank}>{rank}</Text>
-                {km(b.distance_meters) ? <Text style={styles.popMin}>{km(b.distance_meters)}</Text> : null}
-              </View>
-              <View style={styles.popBody}>
-                <Text style={styles.popName} numberOfLines={1}>
-                  {b.name}
-                </Text>
-                <Text style={styles.popMeta} numberOfLines={1}>
-                  ★ {b.avg_rating.toFixed(1).replace('.', ',')} · {b.review_count} {b.review_count === 1 ? 'reseña' : 'reseñas'} · {b.category_name}
-                </Text>
-                {sells.length ? (
-                  <Text style={styles.popSells} numberOfLines={1}>
-                    Venden: {sells.join(', ')}
-                  </Text>
-                ) : null}
-              </View>
-            </Pressable>
-          );
-        })}
+      <SectionHead title={title} sub="Esta semana · toca y ves quién lo tiene" />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+        {terms.map((t) => (
+          <Pressable key={t.term} accessibilityRole="button" accessibilityLabel={`Buscar ${t.label}`} onPress={() => onPick(t.label)} style={({ pressed }) => [styles.chip, pressed && styles.pressed]}>
+            <Text style={styles.chipText}>{t.label}</Text>
+          </Pressable>
+        ))}
       </ScrollView>
     </View>
   );
 }
 
-/**
- * Un negocio con lo que vende (como las filas por tienda de los mercados): su cara, a cuánto está y si está abierto,
- * y sus productos y servicios en una fila. Tocar uno abre su ficha para preguntar, apartar o reservar.
- */
-export function BizShelf({ biz, items, offers, onBiz, onItem }: { biz: DiscoveryItem; items: ServiceItem[]; offers: number; onBiz: () => void; onItem: (item: ServiceItem) => void }) {
-  const sub = [km(biz.distance_meters), openLine(biz), offers ? (offers === 1 ? '1 oferta' : `${offers} ofertas`) : null].filter(Boolean).join(' · ');
+/** Los más elegidos: caras compactas por reseñas reales, con su puesto, ★ y minutos a pie. */
+export function ChosenFaces({ picks, onOpen }: { picks: PopularPick<DiscoveryItem>[]; onOpen: (id: string) => void }) {
   return (
     <View style={styles.sec}>
-      <Pressable accessibilityRole="link" accessibilityLabel={`Ver ${biz.name}`} onPress={onBiz} style={styles.shelfHead}>
-        <Image source={{ uri: resolveImageUrl(biz.profile_url) ?? bizPhoto(biz) }} style={styles.logo} contentFit="cover" accessibilityIgnoresInvertColors />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.shelfName} numberOfLines={1}>
-            {biz.name}
-          </Text>
-          {sub ? (
-            <Text style={styles.why} numberOfLines={1}>
-              {sub}
+      <SectionHead title="Los más elegidos cerca" />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.faces}>
+        {picks.map(({ item: b, rank }) => (
+          <Pressable
+            key={b.id}
+            accessibilityRole="button"
+            accessibilityLabel={`Puesto ${rank}: ${b.name}, ${b.avg_rating.toFixed(1)} estrellas`}
+            onPress={() => onOpen(b.id)}
+            style={({ pressed }) => [styles.face, pressed && styles.pressed]}
+          >
+            <View>
+              <Image source={{ uri: bizPhoto(b) }} style={styles.faceImg} contentFit="cover" accessibilityIgnoresInvertColors />
+              <Text style={styles.rank}>{rank}</Text>
+            </View>
+            <Text style={styles.faceName} numberOfLines={1}>
+              {b.name}
             </Text>
-          ) : null}
-        </View>
-        <Text style={styles.link}>Ver negocio ›</Text>
-      </Pressable>
+            <Text style={styles.faceMeta} numberOfLines={1}>
+              ★ {b.avg_rating.toFixed(1).replace('.', ',')}
+              {km(b.distance_meters) ? ` · ${km(b.distance_meters)}` : ''}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+/** Cabecera de un negocio: su cara, minutos y hasta qué hora; tocar lleva al negocio. Nada repetido. */
+function BizHead({ name, photo, distance, closes, closed, onPress }: { name: string; photo?: string; distance?: number | null; closes?: string | null; closed?: boolean; onPress: () => void }) {
+  const sub = [km(distance), closed ? 'cerrado' : untilLabel(closes)].filter(Boolean).join(' · ');
+  return (
+    <Pressable accessibilityRole="link" accessibilityLabel={`${name}${sub ? `, ${sub}` : ''}. Ver el negocio`} onPress={onPress} style={({ pressed }) => [styles.bizHead, pressed && styles.pressed]}>
+      <Image source={{ uri: photo }} style={styles.logo} contentFit="cover" accessibilityIgnoresInvertColors />
+      <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
+        <Text style={styles.bizName} numberOfLines={1}>
+          {name}
+        </Text>
+        {sub ? (
+          <Text style={styles.why} numberOfLines={1}>
+            {sub}
+          </Text>
+        ) : null}
+      </View>
+      <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+    </Pressable>
+  );
+}
+
+/** Un negocio de «A tu puerta» con lo que vende. Tocar un producto abre la media hoja. */
+export function BizShelf({ biz, items, onBiz, onItem }: { biz: DiscoveryItem; items: ServiceItem[]; onBiz: () => void; onItem: (item: ServiceItem) => void }) {
+  return (
+    <View style={styles.sec}>
+      <BizHead name={biz.name} photo={bizPhoto(biz)} distance={biz.distance_meters} closes={biz.closes_at} closed={!biz.is_open_now} onPress={onBiz} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
         {items.map((it) => {
           const photo = it.photos?.[0] ? mediaUrl(it.photos[0]) : undefined;
           const price = priceText(it);
           const note = it.kind === 'service' ? (it.bookable ? 'Se reserva' : null) : it.sold_out ? 'Agotado' : null;
           return (
-            <Pressable key={it.id} accessibilityRole="button" accessibilityLabel={[it.name, price, note].filter(Boolean).join(', ')} onPress={() => onItem(it)} style={({ pressed }) => [styles.tile, pressed && styles.pressed]}>
-              {photo ? (
-                <Image source={{ uri: photo }} style={styles.tileImg} contentFit="cover" accessibilityIgnoresInvertColors />
-              ) : (
-                <View style={[styles.tileImg, styles.tileNoImg]}>
-                  <Text style={styles.tileNoImgText} numberOfLines={3}>
-                    {it.name}
-                  </Text>
-                </View>
-              )}
-              {price ? <Text style={styles.price}>{price}</Text> : null}
-              <Text style={styles.tileName} numberOfLines={2}>
-                {it.name}
-              </Text>
-              {note ? <Text style={[styles.note, it.kind === 'service' && styles.noteOn]}>{note}</Text> : null}
-            </Pressable>
+            <Tile key={it.id} photo={photo} price={price} name={it.name} note={note} noteOn={it.kind === 'service'} onPress={() => onItem(it)} />
           );
         })}
       </ScrollView>
@@ -134,37 +151,145 @@ export function BizShelf({ biz, items, offers, onBiz, onItem }: { biz: Discovery
   );
 }
 
+function Tile({ photo, price, was, tag, name, note, noteOn, onPress }: { photo?: string; price: string | null; was?: string | null; tag?: string | null; name: string; note?: string | null; noteOn?: boolean; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={[name, price, tag, note].filter(Boolean).join(', ')} onPress={onPress} style={({ pressed }) => [styles.tile, pressed && styles.pressed]}>
+      <View>
+        {photo ? (
+          <Image source={{ uri: photo }} style={styles.tileImg} contentFit="cover" accessibilityIgnoresInvertColors />
+        ) : (
+          <View style={[styles.tileImg, styles.tileNoImg]}>
+            <Text style={styles.tileNoImgText} numberOfLines={3}>
+              {name}
+            </Text>
+          </View>
+        )}
+        {tag ? <Text style={styles.tag}>{tag}</Text> : null}
+      </View>
+      <View style={styles.priceRow}>
+        {price ? <Text style={styles.price}>{price}</Text> : null}
+        {was ? <Text style={styles.was}>{was}</Text> : null}
+      </View>
+      <Text style={styles.tileName} numberOfLines={2}>
+        {name}
+      </Text>
+      {note ? <Text style={[styles.note, noteOn && styles.noteOn]}>{note}</Text> : null}
+    </Pressable>
+  );
+}
+
+/**
+ * Resultados de una búsqueda (tablero «Empre Offers», teléfono 1b): arriba quién lo tiene, luego una fila por negocio
+ * con solo lo que coincide. Las caras dicen solo el nombre (y «Cerrado» si lo está); los minutos van en su fila.
+ */
+export function ResultsByBusiness({
+  q,
+  groups,
+  bizById,
+  onBiz,
+  onItem,
+  onAsk,
+}: {
+  q: string;
+  groups: ResultGroup<MarketItem>[];
+  bizById: Record<string, DiscoveryItem>;
+  onBiz: (id: string) => void;
+  onItem: (item: MarketItem) => void;
+  onAsk?: () => void;
+}) {
+  return (
+    <View style={styles.results}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.who} accessibilityLabel={`Quién tiene ${q}`}>
+        {groups.map((g) => {
+          const photo = bizPhoto(bizById[g.entityId]) ?? g.items[0]?.photo;
+          return (
+            <Pressable key={g.entityId} accessibilityRole="button" accessibilityLabel={`${g.name}${g.open === false ? ', cerrado' : ''}`} onPress={() => onBiz(g.entityId)} style={({ pressed }) => [styles.whoFace, pressed && styles.pressed]}>
+              <Image source={{ uri: photo }} style={[styles.whoImg, g.open !== false && styles.whoImgOpen]} contentFit="cover" accessibilityIgnoresInvertColors />
+              <Text style={styles.whoName} numberOfLines={1}>
+                {g.name}
+              </Text>
+              {g.open === false ? <Text style={styles.whoClosed}>Cerrado</Text> : null}
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+      {groups.map((g) => (
+        <View key={g.entityId} style={styles.sec}>
+          <BizHead
+            name={g.name}
+            photo={bizPhoto(bizById[g.entityId]) ?? g.items[0]?.photo}
+            distance={g.distance}
+            closes={g.openUntil}
+            closed={g.open === false}
+            onPress={() => onBiz(g.entityId)}
+          />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
+            {g.items.map((it) => {
+              const p = priceView(it);
+              return <Tile key={it.id} photo={it.photo} price={p.now} was={p.was} tag={p.save ?? (it.kind === 'offer' ? 'Oferta' : null)} name={it.title} onPress={() => onItem(it)} />;
+            })}
+          </ScrollView>
+        </View>
+      ))}
+      {onAsk && groups.length > 1 ? (
+        <View style={styles.ask}>
+          <Text style={styles.askTitle}>¿Comparar antes de ir?</Text>
+          <Text style={styles.askText}>{`Pregúntales a los ${groups.length} si tienen hoy y a qué precio. Empre AI responde con lo que publicaron.`}</Text>
+          <Pressable accessibilityRole="button" onPress={onAsk} style={({ pressed }) => [styles.askBtn, pressed && styles.pressed]}>
+            <Text style={styles.askBtnText}>{`Pregúntales a los ${groups.length}`}</Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   pressed: { opacity: 0.8 },
-  icons: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 10, rowGap: 14 },
-  icon: { width: '20%', alignItems: 'center', gap: 6, minHeight: 44 },
-  iconArt: { width: 60, height: 60, borderRadius: 30, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
-  iconArtOn: { borderColor: colors.primary },
-  iconText: { fontFamily: fonts.ui.medium, fontSize: 12, color: colors.ink, textAlign: 'center', paddingHorizontal: 2 },
-  iconTextOn: { fontFamily: fonts.ui.semibold, color: colors.primaryDark },
-  sec: { gap: 10 },
-  head: { paddingHorizontal: 20, gap: 2 },
+  sec: { gap: 12 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, minHeight: 44 },
   title: { fontFamily: fonts.display.semibold, fontSize: 17, color: colors.ink },
   why: { fontFamily: fonts.ui.medium, fontSize: 12, color: colors.muted },
-  link: { fontFamily: fonts.ui.semibold, fontSize: 13, color: colors.primaryDark },
-  rail: { gap: 10, paddingHorizontal: 20 },
-  pop: { width: 236, borderRadius: 18, overflow: 'hidden', backgroundColor: colors.surface },
-  popImg: { width: '100%', height: 118, backgroundColor: colors.sandSoft },
-  rank: { position: 'absolute', left: 10, top: 10, width: 30, height: 30, borderRadius: 15, overflow: 'hidden', backgroundColor: colors.surface, textAlign: 'center', lineHeight: 30, fontFamily: fonts.ui.extrabold, fontSize: 15, color: colors.primaryDark },
-  popMin: { position: 'absolute', right: 10, top: 10, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, overflow: 'hidden', backgroundColor: colors.surface, fontFamily: fonts.ui.semibold, fontSize: 12, color: colors.ink },
-  popBody: { padding: 12, gap: 3 },
-  popName: { fontFamily: fonts.ui.semibold, fontSize: 15, color: colors.ink },
-  popMeta: { fontFamily: fonts.ui.medium, fontSize: 12, color: colors.muted },
-  popSells: { marginTop: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, overflow: 'hidden', backgroundColor: colors.sandSoft, fontFamily: fonts.ui.medium, fontSize: 12, color: colors.ink },
-  shelfHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, minHeight: 44 },
+  icons: { gap: 18, paddingHorizontal: 20 },
+  icon: { width: 64, alignItems: 'center', gap: 6, minHeight: 44 },
+  iconArt: { width: 60, height: 60, borderRadius: 30, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
+  iconArtOn: { borderColor: colors.primary },
+  iconText: { fontFamily: fonts.ui.medium, fontSize: 12, color: colors.ink, textAlign: 'center' },
+  iconTextOn: { fontFamily: fonts.ui.semibold, color: colors.primaryDark },
+  chips: { gap: 8, paddingHorizontal: 20 },
+  chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
+  chipText: { fontFamily: fonts.ui.medium, fontSize: 14, color: colors.ink },
+  faces: { gap: 14, paddingHorizontal: 20 },
+  face: { width: 78, alignItems: 'center', gap: 4 },
+  faceImg: { width: 62, height: 62, borderRadius: 31, backgroundColor: colors.sandSoft, borderWidth: 2, borderColor: colors.surface },
+  rank: { position: 'absolute', left: -2, top: -2, width: 22, height: 22, borderRadius: 11, overflow: 'hidden', backgroundColor: colors.surface, textAlign: 'center', lineHeight: 22, fontFamily: fonts.ui.extrabold, fontSize: 12, color: colors.primaryDark },
+  faceName: { fontFamily: fonts.ui.semibold, fontSize: 12, color: colors.ink, maxWidth: 78 },
+  faceMeta: { fontFamily: fonts.ui.medium, fontSize: 11, color: colors.muted },
+  bizHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, minHeight: 44 },
   logo: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.sandSoft },
-  shelfName: { fontFamily: fonts.ui.semibold, fontSize: 16, color: colors.ink },
+  bizName: { fontFamily: fonts.ui.semibold, fontSize: 16, color: colors.ink },
+  rail: { gap: 12, paddingHorizontal: 20 },
   tile: { width: 118, gap: 4 },
   tileImg: { width: 118, height: 118, borderRadius: 14, backgroundColor: colors.sandSoft },
   tileNoImg: { padding: 10, justifyContent: 'flex-end' },
   tileNoImgText: { fontFamily: fonts.ui.semibold, fontSize: 13, color: colors.sandInk },
+  tag: { position: 'absolute', left: 6, top: 6, paddingHorizontal: 7, paddingVertical: 2, borderTopLeftRadius: 3, borderBottomLeftRadius: 3, borderTopRightRadius: 8, borderBottomRightRadius: 8, overflow: 'hidden', backgroundColor: colors.accent, fontFamily: fonts.ui.semibold, fontSize: 11, color: colors.ink },
+  priceRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 5 },
   price: { fontFamily: fonts.ui.extrabold, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
+  was: { fontFamily: fonts.ui.medium, fontSize: 11, color: colors.muted, textDecorationLine: 'line-through' },
   tileName: { fontFamily: fonts.ui.medium, fontSize: 12, lineHeight: 16, color: colors.ink },
   note: { fontFamily: fonts.ui.semibold, fontSize: 11, color: colors.muted },
   noteOn: { color: colors.primaryDark },
+  results: { gap: 28 },
+  who: { gap: 14, paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.line },
+  whoFace: { width: 72, alignItems: 'center', gap: 4 },
+  whoImg: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.sandSoft, borderWidth: 2, borderColor: colors.line },
+  whoImgOpen: { borderColor: colors.primary },
+  whoName: { fontFamily: fonts.ui.semibold, fontSize: 12, color: colors.ink, maxWidth: 72 },
+  whoClosed: { fontFamily: fonts.ui.medium, fontSize: 11, color: colors.muted },
+  ask: { marginHorizontal: 20, padding: 14, gap: 8, borderRadius: 18, backgroundColor: colors.surface },
+  askTitle: { fontFamily: fonts.ui.semibold, fontSize: 14, color: colors.ink },
+  askText: { fontFamily: fonts.ui.medium, fontSize: 13, lineHeight: 18, color: colors.muted },
+  askBtn: { alignSelf: 'flex-start', minHeight: 40, paddingHorizontal: 14, borderRadius: 20, backgroundColor: colors.sand, justifyContent: 'center' },
+  askBtnText: { fontFamily: fonts.ui.semibold, fontSize: 13, color: colors.ink },
 });

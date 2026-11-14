@@ -80,3 +80,78 @@ export function openLine(b: { is_open_now?: boolean; closes_at?: string }): stri
   const hh = h % 12 || 12;
   return `Abierto hasta ${hh}${m ? `:${String(m).padStart(2, '0')}` : ''} ${h < 12 ? 'am' : 'pm'}`;
 }
+
+const plainText = (t: string) =>
+  t
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9ñ ]/g, ' ');
+
+/** Cada palabra buscada (de 2+ letras) empieza alguna palabra del texto, sin importar tildes ni plural corto. */
+export function matchesQuery(text: string, q: string): boolean {
+  const words = plainText(text).split(/\s+/).filter(Boolean);
+  const want = plainText(q).split(/\s+/).filter((w) => w.length >= 2);
+  if (!want.length) return false;
+  return want.every((w) => {
+    const stem = w.length > 4 ? w.slice(0, w.length - 1) : w;
+    return words.some((x) => x.startsWith(stem));
+  });
+}
+
+interface ResultLike {
+  id: string;
+  entity_id: string;
+  entity_name: string;
+  title: string;
+  kind?: string;
+  section?: string;
+  category_name?: string;
+  linked_offer_title?: string;
+  service_id?: string;
+  open_now?: boolean;
+  open_until?: string;
+  distance_meters?: number | null;
+}
+
+export interface ResultGroup<T> {
+  entityId: string;
+  name: string;
+  open: boolean | null;
+  openUntil?: string;
+  distance: number | null;
+  items: T[];
+}
+
+/**
+ * Resultados de una búsqueda en Ofertas, como en los mercados: un grupo por negocio con solo lo que coincide.
+ * Lo que trajo Empre AI (id «ask-») ya coincide; lo demás se filtra por el texto. Abiertos primero y luego los más
+ * cerca: nadie paga por subir.
+ */
+export function groupResults<T extends ResultLike>(items: T[], q: string): ResultGroup<T>[] {
+  const groups = new Map<string, ResultGroup<T>>();
+  const seen = new Set<string>();
+  for (const it of items) {
+    const hit = it.id.startsWith('ask-') || matchesQuery([it.title, it.section, it.category_name, it.linked_offer_title].filter(Boolean).join(' '), q);
+    if (!hit) continue;
+    const key = `${it.entity_id}|${it.service_id ?? plainText(it.title).trim()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const g = groups.get(it.entity_id) ?? { entityId: it.entity_id, name: it.entity_name, open: it.open_now ?? null, openUntil: it.open_until, distance: it.distance_meters ?? null, items: [] };
+    if (g.open === null && it.open_now !== undefined) g.open = it.open_now;
+    if (g.distance === null && it.distance_meters != null) g.distance = it.distance_meters;
+    g.items.push(it);
+    groups.set(it.entity_id, g);
+  }
+  const rank = (o: boolean | null) => (o === true ? 0 : o === null ? 1 : 2);
+  return [...groups.values()].sort((a, b) => rank(a.open) - rank(b.open) || (a.distance ?? Infinity) - (b.distance ?? Infinity));
+}
+
+/** «hasta 9 pm» desde «21:00»; «24 h»; null si no hay. */
+export function untilLabel(closes?: string | null): string | null {
+  if (!closes) return null;
+  if (closes === '24h') return '24 h';
+  const [h, m] = closes.split(':').map(Number);
+  if (Number.isNaN(h)) return null;
+  return `hasta ${h % 12 || 12}${m ? `:${String(m).padStart(2, '0')}` : ''} ${h < 12 ? 'am' : 'pm'}`;
+}

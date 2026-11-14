@@ -47,3 +47,24 @@ test('openLine', () => {
   assert.equal(openLine({ is_open_now: true, closes_at: '24h' }), 'Abierto 24 h');
   assert.equal(openLine({ is_open_now: false }), 'Cerrado ahora');
 });
+
+test('resultados por negocio: solo lo que coincide, abiertos y cerca primero', async () => {
+  const { groupResults, matchesQuery, untilLabel } = await import('./offerHome.ts');
+  assert.ok(matchesQuery('Jugo de mora', 'jugos'));
+  assert.ok(matchesQuery('Mojarra frita', 'mojarra'));
+  assert.ok(!matchesQuery('Café con leche', 'jugo'));
+  const it = (id: string, e: string, title: string, o: Record<string, unknown> = {}) => ({ id, entity_id: e, entity_name: 'N' + e, title, ...o });
+  const g = groupResults(
+    [
+      it('1', 'A', 'Jugo de lulo', { open_now: false, distance_meters: 100 }),
+      it('2', 'B', 'Jugo de mora', { open_now: true, distance_meters: 500 }),
+      it('3', 'B', 'Café con leche', { open_now: true, distance_meters: 500 }),
+      it('ask-9', 'C', 'Limonada natural', { open_now: true, distance_meters: 300 }),
+      it('4', 'B', 'Jugo de mora', { open_now: true, distance_meters: 500 }),
+    ],
+    'jugo',
+  );
+  assert.deepEqual(g.map((x) => [x.entityId, x.items.map((i) => i.id)]), [['C', ['ask-9']], ['B', ['2']], ['A', ['1']]]);
+  assert.equal(untilLabel('21:00'), 'hasta 9 pm');
+  assert.equal(untilLabel('09:30'), 'hasta 9:30 am');
+});

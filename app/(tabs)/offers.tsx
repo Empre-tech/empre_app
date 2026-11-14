@@ -33,7 +33,8 @@ import { artKeyFor } from '@/components/CategoryArt';
 import { ZoneButton, ZoneList } from '@/components/ZoneButton';
 import { UpdatingBar } from '@/components/explore/LoadingMotion';
 import { BizVitrinaSheet } from '@/components/offers/BizFaces';
-import { BizShelf, CategoryIcons, PopularRail } from '@/components/offers/HomeBlocks';
+import { AskManySheet } from '@/components/offers/AskManySheet';
+import { BizShelf, ChosenFaces, CategoryIcons, ResultsByBusiness, SearchedChips, SectionHead } from '@/components/offers/HomeBlocks';
 import { FilterRow, FiltersSheet, LensTabs, type FilterTag, type ShowFilter } from '@/components/offers/LensFilters';
 import { MarketItemSheet } from '@/components/offers/MarketItemSheet';
 import { OfferAlertCard } from '@/components/offers/OfferAlertCard';
@@ -46,7 +47,7 @@ import { mediaUrl } from '@/lib/image';
 import { onFootOrDistance } from '@/lib/format';
 import { loadLastCity, saveLastCity } from '@/lib/lastCityStore';
 import { displayIcon } from '@/lib/mapView';
-import { iconGroups, mostPopular } from '@/lib/offerHome';
+import { groupResults, iconGroups, mostPopular } from '@/lib/offerHome';
 import { applyFilters, availableLenses, lensItems, type BizFace, type LensKey } from '@/lib/offerLenses';
 import {
   askItemsToMarketItems,
@@ -376,13 +377,24 @@ export default function OffersScreen() {
   const subCats = useMemo(() => (artGroup && artGroup.ids.length > 1 ? allCats.filter((c) => artGroup.ids.includes(c.id)).slice(0, 14) : []), [allCats, artGroup]);
   const offerRails = useMemo(() => (q || category ? [] : offerSections(knownOffers, now)), [knownOffers, now, q, category]);
   // Cada negocio cerca con lo que vende (productos y servicios): el volumen de la portada.
-  const shelves = useMemo(
-    () =>
-      nearbyBiz
-        .map((b) => ({ biz: b, items: publicCatalog(catalogsByEntity[b.id] ?? []).slice(0, 10), offers: knownOffers.filter((o) => o.entity_id === b.id).length }))
-        .filter((x) => x.items.length > 0),
-    [nearbyBiz, catalogsByEntity, knownOffers],
-  );
+  // A tu puerta: los más cercanos con lo que venden, abiertos primero, sin repetir a los de «Los más elegidos».
+  const shelves = useMemo(() => {
+    const chosen = new Set(popular.map((x) => x.item.id));
+    return nearbyBiz
+      .filter((b) => !chosen.has(b.id))
+      .map((b) => ({ biz: b, items: publicCatalog(catalogsByEntity[b.id] ?? []).slice(0, 10) }))
+      .filter((x) => x.items.length > 0)
+      .sort((a, b) => Number(b.biz.is_open_now) - Number(a.biz.is_open_now) || (a.biz.distance_meters ?? 0) - (b.biz.distance_meters ?? 0))
+      .slice(0, 3);
+  }, [nearbyBiz, catalogsByEntity, popular]);
+  const shelvesOpen = shelves.some((x) => x.biz.is_open_now);
+  // Resultados de una búsqueda: un grupo por negocio con solo lo que coincide.
+  const resultGroups = useMemo(() => (q ? groupResults(items, q) : []), [items, q]);
+  const [askAll, setAskAll] = useState(false);
+  const searchTerm = (label: string) => {
+    setText(label);
+    openAll(false);
+  };
 
   const pickZone = (id: string) => {
     const z = data?.zones.find((x) => x.id === id);
@@ -628,9 +640,10 @@ export default function OffersScreen() {
         {home ? (
           <>
             {/* Lo más pegado: los mejor reseñados cerca */}
-            {!q && !category && popular.length ? (
-              <PopularRail title={city ? `Lo más pegado en ${city}` : 'Lo más pegado cerca'} picks={popular} catalogs={catalogsByEntity} onOpen={(id) => router.push({ pathname: '/business/[id]', params: { id } })} />
+            {!q && !category && data?.searched.terms.length ? (
+              <SearchedChips title={city ? `Lo más buscado en ${city}` : 'Lo más buscado cerca'} terms={data.searched.terms.slice(0, 6)} onPick={searchTerm} />
             ) : null}
+            {!q && !category && popular.length ? <ChosenFaces picks={popular} onOpen={(id) => router.push({ pathname: '/business/[id]', params: { id } })} /> : null}
 
             {!data && (market.isLoading || !ready) ? (
               <View style={styles.rail}>
@@ -739,14 +752,14 @@ export default function OffersScreen() {
 
         {home ? (
           <>
-            {/* Cada negocio con lo que vende: productos y servicios, con sus ofertas contadas */}
+            {/* A tu puerta: dos o tres negocios cercanos con lo que venden; el resto sale al buscar o con un ícono */}
+            {!q && show !== 'offers' && shelves.length ? <SectionHead title={shelvesOpen ? 'A tu puerta, abiertos ahora' : 'A tu puerta'} sub="Lo que venden los más cercanos" /> : null}
             {!q && show !== 'offers'
               ? shelves.map((x) => (
                   <BizShelf
                     key={x.biz.id}
                     biz={x.biz}
                     items={x.items}
-                    offers={x.offers}
                     onBiz={() => router.push({ pathname: '/business/[id]', params: { id: x.biz.id } })}
                     onItem={(it) => open(catalogMarketItem(x.biz, it, resolvePhoto(it.photos?.[0]) ?? x.biz.photos?.[0] ?? x.biz.profile_url ?? undefined))}
                   />
@@ -774,8 +787,9 @@ export default function OffersScreen() {
             {alertZone && show !== 'services' ? <OfferAlertCard zoneId={alertZone.id} zoneName={alertZone.name} categoryId={alertCat?.id} categoryName={alertCat?.name} /> : null}
 
             {!q ? (
-              <Pressable accessibilityRole="button" onPress={() => router.push('/cerca')} style={styles.moreBtn}>
-                <Text style={styles.moreBtnText}>Ver todo lo que venden cerca</Text>
+              <Pressable accessibilityRole="link" onPress={() => router.push('/cerca')} style={({ pressed }) => [styles.moreLink, pressed && { opacity: 0.8 }]}>
+                <Text style={styles.moreLinkText}>Todo lo que venden cerca</Text>
+                <Ionicons name="chevron-forward" size={20} color={colors.muted} />
               </Pressable>
             ) : null}
           </>
@@ -860,9 +874,9 @@ export default function OffersScreen() {
               <View onLayout={(e) => setListY(e.nativeEvent.layout.y)}>
                 <Reveal key={`all|${key}|${q ? 'q' : ''}`} delay={Math.min(sections.length + (zonesOn ? 1 : 0), 3) * 70} style={styles.sec}>
                   {header(
-                    q ? 'Productos, servicios y ofertas' : listTitle(city, zoneName),
+                    q ? `Resultados para «${q}»` : listTitle(city, zoneName),
                     q
-                      ? `Coincidencias con «${q}» · Toca cualquiera para consultar con Empre AI o ver si tiene oferta`
+                      ? ''
                       : hasLoc
                         ? 'Catálogo al día y ofertas vigentes, lo más cercano primero'
                         : 'Catálogo al día y ofertas vigentes',
@@ -882,15 +896,25 @@ export default function OffersScreen() {
                       ))}
                     </ScrollView>
                   ) : null}
+                  {q && resultGroups.length ? (
+                    <ResultsByBusiness
+                      q={q}
+                      groups={resultGroups}
+                      bizById={bizById}
+                      onBiz={(id) => router.push({ pathname: '/business/[id]', params: { id } })}
+                      onItem={open}
+                      onAsk={() => setAskAll(true)}
+                    />
+                  ) : null}
                   <View style={styles.list}>
-                    {items.map((o, i) => (
+                    {(q && resultGroups.length ? [] : items).map((o, i) => (
                       <Reveal key={o.id} delay={i < 20 ? 60 + Math.min(i, 6) * 40 : 0} distance={6} duration={260}>
                         <OfferRow item={o} now={now} onPress={() => open(o)} />
                       </Reveal>
                     ))}
                     {all.isFetchingNextPage || (all.isLoading && !all.data) ? [0, 1].map((i) => <SkeletonBlock key={`sk${i}`} height={98} borderRadius={radius.lg} />) : null}
-                    {all.data && !all.hasNextPage && items.length > 0 ? <Text style={styles.end}>{endText(city, zoneName)}</Text> : null}
-                    {all.data && items.length === 0 && !all.isFetching && !askSearchQuery.isFetching ? <EmptyOffers searching={Boolean(q || zoneId)} /> : null}
+                    {all.data && !all.hasNextPage && items.length > 0 && !(q && resultGroups.length) ? <Text style={styles.end}>{endText(city, zoneName)}</Text> : null}
+                    {all.data && (q ? resultGroups.length === 0 : items.length === 0) && !all.isFetching && !askSearchQuery.isFetching ? <EmptyOffers searching={Boolean(q || zoneId)} /> : null}
                     {all.isError && all.data ? (
                       <View style={styles.empty}>
                         <Text style={styles.emptyText}>No pudimos cargar más elementos.</Text>
@@ -920,6 +944,7 @@ export default function OffersScreen() {
       </ScrollView>
 
       {/* FICHA RÁPIDA INTERACTIVA CON EMPRE AI + DETECCIÓN DE OFERTA + CHAT DIRECTO */}
+      <AskManySheet visible={askAll} product={q} items={resultGroups.map((g) => g.items[0])} onClose={() => setAskAll(false)} />
       <MarketItemSheet item={selectedItem} onClose={() => setSelectedItem(null)} pool={askPool} onPick={setSelectedItem} />
       <FiltersSheet
         visible={filtersOpen}
@@ -988,8 +1013,8 @@ function EmptyOffers({ searching }: { searching: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  moreBtn: { marginHorizontal: 20, minHeight: 48, borderRadius: 24, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  moreBtnText: { fontFamily: fonts.ui.semibold, fontSize: 14, color: colors.ink },
+  moreLink: { marginHorizontal: 20, minHeight: 48, paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  moreLinkText: { fontFamily: fonts.ui.semibold, fontSize: 15, color: colors.ink },
   peek: { marginHorizontal: 20, padding: 14, gap: 12, borderRadius: 20, backgroundColor: colors.surface },
   peekRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   peekCell: { flex: 1, gap: 4 },
@@ -1013,7 +1038,7 @@ const styles = StyleSheet.create({
   fieldSlot: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
   tilesLabel: { marginTop: 6, marginBottom: -6, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   screen: { flex: 1, backgroundColor: colors.bg },
-  body: { gap: 16, paddingBottom: 120 },
+  body: { gap: 28, paddingBottom: 120 },
   wash: { position: 'absolute', left: 0, right: 0, top: 0 },
   top: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingTop: 16 },
   round: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
@@ -1048,7 +1073,7 @@ const styles = StyleSheet.create({
   locText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.muted },
   locBtn: { minHeight: 44, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primary, justifyContent: 'center' },
   locBtnText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  sec: { gap: 8 },
+  sec: { gap: 12 },
   railHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 20 },
   seeAll: { minHeight: 44, justifyContent: 'center' },
   seeAllText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
