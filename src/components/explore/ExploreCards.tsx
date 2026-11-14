@@ -195,44 +195,90 @@ export function MiniCard({ model, selected, onPress }: { model: CardModel; selec
 }
 
 /** Fila del panel expandido: círculo, nombre, estado · subcategoría · distancia, motivo y pastilla. */
-export function MiniRow({ model, selected, onPress, rank }: { model: CardModel; selected?: boolean; onPress: () => void; /** El número del pin (búsqueda). */ rank?: number }) {
+/**
+ * Fila de un negocio, como en Google Maps (2026-11-14): el nombre; nota · tipo · a pie; «● Abierto · hasta…» una sola
+ * vez; su frase o la reseña más reciente; y una tira de hasta 3 fotos suyas (tocar una abre el visor). Sin el círculo de
+ * color: las fotos son la imagen del negocio. Con número, el mismo del pin del mapa.
+ */
+export function MiniRow({
+  model,
+  selected,
+  onPress,
+  rank,
+  onPhoto,
+}: {
+  model: CardModel;
+  selected?: boolean;
+  onPress: () => void;
+  /** El número del pin (búsqueda). */
+  rank?: number;
+  /** Tocar una foto abre el visor. */
+  onPhoto?: (index: number) => void;
+}) {
+  const photos = (model.photos ?? []).slice(0, 3);
+  const statusLine = model.line && /^(Abierto|Cerrado)/.test(model.line) ? model.line : null;
+  const reason = statusLine ? null : model.line;
+  const stars = model.rating && model.reviews ? `★ ${model.rating.toFixed(1)} (${model.reviews})` : null;
+  const meta = [stars, model.sub, model.distance].filter(Boolean).join(' · ');
+  const openNow = statusLine ? statusLine.startsWith('Abierto') : model.open === true;
+  const status = statusLine ?? (model.open === null ? null : model.open ? 'Abierto' : 'Cerrado');
+  const about = model.review?.quote ?? model.tagline ?? reason ?? null;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={[rank ? `${rank}.` : null, model.name, model.open === null ? null : model.open ? 'Abierto' : 'Cerrado', model.sub, model.distance, model.line].filter(Boolean).join(', ')}
+      accessibilityLabel={[rank ? `${rank}.` : null, model.name, stars, model.sub, model.distance, status, about].filter(Boolean).join(', ')}
       onPress={onPress}
-      style={({ pressed }) => [styles.row, selected && styles.selected, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.place, selected && styles.selected, pressed && styles.pressed]}
     >
-      {rank ? (
-        <View style={styles.rank}>
-          <Text style={styles.rankText}>{rank}</Text>
-        </View>
-      ) : null}
-      <Circle model={model} size={46} />
-      <View style={styles.rowText}>
-        <Text style={styles.rowName} numberOfLines={1}>
+      <View style={styles.placeHead}>
+        {rank ? (
+          <View style={styles.rank}>
+            <Text style={styles.rankText}>{rank}</Text>
+          </View>
+        ) : null}
+        <Text style={styles.placeName} numberOfLines={1}>
           {model.name}
         </Text>
-        <Text style={styles.dcMeta} numberOfLines={1}>
-          <StatusText open={model.open} />
-          {model.open !== null ? ' · ' : ''}
-          {[model.sub, model.distance].filter(Boolean).join(' · ')}
-        </Text>
-        {model.line ? (
-          <Text style={[styles.dcMeta, styles.why]} numberOfLines={1}>
-            {model.line}
-          </Text>
-        ) : null}
-      </View>
-      <View style={styles.topRight}>
-        <NearChip text={model.nearChip} />
         <PillView pill={model.pill} mine={model.mine} />
       </View>
+      {meta ? (
+        <Text style={styles.dcMeta} numberOfLines={1}>
+          {meta}
+        </Text>
+      ) : null}
+      {status ? (
+        <Text style={[styles.dcMeta, openNow ? styles.open : null]} numberOfLines={1}>
+          {openNow ? <Text style={styles.openDot}>● </Text> : null}
+          {status}
+        </Text>
+      ) : null}
+      {about ? (
+        <Text style={styles.about} numberOfLines={1}>
+          {about}
+        </Text>
+      ) : null}
+      {photos.length ? (
+        <View style={styles.photoRow}>
+          {photos.map((ph, i) => (
+            <Pressable key={ph} accessibilityRole="imagebutton" accessibilityLabel={`Foto ${i + 1} de ${model.name}`} onPress={() => (onPhoto ? onPhoto(i) : onPress())} style={styles.photoHit}>
+              <Image accessible={false} source={{ uri: resolveImageUrl(ph) ?? ph }} style={styles.photo} contentFit="cover" transition={200} cachePolicy="memory-disk" recyclingKey={ph} />
+            </Pressable>
+          ))}
+          {photos.length < 3 ? Array.from({ length: 3 - photos.length }, (_, i) => <View key={`v${i}`} style={styles.photoHit} />) : null}
+        </View>
+      ) : null}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  place: { paddingVertical: 12, paddingHorizontal: spacing.lg, gap: 3, borderBottomWidth: 1, borderBottomColor: colors.hairline },
+  placeHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  placeName: { flex: 1, minWidth: 0, fontSize: 16, lineHeight: 21, fontFamily: fonts.ui.semibold, color: colors.ink },
+  about: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.muted },
+  photoRow: { flexDirection: 'row', gap: 6, marginTop: 6 },
+  photoHit: { flex: 1 },
+  photo: { width: '100%', height: 84, borderRadius: 12, backgroundColor: colors.sandSoft },
   rank: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primarySoft },
   rankText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   circle: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },

@@ -62,7 +62,7 @@ function Fichas({ items, selectedId, onSelect, onOpenProfile, onPhoto }: Common 
         <View key={g.id}>
           {g.title ? <GroupHead title={g.title} note={String(g.items.length)} tone={g.id === 'offer' ? 'offer' : g.id === 'open' ? 'open' : undefined} /> : null}
           {g.items.map((m) => (
-            <MiniRow key={m.id} model={m} selected={selectedId === m.id} onPress={() => onSelect(m)} />
+            <MiniRow key={m.id} model={m} selected={selectedId === m.id} onPress={() => onSelect(m)} onPhoto={onPhoto ? (i) => onPhoto(m, i) : undefined} />
           ))}
         </View>
       ))}
@@ -176,7 +176,7 @@ export function ZoneAll(p: Props) {
         <>
           <GroupHead title="Más allá de lo que ves" note={String(p.extras.length)} tone="extra" />
           {p.extras.map((m) => (
-            <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />
+            <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={p.onPhoto ? (i) => p.onPhoto?.(m, i) : undefined} />
           ))}
         </>
       ) : null}

@@ -4,6 +4,7 @@ import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 import type { DiscoverSection, DiscoverSectionId } from '@/api/types';
 import { SkeletonRows } from '@/components/Skeleton';
 import { scopeText, type SearchScope } from '@/lib/discover';
+import { brandKey } from '@/lib/offerHome';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
 import { MiniRow, type CardModel } from './ExploreCards';
 import { DiscoverSkeleton, FadeIn, UpdatingBar } from './LoadingMotion';
@@ -210,7 +211,7 @@ function Body(p: Props) {
         <>
           <Hint warn text="No pudimos cargar Descubre. Aquí tienes la lista." action="Reintentar" onAction={p.sections.onRetry} />
           {p.zone.items.map((m) => (
-            <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />
+            <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={(i) => p.onPhoto(m, i)} />
           ))}
         </>
       );
@@ -244,9 +245,8 @@ function Body(p: Props) {
                   <Text style={styles.link}>Ver más ›</Text>
                 </Pressable>
               </View>
-              {(mid ? sec.items.slice(0, 3) : sec.items).map((it) => {
-                const m = p.sections.models(it, sec.id);
-                return <MiniRow key={`${sec.id}-${m.id}`} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />;
+              {oneBranch((mid ? sec.items.slice(0, 4) : sec.items).map((it) => p.sections.models(it, sec.id))).slice(0, mid ? 3 : undefined).map((m) => {
+                return <MiniRow key={`${sec.id}-${m.id}`} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={(i) => p.onPhoto(m, i)} />;
               })}
             </View>
           ))}
@@ -311,7 +311,7 @@ function Body(p: Props) {
     if (mid) {
       return (
         <View style={styles.body}>
-          {nearItems.slice(0, 3).map((m) => <MiniRow key={m.id} model={m} rank={rankOf(m.id)} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
+          {nearItems.slice(0, 3).map((m) => <MiniRow key={m.id} model={m} rank={rankOf(m.id)} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={(i) => p.onPhoto(m, i)} />)}
           {nearItems.length > 3 || farItems.length || r.related.length ? (
           <Pressable accessibilityRole="button" onPress={() => p.sheet.snapTo('full')} style={styles.more}>
             <Text style={styles.link}>
@@ -327,11 +327,11 @@ function Body(p: Props) {
     return (
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
         <Group title="Coinciden con tu búsqueda" count={nearItems.length} />
-        {nearItems.map((m) => <MiniRow key={m.id} model={m} rank={rankOf(m.id)} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
+        {nearItems.map((m) => <MiniRow key={m.id} model={m} rank={rankOf(m.id)} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={(i) => p.onPhoto(m, i)} />)}
         {farItems.length ? (
           <>
             <Group title="Más lejos" count={farItems.length} />
-            {farItems.map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
+            {farItems.map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={(i) => p.onPhoto(m, i)} />)}
           </>
         ) : null}
         {r.related.length ? (
@@ -351,7 +351,7 @@ function Body(p: Props) {
   const loading = filter ? filter.status === 'loading' && list.length === 0 : p.zone.status === 'loading' && list.length === 0;
   if (loading) return <View style={styles.body}>{filterHint}<SkeletonRows count={3} /></View>;
   const extras = filter ? [] : p.zone.extras;
-  const everything = [...list, ...extras];
+  const everything = oneBranch([...list, ...extras]);
   if (everything.length === 0 && filter) {
     return (
       <View style={styles.body}>
@@ -367,7 +367,7 @@ function Body(p: Props) {
     return (
       <View style={styles.body}>
         {filterHint}
-        {everything.slice(0, 3).map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
+        {everything.slice(0, 3).map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={(i) => p.onPhoto(m, i)} />)}
         {everything.length > 3 ? (
           <Pressable accessibilityRole="button" onPress={() => p.sheet.snapTo('full')} style={styles.more}>
             <Text style={styles.link}>Ver los {everything.length}</Text>
@@ -399,9 +399,21 @@ function Body(p: Props) {
   return (
     <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
       {filterHint}
-      {list.map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
+      {list.map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={(i) => p.onPhoto(m, i)} />)}
     </ScrollView>
   );
+}
+
+/** Una sola sede por negocio en Descubre y Todos («El Rincón Samario» y su sede de Mamatoco salen una vez). En la
+ * búsqueda no: cada sede es un resultado con su número en el mapa. */
+function oneBranch<T extends { id: string; name: string }>(list: T[]): T[] {
+  const seen = new Set<string>();
+  return list.filter((m) => {
+    const k = brandKey(m.name) || m.id;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 }
 
 function Group({ title, count }: { title: string; count: number }) {
