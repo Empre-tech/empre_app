@@ -715,8 +715,8 @@ export default function OffersScreen() {
                 <BestPriceRail picks={best} onOpen={open} />
               </Reveal>
             ) : !q && !category && catalogsLoading ? (
-              <View style={{ marginHorizontal: 12 }}>
-                <SkeletonBlock height={250} borderRadius={28} />
+              <View style={styles.pad}>
+                <SkeletonBlock height={250} borderRadius={24} />
               </View>
             ) : null}
             {!q && !category && popular.length ? (

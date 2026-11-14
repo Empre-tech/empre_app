@@ -1,7 +1,7 @@
 import { Ionicons } from '@/components/Icon';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import type { DiscoveryItem } from '@/api/types';
 import type { NovedadItem } from '@/lib/novedades';
 import { useReduceMotion } from '@/lib/useReduceMotion';
@@ -9,6 +9,40 @@ import { colors, fonts } from '@/theme';
 import type { DoorRect } from './HomeDoors';
 
 const H = 300;
+
+/**
+ * Los colores de mapa (2026-11-14): los mismos del mapa real de Finder (el estándar de Google), no la arena del fondo.
+ * Así la tarjeta se lee como un mapa y no como otra caja de la pantalla; lo de Empre (los negocios en rojo, tu puerta)
+ * va encima, con borde blanco.
+ */
+const MAP = {
+  land: '#EFF1F0',
+  road: '#FFFFFF',
+  roadEdge: '#DDE1E0',
+  avenue: '#FBE3A1',
+  avenueEdge: '#EDCF7A',
+  water: '#A9D6EE',
+  park: '#CCE8C6',
+} as const;
+
+/** Un barrio cualquiera: calles un poco torcidas, una avenida, agua en una esquina y dos parques. No es tu calle. */
+function MapBase({ w }: { w: number }) {
+  if (!w) return null;
+  const roads = [...[58, 148, 236].map((y) => `M0 ${y} L${w} ${y + 8}`), ...[0.2, 0.5, 0.8].map((f) => `M${w * f} 0 L${w * f + 10} ${H}`)].join(' ');
+  const avenue = `M0 ${H - 32} L${w} 96`;
+  return (
+    <Svg width="100%" height={H} style={StyleSheet.absoluteFill}>
+      <Rect x={w * 0.5 + 9} y={-6} width={w * 0.3 - 14} height={56} rx={6} fill={MAP.park} />
+      <Rect x={w * 0.8 + 12} y={162} width={w * 0.2} height={70} rx={6} fill={MAP.park} />
+      <Path d={roads} stroke={MAP.roadEdge} strokeWidth={10} />
+      <Path d={roads} stroke={MAP.road} strokeWidth={8} />
+      <Path d={avenue} stroke={MAP.avenueEdge} strokeWidth={13} />
+      <Path d={avenue} stroke={MAP.avenue} strokeWidth={11} />
+      <Path d={`M0 0 H${w * 0.2 + 4} C${w * 0.17} 60 ${w * 0.1} 110 0 130 Z`} fill={MAP.water} />
+      <Circle cx={w / 2} cy={128} r={70} fill="rgba(212,32,32,0.05)" stroke="rgba(43,38,34,.3)" strokeWidth={1.5} strokeDasharray="4 6" />
+    </Svg>
+  );
+}
 
 /** Dónde cae cada negocio abierto en la tarjeta: su posición real respecto a ti, sin inventar ninguno. */
 function place(items: DiscoveryItem[], center: { latitude: number; longitude: number } | null, w: number) {
@@ -36,8 +70,8 @@ function Dot({ x, y, live }: { x: number; y: number; live: boolean }) {
 }
 
 /**
- * El ancla del inicio (tablero «Inicio · los negocios a la puerta de tu casa»): el mapa en negro, lo abierto brilla en
- * verde y sobre él corre lo último que pasó cerca. Un solo botón: entrar a ver los negocios.
+ * El ancla del inicio (tablero «Inicio · los negocios a la puerta de tu casa»): un mapa con colores de mapa, los
+ * negocios abiertos en rojo y sobre él corre lo último que pasó cerca. Un solo botón: entrar a ver los negocios.
  */
 export function PuertaMapa({
   items,
@@ -85,11 +119,7 @@ export function PuertaMapa({
       onLayout={(e) => setW(e.nativeEvent.layout.width)}
       style={({ pressed }) => [styles.card, pressed && { opacity: 0.94 }]}
     >
-      <Svg width="100%" height={H} style={StyleSheet.absoluteFill}>
-        <Path d={`M0 60 H${w} M0 150 H${w} M0 240 H${w} M${w * 0.2} 0 V${H} M${w * 0.5} 0 V${H} M${w * 0.8} 0 V${H}`} stroke={colors.nightLine} strokeWidth={11} />
-        <Path d={`M0 0 H${w * 0.2} C${w * 0.17} 60 ${w * 0.1} 110 0 130 Z`} fill="#CFE2E4" />
-        <Circle cx={w / 2} cy={128} r={70} fill="none" stroke="rgba(43,38,34,.16)" strokeWidth={1.5} strokeDasharray="4 6" />
-      </Svg>
+      <MapBase w={w} />
       {pts.map((p, i) => (
         <Dot key={p.id} x={p.x} y={p.y} live={i === 0} />
       ))}
@@ -125,18 +155,18 @@ export function PuertaMapa({
 }
 
 const styles = StyleSheet.create({
-  card: { height: H, borderRadius: 26, overflow: 'hidden', backgroundColor: colors.sand },
+  card: { height: H, borderRadius: 26, overflow: 'hidden', backgroundColor: MAP.land, borderWidth: 1, borderColor: 'rgba(43,38,34,0.06)' },
   dotWrap: { position: 'absolute', width: 26, height: 26, alignItems: 'center', justifyContent: 'center' },
-  dotHalo: { position: 'absolute', width: 26, height: 26, borderRadius: 13, backgroundColor: colors.glow },
-  dot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.glow, shadowColor: colors.glow, shadowOpacity: 0.7, shadowRadius: 8, shadowOffset: { width: 0, height: 0 } },
-  you: { position: 'absolute', top: 120, width: 16, height: 16, borderRadius: 8, backgroundColor: '#FFFFFF', borderWidth: 4, borderColor: colors.line },
-  youTag: { position: 'absolute', top: 86, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, backgroundColor: 'rgba(43,38,34,0.06)' },
+  dotHalo: { position: 'absolute', width: 26, height: 26, borderRadius: 13, backgroundColor: colors.brand },
+  dot: { width: 15, height: 15, borderRadius: 8, backgroundColor: colors.primary, borderWidth: 2.5, borderColor: '#FFFFFF', shadowColor: '#2B2622', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+  you: { position: 'absolute', top: 120, width: 16, height: 16, borderRadius: 8, backgroundColor: colors.ink, borderWidth: 3, borderColor: '#FFFFFF', shadowColor: '#2B2622', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 3 },
+  youTag: { position: 'absolute', top: 86, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.surface, shadowColor: '#2B2622', shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
   youText: { fontFamily: fonts.ui.extrabold, fontSize: 10.5, color: colors.ink },
   count: { position: 'absolute', left: 14, top: 14, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.surface },
   countDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.glow },
   countText: { fontFamily: fonts.ui.semibold, fontSize: 13, color: colors.primaryDark },
   bottom: { position: 'absolute', left: 12, right: 12, bottom: 12, gap: 8 },
-  tick: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 16, backgroundColor: 'rgba(43,38,34,0.06)', borderWidth: 1, borderColor: colors.line },
+  tick: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   tickIcon: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   tickBody: { flex: 1, minWidth: 0 },
   tickTitle: { fontFamily: fonts.ui.extrabold, fontSize: 13.5, color: colors.ink },

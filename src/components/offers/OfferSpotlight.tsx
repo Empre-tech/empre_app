@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import Svg, { Defs, G, LinearGradient, Path, Pattern, Rect, Stop } from 'react-native-svg';
+import Svg, { Defs, G, LinearGradient, Mask, Path, Pattern, Rect, Stop } from 'react-native-svg';
 
 import type { DiscoveryItem } from '@/api/types';
 import type { BestPrice } from '@/lib/askMany';
@@ -18,23 +18,6 @@ import { colors, fonts } from '@/theme';
 
 const walk = (m?: number | null) => (m == null ? null : onFootOrDistance(m / 1000));
 
-/** El fondo que habla de ofertas: etiquetitas de precio muy suaves, repetidas. Va detrás y no se toca. */
-export function TagPattern({ id, opacity = 0.22, color = colors.accent }: { id: string; opacity?: number; color?: string }) {
-  return (
-    <Svg pointerEvents="none" style={StyleSheet.absoluteFill}>
-      <Defs>
-        <Pattern id={id} width={64} height={64} patternUnits="userSpaceOnUse">
-          <G fill="none" stroke={color} strokeOpacity={opacity} strokeWidth={1.6} strokeLinejoin="round">
-            <Path d="M10 14h14l12 12-12 12H10z" transform="rotate(-18 22 26)" />
-            <Path d="M40 40h11l9 9-9 9H40z" transform="rotate(14 50 49)" />
-          </G>
-        </Pattern>
-      </Defs>
-      <Rect width="100%" height="100%" fill={`url(#${id})`} />
-    </Svg>
-  );
-}
-
 function Wash({ id, from, to }: { id: string; from: string; to: string }) {
   return (
     <Svg pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -45,6 +28,43 @@ function Wash({ id, from, to }: { id: string; from: string; to: string }) {
         </LinearGradient>
       </Defs>
       <Rect width="100%" height="100%" fill={`url(#${id})`} />
+    </Svg>
+  );
+}
+
+/**
+ * El fondo de una sección especial, sin borde: el color entra desde el fondo de la pantalla, se sostiene donde están
+ * las tarjetas y se vuelve a ir. Encima, etiquetitas de precio muy suaves que hablan de ofertas; se desvanecen igual,
+ * así no hay ninguna línea de corte.
+ */
+function BandGlow({ id, tint, ink, opacity }: { id: string; tint: string; ink: string; opacity: number }) {
+  const fade = (c: string) => [
+    <Stop key="a" offset="0" stopColor={c} stopOpacity={0} />,
+    <Stop key="b" offset="0.3" stopColor={c} stopOpacity={1} />,
+    <Stop key="c" offset="0.72" stopColor={c} stopOpacity={1} />,
+    <Stop key="d" offset="1" stopColor={c} stopOpacity={0} />,
+  ];
+  return (
+    <Svg pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <Defs>
+        <LinearGradient id={`${id}g`} x1="0" y1="0" x2="0" y2="1">
+          {fade(tint)}
+        </LinearGradient>
+        <LinearGradient id={`${id}f`} x1="0" y1="0" x2="0" y2="1">
+          {fade('#FFFFFF')}
+        </LinearGradient>
+        <Mask id={`${id}m`}>
+          <Rect width="100%" height="100%" fill={`url(#${id}f)`} />
+        </Mask>
+        <Pattern id={`${id}p`} width={64} height={64} patternUnits="userSpaceOnUse">
+          <G fill="none" stroke={ink} strokeOpacity={opacity} strokeWidth={1.6} strokeLinejoin="round">
+            <Path d="M10 14h14l12 12-12 12H10z" transform="rotate(-18 22 26)" />
+            <Path d="M40 40h11l9 9-9 9H40z" transform="rotate(14 50 49)" />
+          </G>
+        </Pattern>
+      </Defs>
+      <Rect width="100%" height="100%" fill={`url(#${id}g)`} />
+      <Rect width="100%" height="100%" fill={`url(#${id}p)`} mask={`url(#${id}m)`} />
     </Svg>
   );
 }
@@ -160,8 +180,7 @@ export function HeroCarousel({ items, bizById, now, onOpen }: { items: MarketIte
 export function BestPriceRail({ picks, onOpen }: { picks: BestPrice[]; onOpen: (o: MarketItem) => void }) {
   return (
     <View style={styles.band}>
-      <Wash id="bw" from="#FBD9D3" to={colors.surface} />
-      <TagPattern id="bp" color={colors.brand} opacity={0.14} />
+      <BandGlow id="bp" tint="#FBDCD5" ink={colors.brand} opacity={0.14} />
       <View style={styles.bandHead}>
         <Text style={styles.title} accessibilityRole="header">
           Mejor precio cerca
@@ -240,8 +259,7 @@ export function Relampago({ items, onOpen }: { items: MarketItem[]; onOpen: (o: 
   const first = items[0];
   return (
     <View style={styles.band}>
-      <Wash id="rw" from="#FFE3C2" to={colors.accentSoft} />
-      <TagPattern id="rp" opacity={0.26} />
+      <BandGlow id="rp" tint="#FFE6CA" ink={colors.accent} opacity={0.26} />
       <View style={[styles.bandHead, styles.bandHeadRow]}>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={styles.title} accessibilityRole="header">
@@ -310,10 +328,11 @@ const styles = StyleSheet.create({
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 6 },
   dot: { width: 22, height: 5, borderRadius: 3, backgroundColor: colors.line },
   dotOn: { backgroundColor: colors.primary },
-  // Una franja es un panel con esquinas redondas y su propio degradado: se ve como otra sección, sin un corte recto.
-  band: { marginHorizontal: 12, borderRadius: 28, paddingVertical: 18, gap: 14, overflow: 'hidden' },
-  bandRail: { gap: 12, paddingHorizontal: 16 },
-  bandHead: { paddingHorizontal: 16, gap: 2 },
+  // Una franja especial va de lado a lado y sin borde: su color sale del fondo y vuelve a él (BandGlow). El aire de
+  // arriba y abajo es donde el color se desvanece; el título y las tarjetas quedan en la parte llena.
+  band: { marginVertical: -14, paddingTop: 40, paddingBottom: 44, gap: 14 },
+  bandRail: { gap: 12, paddingHorizontal: 20 },
+  bandHead: { paddingHorizontal: 20, gap: 2 },
   bandHeadRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   best: { width: 200, borderRadius: 18, overflow: 'hidden', backgroundColor: colors.surface, shadowColor: '#B91C1C', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
   bestImg: { width: '100%', height: 104, backgroundColor: colors.sandSoft },
