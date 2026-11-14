@@ -336,12 +336,11 @@ function SheetContent({ item, onClose, pool, onPick }: { item: MarketItem; onClo
             <View style={styles.heroTopRow}>
               {p.save ? (
                 <View style={styles.heroOfferBadge}>
-                  <Ionicons name="flame" size={13} color="#fff" />
-                  <Text style={styles.heroOfferBadgeText}>OFERTA {p.save}</Text>
+                  <Text style={styles.heroOfferBadgeText}>{p.save.replace(' ', '')}</Text>
                 </View>
               ) : (
                 <View style={styles.heroCatalogBadge}>
-                  <Ionicons name="pricetag-outline" size={12} color="#fff" />
+                  <Ionicons name="pricetag-outline" size={12} color={colors.ink} />
                   <Text style={styles.heroCatalogBadgeText}>{item.section || copy.noun}</Text>
                 </View>
               )}
@@ -376,11 +375,11 @@ function SheetContent({ item, onClose, pool, onPick }: { item: MarketItem; onClo
                 style={({ pressed }) => [styles.offerBanner, pressed && styles.pressed]}
               >
                 <View style={styles.offerBannerIcon}>
-                  <Ionicons name="flame" size={18} color="#fff" />
+                  <Ionicons name="pricetag-outline" size={18} color={colors.ink} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.offerBannerTag}>
-                    {serviceInOffer ? '¡ESTE SERVICIO ESTÁ EN OFERTA!' : 'ESTE NEGOCIO TIENE UNA OFERTA ACTIVA'}
+                    {serviceInOffer ? 'Está en oferta' : 'Este negocio tiene una oferta'}
                   </Text>
                   <Text style={styles.offerBannerTitle} numberOfLines={1}>
                     {matchingOffer.title}
@@ -476,9 +475,6 @@ function SheetContent({ item, onClose, pool, onPick }: { item: MarketItem; onClo
                 <View style={{ flex: 1 }}>
                   <Text style={styles.aiTitle}>Pregúntale a Empre AI</Text>
                   <Text style={styles.aiSub}>{thinking ? 'Entendiendo tu pregunta…' : `Responde al instante con lo que publicó ${biz?.name ?? item.entity_name}`}</Text>
-                </View>
-                <View style={styles.aiAutoBadge}>
-                  <Text style={styles.aiAutoText}>AL INSTANTE</Text>
                 </View>
               </View>
 
@@ -681,10 +677,10 @@ const styles = StyleSheet.create({
   decideGo: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
   heroPhoto: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   heroTopRow: { position: 'absolute', top: 12, left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  heroOfferBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.brand },
-  heroOfferBadgeText: { fontSize: 12.5, fontFamily: fonts.display.bold, color: '#fff' },
-  heroCatalogBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(17,19,24,0.86)' },
-  heroCatalogBadgeText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  heroOfferBadge: { minWidth: 52, height: 52, paddingHorizontal: 8, borderRadius: 26, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-8deg' }] },
+  heroOfferBadgeText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  heroCatalogBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(255,252,247,0.94)' },
+  heroCatalogBadgeText: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.ink },
   closeBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.94)', alignItems: 'center', justifyContent: 'center' },
   heroBottomRow: { position: 'absolute', bottom: 12, left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   openBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(43,38,34,0.06)' },
@@ -693,12 +689,12 @@ const styles = StyleSheet.create({
   ratingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.sand },
   ratingBadgeText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.ink },
   body: { paddingHorizontal: 18, paddingTop: 14, gap: 12 },
-  offerBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 16, backgroundColor: colors.accentSoft, borderWidth: 1.5, borderColor: colors.brand },
-  offerBannerIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  offerBannerTag: { fontSize: 10.5, letterSpacing: 0.4, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
-  offerBannerTitle: { fontSize: 14, fontFamily: fonts.display.bold, color: colors.ink },
+  offerBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 16, backgroundColor: colors.accentSoft },
+  offerBannerIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  offerBannerTag: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.accentInk },
+  offerBannerTitle: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   offerBannerGo: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: colors.surface },
-  offerBannerGoText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  offerBannerGoText: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.ink },
   headBlock: { padding: 16, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, gap: 10 },
   titlePriceRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   itemTitle: { fontSize: 21, lineHeight: 25, fontFamily: fonts.display.bold, color: colors.ink },
@@ -724,8 +720,6 @@ const styles = StyleSheet.create({
   aiHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   aiTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink },
   aiSub: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
-  aiAutoBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: colors.verifiedSoft },
-  aiAutoText: { fontSize: 10, fontFamily: fonts.ui.extrabold, color: colors.verified, letterSpacing: 0.4 },
   aiChipsRow: { gap: 6, paddingVertical: 2 },
   aiChip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line },
   aiChipActive: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },

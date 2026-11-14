@@ -346,7 +346,7 @@ export function ResultsByBusiness({
 }
 
 const styles = StyleSheet.create({
-  pressed: { opacity: 0.8 },
+  pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
   sec: { gap: 12 },
   divider: { marginHorizontal: 28, marginBottom: 22 },
   zoneHead: { paddingHorizontal: 20, gap: 2 },
@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
   iconText: { fontFamily: fonts.ui.medium, fontSize: 12, color: colors.ink, textAlign: 'center' },
   iconTextOn: { fontFamily: fonts.ui.semibold, color: colors.primaryDark },
   chips: { gap: 8, paddingHorizontal: 20 },
-  chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
+  chip: { minHeight: 44, paddingHorizontal: 14, borderRadius: 22, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
   chipText: { fontFamily: fonts.ui.medium, fontSize: 14, color: colors.ink },
   faces: { gap: 12, paddingHorizontal: 20 },
   face: { width: 84, alignItems: 'center', gap: 4 },
@@ -403,6 +403,6 @@ const styles = StyleSheet.create({
   ask: { marginHorizontal: 20, padding: 14, gap: 8, borderRadius: 18, backgroundColor: colors.surface },
   askTitle: { fontFamily: fonts.ui.semibold, fontSize: 14, color: colors.ink },
   askText: { fontFamily: fonts.ui.medium, fontSize: 13, lineHeight: 18, color: colors.muted },
-  askBtn: { alignSelf: 'flex-start', minHeight: 40, paddingHorizontal: 14, borderRadius: 20, backgroundColor: colors.sand, justifyContent: 'center' },
+  askBtn: { alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: colors.sand, justifyContent: 'center' },
   askBtnText: { fontFamily: fonts.ui.semibold, fontSize: 13, color: colors.ink },
 });

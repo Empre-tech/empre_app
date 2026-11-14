@@ -81,7 +81,7 @@ export function OfferTile({ item, now, onPress, width = TILE_W, selected }: { it
             </View>
           ) : isService ? (
             <View style={styles.catalogTag}>
-              <Ionicons name="pricetag-outline" size={11} color="#fff" />
+              <Ionicons name="pricetag-outline" size={11} color={colors.ink} />
               <Text style={styles.catalogTagText} numberOfLines={1}>
                 {item.section || 'Catálogo'}
               </Text>
@@ -102,7 +102,7 @@ export function OfferTile({ item, now, onPress, width = TILE_W, selected }: { it
 
           {selected ? (
             <View style={styles.mapActiveTag}>
-              <Ionicons name="location" size={11} color="#fff" />
+              <Ionicons name="location" size={11} color={colors.primaryDark} />
               <Text style={styles.mapActiveTagText}>En el mapa</Text>
             </View>
           ) : item.open_now ? (
@@ -354,13 +354,13 @@ const styles = StyleSheet.create({
   tileClockText: { flexShrink: 1, fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
   quickActionPill: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: colors.primarySoft },
   quickActionText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
-  mapActiveTag: { position: 'absolute', left: 9, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: 'rgba(17,19,24,0.88)' },
-  mapActiveTagText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  mapActiveTag: { position: 'absolute', left: 9, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: 'rgba(255,252,247,0.94)' },
+  mapActiveTagText: { fontSize: 11, fontFamily: fonts.ui.semibold, color: colors.ink },
   openPhotoPill: { position: 'absolute', left: 9, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.92)' },
   openDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.verified },
   openPhotoText: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  catalogTag: { position: 'absolute', left: 9, top: 9, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(17,19,24,0.84)' },
-  catalogTagText: { maxWidth: 110, fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  catalogTag: { position: 'absolute', left: 9, top: 9, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(255,252,247,0.94)' },
+  catalogTagText: { maxWidth: 110, fontSize: 11, fontFamily: fonts.ui.semibold, color: colors.ink },
   entityOfferTag: { position: 'absolute', right: 9, top: 9, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.brand },
   entityOfferTagText: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   ratingTag: { position: 'absolute', right: 9, top: 9, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.sand },
@@ -381,8 +381,8 @@ const styles = StyleSheet.create({
   rowPhoto: { width: 82, height: 82, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   rowSaveBadge: { position: 'absolute', left: 4, top: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: colors.brand },
   rowSaveBadgeText: { fontSize: 10.5, fontFamily: fonts.display.bold, color: colors.ink },
-  rowCatBadge: { position: 'absolute', left: 4, bottom: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: 'rgba(17,19,24,0.84)' },
-  rowCatBadgeText: { fontSize: 9.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  rowCatBadge: { position: 'absolute', left: 4, bottom: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: 'rgba(255,252,247,0.94)' },
+  rowCatBadgeText: { fontSize: 10, fontFamily: fonts.ui.semibold, color: colors.ink },
   rowBody: { flex: 1, minWidth: 0, justifyContent: 'center', gap: 3 },
   rowTopLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
   rowOfferAlert: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, backgroundColor: ACCENT_SOFT },

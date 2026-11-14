@@ -146,17 +146,17 @@ export default function NearbyScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={[t.name, t.price, `de ${t.biz}`, t.near].filter(Boolean).join(', ')}
                     onPress={() => router.push({ pathname: '/business/product', params: { entityId: t.entityId, itemId: t.id } })}
-                    style={styles.card}
+                    style={({ pressed }) => [styles.card, pressed && styles.pressed]}
                   >
                     <View>
                       <Image source={{ uri: t.photo }} style={[styles.img, { aspectRatio: (i + ci) % 3 === 0 ? 3 / 4 : 1 }]} contentFit="cover" accessibilityIgnoresInvertColors />
                       {t.chip ? <Text style={styles.cardChip}>{t.chip}</Text> : null}
                     </View>
                     <View style={styles.cardBody}>
+                      {t.price ? <Text style={styles.price}>{t.price}</Text> : null}
                       <Text style={styles.name} numberOfLines={2}>
                         {t.name}
                       </Text>
-                      {t.price ? <Text style={styles.price}>{t.price}</Text> : null}
                       <View style={styles.bizRow}>
                         <Text style={styles.ini}>{t.ini}</Text>
                         <Text style={styles.bizText} numberOfLines={1}>
@@ -188,12 +188,13 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   wall: { flexDirection: 'row', gap: 8 },
   col: { flex: 1, gap: 8 },
-  card: { borderRadius: 16, overflow: 'hidden', backgroundColor: colors.surface },
+  card: { borderRadius: 16, overflow: 'hidden', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
   img: { width: '100%', backgroundColor: colors.bg },
   cardChip: { position: 'absolute', left: 8, bottom: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, overflow: 'hidden', backgroundColor: colors.surface, fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
   cardBody: { padding: 10, gap: 3 },
   name: { fontSize: 13, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.ink },
-  price: { fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  price: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: colors.ink, fontVariant: ['tabular-nums'] },
   bizRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   ini: { width: 22, height: 22, borderRadius: 11, overflow: 'hidden', textAlign: 'center', lineHeight: 22, backgroundColor: colors.sand, fontSize: 10, fontFamily: fonts.ui.bold, color: colors.ink },
   bizText: { flex: 1, fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },

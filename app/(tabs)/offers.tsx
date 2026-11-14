@@ -263,6 +263,8 @@ export default function OffersScreen() {
     })),
   });
 
+  // Mientras llegan los negocios y lo que venden: esqueletos con la forma de lo que viene, sin saltos al llegar.
+  const catalogsLoading = nearbyBizQuery.isLoading || catalogQueries.some((c) => c.isLoading);
   const catalogsByEntity = useMemo(() => {
     const map: Record<string, ServiceItem[]> = {};
     nearbyBiz.slice(0, 10).forEach((b, idx) => {
@@ -658,22 +660,41 @@ export default function OffersScreen() {
         {home ? (
           <>
             {/* Lo más pegado: los mejor reseñados cerca */}
-            {hero.length ? <HeroCarousel items={hero} bizById={bizById} now={now} onOpen={open} /> : null}
-            {!q && !category && data?.searched.terms.length ? (
-              <SearchedChips title={city ? `Lo más buscado en ${city}` : 'Lo más buscado cerca'} terms={data.searched.terms.slice(0, 6)} onPick={searchTerm} />
-            ) : null}
-            {best.length ? <BestPriceRail picks={best} onOpen={open} /> : null}
-            {!q && !category && popular.length ? <ChosenFaces picks={popular} onOpen={(id) => router.push({ pathname: '/business/[id]', params: { id } })} /> : null}
-
-            {!data && (market.isLoading || !ready) ? (
-              <View style={styles.rail}>
-                {[0, 1].map((i) => (
-                  <SkeletonBlock key={i} width={TILE_W} height={280} borderRadius={20} />
-                ))}
+            {hero.length ? (
+              <Reveal>
+                <HeroCarousel items={hero} bizById={bizById} now={now} onOpen={open} />
+              </Reveal>
+            ) : !data && (market.isLoading || !ready) ? (
+              <View style={styles.pad}>
+                <SkeletonBlock height={212} borderRadius={24} />
               </View>
             ) : null}
+            {!q && !category && data?.searched.terms.length ? (
+              <Reveal>
+                <SearchedChips title={city ? `Lo más buscado en ${city}` : 'Lo más buscado cerca'} terms={data.searched.terms.slice(0, 6)} onPick={searchTerm} />
+              </Reveal>
+            ) : null}
+            {best.length ? (
+              <Reveal>
+                <BestPriceRail picks={best} onOpen={open} />
+              </Reveal>
+            ) : !q && !category && catalogsLoading ? (
+              <View style={{ marginHorizontal: 12 }}>
+                <SkeletonBlock height={250} borderRadius={28} />
+              </View>
+            ) : null}
+            {!q && !category && popular.length ? (
+              <Reveal>
+                <ChosenFaces picks={popular} onOpen={(id) => router.push({ pathname: '/business/[id]', params: { id } })} />
+              </Reveal>
+            ) : null}
 
-            {show !== 'services' && flash.length ? <Relampago items={flash} onOpen={open} /> : null}
+
+            {show !== 'services' && flash.length ? (
+              <Reveal>
+                <Relampago items={flash} onOpen={open} />
+              </Reveal>
+            ) : null}
             {/* Las demás ofertas por secciones: 2x1 y gratis, con descuento, precio especial */}
             {show !== 'services'
               ? offerRails.map((r) => (
@@ -775,16 +796,29 @@ export default function OffersScreen() {
           <>
             {/* A tu puerta: dos o tres negocios cercanos con lo que venden; el resto sale al buscar o con un ícono */}
             {!q && show !== 'offers' && shelves.length ? <SectionHead title={zoneSel ? `Lo que venden en ${zoneSel.name}` : shelvesOpen ? 'A tu puerta, abiertos ahora' : 'A tu puerta'} sub={zoneSel ? 'Productos y servicios de sus negocios' : 'Lo que venden los más cercanos'} /> : null}
+            {!q && show !== 'offers' && !shelves.length && catalogsLoading ? (
+              <View style={styles.sec}>
+                <View style={styles.pad}>
+                  <SkeletonBlock width={180} height={18} borderRadius={9} />
+                </View>
+                <View style={styles.rail}>
+                  {[0, 1, 2].map((i) => (
+                    <SkeletonBlock key={i} width={132} height={200} borderRadius={16} />
+                  ))}
+                </View>
+              </View>
+            ) : null}
             {!q && show !== 'offers'
-              ? shelves.map((x) => (
-                  <BizShelf
-                    key={x.biz.id}
-                    biz={x.biz}
-                    items={x.items}
-                    branches={x.branches}
-                    onBiz={() => router.push({ pathname: '/business/[id]', params: { id: x.biz.id } })}
-                    onItem={(it) => open(catalogMarketItem(x.biz, it, resolvePhoto(it.photos?.[0]) ?? resolveImageUrl(x.biz.photos?.[0] ?? x.biz.profile_url) ?? undefined))}
-                  />
+              ? shelves.map((x, i) => (
+                  <Reveal key={x.biz.id} delay={Math.min(i, 2) * 70}>
+                    <BizShelf
+                      biz={x.biz}
+                      items={x.items}
+                      branches={x.branches}
+                      onBiz={() => router.push({ pathname: '/business/[id]', params: { id: x.biz.id } })}
+                      onItem={(it) => open(catalogMarketItem(x.biz, it, resolvePhoto(it.photos?.[0]) ?? resolveImageUrl(x.biz.photos?.[0] ?? x.biz.profile_url) ?? undefined))}
+                    />
+                  </Reveal>
                 ))
               : null}
 
@@ -1036,7 +1070,7 @@ const styles = StyleSheet.create({
   field: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 14, paddingRight: 5, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   fieldText: { flex: 1, minWidth: 0, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.muted },
   fieldMic: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sandSoft },
-  miniField: { flex: 1, minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  miniField: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   tilesLabel: { marginTop: 6, marginBottom: -6, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   screen: { flex: 1, backgroundColor: colors.bg },
   body: { gap: 28, paddingBottom: 120 },
@@ -1047,7 +1081,7 @@ const styles = StyleSheet.create({
   zoneWrap: { marginHorizontal: 20, marginTop: -8 },
   quietLine: { paddingHorizontal: 20, fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   vitrinaPills: { gap: 8, paddingHorizontal: 20 },
-  vitrinaPill: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 13, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  vitrinaPill: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 13, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   vitrinaPillOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
   vitrinaPillText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   vitrinaPillTextOn: { color: colors.ink },

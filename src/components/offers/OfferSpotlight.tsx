@@ -67,14 +67,16 @@ export function HeroCarousel({ items, bizById, now, onOpen }: { items: MarketIte
   const reduce = useReduceMotion();
   const ref = useRef<ScrollView>(null);
   const [i, setI] = useState(0);
+  // Si la persona lo toca o lo desliza, deja de pasar solo: manda ella.
+  const [held, setHeld] = useState(false);
   const [pop] = useState(() => new Animated.Value(1));
   const n = items.length;
 
   useEffect(() => {
-    if (reduce || n < 2) return;
+    if (reduce || held || n < 2) return;
     const t = setTimeout(() => setI((k) => (k + 1) % n), 4200);
     return () => clearTimeout(t);
-  }, [i, n, reduce]);
+  }, [i, n, reduce, held]);
   useEffect(() => {
     ref.current?.scrollTo({ x: i * w, animated: !reduce });
     if (reduce) return;
@@ -92,6 +94,8 @@ export function HeroCarousel({ items, bizById, now, onOpen }: { items: MarketIte
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
+          onTouchStart={() => setHeld(true)}
+          onScrollBeginDrag={() => setHeld(true)}
           onMomentumScrollEnd={(e) => setI(Math.round(e.nativeEvent.contentOffset.x / w))}
           accessibilityLabel="Las mejores ofertas de hoy"
         >
