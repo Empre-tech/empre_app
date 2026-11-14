@@ -54,7 +54,6 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
 
   if (emphasis) {
     const closed = entity.has_hours && !entity.is_open_now;
-    const ring = selected ? '#ffffff' : closed ? '#5B606B' : hasOffer ? colors.accent : colors.glow;
     const faded = closed ? styles.closedFade : null;
     return (
       <Marker
@@ -79,25 +78,21 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
             <View style={[styles.pinDot, { backgroundColor: cat.fg }, faded]} />
           ) : (
             <View style={faded}>
-              {showRayo ? (
-                <View style={[styles.offerBadge, styles.offerBadgeCorner]}>
-                  <Ionicons name="flash" size={11} color={colors.ink} />
-                </View>
-              ) : null}
+              <View style={[styles.gPin, selected && styles.gPinSelected]}>
+                <Ionicons name={icon} size={18} color={colors.ink} />
+              </View>
               {rank ? (
                 <View style={styles.rank}>
                   <Text style={styles.rankText}>{rank}</Text>
                 </View>
               ) : null}
-              <View style={[emphasis === 'big' ? styles.pinBig : styles.pinMid, { borderColor: ring }]}>
-                {thumb ? (
-                  <Image accessible={false} source={{ uri: thumb }} style={emphasis === 'big' ? styles.thumbBig : styles.thumbMid} contentFit="cover" cachePolicy="memory-disk" recyclingKey={thumb} onLoad={onImageSettled} onError={onImageSettled} />
-                ) : (
-                  <View style={[emphasis === 'big' ? styles.thumbBig : styles.thumbMid, styles.fallback, { backgroundColor: cat.bg }]}>
-                    <Ionicons name={icon} size={emphasis === 'big' ? 22 : 16} color={cat.fg} />
-                  </View>
-                )}
-              </View>
+              {showRayo ? (
+                <View style={[styles.offerBadge, styles.offerBadgeLow]}>
+                  <Ionicons name="flash" size={11} color={colors.ink} />
+                </View>
+              ) : entity.has_hours && entity.is_open_now ? (
+                <View style={styles.gOpen} />
+              ) : null}
             </View>
           )}
           {emphasis === 'big' ? (
@@ -177,7 +172,7 @@ export const PinMarker = memo(PinMarkerView, (a, b) =>
 );
 
 const styles = StyleSheet.create({
-  rank: { position: 'absolute', zIndex: 2, top: -6, left: -6, minWidth: 20, height: 20, paddingHorizontal: 4, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderWidth: 2, borderColor: '#FFFFFF' },
+  rank: { position: 'absolute', zIndex: 2, top: -7, right: -7, minWidth: 20, height: 20, paddingHorizontal: 4, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderWidth: 2, borderColor: '#FFFFFF' },
   rankText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
   pinWrap: { alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44, paddingHorizontal: 10, paddingVertical: 6 },
   pinWrapSelected: { transform: [{ scale: 1.15 }] },
@@ -200,6 +195,11 @@ const styles = StyleSheet.create({
   pinFarOff: { width: 11, height: 11, borderRadius: 6, borderWidth: 1.5, borderColor: '#fff', opacity: 0.4 },
   closedFade: { opacity: 0.6 },
   offerBadgeCorner: { position: 'absolute', top: -4, right: -4, zIndex: 2, marginBottom: 0 },
+  // Pin de resultado como Google Maps (2026-11-14): blanco con el ícono en tinta y una sombra suave.
+  gPin: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line, shadowColor: '#2B2622', shadowOpacity: 0.22, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
+  gPinSelected: { borderColor: colors.ink, borderWidth: 2.5 },
+  gOpen: { position: 'absolute', left: -2, bottom: -2, width: 11, height: 11, borderRadius: 6, backgroundColor: colors.brand, borderWidth: 2, borderColor: '#FFFFFF' },
+  offerBadgeLow: { position: 'absolute', left: -5, bottom: -5, zIndex: 2, marginBottom: 0 },
   thumbNear: { width: 40, height: 40, borderRadius: 20 },
   fallback: { alignItems: 'center', justifyContent: 'center' },
   statusDot: { position: 'absolute', right: 1, bottom: 1, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#fff' },
