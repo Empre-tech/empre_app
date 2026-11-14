@@ -24,6 +24,8 @@ interface Props {
   distanceLabel?: string | null;
   /** Hay otro negocio elegido: este baja de opacidad para que el elegido resalte (no desaparece). */
   dimmed?: boolean;
+  /** Número del resultado (1-9), como en Yelp: el mismo que en la lista. */
+  rank?: number;
   onPress: () => void;
 }
 
@@ -35,8 +37,8 @@ function closesSoon(closesAt?: string): boolean {
   return left > 0 && left <= 60;
 }
 
-function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, dimmed, onPress }: Props) {
-  const look = [tier, emphasis ?? '', selected ? 's' : '', mine ? 'm' : '', entity.has_active_offer ? 'o' : '', entity.is_open_now ? 'a' : 'c', closesSoon(entity.closes_at) ? 'p' : '', distanceLabel ?? ''].join('|');
+function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, dimmed, rank, onPress }: Props) {
+  const look = [rank ?? '', tier, emphasis ?? '', selected ? 's' : '', mine ? 'm' : '', entity.has_active_offer ? 'o' : '', entity.is_open_now ? 'a' : 'c', closesSoon(entity.closes_at) ? 'p' : '', distanceLabel ?? ''].join('|');
   const { tracking, onLayout, onImageSettled, markerRef } = useMarkerTracking(look);
 
   // Sobre el mapa negro: lo abierto brilla en verde, la oferta lleva su aro coral y lo cerrado queda en grafito.
@@ -80,6 +82,11 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
               {showRayo ? (
                 <View style={[styles.offerBadge, styles.offerBadgeCorner]}>
                   <Ionicons name="flash" size={11} color={colors.ink} />
+                </View>
+              ) : null}
+              {rank ? (
+                <View style={styles.rank}>
+                  <Text style={styles.rankText}>{rank}</Text>
                 </View>
               ) : null}
               <View style={[emphasis === 'big' ? styles.pinBig : styles.pinMid, { borderColor: ring }]}>
@@ -152,6 +159,7 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
 
 export const PinMarker = memo(PinMarkerView, (a, b) =>
   a.tier === b.tier &&
+  a.rank === b.rank &&
   a.emphasis === b.emphasis &&
   a.distanceLabel === b.distanceLabel &&
   a.selected === b.selected &&
@@ -169,6 +177,8 @@ export const PinMarker = memo(PinMarkerView, (a, b) =>
 );
 
 const styles = StyleSheet.create({
+  rank: { position: 'absolute', zIndex: 2, top: -6, left: -6, minWidth: 20, height: 20, paddingHorizontal: 4, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderWidth: 2, borderColor: '#FFFFFF' },
+  rankText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
   pinWrap: { alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44, paddingHorizontal: 10, paddingVertical: 6 },
   pinWrapSelected: { transform: [{ scale: 1.15 }] },
   pinOwnerLabel: { backgroundColor: colors.sand, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, marginBottom: 3 },

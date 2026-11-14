@@ -1,16 +1,14 @@
 import { Ionicons } from '@/components/Icon';
-import { memo, useEffect, useMemo } from 'react';
+import { memo, useEffect } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { DiscoverSection, DiscoverSectionId } from '@/api/types';
 import { SkeletonRows } from '@/components/Skeleton';
 import { scopeText, type SearchScope } from '@/lib/discover';
-import { reelTiles, type ReelTile } from '@/lib/photoStrip';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
-import { DiscoverCard, MiniCard, MiniRow, type CardModel } from './ExploreCards';
+import { MiniRow, type CardModel } from './ExploreCards';
 import { DiscoverSkeleton, FadeIn, UpdatingBar } from './LoadingMotion';
-import { PhotoReel } from './PhotoReel';
 import { ZoneAll, ZoneDiscover } from './ZonePanel';
-import { PEEK_REEL, type FeaturedSheetState } from './useFeaturedSheet';
+import type { FeaturedSheetState } from './useFeaturedSheet';
 
 type Status = 'loading' | 'error' | 'ok';
 
@@ -69,27 +67,12 @@ interface Props {
 function ExploreSheetView(p: Props) {
   const { anchor, height, snapTo, panHandlers } = p.sheet;
 
-  // La tira del compacto: fotos de los destacados (Descubre primero, luego la zona), sin búsqueda.
-  const { data: secData, models: toCard } = p.sections;
-  const reelSource = useMemo(() => {
-    if (p.searching) return [];
-    const fromSections = secData.flatMap((sec) => sec.items.map((it) => toCard(it, sec.id)));
-    return [...fromSections, ...p.zone.items];
-  }, [p.searching, secData, toCard, p.zone.items]);
-  const tiles = useMemo(() => reelTiles(reelSource), [reelSource]);
+  // Compacto (2026-11-14): solo la barra con el total, como Too Good To Go. Sin la tira de fotos de catálogo: lo que vende
+  // cada negocio se ve en su perfil o en Ofertas, no tapa la búsqueda.
   const { setPeekExtra } = p.sheet;
-  const hasReel = tiles.length > 0;
   useEffect(() => {
-    setPeekExtra(hasReel ? PEEK_REEL : 0);
-  }, [hasReel, setPeekExtra]);
-  const openTile = (t: ReelTile) => {
-    const m = reelSource.find((x) => x.id === t.id);
-    if (m) p.onPhoto(m, t.index);
-  };
-  const badge = (id: string) => {
-    const m = reelSource.find((x) => x.id === id);
-    return { color: m?.color.fg ?? colors.primary, letter: m?.name.charAt(0) ?? '' };
-  };
+    setPeekExtra(0);
+  }, [setPeekExtra]);
 
   if (anchor === 'hidden') return null;
   const compact = anchor === 'peek';
@@ -136,7 +119,7 @@ function ExploreSheetView(p: Props) {
                 ) : null}
               </View>
             )}
-            {compact && !p.searching && !hasReel ? (
+            {compact && !p.searching ? (
               <View style={styles.avatars} accessible={false}>
                 {p.avatars.slice(0, 3).map((a, i) => (
                   <View key={a.key} style={[styles.avatar, { backgroundColor: a.color, marginLeft: i === 0 ? 0 : -8 }]}>
@@ -153,7 +136,6 @@ function ExploreSheetView(p: Props) {
       </View>
 
       {p.updating ? <UpdatingBar /> : null}
-      {compact ? <PhotoReel tiles={tiles} badge={badge} onPhoto={openTile} /> : null}
       {compact ? null : (
         <View style={styles.bodyWrap} accessibilityState={{ busy: Boolean(p.updating) }}>
           <Body {...p} />
@@ -261,12 +243,10 @@ function Body(p: Props) {
                   <Text style={styles.link}>Ver más ›</Text>
                 </Pressable>
               </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hscroll} contentContainerStyle={styles.hrow}>
-                {sec.items.map((it) => {
-                  const m = p.sections.models(it, sec.id);
-                  return <DiscoverCard key={`${sec.id}-${m.id}`} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={(i) => p.onPhoto(m, i)} />;
-                })}
-              </ScrollView>
+              {(mid ? sec.items.slice(0, 3) : sec.items).map((it) => {
+                const m = p.sections.models(it, sec.id);
+                return <MiniRow key={`${sec.id}-${m.id}`} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />;
+              })}
             </View>
           ))}
           {mid && data.length > 1 ? (
@@ -321,13 +301,16 @@ function Body(p: Props) {
     }
     // Los cercanos arriba; los lejanos (si hay) van aparte, bajo «Más lejos», y no en el carrusel.
     const nearItems = r.items.filter((m) => !m.far);
+    // El mismo número que el pin del mapa (los 9 primeros).
+    const rankOf = (id: string) => {
+      const i = r.items.findIndex((x) => x.id === id);
+      return i >= 0 && i < 9 ? i + 1 : undefined;
+    };
     const farItems = r.items.filter((m) => m.far);
     if (mid) {
       return (
         <View style={styles.body}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hscroll} contentContainerStyle={styles.hrow}>
-            {nearItems.map((m) => <MiniCard key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
-          </ScrollView>
+          {nearItems.slice(0, 3).map((m) => <MiniRow key={m.id} model={m} rank={rankOf(m.id)} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
           <Pressable accessibilityRole="button" onPress={() => p.sheet.snapTo('full')} style={styles.more}>
             <Text style={styles.link}>
               Ver los {nearItems.length}
@@ -341,7 +324,7 @@ function Body(p: Props) {
     return (
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
         <Group title="Coinciden con tu búsqueda" count={nearItems.length} />
-        {nearItems.map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
+        {nearItems.map((m) => <MiniRow key={m.id} model={m} rank={rankOf(m.id)} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
         {farItems.length ? (
           <>
             <Group title="Más lejos" count={farItems.length} />
@@ -381,9 +364,7 @@ function Body(p: Props) {
     return (
       <View style={styles.body}>
         {filterHint}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hscroll} contentContainerStyle={styles.hrow}>
-          {everything.map((m) => <MiniCard key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
-        </ScrollView>
+        {everything.slice(0, 3).map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
         <Pressable accessibilityRole="button" onPress={() => p.sheet.snapTo('full')} style={styles.more}>
           <Text style={styles.link}>Ver los {everything.length}</Text>
         </Pressable>

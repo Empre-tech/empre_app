@@ -29,8 +29,9 @@ import { useMapLevel, useMapMarkers } from '@/components/explore/useMapMarkers';
 import { useRevealedMarkers } from '@/components/explore/useRevealedMarkers';
 import { useZoneName, useZones } from '@/components/explore/useZoneName';
 import { track } from '@/analytics/track';
-import { artKeyMatch } from '@/components/CategoryArt';
+import { artKeyFor, artKeyMatch } from '@/components/CategoryArt';
 import { noteInterest } from '@/lib/interestStore';
+import { ART_LABEL } from '@/lib/offerHome';
 import { ContextRow } from '@/components/explore/ContextRow';
 import { FinderWelcome } from '@/components/explore/FinderWelcome';
 import { LoadingChip } from '@/components/explore/LoadingChip';
@@ -455,6 +456,23 @@ export default function MapScreen() {
     placeholderData: keepPreviousData,
   });
 
+  // Buscar entiende lo que escribes (2026-11-14): «corte de pelo» o «barberia» no son nombres de negocios. Si el texto no
+  // encuentra nada pero dice un tipo de negocio, se busca por ese tipo (todas sus categorías).
+  const typeArt = searching ? artKeyMatch(debouncedSearch) : null;
+  const typeIds = useMemo(
+    () => (typeArt ? (categories.data ?? []).filter((c) => artKeyFor(c.name, c.icon) === typeArt).map((c) => c.id).join(',') : ''),
+    [typeArt, categories.data],
+  );
+  const textEmpty = searching && entities.isSuccess && !entities.isPlaceholderData && (entities.data?.items.length ?? 0) === 0;
+  const byType = useQuery({
+    queryKey: ['discovery-type', typeIds, scope ? `${scope.min_lat},${scope.min_lng},${scope.max_lat},${scope.max_lng}` : 'ciudad', refKey],
+    queryFn: () => discoveryApi.discover({ ...(scope ?? {}), lat: reference?.latitude, long: reference?.longitude, category: typeIds, limit: 50 }),
+    enabled: textEmpty && typeIds.length > 0,
+    staleTime: 60_000,
+  });
+  const usingType = textEmpty && (byType.data?.items.length ?? 0) > 0;
+  const searchData = usingType ? byType.data : entities.data;
+
   // Niveles 1 y 2 del mapa (F10): sin búsqueda ni filtros que el servidor no conozca, los negocios
   // llegan agrupados en casillas con su conteo en vez de uno por uno. Con «abiertos ahora» o un radio
   // el conteo del servidor no coincidiría, así que se vuelve a los pines.
@@ -498,7 +516,7 @@ export default function MapScreen() {
   }, [claimsQuery.data, now]);
 
   const fetched = useMemo<WithDistance[]>(() => {
-    const withDistance = (entities.data?.items ?? []).map((entity) => ({
+    const withDistance = (searchData?.items ?? []).map((entity) => ({
       ...entity,
       distanceKm: entity.distance_meters > 0 ? entity.distance_meters / 1000 : null,
     }));
@@ -517,7 +535,7 @@ export default function MapScreen() {
       verified: e.is_verified,
       rating: e.review_count > 0 ? e.avg_rating : null,
     }));
-  }, [entities.data, reference, radiusKm, openNow, extra]);
+  }, [searchData, reference, radiusKm, openNow, extra]);
 
   // Pines acumulados (sin búsqueda): cada respuesta SUMA negocios a los que ya estaban y solo se
   // quitan los que quedaron muy lejos; así una consulta nunca hace desaparecer un pin que se ve.
@@ -596,7 +614,9 @@ export default function MapScreen() {
   const strip = useMemo(() => stripText(zoneName, { hasUser: userCoords !== null, denied: locationDenied }), [zoneName, userCoords, locationDenied]);
 
   // Resultados de búsqueda: mientras llega una consulta nueva se muestra «Buscando…», no la anterior.
-  const resultsStatus: 'loading' | 'error' | 'ok' = entities.isError ? 'error' : entities.isLoading || entities.isPlaceholderData ? 'loading' : 'ok';
+  // Los 9 primeros resultados llevan su número en el mapa y en la lista (el mismo orden).
+  const rankById = useMemo(() => new Map(searching ? items.slice(0, 9).map((e, i) => [e.id, i + 1] as const) : []), [searching, items]);
+  const resultsStatus: 'loading' | 'error' | 'ok' = entities.isError ? 'error' : entities.isLoading || entities.isPlaceholderData || (textEmpty && typeIds.length > 0 && byType.isLoading) ? 'loading' : 'ok';
   // «También podría interesarte»: misma categoría que el primer resultado, otras subcategorías.
   const topCategory = searching && resultsStatus === 'ok' ? items[0]?.category_id : undefined;
   const relatedQuery = useQuery({
@@ -886,10 +906,11 @@ export default function MapScreen() {
         categoryName: headerCategory,
         view,
         extraCount: extraModels.length,
-        openCount: searching ? 0 : items.filter((e) => e.has_hours && e.is_open_now).length,
+        openCount: items.filter((e) => e.has_hours && e.is_open_now).length,
         zoneStatus: headerZoneStatus,
+        typeLabel: usingType && typeArt ? ART_LABEL[typeArt] : undefined,
       }),
-    [searching, debouncedSearch, resultsStatus, items, searchScope, headerCategory, view, extraModels.length, headerZoneStatus],
+    [searching, debouncedSearch, resultsStatus, items, searchScope, headerCategory, view, extraModels.length, headerZoneStatus, usingType, typeArt],
   );
   // Visor de fotos de un destacado, encima del mapa (3.22).
   const [viewer, setViewer] = useState<ViewerTarget | null>(null);
@@ -1174,6 +1195,7 @@ export default function MapScreen() {
                     mine={m.mine}
                     emphasis={m.emphasis}
                     distanceLabel={m.distanceLabel}
+                    rank={rankById.get(m.entity.id)}
                     dimmed={selectedId !== null && !m.selected}
                     onPress={() => selectBusiness(m.entity.id, m.coordinate)}
                   />
@@ -1310,7 +1332,7 @@ export default function MapScreen() {
           )}
           {tall || selectedEntity || searchOpen ? null : searching ? (
             <ContextRow
-              chips={contextRow}
+              chips={contextRow.filter((c) => !(c.kind === 'scope' && !c.removable))}
               zoneName={null}
               onRemoveScope={removeScope}
               onRemoveFilter={removeFilter}

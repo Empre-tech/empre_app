@@ -188,14 +188,19 @@ export function MiniCard({ model, selected, onPress }: { model: CardModel; selec
 }
 
 /** Fila del panel expandido: círculo, nombre, estado · subcategoría · distancia, motivo y pastilla. */
-export function MiniRow({ model, selected, onPress }: { model: CardModel; selected?: boolean; onPress: () => void }) {
+export function MiniRow({ model, selected, onPress, rank }: { model: CardModel; selected?: boolean; onPress: () => void; /** El número del pin (búsqueda). */ rank?: number }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={[model.name, model.open === null ? null : model.open ? 'Abierto' : 'Cerrado', model.sub, model.distance, model.line].filter(Boolean).join(', ')}
+      accessibilityLabel={[rank ? `${rank}.` : null, model.name, model.open === null ? null : model.open ? 'Abierto' : 'Cerrado', model.sub, model.distance, model.line].filter(Boolean).join(', ')}
       onPress={onPress}
       style={({ pressed }) => [styles.row, selected && styles.selected, pressed && styles.pressed]}
     >
+      {rank ? (
+        <View style={styles.rank}>
+          <Text style={styles.rankText}>{rank}</Text>
+        </View>
+      ) : null}
       <Circle model={model} size={46} />
       <View style={styles.rowText}>
         <Text style={styles.rowName} numberOfLines={1}>
@@ -221,6 +226,8 @@ export function MiniRow({ model, selected, onPress }: { model: CardModel; select
 }
 
 const styles = StyleSheet.create({
+  rank: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary },
+  rankText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
   circle: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 24, paddingHorizontal: 9, borderRadius: radius.pill, alignSelf: 'flex-start' },
   pillFloating: { position: 'absolute', left: 8, bottom: 8 },

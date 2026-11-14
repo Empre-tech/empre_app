@@ -3,8 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { capFichas, extrasTeaser, groupFeatured, zoneState } from '@/lib/discover';
 import { colors, fonts, radius, spacing } from '@/theme';
-import type { CardModel } from './ExploreCards';
-import { ZoneCard } from './ZoneCard';
+import { MiniRow, type CardModel } from './ExploreCards';
 
 interface Common {
   selectedId: string | null;
@@ -63,7 +62,7 @@ function Fichas({ items, selectedId, onSelect, onOpenProfile, onPhoto }: Common 
         <View key={g.id}>
           {g.title ? <GroupHead title={g.title} note={String(g.items.length)} tone={g.id === 'offer' ? 'offer' : g.id === 'open' ? 'open' : undefined} /> : null}
           {g.items.map((m) => (
-            <ZoneCard key={m.id} model={m} selected={selectedId === m.id} onPress={() => onSelect(m)} onOpenProfile={onOpenProfile} onPhoto={onPhoto ? (i) => onPhoto(m, i) : undefined} />
+            <MiniRow key={m.id} model={m} selected={selectedId === m.id} onPress={() => onSelect(m)} />
           ))}
         </View>
       ))}
@@ -177,7 +176,7 @@ export function ZoneAll(p: Props) {
         <>
           <GroupHead title="Más allá de lo que ves" note={String(p.extras.length)} tone="extra" />
           {p.extras.map((m) => (
-            <ZoneCard key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onOpenProfile={p.onOpenProfile} onPhoto={p.onPhoto ? (i) => p.onPhoto?.(m, i) : undefined} />
+            <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />
           ))}
         </>
       ) : null}

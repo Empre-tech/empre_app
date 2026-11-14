@@ -74,6 +74,8 @@ export function scopeText(scope: SearchScope): string {
 }
 
 export interface HeaderInput {
+  /** Si se buscó por tipo de negocio porque el texto no encontraba nada. */
+  typeLabel?: string;
   searching: boolean;
   query: string;
   status: 'loading' | 'error' | 'ok';
@@ -119,7 +121,9 @@ export function sheetHeader(h: HeaderInput): { title: string; subtitle: string }
         : h.results === 0
           ? 'Sin resultados'
           : `${h.results} ${h.results === 1 ? 'resultado' : 'resultados'}`;
-  return { title: `«${h.query}»`, subtitle };
+  // Al buscar también dice cuántos están abiertos y, si se buscó por tipo («corte de pelo» → Barbería), cuál.
+  const open = h.status === 'ok' && h.results > 0 && (h.openCount ?? 0) > 0 ? ` · ${h.openCount} ${h.openCount === 1 ? 'abierto' : 'abiertos'} ahora` : '';
+  return { title: `«${h.query}»`, subtitle: `${h.typeLabel && h.results > 0 ? `${h.typeLabel} · ` : ''}${subtitle}${open}` };
 }
 
 interface WithSubs {

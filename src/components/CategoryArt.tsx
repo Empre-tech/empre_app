@@ -25,6 +25,8 @@ const TONES: Record<ArtKey, { m: string; d: string; l: string }> = {
 };
 
 const WORDS: [ArtKey, RegExp][] = [
+  // Primero mascotas: «Peluquería canina» es de mascotas, no una barbería.
+  ['mascotas', /mascot|veterin|pet|paw/i],
   ['barberia', /barber|pelu|corte|cabello/i],
   ['unas', /uña|unas|manicur|pedicur|nail/i],
   ['belleza', /belle|estétic|estetic|spa|maquill|cosmét|cosmet/i],
@@ -34,7 +36,6 @@ const WORDS: [ArtKey, RegExp][] = [
   ['tecnologia', /tecno|celular|comput|electr|phone|móvil|movil/i],
   ['talleres', /taller|mecán|mecan|moto|carro|auto|llanta|car|construction|build/i],
   ['papeleria', /papeler|librer|útiles|utiles|copia|school|book/i],
-  ['mascotas', /mascot|veterin|pet|paw/i],
   ['salud', /salud|farmac|droguer|médic|medic|clínic|clinic|odonto|dental|health|medkit/i],
   ['hogar', /hogar|ferreter|casa|mueble|home|limpieza/i],
 ];
