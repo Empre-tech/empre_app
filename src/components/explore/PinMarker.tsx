@@ -1,10 +1,8 @@
 import { Ionicons } from '@/components/Icon';
-import { Image } from 'expo-image';
 import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Marker } from 'react-native-maps';
 import { pinLabel } from '@/lib/markerLabels';
-import { resolveImageUrl } from '@/lib/image';
 import type { EmphasisTier } from '@/lib/proximity';
 import { colors, fonts, radius } from '@/theme';
 import type { WithDistance } from './FeaturedCard';
@@ -39,17 +37,14 @@ function closesSoon(closesAt?: string): boolean {
 
 function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, dimmed, rank, onPress }: Props) {
   const look = [rank ?? '', tier, emphasis ?? '', selected ? 's' : '', mine ? 'm' : '', entity.has_active_offer ? 'o' : '', entity.is_open_now ? 'a' : 'c', closesSoon(entity.closes_at) ? 'p' : '', distanceLabel ?? ''].join('|');
-  const { tracking, onLayout, onImageSettled, markerRef } = useMarkerTracking(look);
+  const { tracking, onLayout, markerRef } = useMarkerTracking(look);
 
-  // Sobre el mapa negro: lo abierto brilla en verde, la oferta lleva su aro coral y lo cerrado queda en grafito.
+  // Un solo pin en todo el mapa (2026-11-14), como Google Maps: blanco, el ícono en tinta y el punto rojo si está abierto.
   const cat = { fg: entity.is_open_now ? colors.glow : '#5B606B', bg: colors.selectedSoft };
   const open = entity.has_hours ? entity.is_open_now : true;
   const icon = (entity.category_icon || 'storefront') as keyof typeof Ionicons.glyphMap;
-  const thumb = entity.profile_url ? resolveImageUrl(entity.profile_url) : null;
   const hasOffer = entity.has_active_offer;
   const showRayo = hasOffer && (entity.active_offer?.type === 'HORAS' || entity.active_offer?.type === 'DIA');
-  const borderColor = selected ? '#ffffff' : hasOffer ? colors.accent : open ? colors.glow : '#5B606B';
-  const statusColor = !open ? '#8E929A' : closesSoon(entity.closes_at) ? '#FFFFFF' : colors.glow;
   const coordinate = { latitude: entity.latitude, longitude: entity.longitude };
 
   if (emphasis) {
@@ -128,23 +123,20 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
             <Text style={styles.pinOwnerLabelText}>Tu negocio</Text>
           </View>
         ) : null}
-        {showRayo ? (
-          <View style={styles.offerBadge}>
-            <Ionicons name="flash" size={11} color={colors.ink} />
-          </View>
-        ) : null}
         {tier === 'far' ? (
-          <View style={[styles.pinFar, { backgroundColor: cat.fg }, selected && styles.pinFarSelected]} />
+          <View style={[styles.pinFar, { backgroundColor: open ? colors.brand : '#8E929A' }, selected && styles.pinFarSelected]} />
         ) : (
-          <View style={[tier === 'near' ? styles.pinNear : styles.pinMid, { borderColor }]}>
-            {thumb ? (
-              <Image accessible={false} source={{ uri: thumb }} style={tier === 'near' ? styles.thumbNear : styles.thumbMid} contentFit="cover" cachePolicy="memory-disk" recyclingKey={thumb} onLoad={onImageSettled} onError={onImageSettled} />
-            ) : (
-              <View style={[tier === 'near' ? styles.thumbNear : styles.thumbMid, styles.fallback, { backgroundColor: cat.bg }]}>
-                <Ionicons name={icon} size={tier === 'near' ? 20 : 16} color={cat.fg} />
+          <View style={!open && entity.has_hours ? styles.closedFade : null}>
+            <View style={[styles.gPin, tier === 'mid' && styles.gPinSmall, selected && styles.gPinSelected]}>
+              <Ionicons name={icon} size={tier === 'near' ? 18 : 15} color={colors.ink} />
+            </View>
+            {showRayo ? (
+              <View style={[styles.offerBadge, styles.offerBadgeLow]}>
+                <Ionicons name="flash" size={11} color={colors.ink} />
               </View>
-            )}
-            {entity.has_hours ? <View style={[styles.statusDot, { backgroundColor: statusColor }]} /> : null}
+            ) : entity.has_hours && entity.is_open_now ? (
+              <View style={styles.gOpen} />
+            ) : null}
           </View>
         )}
       </View>
@@ -198,6 +190,7 @@ const styles = StyleSheet.create({
   // Pin de resultado como Google Maps (2026-11-14): blanco con el ícono en tinta y una sombra suave.
   gPin: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line, shadowColor: '#2B2622', shadowOpacity: 0.22, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   gPinSelected: { borderColor: colors.ink, borderWidth: 2.5 },
+  gPinSmall: { width: 30, height: 30, borderRadius: 15 },
   gOpen: { position: 'absolute', left: -2, bottom: -2, width: 11, height: 11, borderRadius: 6, backgroundColor: colors.brand, borderWidth: 2, borderColor: '#FFFFFF' },
   offerBadgeLow: { position: 'absolute', left: -5, bottom: -5, zIndex: 2, marginBottom: 0 },
   thumbNear: { width: 40, height: 40, borderRadius: 20 },
