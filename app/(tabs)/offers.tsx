@@ -25,7 +25,7 @@ import { ScreenGlow } from '@/components/ScreenGlow';
 import { askApi } from '@/api/ask';
 import { catalogApi } from '@/api/catalog';
 import { categoriesApi } from '@/api/endpoints';
-import { discoveryApi, offersApi } from '@/api/offers';
+import { discoveryApi, offersApi, zonesApi } from '@/api/offers';
 import type { DiscoveryItem } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/Button';
@@ -34,7 +34,7 @@ import { UpdatingBar } from '@/components/explore/LoadingMotion';
 import { BizVitrinaSheet } from '@/components/offers/BizFaces';
 import { AskManySheet } from '@/components/offers/AskManySheet';
 import { BestPriceRail, HeroCarousel, Relampago } from '@/components/offers/OfferSpotlight';
-import { BizShelf, ChosenFaces, CategoryIcons, ResultsByBusiness, SearchedChips, SectionHead } from '@/components/offers/HomeBlocks';
+import { BizShelf, ChosenFaces, CategoryIcons, ResultsByBusiness, SearchedChips, SectionDivider, SectionHead, ZoneHeader } from '@/components/offers/HomeBlocks';
 import { FilterRow, FiltersSheet, LensTabs, type FilterTag, type ShowFilter } from '@/components/offers/LensFilters';
 import { MarketItemSheet } from '@/components/offers/MarketItemSheet';
 import { OfferAlertCard } from '@/components/offers/OfferAlertCard';
@@ -73,7 +73,7 @@ import {
   type MarketSort,
   type VitrinaFilter,
 } from '@/lib/offerMarket';
-import { planHour, planKey, planLevel, planTag, planTitle, planWalk } from '@/lib/plans';
+import { metersBetween, planHour, planKey, planLevel, planTag, planTitle, planWalk } from '@/lib/plans';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, radius, softShadow, spacing } from '@/theme';
@@ -201,6 +201,14 @@ export default function OffersScreen() {
   });
   const data = market.data;
   const city = data?.city ?? '';
+  // Las zonas de la ciudad (todas, tengan o no ofertas): cada negocio está en una y son las pestañas de arriba.
+  const zonesCity = city || lastCity || '';
+  const cityZonesQ = useQuery({ queryKey: ['zones', zonesCity], queryFn: () => zonesApi.list(zonesCity), enabled: Boolean(zonesCity), staleTime: 10 * 60_000 });
+  const tabZones = useMemo(() => {
+    const list = cityZonesQ.data ?? [];
+    return coords ? [...list].sort((a, b) => metersBetween(coords.latitude, coords.longitude, a.latitude, a.longitude) - metersBetween(coords.latitude, coords.longitude, b.latitude, b.longitude)) : list;
+  }, [cityZonesQ.data, coords]);
+  const zoneSel = picked ? (tabZones.find((z) => z.id === picked.id) ?? null) : null;
   const zoneId = zone && (!data || data.zones.some((z) => z.id === zone)) ? zone : undefined;
 
   const all = useInfiniteQuery({
@@ -220,12 +228,18 @@ export default function OffersScreen() {
       discoveryApi.discover({
         ...(center ? { lat: center.latitude, long: center.longitude } : {}),
         category,
-        limit: 12,
+        // Con una zona elegida se traen más: la zona se muestra entera, no solo los doce más cerca.
+        limit: picked ? 30 : 12,
       }),
     staleTime: 60_000,
     enabled: ready,
   });
-  const nearbyBiz = useMemo(() => nearbyBizQuery.data?.items ?? [], [nearbyBizQuery.data?.items]);
+  const nearbyBizAll = useMemo(() => nearbyBizQuery.data?.items ?? [], [nearbyBizQuery.data?.items]);
+  // Con una zona elegida, solo los negocios que quedan dentro de ella (como los asigna el servidor: el círculo de la zona).
+  const nearbyBiz = useMemo(
+    () => (zoneSel ? nearbyBizAll.filter((b) => b.latitude != null && b.longitude != null && metersBetween(b.latitude, b.longitude, zoneSel.latitude, zoneSel.longitude) <= zoneSel.radius_m) : nearbyBizAll),
+    [nearbyBizAll, zoneSel],
+  );
   const allNearQuery = useQuery({
     queryKey: ['vitrina-discover', placeKey, 'all'],
     queryFn: () => discoveryApi.discover({ ...(center ? { lat: center.latitude, long: center.longitude } : {}), limit: 12 }),
@@ -452,11 +466,14 @@ export default function OffersScreen() {
     </ScrollView>
   );
   const header = (title: string, why: string) => (
-    <View style={styles.sh}>
-      <Text style={styles.shTitle} accessibilityRole="header">
-        {title}
-      </Text>
-      <Text style={styles.shWhy}>{why}</Text>
+    <View>
+      <SectionDivider />
+      <View style={styles.sh}>
+        <Text style={styles.shTitle} accessibilityRole="header">
+          {title}
+        </Text>
+        {why ? <Text style={styles.shWhy}>{why}</Text> : null}
+      </View>
     </View>
   );
   const inCity = city ? ` en ${city}` : '';
@@ -540,9 +557,9 @@ export default function OffersScreen() {
         {home ? (
           <>
             {/* Barrios: como las pestañas de categoría de las grandes tiendas, pero por ubicación (tablero «Ofertas») */}
-            {(data?.zones ?? []).length ? (
+            {tabZones.length ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.barrios} accessibilityLabel="Barrios">
-                {[{ id: '', name: 'A tu puerta', latitude: 0, longitude: 0 }, ...(data?.zones ?? [])].map((z) => {
+                {[{ id: '', name: 'A tu puerta', latitude: 0, longitude: 0 }, ...tabZones].map((z) => {
                   const on = (picked?.id ?? '') === z.id;
                   return (
                     <Pressable
@@ -562,6 +579,15 @@ export default function OffersScreen() {
                   );
                 })}
               </ScrollView>
+            ) : null}
+            {/* La zona elegida: sus negocios de una vez (tablero 1c) */}
+            {zoneSel && !q ? (
+              <ZoneHeader
+                name={zoneSel.name}
+                businesses={nearbyBiz}
+                offers={knownOffers.filter((o) => nearbyBiz.some((b) => b.id === o.entity_id)).length}
+                onOpen={(id) => router.push({ pathname: '/business/[id]', params: { id } })}
+              />
             ) : null}
             {/* Categorías a la vista: dos filas de íconos, un toque y filtra */}
             {groups.length ? (
@@ -747,7 +773,7 @@ export default function OffersScreen() {
         {home ? (
           <>
             {/* A tu puerta: dos o tres negocios cercanos con lo que venden; el resto sale al buscar o con un ícono */}
-            {!q && show !== 'offers' && shelves.length ? <SectionHead title={shelvesOpen ? 'A tu puerta, abiertos ahora' : 'A tu puerta'} sub="Lo que venden los más cercanos" /> : null}
+            {!q && show !== 'offers' && shelves.length ? <SectionHead title={zoneSel ? `Lo que venden en ${zoneSel.name}` : shelvesOpen ? 'A tu puerta, abiertos ahora' : 'A tu puerta'} sub={zoneSel ? 'Productos y servicios de sus negocios' : 'Lo que venden los más cercanos'} /> : null}
             {!q && show !== 'offers'
               ? shelves.map((x) => (
                   <BizShelf
@@ -1048,8 +1074,8 @@ const styles = StyleSheet.create({
   seeAll: { minHeight: 44, justifyContent: 'center' },
   seeAllText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   sh: { paddingHorizontal: 20, gap: 2 },
-  shTitle: { flexShrink: 1, fontSize: 20, lineHeight: 25, fontFamily: fonts.display.bold, color: colors.ink },
-  shWhy: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
+  shTitle: { flexShrink: 1, fontSize: 17, lineHeight: 22, fontFamily: fonts.display.semibold, color: colors.ink },
+  shWhy: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
   rail: { flexDirection: 'row', gap: TILE_GAP, paddingHorizontal: 20, paddingTop: 3, paddingBottom: 12 },
   planCard: { width: 272, gap: 12, padding: 18, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.hairline, ...softShadow },
   planTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },

@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { memo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import type { DiscoveryItem } from '@/api/types';
 import { artKeyFor, type ArtKey } from '@/components/CategoryArt';
@@ -19,11 +20,29 @@ const km = (m?: number | null) => onFootOrDistance((m ?? 0) / 1000);
 const kmShort = (m?: number | null) => km(m)?.replace(' a pie', '') ?? null;
 const bizPhoto = (b?: DiscoveryItem) => (b ? (resolveImageUrl(b.profile_url) ?? resolveImageUrl(b.photos?.[0]) ?? undefined) : undefined);
 
+/** Entre secciones: una línea que se desvanece a los lados, con aire arriba y abajo. Así cada sección se lee aparte. */
+export function SectionDivider() {
+  return (
+    <View style={styles.divider} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Svg width="100%" height={1}>
+        <Defs>
+          <LinearGradient id="sdiv" x1="0" y1="0" x2="1" y2="0">
+            <Stop offset="0" stopColor="#D9C49A" stopOpacity={0} />
+            <Stop offset="0.5" stopColor="#D9C49A" stopOpacity={1} />
+            <Stop offset="1" stopColor="#D9C49A" stopOpacity={0} />
+          </LinearGradient>
+        </Defs>
+        <Rect width="100%" height={1} fill="url(#sdiv)" />
+      </Svg>
+    </View>
+  );
+}
+
 /**
  * El título de una sección es lo que se toca (tablero «Empre Offers»): sin «Ver todos», solo un chevrón cuando lleva
  * a algo. Así cada sección tiene a lo sumo un botón.
  */
-export function SectionHead({ title, sub, onPress }: { title: string; sub?: string | null; onPress?: () => void }) {
+export function SectionHead({ title, sub, onPress, divider = true }: { title: string; sub?: string | null; onPress?: () => void; divider?: boolean }) {
   const body = (
     <>
       <View style={{ flex: 1, gap: 2 }}>
@@ -35,12 +54,73 @@ export function SectionHead({ title, sub, onPress }: { title: string; sub?: stri
       {onPress ? <Ionicons name="chevron-forward" size={20} color={colors.muted} /> : null}
     </>
   );
-  return onPress ? (
+  const head = onPress ? (
     <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={({ pressed }) => [styles.head, pressed && styles.pressed]}>
       {body}
     </Pressable>
   ) : (
     <View style={styles.head}>{body}</View>
+  );
+  return divider ? (
+    <View>
+      <SectionDivider />
+      {head}
+    </View>
+  ) : (
+    head
+  );
+}
+
+/**
+ * La zona elegida (tablero «Empre Offers», teléfono 1c): su nombre, cuántos negocios y cuántos abiertos, y las caras de
+ * todos sus negocios de una vez, en dos filas que se deslizan. Tocar una cara abre el negocio.
+ */
+export function ZoneHeader({ name, businesses, offers, onOpen }: { name: string; businesses: DiscoveryItem[]; offers: number; onOpen: (id: string) => void }) {
+  const open = businesses.filter((b) => b.is_open_now).length;
+  const cols: DiscoveryItem[][] = [];
+  businesses.forEach((b, i) => {
+    if (i % 2 === 0) cols.push([b]);
+    else cols[cols.length - 1].push(b);
+  });
+  return (
+    <View style={styles.sec}>
+      <View style={styles.zoneHead}>
+        <Text style={styles.zoneName} accessibilityRole="header">
+          {name}
+        </Text>
+        <Text style={styles.zoneSub}>
+          {businesses.length === 1 ? '1 negocio' : `${businesses.length} negocios`}
+          {open ? <Text style={styles.zoneOpen}>{` · ${open === 1 ? '1 abierto' : `${open} abiertos`} ahora`}</Text> : null}
+          {offers ? ` · ${offers === 1 ? '1 oferta' : `${offers} ofertas`}` : ''}
+        </Text>
+      </View>
+      {businesses.length ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.zoneGrid}>
+          {cols.map((col, ci) => (
+            <View key={ci} style={styles.zoneCol}>
+              {col.map((b) => {
+                const photo = bizPhoto(b);
+                return (
+                  <Pressable key={b.id} accessibilityRole="button" accessibilityLabel={`${b.name}, ${b.category_name}${b.is_open_now ? ', abierto' : ''}`} onPress={() => onOpen(b.id)} style={({ pressed }) => [styles.zoneFace, pressed && styles.pressed]}>
+                    <View style={[styles.zoneRing, b.is_open_now && styles.zoneRingOpen]}>
+                      {photo ? <Image source={{ uri: photo }} style={styles.zoneImg} contentFit="cover" accessibilityIgnoresInvertColors /> : <BusinessArt k={artKeyFor(b.category_name, b.category_icon)} size={52} />}
+                    </View>
+                    <Text style={styles.faceName} numberOfLines={1}>
+                      {b.name}
+                    </Text>
+                    <Text style={styles.faceMeta} numberOfLines={1}>
+                      {b.category_name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
+        </ScrollView>
+      ) : (
+        <Text style={[styles.why, { paddingHorizontal: 20 }]}>Todavía no hay negocios con ubicación en esta zona.</Text>
+      )}
+    </View>
   );
 }
 
@@ -270,6 +350,17 @@ export function ResultsByBusiness({
 const styles = StyleSheet.create({
   pressed: { opacity: 0.8 },
   sec: { gap: 12 },
+  divider: { marginHorizontal: 28, marginBottom: 22 },
+  zoneHead: { paddingHorizontal: 20, gap: 2 },
+  zoneName: { fontFamily: fonts.display.semibold, fontSize: 22, letterSpacing: -0.2, color: colors.ink },
+  zoneSub: { fontFamily: fonts.ui.medium, fontSize: 13, color: colors.muted },
+  zoneOpen: { fontFamily: fonts.ui.semibold, color: colors.primaryDark },
+  zoneGrid: { gap: 12, paddingHorizontal: 20 },
+  zoneCol: { gap: 14 },
+  zoneFace: { width: 76, alignItems: 'center', gap: 3 },
+  zoneRing: { width: 60, height: 60, borderRadius: 30, borderWidth: 2, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
+  zoneRingOpen: { borderColor: colors.primary },
+  zoneImg: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.sandSoft },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, minHeight: 44 },
   title: { fontFamily: fonts.display.semibold, fontSize: 17, color: colors.ink },
   why: { fontFamily: fonts.ui.medium, fontSize: 12, color: colors.muted },
