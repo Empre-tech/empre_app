@@ -19,10 +19,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { track } from '@/analytics/track';
 import { answersApi, replyLabel } from '@/api/answers';
 import { AiAnswerOwnerRow, TeachLink } from '@/components/chat/AiAnswerBubble';
-import { AiRelay, AiThinking, AiTurn, Aura, ChatWelcome } from '@/components/chat/EmpreVoice';
-import { lookedLabel, understoodLabel } from '@/lib/chatVoice';
+import { AiThinking, AiTurn, Aura, ChatWelcome, SentNote } from '@/components/chat/EmpreVoice';
+import { lookingLabel, understoodLabel } from '@/lib/chatVoice';
 import { useAnswerData } from '@/components/chat/useAnswerData';
-import { answer as buildAnswer, detectIntent, suggestQuestions, type Action, type Answer, type Intent } from '@/lib/answers';
+import { answer as buildAnswer, asksCommitment, detectIntent, fichaAnswer, isFichaIntent, suggestQuestions, type Action, type Answer, type Intent } from '@/lib/answers';
 import { autoAnswerStep, ownerRepliedSince } from '@/lib/chatAutoAnswer';
 import { groupAiAnswers, isGreetingOnly, splitQuestions, timelineOrder, unansweredTail, waitNotice } from '@/lib/chatTurns';
 import { openingFromHours, statusLine } from '@/lib/placeCard';
@@ -62,6 +62,10 @@ interface PendingQuestion {
   anchor?: string;
   /** La pregunta del cliente que se responde (su id en el servidor): la respuesta se guarda atada a ella (3.71). */
   replyTo?: string;
+  /** Lo que se preguntó de esto (no todo el mensaje): es lo que lee la ficha del negocio (nivel 3). */
+  part?: string;
+  /** Pide un compromiso (apartar, rebajar, encargar…): Empre AI no lo responde, le llega al dueño. */
+  commitment?: boolean;
 }
 
 /** Qué se respondió: la intención y, si habla de algo del catálogo, de qué (igual que el servidor al no repetir). */
@@ -257,39 +261,41 @@ export default function ChatScreen() {
       ...msgs.filter((m) => m.kind === 'ai_answer' && m.ai_intent && new Date(m.created_at).toDateString() === today).map((m) => answerKey(m.ai_intent!, m.ai_service_id, m.ai_answer_id)),
       ...rows.flatMap((r) => (r.ai === 'answer' ? [answerKey(r.intent, r.serviceId, r.taughtId)] : [])),
     ]);
-    const hasStatus = rows.some((r) => r.ai === 'status');
     const keep: PendingQuestion[] = [];
     const add: AiRow[] = [];
-    const saveToServer: PendingQuestion[] = [];
-    {
-      for (const q of list) {
-        const step = autoAnswerStep({
-          answerable: !q.answer.unanswered && q.intent !== 'unknown',
-          intent: answerKey(q.intent, q.serviceId, q.taughtId),
-          ownerOnline: online,
-          ownerReplied: ownerRepliedSince(msgs, q.askedAt),
-          elapsedMs: Date.now() - Date.parse(q.askedAt),
-          answered,
-        });
-        if (step === 'wait') keep.push(q);
-        else if (step === 'answer') {
-          answered.add(answerKey(q.intent, q.serviceId, q.taughtId));
-          saveToServer.push(q);
-        } else if (step === 'status') {
-          const askedId = q.replyTo ?? askedIdOf(msgs, q);
-          if (askedId) void chatApi.aiUnknown(entityId, askedId).catch(() => undefined);
-          // Un solo aviso por conversación mientras el negocio no conteste.
-          if (hasStatus || add.some((r) => r.ai === 'status')) continue;
-          const who = answerData?.name ?? name ?? 'El negocio';
-          add.push({ id: `ai-${q.id}`, created_at: q.anchor ?? new Date().toISOString(), ai: 'status', text: waitNotice(who, online, open) });
-        }
+    // Lo que se hace después, en el orden de las preguntas: guardar la respuesta (reglas y lo enseñado) o leer la ficha.
+    const work: { q: PendingQuestion; kind: 'answer' | 'ficha' }[] = [];
+    const who = answerData?.name ?? name ?? 'El negocio';
+    // Lo que Empre AI no responde: una línea tranquila bajo el mensaje, una por mensaje, sin la Chispa (2026-11-14).
+    const quiet = (q: PendingQuestion): AiRow => ({ id: `ai-q-${q.askedAt}`, created_at: q.anchor ?? new Date().toISOString(), ai: 'status', text: waitNotice(who, online, open) });
+    for (const q of list) {
+      const answerable = !q.answer.unanswered && q.intent !== 'unknown';
+      // Sin dato en las reglas ni en lo enseñado: Empre AI lee la ficha publicada del negocio, salvo un compromiso.
+      const fichable = !answerable && !q.commitment;
+      const step = autoAnswerStep({
+        answerable: answerable || fichable,
+        intent: fichable ? `ficha|${q.id}` : answerKey(q.intent, q.serviceId, q.taughtId),
+        ownerOnline: online,
+        ownerReplied: ownerRepliedSince(msgs, q.askedAt),
+        elapsedMs: Date.now() - Date.parse(q.askedAt),
+        answered,
+      });
+      if (step === 'wait') keep.push(q);
+      else if (step === 'answer') {
+        if (answerable) answered.add(answerKey(q.intent, q.serviceId, q.taughtId));
+        work.push({ q, kind: answerable ? 'answer' : 'ficha' });
+      } else if (step === 'status') {
+        const askedId = q.replyTo ?? askedIdOf(msgs, q);
+        if (askedId) void chatApi.aiUnknown(entityId, askedId).catch(() => undefined);
+        const row = quiet(q);
+        if (!rows.some((r) => r.id === row.id) && !add.some((r) => r.id === row.id)) add.push(row);
       }
     }
     // Se anota ya (no al volver a dibujar): el reloj de 1 s y el de 1,1 s no pueden procesar dos veces lo mismo.
     latest.current = { ...latest.current, pending: keep, aiRows: add.length ? [...add, ...rows] : rows };
     setPending(keep);
     if (add.length) setAiRows((prev) => [...add, ...prev]);
-    if (!saveToServer.length) {
+    if (!work.length) {
       setTyping(false);
       return;
     }
@@ -299,9 +305,22 @@ export default function ChatScreen() {
     void (async () => {
       const saved: ChatMessage[] = [];
       const local: AiRow[] = [];
-      for (const [i, q] of saveToServer.entries()) {
+      for (const [i, { q, kind }] of work.entries()) {
         // Atada a su pregunta: el servidor no la repite y todos la ven justo debajo de ella (3.71).
-        const m = await chatApi.aiAnswer(entityId, q.intent, q.serviceId, q.taughtId, q.replyTo ?? askedIdOf(msgs, q)).catch(() => null);
+        const replyTo = q.replyTo ?? askedIdOf(msgs, q);
+        if (kind === 'ficha') {
+          // Nivel 3: si su ficha lo dice, el servidor guarda la respuesta (y el dueño la ve). Si no, Empre AI no aparece.
+          const r = await chatApi.aiFicha(entityId, q.part || q.text, replyTo).catch(() => null);
+          const m = r?.known ? r.message : undefined;
+          if (m) {
+            if (!saved.some((x) => x.id === m.id)) saved.push(m);
+          } else {
+            if (replyTo) void chatApi.aiUnknown(entityId, replyTo).catch(() => undefined);
+            local.push(quiet(q));
+          }
+          continue;
+        }
+        const m = await chatApi.aiAnswer(entityId, q.intent, q.serviceId, q.taughtId, replyTo).catch(() => null);
         if (m && !saved.some((x) => x.id === m.id)) {
           saved.push(m);
           continue;
@@ -313,7 +332,7 @@ export default function ChatScreen() {
       }
       setTyping(false);
       if (saved.length) setLive((prev) => [...saved.filter((m) => !prev.some((x) => x.id === m.id)).reverse(), ...prev]);
-      if (local.length) setAiRows((prev) => [...local.reverse(), ...prev]);
+      if (local.length) setAiRows((prev) => [...local.filter((r) => !prev.some((x) => x.id === r.id)).reverse(), ...prev]);
     })();
   }, [answerData?.name, name, entityId, user?.id]);
 
@@ -359,19 +378,25 @@ export default function ChatScreen() {
       }, 900);
       return;
     }
-    type Found = { intent: Intent; services: { id: string }[]; taughtId?: string };
+    type Found = { intent: Intent; services: { id: string }[]; taughtId?: string; part?: string; commitment?: boolean };
     const parts = preset ? [content] : splitQuestions(content);
-    let found: Found[] = preset ? [{ intent: preset, services: [] }] : parts.map((part) => detectIntent(part, answerData.services, answerData.taught));
+    // Lo que pide un compromiso (apartar, rebajar, encargar…) no lo responde Empre AI: le llega al dueño (2026-11-14).
+    let found: Found[] = preset
+      ? [{ intent: preset, services: [] }]
+      : parts.map((part) => (asksCommitment(part) ? { intent: 'unknown' as Intent, services: [], part, commitment: true } : { ...detectIntent(part, answerData.services, answerData.taught), part }));
+    const onlyCommitments = found.every((f) => f.commitment);
     // Modelo de uso (3.64): de dónde sale la respuesta, para medir cuánto se responde sin IA.
     let source = found.some((f) => f.taughtId) ? 'taught' : 'rule';
     const aboutOf = (f: Found): { intent: Intent; service?: string } => ({ intent: f.intent, service: f.services.length === 1 ? answerData.services.find((s) => s.id === f.services[0].id)?.name : undefined });
     setAbout(aboutOf(found.find((f) => f.intent !== 'unknown') ?? found[0]));
     // F4: si las reglas no entienden nada del mensaje, el servidor lo clasifica una vez (solo la intención).
-    setTyping(true);
-    if (!catchUp && found.every((f) => f.intent === 'unknown')) {
-      const c = await chatApi.classify(entityId, content).catch(() => null);
+    // Solo un compromiso: no hay nada que revisar; la línea «Enviado» sale sin «Revisando…».
+    if (!onlyCommitments) setTyping(true);
+    if (!catchUp && !onlyCommitments && found.every((f) => f.intent === 'unknown')) {
+      const open = found.filter((f) => !f.commitment).map((f) => f.part ?? '').join(' ').trim() || content;
+      const c = await chatApi.classify(entityId, open).catch(() => null);
       if (c && c.intent !== 'unknown') {
-        found = [{ intent: c.intent as Intent, services: [], taughtId: c.answer_id }];
+        found = [{ intent: c.intent as Intent, services: [], taughtId: c.answer_id, part: open }, ...found.filter((f) => f.commitment)];
         source = 'classify';
         setAbout(aboutOf(found[0]));
       }
@@ -379,15 +404,20 @@ export default function ChatScreen() {
     // Una respuesta por cosa preguntada: la misma intención sobre otro producto sí se responde («¿tienen X? ¿y Y?»).
     const keyOf = (f: Found) => answerKey(f.intent, f.services.length === 1 ? f.services[0].id : undefined, f.taughtId);
     const known = found.filter((f, i) => f.intent !== 'unknown' && found.findIndex((g) => keyOf(g) === keyOf(f)) === i);
-    // Lo que nadie entiende igual le llega al negocio; si además hubo respuestas, se avisa con una sola línea.
-    const list: Found[] = known.length ? [...known, ...(found.some((f) => f.intent === 'unknown') ? [{ intent: 'unknown' as Intent, services: [] }] : [])] : [found[0]];
+    // Lo que las reglas no entienden va junto a la ficha del negocio (nivel 3); los compromisos, aparte, al dueño.
+    const open = found.filter((f) => f.intent === 'unknown' && !f.commitment);
+    const rest: Found[] = [
+      ...(open.length ? [{ intent: 'unknown' as Intent, services: [], part: open.map((f) => f.part ?? '').join(' ').trim() || content }] : []),
+      ...(found.some((f) => f.commitment) ? [{ intent: 'unknown' as Intent, services: [], part: found.filter((f) => f.commitment).map((f) => f.part ?? '').join(' '), commitment: true }] : []),
+    ];
+    const list: Found[] = known.length || rest.length ? [...known, ...rest] : [found[0]];
     const now = new Date();
     const qs: PendingQuestion[] = list.map((f, i) => {
       const serviceId = f.services.length === 1 ? f.services[0].id : undefined;
       const ans = buildAnswer(answerData, f.intent, { serviceId, taughtId: f.taughtId, text: content, weekday: now.getDay(), now: now.getTime() });
       track('question_asked', entityId, { intent: f.intent, answered: !ans.unanswered });
       track('ai_answer_source', entityId, { intent: f.intent, source: ans.unanswered ? 'owner' : source, businesses: 1 });
-      return { id: `${now.getTime()}-${Math.random().toString(36).slice(2, 6)}-${i}`, askedAt: now.toISOString(), text: content, intent: f.intent, serviceId, taughtId: f.taughtId, answer: ans, catchUp, anchor, replyTo };
+      return { id: `${now.getTime()}-${Math.random().toString(36).slice(2, 6)}-${i}`, askedAt: now.toISOString(), text: content, intent: f.intent, serviceId, taughtId: f.taughtId, answer: ans, catchUp, anchor, replyTo, part: f.part, commitment: f.commitment };
     });
     latest.current = { ...latest.current, pending: [...latest.current.pending, ...qs] };
     setPending((prev) => [...prev, ...qs]);
@@ -600,14 +630,16 @@ export default function ChatScreen() {
             data={rows}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.messages}
-            ListHeaderComponent={typing && !sentByEntity ? <AiThinking understood={understoodLabel(about.intent, answerData?.noun ?? 'Carta', about.service)} looking={lookedLabel(about.intent, answerData?.noun ?? 'Carta')} /> : null}
+            ListHeaderComponent={typing && !sentByEntity ? <AiThinking understood={understoodLabel(about.intent, answerData?.noun ?? 'Carta', about.service)} looking={lookingLabel(about.intent, answerData?.noun ?? 'Carta')} /> : null}
             renderItem={({ item: row }) => {
-            if ('ai' in row && row.ai === 'status') return <AiRelay text={row.text} />;
+            if ('ai' in row && row.ai === 'status') return <SentNote text={row.text} />;
             if (!('ai' in row) && row.kind === 'ai_answer' && row.ai_intent && sentByEntity) {
               const intent = row.ai_intent as Intent;
               const when = new Date(row.created_at);
-              const built = answerData ? buildAnswer(answerData, intent, { serviceId: row.ai_service_id, taughtId: row.ai_answer_id, weekday: when.getDay(), now: openedAt }) : null;
-              return <AiAnswerOwnerRow summary={row.content} answer={built} onCorrect={() => teach({ intent: intent === 'custom' ? '' : intent })} />;
+              // Lo que respondió leyendo tu ficha se ve tal cual; lo de las reglas se vuelve a armar con tus datos.
+              const ficha = isFichaIntent(row.ai_intent);
+              const built = answerData ? (ficha ? fichaAnswer(row.content, row.ai_intent, answerData.noun) : buildAnswer(answerData, intent, { serviceId: row.ai_service_id, taughtId: row.ai_answer_id, weekday: when.getDay(), now: openedAt })) : null;
+              return <AiAnswerOwnerRow summary={ficha ? 'Empre AI respondió leyendo tu ficha' : row.content} answer={built} onCorrect={() => teach({ intent: intent === 'custom' || ficha ? '' : intent })} />;
             }
             if ('ai' in row || (row.kind === 'ai_answer' && row.ai_intent)) {
               // Una burbuja por grupo (3.68): la fila más nueva la dibuja con todas las respuestas, en orden.
@@ -622,6 +654,7 @@ export default function ChatScreen() {
                 if (key) seen.add(key);
                 if ('ai' in r) return r.ai === 'answer' ? [{ answer: r.answer, intent: r.intent as string }] : [];
                 if (r.kind !== 'ai_answer' || !r.ai_intent || !answerData) return [];
+                if (isFichaIntent(r.ai_intent)) return [{ answer: fichaAnswer(r.content, r.ai_intent, answerData.noun), intent: r.ai_intent }];
                 const when = new Date(r.created_at);
                 return [{ answer: buildAnswer(answerData, r.ai_intent as Intent, { serviceId: r.ai_service_id, taughtId: r.ai_answer_id, weekday: when.getDay(), now: openedAt }), intent: r.ai_intent }];
               });

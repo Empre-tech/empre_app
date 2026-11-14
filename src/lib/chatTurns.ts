@@ -77,12 +77,13 @@ export function timelineOrder<R extends { id: string; created_at: string; reply_
 
 /** El aviso cuando Empre AI no tiene el dato: dice cuándo puede contestar el negocio si se sabe. */
 export function waitNotice(who: string, online: boolean, opening: { text: string; tone: 'open' | 'closed' } | null): string {
-  if (online) return `Esto lo responde ${who}, que está en línea.`;
+  // 2026-11-14: una línea bajo tu mensaje, sin la Chispa: Empre AI solo aparece cuando sabe la respuesta.
+  if (online) return `Enviado · ${who} está en línea`;
   if (opening?.tone === 'closed' && opening.text.startsWith('Cerrado · abre ')) {
     const when = opening.text.slice('Cerrado · abre '.length);
-    return `Esto lo responde ${who}. Abre ${when}; te avisamos cuando conteste.`;
+    return `Enviado · esto lo responde ${who} · abre ${when}`;
   }
-  return `Esto lo responde ${who}. Te avisamos cuando conteste.`;
+  return `Enviado · esto lo responde ${who}`;
 }
 
 /** Lo que se necesita saber de cada fila de la conversación (la más nueva primero, como la lista invertida). */

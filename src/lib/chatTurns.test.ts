@@ -69,9 +69,9 @@ test('lo que quedó sin contestar al final de la conversación, aunque llegó de
 });
 
 test('el aviso dice cuándo abre el negocio', () => {
-  assert.equal(waitNotice('La 22', false, { text: 'Cerrado · abre mañana 11:00 am', tone: 'closed' }), 'Esto lo responde La 22. Abre mañana 11:00 am; te avisamos cuando conteste.');
-  assert.equal(waitNotice('La 22', true, null), 'Esto lo responde La 22, que está en línea.');
-  assert.equal(waitNotice('La 22', false, { text: 'Abierto · cierra 3:30 pm', tone: 'open' }), 'Esto lo responde La 22. Te avisamos cuando conteste.');
+  assert.equal(waitNotice('La 22', false, { text: 'Cerrado · abre mañana 11:00 am', tone: 'closed' }), 'Enviado · esto lo responde La 22 · abre mañana 11:00 am');
+  assert.equal(waitNotice('La 22', true, null), 'Enviado · La 22 está en línea');
+  assert.equal(waitNotice('La 22', false, { text: 'Abierto · cierra 3:30 pm', tone: 'open' }), 'Enviado · esto lo responde La 22');
 });
 
 test('3.71: una pregunta ya respondida o que Empre AI no supo no vuelve a salir al abrir el chat', () => {

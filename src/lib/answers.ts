@@ -65,7 +65,7 @@ export interface AnswerData {
 }
 
 export type Block =
-  | { kind: 'text'; title: string; body?: string }
+  | { kind: 'text'; title: string; body?: string; /** Se dice tal cual, sin partir en «dato en negrita». */ plain?: boolean }
   | { kind: 'services'; title: string; items: AnswerService[]; more: number }
   | { kind: 'offer'; title: string; conditions?: string; endsAt: string; appliesTo?: string }
   | { kind: 'choose'; title: string; options: { id: string; label: string }[] }
@@ -220,6 +220,36 @@ const WORDS: [Intent, RegExp][] = [
 
 const STOCK = /\b(tienen|tiene|hay|queda\w*|disponib\w*|venden|vende|manejan|maneja|consigo|consigue|traen)\b/;
 const NOT_STOCK = /\b(cuesta|cuestan|vale|valen|precio\w*|cobran|tarifa\w*|dura\w*|demora\w*|tarda\w*|reserv\w*|agend\w*|cita|turno|oferta\w*|promo\w*|descuento\w*)\b/;
+
+/**
+ * Pide un compromiso del negocio (2026-11-14): apartar, guardar, separar, rebajar, encargar o confirmar algo a su nombre.
+ * Eso nunca lo responde Empre AI: el mensaje le llega al dueño y Empre AI no aparece.
+ */
+export function asksCommitment(text: string): boolean {
+  const t = ` ${plain(text)} `;
+  return (
+    /\b(me|nos)\s+(lo|la|los|las|le|les)?\s*(apart|guard|separ|dej|rebaj|fi[ao]n?\b)\w*/.test(t) ||
+    /\b(apartame|apartenme|guardame|guardenme|separame|separenme|reservame|reservenme|dejamelo|dejamela)\b/.test(t) ||
+    /\b(quiero|quisiera|queria|voy a|vamos a)\s+(pedir|encargar|ordenar|apartar|separar)\b/.test(t) ||
+    /\b(a nombre de|a mi nombre)\b/.test(t) ||
+    /\b(me|nos)\s+(hace[ns]?|da[ns]?|deja[ns]?|pueden hacer|puedes hacer|harian?)\s+(un |una |algun |alguna )?(descuento|rebaja|precio especial)\b/.test(t) ||
+    /\b(si|cuando)\s+(llevo|compro|llevamos|compramos)\b.*\b(descuento|rebaja)\b/.test(t)
+  );
+}
+
+/** Dónde lo leyó Empre AI cuando respondió con la ficha del negocio (nivel 3): la intención guardada → la fuente. */
+const FICHA_SOURCE: Record<string, (noun: string) => string> = {
+  ficha_perfil: () => 'Según su perfil',
+  ficha_carta: (noun) => `Según su ${noun.toLocaleLowerCase('es')}`,
+  ficha_resenas: () => 'Según sus reseñas',
+};
+
+export const isFichaIntent = (intent: string | undefined): boolean => Boolean(intent && intent in FICHA_SOURCE);
+
+/** La respuesta que escribió Empre AI leyendo la ficha publicada: se dice tal cual, con de dónde salió. */
+export function fichaAnswer(text: string, intent: string, noun: string): Answer {
+  return { intent: 'custom', unanswered: false, source: (FICHA_SOURCE[intent] ?? FICHA_SOURCE.ficha_perfil)(noun), blocks: [{ kind: 'text', title: text, plain: true }], actions: [] };
+}
 
 /** Servicios del catálogo que el texto nombra (todas las palabras largas del nombre aparecen en el texto). */
 export function mentionedServices(text: string, services: AnswerService[]): AnswerService[] {

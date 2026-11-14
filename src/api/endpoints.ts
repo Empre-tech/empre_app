@@ -307,6 +307,17 @@ export const chatApi = {
   /** F4: el servidor clasifica una pregunta que las reglas no entendieron (solo la intención, nunca una respuesta). */
   classify: (entityId: string, text: string) => request<{ intent: string; answer_id?: string }>(`/api/chat/classify/${entityId}`, { method: 'POST', body: { text } }),
 
+  /**
+   * Nivel 3 (2026-11-14): Empre AI lee la ficha publicada del negocio. Si está, el servidor guarda la respuesta atada a
+   * la pregunta y se la muestra al dueño; si no, `known: false` y Empre AI no aparece.
+   */
+  aiFicha: (entityId: string, text: string, replyTo?: string) =>
+    request<{ known: boolean; message?: ChatMessage }>(`/api/chat/ai-ficha/${entityId}`, { method: 'POST', body: { text, ...(replyTo ? { reply_to: replyTo } : {}) } }),
+
+  /** Lo mismo para «Pregúntales a los N»: una sola lectura de varias fichas; no guarda nada. */
+  fichaMany: (entityIds: string[], text: string) =>
+    request<{ answers?: { entity_id: string; known: boolean; text?: string; source?: string }[] }>(`/api/chat/ficha`, { method: 'POST', body: { entity_ids: entityIds, text } }),
+
   aiUnknown: (entityId: string, messageId: string) => request<void>(`/api/chat/ai-unknown/${entityId}`, { method: 'POST', body: { message_id: messageId } }),
 
   presence: (entityId: string, userId?: string, ownerId?: string) =>

@@ -32,6 +32,7 @@ export function voice(answer: Answer): Voiced {
       return { lead: { a: `Tienen ${first.title}${range}.`, b: '', c: '' }, note: null, card: [first, ...rest] };
     }
     case 'text': {
+      if (first.plain) return { lead: { a: first.title.trim(), b: '', c: '' }, note: first.body ?? null, card: rest };
       // «Corte clásico: $20.000 · 30 min»: lo de antes de los dos puntos en normal y el dato en negrita.
       const i = first.title.indexOf(': ');
       const lead = i > 0 && i < first.title.length - 2 ? { a: `${first.title.slice(0, i)}: `, b: first.title.slice(i + 2).replace(/\.$/, ''), c: '.' } : { a: dot(first.title), b: '', c: '' };
@@ -82,4 +83,49 @@ export function lookedLabel(intent: Intent | string, noun: string): string {
   if (intent === 'offers') return 'Revisé sus ofertas activas';
   if (intent === 'delivery') return 'Revisé cómo atiende';
   return 'Revisé lo que publicó';
+}
+
+/** Mientras busca, en presente: «Revisando su carta…». */
+export function lookingLabel(intent: Intent | string, noun: string): string {
+  return `${lookedLabel(intent, noun).replace(/^Revisé/, 'Revisando')}…`;
+}
+
+/** Cuántas palabras tiene la frase (para escribirla palabra por palabra). */
+export function wordCount(parts: { t: string }[]): number {
+  return parts.reduce((n, p) => n + (p.t.match(/\S+/g)?.length ?? 0), 0);
+}
+
+/** La frase hasta la palabra `n`, conservando qué va en negrita. */
+export function sliceWords<P extends { t: string }>(parts: P[], n: number): P[] {
+  const out: P[] = [];
+  let left = n;
+  for (const p of parts) {
+    if (left <= 0) break;
+    const tokens = p.t.split(/(\s+)/);
+    let text = '';
+    for (const tok of tokens) {
+      if (!tok) continue;
+      if (/^\s+$/.test(tok)) {
+        text += tok;
+        continue;
+      }
+      if (left <= 0) break;
+      text += tok;
+      left -= 1;
+    }
+    out.push({ ...p, t: left <= 0 ? text.trimEnd() : text });
+  }
+  return out;
+}
+
+/** De dónde salió la respuesta, en una línea: «Según su carta» + «Según su perfil» → «De su carta y su perfil». */
+export function sourceLine(sources: string[], businessName: string): string {
+  const parts = [...new Set(sources.map((s) => s.replace(/\s*\(.*\)$/, '').trim()).filter(Boolean))];
+  if (!parts.length) return `De lo que publicó ${businessName}`;
+  const own = parts.map((s) => (/^Según /.test(s) ? s.replace(/^Según /, '') : null));
+  if (own.every(Boolean)) {
+    const list = own as string[];
+    return `De ${list.length > 1 ? `${list.slice(0, -1).join(', ')} y ${list[list.length - 1]}` : list[0]}`;
+  }
+  return parts[0];
 }

@@ -1,18 +1,20 @@
 import { Ionicons } from '@/components/Icon';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import Svg, { Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg';
 
 import { Chispa, type ChispaMood } from '@/components/ai/Chispa';
 import { BlockView } from '@/components/profile/AskEmpre';
 import type { Action, Answer, Intent } from '@/lib/answers';
 import { chatActions } from '@/lib/chatAutoAnswer';
-import { voice } from '@/lib/chatVoice';
+import { sliceWords, sourceLine, voice, wordCount } from '@/lib/chatVoice';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, spacing } from '@/theme';
 
-// La voz de Empre AI en el chat con un negocio (3.70): el mismo lenguaje y las mismas animaciones de «Pregúntales a
-// varios». Empre AI se presenta con su nombre y la Chispa; responde con una frase y, si hace falta, una tarjeta.
+// La voz de Empre AI en el chat con un negocio (3.70; tablero «Empre AI · cuándo responde y cómo se ve», 2026-11-14):
+// aparece solo cuando sabe la respuesta. Sin burbuja: la Chispa pequeña con su nombre, la frase que se escribe palabra
+// por palabra con el dato en negrita y, debajo, de dónde salió. Lo que no sabe no es un turno suyo: es una línea
+// tranquila «Enviado · esto lo responde …» bajo el mensaje.
 
 const EASE = Easing.bezier(0.22, 1, 0.36, 1);
 
@@ -36,11 +38,11 @@ export function Enter({ delay = 0, play = true, style, children }: { delay?: num
 function Who({ mood, animated, status }: { mood: ChispaMood; animated: boolean; status?: string }) {
   return (
     <View style={styles.who}>
-      <Chispa size={30} mood={mood} animated={animated} />
+      <Chispa size={20} mood={mood} animated={animated} />
       <Text style={styles.whoName}>Empre AI</Text>
       {status ? (
         <Text style={styles.whoStatus} numberOfLines={1}>
-          {status}
+          {`· ${status}`}
         </Text>
       ) : null}
     </View>
@@ -72,55 +74,67 @@ export function Aura({ on }: { on: boolean }) {
   );
 }
 
-/** Un paso de «lo que hizo»: punto gris que se vuelve check teal con un rebote. */
-function Step({ label, done, delay }: { label: string; done: boolean; delay: number }) {
+const WORD_MS = 34;
+type Part = { t: string; bold?: boolean };
+export const typeMs = (parts: Part[]) => wordCount(parts) * WORD_MS;
+
+/**
+ * Escribe la frase palabra por palabra, como una IA, con un cursor mientras escribe. El lector de pantalla oye la
+ * frase completa de una vez. Sin animación con «Reducir movimiento» o si ya estaba en la conversación.
+ */
+export function TypeIn({ parts, play, delay = 0, style, boldStyle }: { parts: Part[]; play: boolean; delay?: number; style: StyleProp<TextStyle>; boldStyle?: StyleProp<TextStyle> }) {
   const reduce = useReduceMotion();
-  const [pop] = useState(() => new Animated.Value(done ? 1 : 0));
+  const total = wordCount(parts);
+  const animate = play && !reduce && total > 0;
+  const [n, setN] = useState(0);
   useEffect(() => {
-    if (!done) return;
-    if (reduce) {
-      pop.setValue(1);
-      return;
-    }
-    const a = Animated.spring(pop, { toValue: 1, friction: 5, tension: 160, useNativeDriver: true });
-    a.start();
-    return () => a.stop();
-  }, [done, pop, reduce]);
+    if (!animate) return;
+    let i = 0;
+    let tick: ReturnType<typeof setInterval> | undefined;
+    const start = setTimeout(() => {
+      tick = setInterval(() => {
+        i += 1;
+        setN(i);
+        if (i >= total && tick) clearInterval(tick);
+      }, WORD_MS);
+    }, delay);
+    return () => {
+      clearTimeout(start);
+      if (tick) clearInterval(tick);
+    };
+  }, [animate, total, delay]);
+  const shown = animate ? Math.min(n, total) : total;
   return (
-    <Enter delay={delay} style={styles.step}>
-      <View style={[styles.stepDot, done && styles.stepDotDone]}>
-        {done ? (
-          <Animated.View style={{ transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }] }}>
-            <Ionicons name="checkmark" size={12} color="#FFFFFF" />
-          </Animated.View>
-        ) : null}
-      </View>
-      <Text style={[styles.stepText, done && { color: colors.muted }]}>{label}</Text>
-    </Enter>
+    <Text style={style} accessibilityLabel={parts.map((p) => p.t).join('')}>
+      {sliceWords(parts, shown).map((p, i) =>
+        p.bold ? (
+          <Text key={i} style={boldStyle}>
+            {p.t}
+          </Text>
+        ) : (
+          <Text key={i}>{p.t}</Text>
+        ),
+      )}
+      {shown > 0 && shown < total ? <Text style={styles.caret}> ▍</Text> : null}
+    </Text>
   );
 }
 
-/** Mientras piensa: la Chispa acelera y dice qué entendió y dónde está buscando. */
+/** Mientras busca: la Chispa gira y una sola línea dice dónde está buscando («Revisando su carta…»). */
 export function AiThinking({ understood, looking }: { understood: string; looking: string }) {
-  const [second, setSecond] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setSecond(true), 420);
-    return () => clearTimeout(t);
-  }, []);
   return (
     <View style={styles.turn} accessible accessibilityLabel={`Empre AI está revisando. ${understood}`} accessibilityLiveRegion="polite">
-      <Who mood="pensando" animated status="Revisando…" />
-      <View style={styles.indent}>
-        <Step label={understood} done delay={0} />
-        <Step label={looking} done={second} delay={420} />
+      <View style={styles.who}>
+        <Chispa size={20} mood="pensando" animated />
+        <Text style={styles.thinking}>{looking}</Text>
       </View>
     </View>
   );
 }
 
 /**
- * La respuesta: «Empre AI · Respondió · según su carta», una frase con el dato en negrita y, debajo, la tarjeta con lo
- * que se puede ver o tocar. Cierra con una sola línea: de dónde sale, que también le llegó al negocio y 👍/👎.
+ * La respuesta: «Empre AI · mientras te responde», cada frase se escribe después de la anterior con el dato en negrita
+ * y, si hay algo para tocar (horas, una oferta), debajo. Cierra con una línea: de dónde salió y 👍/👎.
  */
 export function AiTurn({
   answers,
@@ -133,9 +147,9 @@ export function AiTurn({
 }: {
   answers: { answer: Answer; intent: string }[];
   businessName: string;
-  /** Es la primera respuesta de la conversación: la línea dice que también le llegó al negocio. */
+  /** Es la primera respuesta de la conversación: dice «mientras te responde» (el negocio igual recibió la pregunta). */
   alsoSent: boolean;
-  /** Recién llegada: entra con animación (las del historial ya están quietas). */
+  /** Recién llegada: se escribe palabra por palabra (las del historial ya están quietas). */
   fresh: boolean;
   onAction: (a: Action) => void;
   onChoose: (intent: string, serviceId: string, label: string) => void;
@@ -143,25 +157,36 @@ export function AiTurn({
 }) {
   const [feedback, setFeedback] = useState<'yes' | 'no' | null>(null);
   const actions = chatActions(answers.flatMap((x) => x.answer.actions));
-  const sources = [...new Set(answers.map((x) => x.answer.source).filter(Boolean) as string[])];
-  const source = sources.length ? sources[0].replace(/^Según/, 'según') : `con lo que publicó ${businessName}`;
-  const closing = [sources.length ? sources[0].replace(/\s*\(.*\)$/, '') : `Con lo que publicó ${businessName}`, alsoSent ? 'también le llegó al negocio' : ''].filter(Boolean).join(' · ');
+  const source = sourceLine(
+    answers.map((x) => x.answer.source ?? ''),
+    businessName,
+  );
   const voiced = answers.map((x) => ({ ...voice(x.answer), intent: x.intent }));
+  // Una frase después de la otra: cada una empieza cuando terminó la anterior.
+  const leads: Part[][] = voiced.map((v) => [{ t: v.lead.a }, { t: v.lead.b, bold: true }, { t: v.lead.c }]);
+  const starts: number[] = [];
+  const ends: number[] = [];
+  let at = 0;
+  for (const l of leads) {
+    starts.push(at);
+    at += typeMs(l);
+    ends.push(at);
+    at += 120;
+  }
+  const done = fresh ? (ends[ends.length - 1] ?? 0) : 0;
   return (
     <View style={styles.turn}>
-      <Who mood="responde" animated={fresh} status={`Respondió · ${source}`} />
+      <Who mood="responde" animated={fresh} status={alsoSent ? 'mientras te responde' : undefined} />
       {voiced.map((v, i) => (
-        <View key={i} style={styles.part}>
-          <Enter play={fresh} delay={i * 120} style={styles.indent}>
-            <Text style={styles.lead}>
-              {v.lead.a}
-              {v.lead.b ? <Text style={styles.leadBold}>{v.lead.b}</Text> : null}
-              {v.lead.c}
-            </Text>
-            {v.note ? <Text style={styles.leadNote}>{v.note}</Text> : null}
-          </Enter>
+        <View key={i} style={[styles.indent, styles.part]}>
+          <TypeIn parts={leads[i]} play={fresh} delay={starts[i]} style={styles.lead} boldStyle={styles.leadBold} />
+          {v.note ? (
+            <Enter play={fresh} delay={ends[i]}>
+              <Text style={styles.leadNote}>{v.note}</Text>
+            </Enter>
+          ) : null}
           {v.card.length ? (
-            <Enter play={fresh} delay={120 + i * 120} style={[styles.indent, styles.card]}>
+            <Enter play={fresh} delay={ends[i]} style={styles.card}>
               {v.card.map((b, k) => (
                 <BlockView key={k} b={b} onChoose={(id, label) => onChoose(v.intent, id, label)} />
               ))}
@@ -170,16 +195,17 @@ export function AiTurn({
         </View>
       ))}
       {actions[0] ? (
-        <Enter play={fresh} delay={260} style={styles.indent}>
-          <Pressable accessibilityRole="button" onPress={() => onAction(actions[0])} style={({ pressed }) => [styles.cta, pressed && { opacity: 0.85 }]}>
+        <Enter play={fresh} delay={done} style={styles.indent}>
+          <Pressable accessibilityRole="button" onPress={() => onAction(actions[0])} hitSlop={4} style={({ pressed }) => [styles.cta, pressed && { opacity: 0.85 }]}>
             <Text style={styles.ctaText}>{actions[0].label}</Text>
-            <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+            <Ionicons name="arrow-forward" size={14} color={colors.ink} />
           </Pressable>
         </Enter>
       ) : null}
-      <Enter play={fresh} delay={420} style={[styles.indent, styles.closing]}>
-        <Text style={styles.closingText} numberOfLines={2}>
-          {closing}
+      <Enter play={fresh} delay={done + 120} style={[styles.indent, styles.closing]}>
+        <Ionicons name="document-text-outline" size={14} color={colors.muted} />
+        <Text style={styles.closingText} numberOfLines={1}>
+          {source}
         </Text>
         {feedback ? (
           <Text style={styles.thanks}>{feedback === 'yes' ? 'Gracias' : 'Te responde el negocio'}</Text>
@@ -188,24 +214,26 @@ export function AiTurn({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Me sirvió"
+              hitSlop={4}
               onPress={() => {
                 setFeedback('yes');
                 onFeedback?.(true);
               }}
               style={styles.thumb}
             >
-              <Ionicons name="thumbs-up-outline" size={16} color={colors.muted} />
+              <Ionicons name="thumbs-up-outline" size={15} color={colors.muted} />
             </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="No me sirvió; prefiero que responda el negocio"
+              hitSlop={4}
               onPress={() => {
                 setFeedback('no');
                 onFeedback?.(false);
               }}
               style={styles.thumb}
             >
-              <Ionicons name="thumbs-down-outline" size={16} color={colors.muted} />
+              <Ionicons name="thumbs-down-outline" size={15} color={colors.muted} />
             </Pressable>
           </>
         )}
@@ -214,27 +242,15 @@ export function AiTurn({
   );
 }
 
-/** Lo que no sabe: la Chispa se apaga a gris y una sola línea dice quién lo responde y cuándo. */
-export function AiRelay({ text }: { text: string }) {
-  const reduce = useReduceMotion();
-  const [line] = useState(() => new Animated.Value(reduce ? 1 : 0));
-  useEffect(() => {
-    if (reduce) {
-      line.setValue(1);
-      return;
-    }
-    const a = Animated.timing(line, { toValue: 1, duration: 520, easing: EASE, useNativeDriver: true });
-    a.start();
-    return () => a.stop();
-  }, [line, reduce]);
+/**
+ * Lo que Empre AI no responde (no está en lo publicado, o piden un compromiso): no es un turno suyo. Una línea tranquila
+ * bajo tu mensaje: «Enviado · esto lo responde El Prado».
+ */
+export function SentNote({ text }: { text: string }) {
   return (
-    <View style={styles.turn} accessibilityLiveRegion="polite">
-      <Who mood="nosabe" animated status="Se lo pasó al negocio" />
-      <View style={[styles.indent, styles.relay]}>
-        <Animated.View style={[styles.relayLine, { transform: [{ scaleX: line }] }]} />
-        <Text style={styles.relayText}>{text}</Text>
-        <Animated.View style={[styles.relayLine, { transform: [{ scaleX: line }] }]} />
-      </View>
+    <View style={styles.sent} accessibilityLiveRegion="polite">
+      <Ionicons name="checkmark" size={13} color={colors.muted} />
+      <Text style={styles.sentText}>{text}</Text>
     </View>
   );
 }
@@ -281,29 +297,27 @@ export function ChatWelcome({ name, replyText, questions, onAsk }: { name: strin
 }
 
 const styles = StyleSheet.create({
-  turn: { alignSelf: 'stretch', gap: 8, marginVertical: 6 },
-  who: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  whoName: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  whoStatus: { flexShrink: 1, fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
-  indent: { marginLeft: 38 },
+  turn: { alignSelf: 'stretch', gap: 6, marginVertical: 6 },
+  who: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  whoName: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  whoStatus: { flexShrink: 1, fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
+  thinking: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
+  indent: { marginLeft: 27 },
   part: { gap: 8 },
+  caret: { color: colors.muted },
   lead: { fontSize: 15, lineHeight: 22, fontFamily: fonts.ui.semibold, color: colors.ink },
   leadBold: { fontFamily: fonts.ui.extrabold },
   leadNote: { marginTop: 2, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.muted },
-  card: { gap: 8, padding: spacing.md, borderRadius: 18, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.07, shadowRadius: 12, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  cta: { alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primary },
-  ctaText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
-  closing: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  closingText: { flex: 1, fontSize: 11.5, lineHeight: 15, fontFamily: fonts.ui.bold, color: colors.muted },
-  thumb: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  card: { gap: 8, padding: spacing.md, borderRadius: 16, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  // El siguiente paso como una opción tranquila (el rojo es solo acento): borde arena, texto en tinta.
+  cta: { alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  ctaText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  closing: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  closingText: { flex: 1, fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.semibold, color: colors.muted },
+  thumb: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   thanks: { paddingHorizontal: 8, fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
-  step: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 22 },
-  stepDot: { width: 18, height: 18, borderRadius: 9, backgroundColor: colors.line, alignItems: 'center', justifyContent: 'center' },
-  stepDotDone: { backgroundColor: '#D42020' },
-  stepText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
-  relay: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  relayLine: { flex: 1, height: 1, backgroundColor: '#FDECEC' },
-  relayText: { flexShrink: 1, maxWidth: '78%', textAlign: 'center', fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.extrabold, color: colors.verified },
+  sent: { alignSelf: 'flex-end', maxWidth: '86%', flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: -2, marginBottom: 4 },
+  sentText: { flexShrink: 1, fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.semibold, color: colors.muted },
   aura: { position: 'absolute', left: -40, right: -40, bottom: 0, height: 340 },
   welcome: { flex: 1, justifyContent: 'center', gap: spacing.lg, paddingHorizontal: spacing.lg },
   welcomeHead: { alignItems: 'center', gap: 10 },
