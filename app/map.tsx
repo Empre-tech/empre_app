@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Animated,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -16,7 +17,7 @@ import {
 import MapView, { Circle, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { categoriesApi, entitiesApi } from '@/api/endpoints';
-import { claimsApi, discoverApi, discoveryApi } from '@/api/offers';
+import { claimsApi, discoverApi, discoveryApi, offersApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
 import type { DiscoverItem, DiscoveryItem, DiscoverSectionId } from '@/api/types';
 import { BusinessTag } from '@/components/explore/BusinessTag';
@@ -31,15 +32,14 @@ import { useZoneName, useZones } from '@/components/explore/useZoneName';
 import { track } from '@/analytics/track';
 import { artKeyFor, artKeyMatch } from '@/components/CategoryArt';
 import { noteInterest } from '@/lib/interestStore';
+import { addRecent, loadRecents, saveRecents } from '@/lib/searchRecents';
 import { ART_LABEL } from '@/lib/offerHome';
 import { ContextRow } from '@/components/explore/ContextRow';
 import { FinderWelcome } from '@/components/explore/FinderWelcome';
-import { LoadingChip } from '@/components/explore/LoadingChip';
 import { LocationStrip } from '@/components/explore/LocationStrip';
 import { PlaceSheet } from '@/components/explore/PlaceSheet';
 import { PhotoViewer, type ViewerTarget } from '@/components/explore/PhotoViewer';
 import { YouDot, YOU_DOT } from '@/components/explore/MapReferences';
-import { ActionTile } from '@/components/system/parts';
 import { hourIdeas } from '@/lib/askChips';
 import { ExploreGuide, type GuideRect } from '@/components/explore/ExploreGuide';
 import { StackMarker } from '@/components/explore/StackMarker';
@@ -614,6 +614,35 @@ export default function MapScreen() {
   const strip = useMemo(() => stripText(zoneName, { hasUser: userCoords !== null, denied: locationDenied }), [zoneName, userCoords, locationDenied]);
 
   // Resultados de búsqueda: mientras llega una consulta nueva se muestra «Buscando…», no la anterior.
+  // El panel de buscar (2026-11-14), como TikTok: tus recientes, lo que busca la gente y lo de esta hora.
+  const [recents, setRecents] = useState<string[]>([]);
+  useEffect(() => {
+    if (!searchOpen) return;
+    let alive = true;
+    void loadRecents().then((r) => {
+      if (alive) setRecents(r);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [searchOpen]);
+  const trending = useQuery({
+    queryKey: ['map-trending', refKey],
+    queryFn: () => offersApi.market(reference ? { lat: reference.latitude, long: reference.longitude } : {}),
+    enabled: searchOpen,
+    staleTime: 10 * 60_000,
+  });
+  const trendTerms = (trending.data?.searched.terms ?? []).slice(0, 8);
+  const dropRecent = (t: string) => {
+    const next = recents.filter((x) => x !== t);
+    setRecents(next);
+    saveRecents(next);
+  };
+  const clearRecents = () => {
+    setRecents([]);
+    saveRecents([]);
+  };
+
   // Los 9 primeros resultados llevan su número en el mapa y en la lista (el mismo orden).
   const rankById = useMemo(() => new Map(searching ? items.slice(0, 9).map((e, i) => [e.id, i + 1] as const) : []), [searching, items]);
   const resultsStatus: 'loading' | 'error' | 'ok' = entities.isError ? 'error' : entities.isLoading || entities.isPlaceholderData || (textEmpty && typeIds.length > 0 && byType.isLoading) ? 'loading' : 'ok';
@@ -670,6 +699,8 @@ export default function MapScreen() {
     track('search_submitted', undefined, { query: debouncedSearch, results: items.length, scope: searchScope });
     // Para ti: lo que buscas es la señal más clara de lo que te interesa (solo se guarda el tipo, en el teléfono).
     noteInterest('search', artKeyMatch(debouncedSearch));
+    // Recientes (solo en el teléfono): lo que buscaste sale primero la próxima vez.
+    void loadRecents().then((r) => addRecent(r, debouncedSearch));
     if (items.length === 0) track('search_no_results', undefined, { query: debouncedSearch, scope: searchScope });
   }, [searching, resultsStatus, debouncedSearch, searchScope, items.length]);
 
@@ -893,7 +924,8 @@ export default function MapScreen() {
       500,
     );
   const headerCategory = selectedCategory?.name ?? selectedGroup?.name;
-  const headerZoneStatus: 'loading' | 'error' | 'ok' = entities.isError ? 'error' : entities.isLoading ? 'loading' : 'ok';
+  // Mientras el mapa trae negocios, abajo dice «Buscando…» (no «0 destacados») y corre la línea fina del panel.
+  const headerZoneStatus: 'loading' | 'error' | 'ok' = entities.isError ? 'error' : entities.isLoading || mapLoading ? 'loading' : 'ok';
   const header = useMemo(
     () =>
       sheetHeader({
@@ -926,9 +958,10 @@ export default function MapScreen() {
   const sections = useMemo(() => sectionsInView(sectionsQuery.data ?? [], listBox), [sectionsQuery.data, listBox]);
   // Llega algo nuevo con lo anterior todavía a la vista: barra fina arriba del panel y lo anterior atenuado (3.26).
   const updating =
-    !searching &&
+    mapLoading ||
+    (!searching &&
     ((sectionsQuery.isFetching && !sectionsQuery.isLoading && (sectionsQuery.data?.length ?? 0) > 0) ||
-      (entities.isFetching && !entities.isLoading && (entities.data?.items?.length ?? 0) > 0));
+      (entities.isFetching && !entities.isLoading && (entities.data?.items?.length ?? 0) > 0)));
   const avatars = useMemo(
     () => (sections[0]?.items ?? []).slice(0, 3).map((it) => ({ key: it.entity_id, color: categoryColor(it.category_color).fg, letter: it.name.charAt(0) })),
     [sections],
@@ -1278,29 +1311,67 @@ export default function MapScreen() {
           ) : null}
         </View>
 
-        {/* Buscar (2026-11-14): el mapa sigue a la vista; antes de escribir, una lista corta con ideas para esta hora. */}
+        {/* Buscar (2026-11-14), como TikTok: una capa translúcida (el mapa se ve detrás, es un filtro) con tus recientes, lo
+            que busca la gente y lo de esta hora. Tocar cualquiera busca; al escribir, la capa se va y quedan los resultados. */}
         {searchOpen && !debouncedSearch ? (
-          <View style={[styles.suggest, { top: insets.top + spacing.sm + 112 }]}>
-            <Text style={styles.panelLabel}>Para esta hora · {hourIdeas(new Date().getHours())[0].name.toLowerCase()}</Text>
-            <View style={styles.panelTiles}>
-              {hourIdeas(new Date().getHours()).map((q) => (
-                <ActionTile
-                  key={q.label}
-                  icon={q.icon}
-                  label={q.label}
-                  onPress={() => {
-                    setSearch(q.ask);
-                    closeSearch();
-                  }}
-                />
-              ))}
-            </View>
-            {userCoords ? null : (
-              <Pressable accessibilityRole="button" disabled={locationDenied || locating} onPress={() => void requestLocation()} style={styles.panelSwitch}>
-                <Text style={[styles.panelSwitchText, { flex: 1 }]}>{locating ? 'Buscando tu ubicación…' : locationDenied ? 'Activa tu ubicación en los ajustes del celular para filtrar por cercanía' : locationError ?? 'Usar mi ubicación para ver lo cercano'}</Text>
-                {locating ? <ActivityIndicator size="small" color={colors.primary} /> : locationDenied ? null : <Ionicons name="navigate" size={18} color={colors.ink} />}
-              </Pressable>
-            )}
+          <View style={[styles.veil, { top: insets.top + spacing.sm + 112 }]}>
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.veilBody}>
+              {recents.length ? (
+                <View style={styles.veilGroup}>
+                  <View style={styles.veilHead}>
+                    <Text style={styles.veilTitle}>Recientes</Text>
+                    <Pressable accessibilityRole="button" onPress={clearRecents} hitSlop={8} style={styles.veilLinkHit}>
+                      <Text style={styles.veilLink}>Borrar todo</Text>
+                    </Pressable>
+                  </View>
+                  {recents.map((t) => (
+                    <View key={t} style={styles.recentRow}>
+                      <Pressable accessibilityRole="button" accessibilityLabel={`Buscar ${t}`} onPress={() => { setSearch(t); closeSearch(); }} style={styles.recentHit}>
+                        <Ionicons name="time-outline" size={18} color={colors.muted} />
+                        <Text style={styles.recentText} numberOfLines={1}>
+                          {t}
+                        </Text>
+                      </Pressable>
+                      <Pressable accessibilityRole="button" accessibilityLabel={`Quitar ${t} de recientes`} onPress={() => dropRecent(t)} hitSlop={6} style={styles.recentX}>
+                        <Ionicons name="close" size={16} color={colors.muted} />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              {trendTerms.length ? (
+                <View style={styles.veilGroup}>
+                  <Text style={styles.veilTitle}>Lo que busca la gente</Text>
+                  <View style={styles.trendGrid}>
+                    {trendTerms.map((t, i) => (
+                      <Pressable key={t.term} accessibilityRole="button" accessibilityLabel={`${i + 1}. ${t.label || t.term}`} onPress={() => { setSearch(t.label || t.term); closeSearch(); }} style={styles.trendItem}>
+                        <Text style={[styles.trendNum, i < 3 && styles.trendTop]}>{i + 1}</Text>
+                        <Text style={styles.trendText} numberOfLines={1}>
+                          {t.label || t.term}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
+              <View style={styles.veilGroup}>
+                <Text style={styles.veilTitle}>Para esta hora · {hourIdeas(new Date().getHours())[0].name.toLowerCase()}</Text>
+                <View style={styles.hourRow}>
+                  {hourIdeas(new Date().getHours()).map((q) => (
+                    <Pressable key={q.label} accessibilityRole="button" onPress={() => { setSearch(q.ask); closeSearch(); }} style={styles.hourChip}>
+                      <Ionicons name={q.icon} size={16} color={colors.ink} />
+                      <Text style={styles.hourText}>{q.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+              {userCoords ? null : (
+                <Pressable accessibilityRole="button" disabled={locationDenied || locating} onPress={() => void requestLocation()} style={styles.panelSwitch}>
+                  <Text style={[styles.panelSwitchText, { flex: 1 }]}>{locating ? 'Buscando tu ubicación…' : locationDenied ? 'Activa tu ubicación en los ajustes del celular para filtrar por cercanía' : locationError ?? 'Usar mi ubicación para ver lo cercano'}</Text>
+                  {locating ? <ActivityIndicator size="small" color={colors.primary} /> : locationDenied ? null : <Ionicons name="navigate" size={18} color={colors.ink} />}
+                </Pressable>
+              )}
+            </ScrollView>
           </View>
         ) : null}
 
@@ -1349,7 +1420,6 @@ export default function MapScreen() {
               {selectedSubcategory ? <ActiveChip icon="pricetag-outline" label={selectedSubcategory.name} onRemove={() => setSubcategoryId(undefined)} /> : null}
             </View>
           ) : null}
-          {mapLoading && !tall && !selectedEntity && !welcome ? <LoadingChip /> : null}
           </Animated.View>
         </View>
 
@@ -1401,7 +1471,26 @@ function ActiveChip({
 const styles = StyleSheet.create({
   filterBleed: { marginHorizontal: -spacing.md },
   whereRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  suggest: { position: 'absolute', left: 12, right: 12, zIndex: 5, gap: 10, padding: 14, borderRadius: 20, backgroundColor: colors.surface, shadowColor: '#2B2622', shadowOpacity: 0.14, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 6 },
+  // La capa de buscar: translúcida, el mapa se ve detrás (es un filtro, no otra página).
+  veil: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 5, backgroundColor: 'rgba(254,250,242,0.9)' },
+  veilBody: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 32, gap: 22 },
+  veilGroup: { gap: 6 },
+  veilHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  veilTitle: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
+  veilLinkHit: { minHeight: 44, justifyContent: 'center' },
+  veilLink: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
+  recentRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
+  recentHit: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  recentText: { flex: 1, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink },
+  recentX: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  trendGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  trendItem: { width: '50%', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10, paddingRight: 8 },
+  trendNum: { width: 18, fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.muted, fontVariant: ['tabular-nums'] },
+  trendTop: { color: colors.primaryDark },
+  trendText: { flex: 1, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink },
+  hourRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  hourChip: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  hourText: { fontSize: 13.5, fontFamily: fonts.ui.semibold, color: colors.ink },
   panelBody: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 20, gap: 20 },
   panelGroup: { gap: 8 },
   panelLabel: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },

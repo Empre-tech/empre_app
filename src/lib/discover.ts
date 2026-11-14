@@ -99,7 +99,7 @@ export function sheetHeader(h: HeaderInput): { title: string; subtitle: string }
     // La zona ya la dice la franja de arriba (3.22): el panel dice QUÉ se ve («Descubre» o el grupo elegido) y cuántos.
     // Los destacados son los negocios directamente en la zona; Todos suma los adicionales cerca.
     const what = h.categoryName || null;
-    const status = h.zoneStatus === 'error' && h.zoneCount === 0 ? 'Sin conexión con el servidor' : h.zoneStatus === 'loading' && h.zoneCount === 0 ? 'Cargando…' : null;
+    const status = h.zoneStatus === 'error' && h.zoneCount === 0 ? 'Sin conexión con el servidor' : h.zoneStatus === 'loading' && h.zoneCount === 0 ? 'Buscando…' : null;
     if (h.view === 'results') {
       const extra = h.extraCount ?? 0;
       return {
