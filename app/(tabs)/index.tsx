@@ -11,7 +11,6 @@ import { forYou, forYouHeader, myInterests, peopleInterests, seenBusinesses } fr
 import { noteInterest, useInterestSignals } from '@/lib/interestStore';
 import { BusinessArt, CategoryIllustration } from '@/components/CategoryIllustration';
 import { artCounts, closeChip, hourLabel } from '@/lib/offerHome';
-import { endingToday } from '@/lib/offerMarket';
 import { catalogApi } from '@/api/catalog';
 import type { ServiceItem } from '@/lib/catalog';
 import { novedadesApi } from '@/api/novedades';
@@ -24,13 +23,13 @@ import { useZones } from '@/components/explore/useZoneName';
 import type { DoorRect } from '@/components/home/HomeDoors';
 import { Muro, type MuroPin } from '@/components/home/Muro';
 import { PuertaMapa } from '@/components/home/PuertaMapa';
-import { MarketItemSheet } from '@/components/offers/MarketItemSheet';
+import { handOffItem } from '@/lib/offerHandoff';
 import { SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
 import { ZoneButton, ZoneList } from '@/components/ZoneButton';
 import { mediaUrl, resolveImageUrl } from '@/lib/image';
 import { dayLabel, stripEntries } from '@/lib/novedades';
 import { onFootOrDistance } from '@/lib/format';
-import { mergeCatalogIntoMarket, priceView, type MarketItem } from '@/lib/offerMarket';
+import { endingToday, mergeCatalogIntoMarket, priceView } from '@/lib/offerMarket';
 import { useLocation } from '@/lib/useCoords';
 import { SkeletonBlock } from '@/components/Skeleton';
 import { useReduceMotion } from '@/lib/useReduceMotion';
@@ -61,7 +60,6 @@ export default function HomeScreen() {
   const [zoneId, setZoneId] = useState<string | null>(null);
   const [zonesOpen, setZonesOpen] = useState(false);
   const [card, setCard] = useState<WithDistance | null>(null);
-  const [previewItem, setPreviewItem] = useState<MarketItem | null>(null);
   // La hora del inicio: se fija al entrar y se renueva cada vez que vuelves a él (de ella salen la franja y «Para ti»).
   const [now, setNow] = useState(() => Date.now());
   // La puerta Explorar se abre hasta llenar la pantalla y ahí empieza el mapa (3.60).
@@ -144,8 +142,10 @@ export default function HomeScreen() {
     return (rest.length >= 2 ? rest : sorted).slice(0, 8);
   }, [openNear, forYouPicks]);
 
-  // Al bajar: un muro de lo que ofrecen los negocios cerca (tablero «Inicio», teléfono 2). Solo lo que publicaron.
-  const pins: MuroPin[] = marketItems.slice(0, 12).map((m) => {
+  // Al bajar: un muro corto tipo Pinterest de lo que ofrecen los negocios cerca (tablero «Inicio», teléfono 2). Solo lo
+  // que publicaron, seis para no saturar; al tocar uno se abre en Ofertas, con su media hoja (los componentes se pasan
+  // la mano: Inicio no repite lo que ya hace Ofertas).
+  const pins: MuroPin[] = marketItems.slice(0, 6).map((m) => {
     const price = priceView(m);
     return {
       key: `${m.kind ?? 'offer'}:${m.id}`,
@@ -157,7 +157,10 @@ export default function HomeScreen() {
       tag: m.kind === 'service' ? null : (price.save ?? 'Oferta'),
       who: m.entity_name,
       near: m.distance_meters !== null ? onFootOrDistance(m.distance_meters / 1000) : null,
-      onPress: () => (m.kind === 'service' ? setPreviewItem(m) : router.push({ pathname: '/offer/[id]', params: { id: m.id, entityId: m.entity_id } })),
+      onPress: () => {
+        handOffItem(m);
+        router.push('/(tabs)/offers');
+      },
     };
   });
 
@@ -295,12 +298,10 @@ export default function HomeScreen() {
           {/* Para ti: cuando no sigues a nadie, lo que más buscas y lo que busca la gente; cada uno dice por qué está */}
           {forYouHead && forYouPicks.length ? (
             <View style={styles.section}>
-              <View>
-                <Text style={styles.secTitle} accessibilityRole="header">
-                  {forYouHead.title}
-                </Text>
-                <Text style={styles.secSub}>{forYouHead.sub}</Text>
-              </View>
+              {/* Solo el título: el porqué va debajo de cada negocio, no hace falta repetir lo que más buscas */}
+              <Text style={styles.secTitle} accessibilityRole="header">
+                {forYouHead.title}
+              </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.followIn}>
                 {forYouPicks.map(({ item: b, reason, source }) => (
                   <Pressable key={b.id} accessibilityRole="button" accessibilityLabel={`${b.name}. ${reason}`} onPress={() => router.push({ pathname: '/business/[id]', params: { id: b.id } })} style={({ pressed }) => [styles.follow, styles.forYou, pressed && styles.pressed]}>
@@ -387,6 +388,10 @@ export default function HomeScreen() {
                 <Text style={styles.secSub}>Lo que publicaron los negocios de tu barrio.</Text>
               </View>
               <Muro pins={pins} />
+              <Pressable accessibilityRole="link" onPress={() => router.push('/(tabs)/offers')} style={({ pressed }) => [styles.moreOffers, pressed && styles.pressed]}>
+                <Text style={styles.moreOffersText}>Ver todo en Ofertas</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.ink} />
+              </Pressable>
             </View>
           ) : (
             <SystemSection title="Cerca de ti">
@@ -397,7 +402,6 @@ export default function HomeScreen() {
           )}
         </View>
         <BusinessCardModal entity={card} onClose={() => setCard(null)} origin="home" />
-        <MarketItemSheet item={previewItem} onClose={() => setPreviewItem(null)} />
       </ScrollView>
       {door ? (
         <Animated.View
@@ -471,5 +475,7 @@ const styles = StyleSheet.create({
   followRing: { width: 64, height: 64, borderRadius: 32, borderWidth: 2.5, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   followName: { fontSize: 12, lineHeight: 15, fontFamily: fonts.ui.medium, color: colors.ink, textAlign: 'center' },
   forYou: { width: 84 },
+  moreOffers: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  moreOffersText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   forWhy: { fontSize: 11, lineHeight: 14, fontFamily: fonts.ui.semibold, color: colors.muted, textAlign: 'center', marginTop: -3 },
 });

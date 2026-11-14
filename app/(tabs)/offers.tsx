@@ -2,6 +2,7 @@ import { Ionicons } from '@/components/Icon';
 import { keepPreviousData, useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { takeHandoff } from '@/lib/offerHandoff';
 import { Avatar } from '@/components/Avatar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -329,6 +330,14 @@ export default function OffersScreen() {
   const open = useCallback((o: MarketItem) => {
     setSelectedItem(o);
   }, []);
+
+  // Lo que tocaste en el muro de Inicio llega aquí y se abre en su media hoja (los componentes se pasan la mano).
+  useFocusEffect(
+    useCallback(() => {
+      const item = takeHandoff();
+      if (item) open(item);
+    }, [open]),
+  );
 
   // Ítems combinados para la portada: ofertas cercanas + servicios destacados del catálogo de negocios cercanos
   const mergedNear = useMemo(
