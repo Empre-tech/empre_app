@@ -138,6 +138,22 @@ export function resultsTitle(n: number, f: SearchFilters, caps: FilterCaps): str
   return n && order ? `${count} · ${order}` : count;
 }
 
+/**
+ * Lo que dice Empre AI arriba de los resultados (tablero «Empre AI · cuándo responde», teléfono 2): cuántos hay y
+ * cuántos están abiertos, con el dato en negrita. Se escribe palabra por palabra.
+ */
+export function answerLead(n: number, open: number): { t: string; bold?: boolean }[] {
+  if (n === 1) return [{ t: 'Hay ' }, { t: '1 lugar', bold: true }, { t: open ? ' y está abierto ahora.' : ', aunque ahora está cerrado.' }];
+  if (!open) return [{ t: 'Hay ' }, { t: `${n} lugares`, bold: true }, { t: '. Ahora ninguno está abierto.' }];
+  return [{ t: 'Hay ' }, { t: `${n} lugares`, bold: true }, { t: ' y ' }, { t: open === n ? 'todos están abiertos' : `${open} ${open === 1 ? 'está abierto' : 'están abiertos'}`, bold: true }, { t: ' ahora.' }];
+}
+
+/** El orden de los resultados, solo («Más cerca primero»), para la línea bajo la frase. */
+export function orderLabel(f: SearchFilters, caps: FilterCaps): string | null {
+  const o = f.sort === 'rating' ? 'mejor valorados primero' : f.sort === 'cheap' ? 'más económicos primero' : caps.distance ? 'más cerca primero' : null;
+  return o ? o.charAt(0).toUpperCase() + o.slice(1) : null;
+}
+
 /** «Ver 3 lugares» para el botón de la hoja. */
 export function seeLabel(n: number): string {
   return n === 0 ? 'Nada con estos filtros' : n === 1 ? 'Ver 1 lugar' : `Ver ${n} lugares`;
