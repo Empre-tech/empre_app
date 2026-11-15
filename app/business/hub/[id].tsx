@@ -157,6 +157,8 @@ export default function BusinessHubScreen() {
     { key: 'offers', title: 'Ofertas', sub: hasRunning ? timeLeftLabel(running) : 'Publica una', symbol: 'offers', onPress: offers },
   ];
   const later: HubRow[] = [
+    // Todo lo que pasó en una línea de tiempo, con la meta del mes arriba (tablero «Actividad y meta»).
+    { key: 'activity', icon: 'pulse-outline', title: 'Actividad y meta', sub: 'Lo que pasó cada día y tu meta del mes', onPress: go({ pathname: '/business/activity/[id]', params: { id: entityId } }) },
     { key: 'profile', icon: 'person-outline', title: 'Perfil público', sub: b.is_verified ? 'Nombre, horario, ubicación y contacto' : 'Aún sin verificar · nombre, horario y contacto', onPress: edit },
     { key: 'photos', icon: 'images-outline', title: 'Fotos y videos', sub: `${b.photos?.length ?? 0} publicadas · súbelas y edítalas aquí`, onPress: photos },
     { key: 'teach', icon: 'sparkles-outline', symbol: 'ai', product: 'Empre AI', title: 'Enséñale a Empre AI', sub: nUnanswered ? (nUnanswered === 1 ? '1 pregunta que no supo responder' : `${nUnanswered} preguntas que no supo responder`) : 'Lo que responde por ti en tu chat', alert: nUnanswered > 0, onPress: go({ pathname: '/business/teach/[id]', params: { id: entityId } }) },
