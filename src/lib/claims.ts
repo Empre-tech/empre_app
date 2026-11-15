@@ -43,9 +43,14 @@ export function savedIn(c: OfferClaim): number {
 
 /** Lo del mes (tablero «Para el cliente»): cuántas salidas canjeadas y cuánto ahorró desde el día 1. */
 export function monthSummary(claims: OfferClaim[], now: number): { outings: number; saved: number } {
+  const month = monthClaims(claims, now);
+  return { outings: month.length, saved: month.reduce((s, c) => s + savedIn(c), 0) };
+}
+
+/** Los canjes de este mes (desde el día 1): los hechos detrás de «salidas este mes» y «ahorrados». */
+export function monthClaims(claims: OfferClaim[], now: number): OfferClaim[] {
   const start = new Date(now);
   start.setDate(1);
   start.setHours(0, 0, 0, 0);
-  const month = claims.filter((c) => effectiveClaimStatus(c, now) === 'CANJEADO' && Date.parse(claimDate(c)) >= start.getTime());
-  return { outings: month.length, saved: month.reduce((s, c) => s + savedIn(c), 0) };
+  return claims.filter((c) => effectiveClaimStatus(c, now) === 'CANJEADO' && Date.parse(claimDate(c)) >= start.getTime());
 }

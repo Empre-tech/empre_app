@@ -3,23 +3,22 @@ import Constants from 'expo-constants';
 import { useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View, Modal } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { notifyError } from '@/components/Notice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi } from '@/api/agenda';
 import { entitiesApi, usersApi } from '@/api/endpoints';
 import { claimsApi } from '@/api/offers';
 import { loadSavedClaims } from '@/claims/claimStore';
-import { mergeClaims, monthSummary } from '@/lib/claims';
+import { claimDate, mergeClaims, monthClaims, monthSummary, savedIn } from '@/lib/claims';
 import { useNow } from '@/lib/useNow';
-import type { VerificationStatus } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Avatar } from '@/components/Avatar';
 import { EmpreSymbol, type EmpreProduct } from '@/components/EmpreSymbol';
 import { initAnalytics, isAnalyticsEnabled, setAnalyticsEnabled } from '@/analytics/track';
 import { FEATURES } from '@/config';
 import { SignInPrompt } from '@/components/SignInPrompt';
-import { verificationLabel } from '@/lib/format';
+import { formatMessageTime, verificationLabel } from '@/lib/format';
 import { pickImage } from '@/lib/images';
 import { useInboxSummary } from '@/chat/useInboxSummary';
 import { requestsLabel } from '@/lib/inbox';
@@ -31,15 +30,12 @@ import { myInterests } from '@/lib/interests';
 import { clearInterests, useInterestSignals } from '@/lib/interestStore';
 import { ART_LABEL } from '@/lib/offerHome';
 import { ScreenGlow } from '@/components/ScreenGlow';
+import { AsiSaleSheet } from '@/components/AsiSaleSheet';
+import { hasFacts, keptOf, keptPreview, savedPreview, totalPreview, type Preview } from '@/lib/asiSale';
 import { colors, fonts } from '@/theme';
 
 const version = Constants.expoConfig?.version;
 
-const STATUS_STYLE: Record<VerificationStatus, { fg: string; bg: string; icon: keyof typeof Ionicons.glyphMap }> = {
-  verified: { fg: colors.verified, bg: colors.verifiedSoft, icon: 'checkmark-circle' },
-  pending: { fg: colors.warning, bg: '#FBF0DA', icon: 'time-outline' },
-  rejected: { fg: colors.danger, bg: '#FBE4E4', icon: 'close-circle-outline' },
-};
 
 export default function ProfileScreen() {
   const inbox = useInboxSummary();
@@ -60,13 +56,11 @@ export default function ProfileScreen() {
   const savedClaims = useQuery({ queryKey: ['claims', 'saved', user?.id], queryFn: () => loadSavedClaims(user!.id), enabled: status === 'signedIn' && Boolean(user) });
   const myAppts = useQuery({ queryKey: ['appointments'], queryFn: agendaApi.mine, enabled: status === 'signedIn' && FEATURES.agenda });
   const stripNow = useNow(60_000);
-  const month = monthSummary(mergeClaims(myClaims.data ?? [], savedClaims.data ?? []), stripNow);
+  const allClaims = mergeClaims(myClaims.data ?? [], savedClaims.data ?? []);
+  const month = monthSummary(allClaims, stripNow);
   const comingAppts = (myAppts.data ?? []).filter((a) => (a.status === 'requested' || a.status === 'confirmed') && Date.parse(a.starts_at) > stripNow).length;
-  const strip = [
-    ...(month.outings ? [{ v: String(month.outings), t: month.outings === 1 ? 'salida este mes' : 'salidas este mes', c: colors.ink }] : []),
-    ...(month.saved ? [{ v: formatPesos(month.saved), t: 'ahorrados', c: colors.accentInk }] : []),
-    ...(comingAppts ? [{ v: String(comingAppts), t: comingAppts === 1 ? 'cita que viene' : 'citas que vienen', c: colors.primaryDark }] : []),
-  ];
+  const following = useQuery({ queryKey: ['my-favorites'], queryFn: usersApi.favorites, enabled: status === 'signedIn', staleTime: 5 * 60_000 });
+  const favCount = following.data?.length ?? 0;
   const mine = useQuery({
     queryKey: ['my-entities'],
     queryFn: entitiesApi.mine,
@@ -74,7 +68,8 @@ export default function ProfileScreen() {
   });
   // El negocio en el que estás trabajando: lo recuerda este teléfono.
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [allOpen, setAllOpen] = useState(false);
+  // «Así sale» (tablero «Cada cifra con su porqué»): qué cifra se tocó. La hoja es una vista previa; el detalle, en su dueño.
+  const [peek, setPeek] = useState<{ kind: 'kept'; id: string } | { kind: 'total' } | { kind: 'saved' } | null>(null);
   useEffect(() => {
     void getPhoneFlag('active-business').then(setActiveId);
   }, []);
@@ -95,7 +90,14 @@ export default function ProfileScreen() {
     })),
   });
   const salesOf = (id: string) => todays[entities.findIndex((e) => e.id === id)]?.data?.current;
-  const allTotal = todays.reduce((s, q) => s + (q.data?.current.sales_total ?? 0), 0);
+  // Lo que te quedó hoy (entró menos salió), por negocio y entre todos: solo suman los que tuvieron movimiento.
+  const allKept = entities.map((e) => ({ id: e.id, name: e.name, kept: keptOf(salesOf(e.id)) }));
+  const anyFacts = allKept.some((x) => hasFacts(x.kept));
+  const allLeft = allKept.reduce((sum, x) => sum + (hasFacts(x.kept) ? x.kept.left : 0), 0);
+  // Lo principal de la vista previa (la venta más grande, los gastos más grandes): solo cuando se abre.
+  const peekId = peek?.kind === 'kept' ? peek.id : null;
+  const peekSales = useQuery({ queryKey: ['ledger', peekId, 'sales', today], queryFn: () => ledgerApi.sales(peekId!, { from: today, to: today, limit: 100 }), enabled: Boolean(peekId), staleTime: 60_000, retry: false });
+  const peekOut = useQuery({ queryKey: ['ledger', peekId, 'expenses', today], queryFn: () => ledgerApi.expenses(peekId!, { from: today, to: today, limit: 100 }), enabled: Boolean(peekId), staleTime: 60_000, retry: false });
 
   if (status !== 'signedIn' || !user) {
     return (
@@ -124,43 +126,60 @@ export default function ProfileScreen() {
   };
 
   const hasBusiness = (mine.data ?? []).length > 0;
-  const allSheet = (
-    <Modal visible={allOpen} transparent animationType="slide" onRequestClose={() => setAllOpen(false)}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" style={styles.veil} onPress={() => setAllOpen(false)} />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
-        <Text style={styles.sheetTitle} accessibilityRole="header">
-          Todos mis negocios · hoy
-        </Text>
-        {entities.map((e) => (
-          <View key={e.id} style={styles.allRow}>
-            <Text style={styles.rowLabel} numberOfLines={1}>
-              {e.name}
-            </Text>
-            <Text style={styles.rowLabel}>{formatPesos(salesOf(e.id)?.sales_total ?? 0)}</Text>
-          </View>
-        ))}
-        <View style={[styles.allRow, styles.allTotal]}>
-          <Text style={styles.rowLabel}>Total</Text>
-          <Text style={styles.rowLabel}>{formatPesos(allTotal)}</Text>
-        </View>
-        <Text style={styles.rowSub}>Solo para ver. Cada venta, gasto o canje se registra en un negocio a la vez.</Text>
-      </View>
-    </Modal>
-  );
+  const peekKept = peek?.kind === 'kept' ? keptOf(salesOf(peek.id)) : null;
+  const peekName = peek?.kind === 'kept' ? (entities.find((e) => e.id === peek.id)?.name ?? '') : '';
+  const preview: Preview | null = !peek
+    ? null
+    : peek.kind === 'kept'
+      ? hasFacts(peekKept)
+        ? keptPreview(peekName, peekKept, peekSales.data, peekOut.data, formatMessageTime(new Date(stripNow).toISOString()))
+        : null
+      : peek.kind === 'total'
+        ? totalPreview(allKept)
+        : savedPreview(
+            monthClaims(allClaims, stripNow).map((c) => ({ claim: c, saved: savedIn(c), at: claimDate(c) })),
+            new Intl.DateTimeFormat('es-CO', { month: 'long' }).format(new Date(stripNow)),
+          );
+  const owner =
+    peek?.kind === 'kept'
+      ? {
+          label: 'Ver el detalle en Empre Finance',
+          money: true,
+          onPress: () => {
+            setPeek(null);
+            router.push({ pathname: '/business/ledger/[id]', params: { id: peek.id } });
+          },
+        }
+      : peek?.kind === 'saved'
+        ? {
+            label: 'Ver tus QR en Mis salidas',
+            onPress: () => {
+              setPeek(null);
+              router.push('/salidas');
+            },
+          }
+        : undefined;
+
+  // Una carta por negocio, como los medios de pago en Finance (tablero «Mi negocio» · Perfil, 2026-11-14): la activa
+  // abierta y las otras apiladas con su cabecera. La cifra es lo que te quedó hoy y se toca para ver «Así sale».
+  const ordered = [...entities].sort((a, b) => (a.id === active ? -1 : b.id === active ? 1 : 0));
   const businesses = (
     <View style={styles.section}>
       <View style={styles.sectionHead}>
         <Text style={styles.eyebrow} accessibilityRole="header">
           {`MIS NEGOCIOS${entities.length > 1 ? ` · ${entities.length}` : ''}`}
         </Text>
-        {entities.length > 1 ? <Text style={styles.hint}>Toca uno para trabajar en él</Text> : null}
+        {entities.length > 1 && anyFacts ? (
+          <Pressable accessibilityRole="button" onPress={() => setPeek({ kind: 'total' })} hitSlop={10}>
+            <Text style={styles.hint}>{`Ver los ${entities.length} ›`}</Text>
+          </Pressable>
+        ) : null}
       </View>
-      {/* Todos juntos: el ancla negra (tablero «Mi negocio» · Perfil) */}
-      {entities.length ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={`Tus ${entities.length} negocios hoy: ${formatPesos(allTotal)}. Ver el detalle`} onPress={() => setAllOpen(true)} style={styles.anchor}>
-          <Text style={styles.anchorLead}>{entities.length > 1 ? `Tus ${entities.length} negocios, hoy` : 'Tu negocio, hoy'}</Text>
-          <Text style={styles.anchorTotal}>{formatPesos(allTotal)}</Text>
-          {inbox.requests > 0 ? <Text style={styles.anchorSub}>{requestsLabel(inbox.requests)}</Text> : <Text style={styles.anchorSub}>Lo que entró hoy, sumado</Text>}
+      {/* Con varios: lo que te quedó entre todos. Con uno, la carta ya lo dice */}
+      {entities.length > 1 && anyFacts ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={`Te quedó hoy entre tus ${entities.length} negocios: ${formatPesos(allLeft)}. Ver así sale`} onPress={() => setPeek({ kind: 'total' })} style={styles.totalRow}>
+          <Text style={styles.totalValue}>{formatPesos(allLeft)}</Text>
+          <Text style={styles.totalLabel}>{`te quedó hoy entre los ${entities.length}`}</Text>
         </Pressable>
       ) : null}
       {mine.isLoading ? (
@@ -168,78 +187,104 @@ export default function ProfileScreen() {
       ) : mine.isError ? (
         <Text style={styles.empty}>No pudimos cargar tus negocios.</Text>
       ) : (
-        entities.map((entity) => {
-          const isActive = entity.id === active;
-          const reqs = inbox.byEntity.get(entity.id)?.requests ?? 0;
-          const st = STATUS_STYLE[entity.verification_status];
-          const today = salesOf(entity.id);
-          return (
-            <View key={entity.id} style={[styles.biz, entities.length > 1 && isActive && styles.bizOn]}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ selected: isActive }}
-                accessibilityLabel={entities.length > 1 && !isActive ? `${entity.name}. Toca para trabajar en él` : `${entity.name}. Administrar mi negocio`}
-                onPress={() => (entities.length > 1 && !isActive ? pick(entity.id) : router.push({ pathname: '/business/hub/[id]', params: { id: entity.id } }))}
-                style={styles.bizTop}
-              >
-                <View style={styles.bizIcon}>
-                  {entity.profile_url ? <Avatar uri={entity.profile_url} name={entity.name} size={48} /> : <Ionicons name="storefront-outline" size={22} color={colors.ink} />}
-                </View>
-                <View style={styles.bizText}>
-                  <View style={styles.bizLine}>
-                    <Text style={styles.bizName} numberOfLines={1}>
-                      {entity.name}
-                    </Text>
-                    {entities.length > 1 && isActive ? <Text style={styles.activeTag}>ACTIVO</Text> : null}
-                  </View>
-                  <Text style={styles.bizCat} numberOfLines={1}>
-                    {entity.category_name}
-                  </Text>
-                </View>
-                <View style={[styles.badge, { backgroundColor: st.bg }]}>
-                  <Ionicons name={st.icon} size={12} color={st.fg} />
-                  <Text style={[styles.badgeText, { color: st.fg }]}>{verificationLabel(entity.verification_status)}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.placeholder} />
+        <View>
+          {ordered.map((entity, i) => {
+            const isActive = entity.id === active;
+            const k = keptOf(salesOf(entity.id));
+            const reqs = inbox.byEntity.get(entity.id)?.requests ?? 0;
+            const sub = [entity.category_name, entity.verification_status === 'verified' ? null : verificationLabel(entity.verification_status).toLocaleLowerCase('es')].filter(Boolean).join(' · ');
+            // Sin hechos, sin cifra: nunca un $0.
+            const amount = hasFacts(k) ? (
+              <Pressable accessibilityRole="button" accessibilityLabel={`${entity.name}: te quedó hoy ${formatPesos(k.left)}. Ver así sale`} onPress={() => setPeek({ kind: 'kept', id: entity.id })} hitSlop={8} style={styles.amountBox}>
+                <Text style={[styles.amount, !isActive && styles.amountSmall]}>{formatPesos(k.left)}</Text>
+                {isActive ? <Text style={styles.amountLabel}>te quedó hoy</Text> : null}
               </Pressable>
-              {reqs > 0 ? (
-                <Pressable accessibilityRole="link" accessibilityLabel={`${entity.name}: ${requestsLabel(reqs)}. Ver agenda`} onPress={() => router.push({ pathname: '/business/agenda/[id]', params: { id: entity.id } })} style={styles.strip}>
-                  <View style={styles.stripDot} />
-                  <Text style={styles.stripText} numberOfLines={1}>
-                    Hoy · {reqs} por responder
-                  </Text>
-                  <Text style={styles.stripLink}>Ver agenda ›</Text>
-                </Pressable>
-              ) : null}
-              {isActive ? (
-                <>
-                  {today ? (
-                    <Text style={styles.todayLine}>
-                      Hoy · {today.sales_count === 1 ? '1 venta' : `${today.sales_count} ventas`} · {formatPesos(today.sales_total)}
-                    </Text>
-                  ) : null}
-                  <View style={styles.quickRow}>
-                    <QuickAction icon="scan-outline" label="Canjear" onPress={() => router.push('/business/scan')} />
-                    <QuickAction icon="cash-outline" label="Vender" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entity.id } })} />
-                    <QuickAction icon="calendar-outline" label="Agenda" onPress={() => router.push({ pathname: '/business/agenda/[id]', params: { id: entity.id } })} />
+            ) : (
+              <Text style={styles.noFacts}>Sin ventas hoy</Text>
+            );
+            if (!isActive) {
+              return (
+                <Pressable
+                  key={entity.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${entity.name}. Toca para trabajar en él`}
+                  onPress={() => pick(entity.id)}
+                  style={[styles.closed, { backgroundColor: i % 2 ? colors.glowTop : colors.selectedSoft }, i === 1 ? styles.closedFirst : styles.closedNext, i < ordered.length - 1 && styles.closedCovered]}
+                >
+                  <View style={styles.bizHead}>
+                    <BizLogo uri={entity.profile_url} name={entity.name} size={36} />
+                    <View style={styles.bizText}>
+                      <Text style={styles.bizNameSmall} numberOfLines={1}>
+                        {entity.name}
+                      </Text>
+                      <Text style={styles.bizCat} numberOfLines={1}>
+                        {sub}
+                      </Text>
+                    </View>
+                    {amount}
                   </View>
-                </>
-              ) : null}
-            </View>
-          );
-        })
+                </Pressable>
+              );
+            }
+            const hub = () => router.push({ pathname: '/business/hub/[id]', params: { id: entity.id } });
+            return (
+              <View key={entity.id} style={styles.biz}>
+                <View style={styles.bizHead}>
+                  <Pressable accessibilityRole="button" accessibilityLabel={`${entity.name}. Abrir mi negocio`} onPress={hub} style={styles.bizHeadMain}>
+                    <BizLogo uri={entity.profile_url} name={entity.name} size={42} />
+                    <View style={styles.bizText}>
+                      <Text style={styles.bizName} numberOfLines={1}>
+                        {entity.name}
+                      </Text>
+                      <Text style={styles.bizCat} numberOfLines={1}>
+                        {sub}
+                      </Text>
+                    </View>
+                  </Pressable>
+                  {amount}
+                </View>
+                {hasFacts(k) ? (
+                  <View style={styles.wells}>
+                    {[
+                      { key: 'Entró', v: formatPesos(k.entered) },
+                      { key: 'Salió', v: formatPesos(k.out) },
+                      { key: 'Ventas', v: String(k.count) },
+                    ].map((w) => (
+                      <Pressable key={w.key} accessibilityRole="button" accessibilityLabel={`${w.key}: ${w.v}. Ver así sale`} onPress={() => setPeek({ kind: 'kept', id: entity.id })} style={styles.well}>
+                        <Text style={styles.wellKey}>{w.key}</Text>
+                        <Text style={styles.wellValue}>{w.v}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+                <View style={styles.quickRow}>
+                  <QuickAction icon="cash-outline" label="Vender" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entity.id } })} />
+                  <QuickAction icon="scan-outline" label="Canjear" onPress={() => router.push('/business/scan')} />
+                  <QuickAction icon="calendar-outline" label="Agenda" onPress={() => router.push({ pathname: '/business/agenda/[id]', params: { id: entity.id } })} />
+                </View>
+                <View style={styles.bizFoot}>
+                  {reqs > 0 ? (
+                    <Pressable accessibilityRole="link" accessibilityLabel={`${entity.name}: ${requestsLabel(reqs)}. Ver agenda`} onPress={() => router.push({ pathname: '/business/agenda/[id]', params: { id: entity.id } })} style={styles.footReq}>
+                      <View style={styles.footDot} />
+                      <Text style={styles.footText} numberOfLines={1}>
+                        {requestsLabel(reqs)}
+                      </Text>
+                    </Pressable>
+                  ) : (
+                    <View style={{ flex: 1 }} />
+                  )}
+                  <Pressable accessibilityRole="link" onPress={hub} hitSlop={10}>
+                    <Text style={styles.footLink}>Abrir mi negocio ›</Text>
+                  </Pressable>
+                </View>
+              </View>
+            );
+          })}
+        </View>
       )}
-      {entities.length > 1 ? (
-        <Pressable accessibilityRole="button" onPress={() => setAllOpen(true)} style={styles.allBtn}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.rowLabel}>Todos mis negocios</Text>
-            <Text style={styles.rowSub}>Ventas de hoy: {formatPesos(allTotal)}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.placeholder} />
-        </Pressable>
-      ) : null}
+      {/* Sumar otro: la última carta, punteada */}
       <Pressable accessibilityRole="button" onPress={() => router.push('/business/new')} style={styles.createBtn}>
-        <Text style={styles.createText}>+ Crear otro negocio</Text>
+        <Text style={styles.createText}>+ Sumar otro negocio</Text>
       </Pressable>
     </View>
   );
@@ -264,28 +309,50 @@ export default function ProfileScreen() {
       </View>
 
       {hasBusiness || mine.isLoading ? businesses : null}
-      {allSheet}
-
-      {strip.length ? (
-        <View style={styles.monthStrip} accessible accessibilityLabel={strip.map((x) => `${x.v} ${x.t}`).join(', ')}>
-          {strip.map((x) => (
-            <View key={x.t} style={styles.monthCell}>
-              <Text style={[styles.monthValue, { color: x.c }]}>{x.v}</Text>
-              <Text style={styles.monthLabel}>{x.t}</Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
+      <AsiSaleSheet
+        preview={preview}
+        onClose={() => setPeek(null)}
+        owner={owner}
+        onRow={
+          peek?.kind === 'total'
+            ? (id) => {
+                // Cada negocio del total lleva a su propio detalle en Finance.
+                setPeek(null);
+                router.push({ pathname: '/business/ledger/[id]', params: { id } });
+              }
+            : undefined
+        }
+      />
 
       <View style={styles.section}>
         <Text style={styles.eyebrow} accessibilityRole="header">
           LO TUYO
         </Text>
-        <View style={styles.group}>
-          <MenuRow first icon="qr-code-outline" label="Mis salidas" sub="Tus QR, tus planes y lo ahorrado" onPress={() => router.push('/salidas')} />
-          {FEATURES.agenda ? <MenuRow icon="calendar-outline" label="Mis citas" sub="Las que pediste y las que vienen" onPress={() => router.push('/appointments')} /> : null}
-          <MenuRow icon="heart-outline" label="Negocios que sigo" sub="Lo que publican y sus ofertas" onPress={() => router.push('/favorites')} />
-          <MenuRow icon="shield-checkmark-outline" label="Lo que Agent sabe de ti" sub="Qué recuerda y qué nunca guarda" onPress={() => router.push('/agent/privacy')} />
+        <View style={styles.tiles}>
+          <Tile
+            icon="qr-code-outline"
+            value={month.outings ? String(month.outings) : null}
+            label={month.outings ? `${month.outings === 1 ? 'salida' : 'salidas'} este mes${month.saved ? ` · ${formatPesos(month.saved)} ahorrados` : ''}` : 'Mis salidas'}
+            sub={month.outings ? undefined : 'Tus QR y tus planes'}
+            onPress={() => (month.saved ? setPeek({ kind: 'saved' }) : router.push('/salidas'))}
+          />
+          {FEATURES.agenda ? (
+            <Tile
+              icon="calendar-outline"
+              value={comingAppts ? String(comingAppts) : null}
+              label={comingAppts ? (comingAppts === 1 ? 'cita que viene' : 'citas que vienen') : 'Mis citas'}
+              sub={comingAppts ? undefined : 'Las que pides a un negocio'}
+              onPress={() => router.push('/appointments')}
+            />
+          ) : null}
+          <Tile
+            icon="heart-outline"
+            value={favCount ? String(favCount) : null}
+            label={favCount ? (favCount === 1 ? 'negocio que sigues' : 'negocios que sigues') : 'Negocios que sigo'}
+            sub={favCount ? undefined : 'Lo que publican y sus ofertas'}
+            onPress={() => router.push('/favorites')}
+          />
+          <Tile icon="shield-checkmark-outline" value={null} label="Lo que Agent sabe de ti" sub="Qué recuerda y qué nunca guarda" onPress={() => router.push('/agent/privacy')} />
         </View>
       </View>
 
@@ -411,17 +478,33 @@ function MenuRow({ icon, label, sub, onPress, first, danger }: { icon: keyof typ
 function QuickAction({ symbol, icon, label, onPress }: { symbol?: EmpreProduct; icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.quick, pressed && { opacity: 0.8 }]}>
-      {symbol ? <EmpreSymbol product={symbol} size={36} /> : <View style={styles.quickIcon}><Ionicons name={icon} size={18} color={colors.verified} /></View>}
+      {symbol ? <EmpreSymbol product={symbol} size={20} /> : <Ionicons name={icon} size={16} color={colors.ink} />}
       <Text style={styles.quickText}>{label}</Text>
     </Pressable>
   );
 }
 
+function BizLogo({ uri, name, size }: { uri?: string; name: string; size: number }) {
+  return (
+    <View style={[styles.bizIcon, { width: size, height: size, borderRadius: size * 0.28 }]}>
+      {uri ? <Avatar uri={uri} name={name} size={size} /> : <Ionicons name="storefront-outline" size={size * 0.46} color={colors.ink} />}
+    </View>
+  );
+}
+
+/** Una tarjeta de «Lo tuyo»: el número (si hay) y qué es. Sin hechos, sin número: solo el nombre. */
+function Tile({ icon, value, label, sub, onPress }: { icon: keyof typeof Ionicons.glyphMap; value: string | null; label: string; sub?: string; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={[value, label, sub].filter(Boolean).join(' ')} onPress={onPress} style={({ pressed }) => [styles.tile, pressed && { opacity: 0.85 }]}>
+      <Ionicons name={icon} size={18} color={colors.muted} />
+      {value ? <Text style={styles.tileValue}>{value}</Text> : null}
+      <Text style={value ? styles.tileLabel : styles.tileTitle}>{label}</Text>
+      {sub ? <Text style={styles.tileLabel}>{sub}</Text> : null}
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  anchor: { borderRadius: 22, backgroundColor: colors.sand, padding: 16, gap: 6 },
-  anchorLead: { fontFamily: fonts.ui.extrabold, fontSize: 12.5, color: colors.nightText },
-  anchorTotal: { fontFamily: fonts.display.bold, fontSize: 30, lineHeight: 34, color: colors.financeLight, fontVariant: ['tabular-nums'] },
-  anchorSub: { fontFamily: fonts.ui.extrabold, fontSize: 13, color: colors.glow },
   screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 16, paddingBottom: 120, gap: 18 },
@@ -432,36 +515,49 @@ const styles = StyleSheet.create({
   avatarButton: { width: 64, height: 64, borderRadius: 32 },
   avatarBadge: { position: 'absolute', right: -3, bottom: -3, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.bg, backgroundColor: colors.primary },
   section: { gap: 8 },
-  monthStrip: { flexDirection: 'row', gap: 8 },
-  monthCell: { flex: 1, padding: 12, gap: 2, borderRadius: 16, backgroundColor: colors.surface },
-  monthValue: { fontSize: 22, fontFamily: fonts.display.bold, fontVariant: ['tabular-nums'] },
-  monthLabel: { fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.medium, color: colors.muted },
+  totalRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, alignSelf: 'flex-start', minHeight: 44 },
+  totalValue: { fontSize: 28, lineHeight: 34, fontFamily: fonts.display.bold, color: colors.finance, fontVariant: ['tabular-nums'] },
+  totalLabel: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
+  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tile: { width: '48.6%', minHeight: 104, padding: 12, gap: 4, borderRadius: 16, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  tileValue: { fontSize: 20, lineHeight: 24, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  tileTitle: { fontSize: 14, lineHeight: 18, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  tileLabel: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.muted },
   sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
   eyebrow: { fontSize: 12, letterSpacing: 1.2, fontFamily: fonts.ui.extrabold, color: colors.faint },
   hint: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.faint },
   empty: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted },
-  biz: { padding: 14, gap: 12, borderRadius: 20, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
-  bizOn: { borderWidth: 2, borderColor: colors.ink },
-  bizTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  bizIcon: { width: 48, height: 48, borderRadius: 12, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
+  // La carta abierta (la del negocio activo) y las cerradas, apiladas: la de abajo tapa el pie de la de arriba.
+  biz: { padding: 14, gap: 12, borderRadius: 20, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
+  bizHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  bizHeadMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  bizIcon: { overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
   bizText: { flex: 1, minWidth: 0, gap: 2 },
-  bizLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  bizName: { flexShrink: 1, fontSize: 17, lineHeight: 21, fontFamily: fonts.display.bold, color: colors.ink },
-  activeTag: { paddingVertical: 2, paddingHorizontal: 7, borderRadius: 999, overflow: 'hidden', backgroundColor: colors.primary, fontSize: 11, letterSpacing: 0.9, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  bizCat: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.faint },
-  badge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 9, borderRadius: 999 },
-  badgeText: { fontSize: 12, fontFamily: fonts.ui.extrabold },
-  strip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.accentSoft },
-  stripDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.warning },
-  stripText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.agenda },
-  stripLink: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.agenda },
-  todayLine: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  quickRow: { flexDirection: 'row', gap: 8 },
-  quick: { flex: 1, minHeight: 76, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 16, borderWidth: 1.5, borderColor: colors.hairline, backgroundColor: colors.surface },
-  quickIcon: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.verifiedSoft },
+  bizName: { fontSize: 16, lineHeight: 20, fontFamily: fonts.display.bold, color: colors.ink },
+  bizNameSmall: { fontSize: 14.5, lineHeight: 18, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  bizCat: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
+  amountBox: { alignItems: 'flex-end', minHeight: 44, justifyContent: 'center' },
+  amount: { fontSize: 22, lineHeight: 26, fontFamily: fonts.display.bold, color: colors.finance, fontVariant: ['tabular-nums'] },
+  amountSmall: { fontSize: 16, lineHeight: 20 },
+  amountLabel: { fontSize: 11.5, fontFamily: fonts.ui.medium, color: colors.muted },
+  noFacts: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
+  wells: { flexDirection: 'row', gap: 6 },
+  well: { flex: 1, minWidth: 0, minHeight: 48, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 12, backgroundColor: colors.bg },
+  wellKey: { fontSize: 11.5, fontFamily: fonts.ui.medium, color: colors.muted },
+  wellValue: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  quickRow: { flexDirection: 'row', gap: 6 },
+  quick: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 22, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   quickText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  allBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 60, padding: 12, borderRadius: 16, backgroundColor: colors.surface },
-  createBtn: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.line },
+  bizFoot: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.line },
+  footReq: { flex: 1, minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  footDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.brand },
+  footText: { flexShrink: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
+  footLink: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
+  closed: { paddingHorizontal: 14, paddingVertical: 12, borderRadius: 20, borderWidth: 1, borderColor: colors.line },
+  closedFirst: { marginTop: 10 },
+  closedNext: { marginTop: -20 },
+  closedCovered: { paddingBottom: 32 },
+  createBtn: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 20, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.line },
   createText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.muted },
   invite: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 20, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.line },
   inviteLink: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
@@ -483,9 +579,4 @@ const styles = StyleSheet.create({
   confirmGo: { backgroundColor: colors.ink },
   confirmGoText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.surface },
   version: { paddingTop: 6, fontSize: 12, fontFamily: fonts.ui.medium, color: colors.faint, textAlign: 'center' },
-  veil: { flex: 1, backgroundColor: 'rgba(14,35,70,0.38)' },
-  sheet: { gap: 8, paddingTop: 16, paddingHorizontal: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.surface },
-  sheetTitle: { fontSize: 20, lineHeight: 25, fontFamily: fonts.display.bold, color: colors.ink },
-  allRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 8 },
-  allTotal: { borderTopWidth: 1, borderTopColor: colors.line },
 });
