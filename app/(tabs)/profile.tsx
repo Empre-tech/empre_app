@@ -576,7 +576,7 @@ const styles = StyleSheet.create({
   confirmBtn: { flex: 1, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   confirmKeep: { borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   confirmKeepText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
-  confirmGo: { backgroundColor: colors.ink },
-  confirmGoText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.surface },
+  confirmGo: { backgroundColor: colors.primary },
+  confirmGoText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: '#FFFFFF' },
   version: { paddingTop: 6, fontSize: 12, fontFamily: fonts.ui.medium, color: colors.faint, textAlign: 'center' },
 });

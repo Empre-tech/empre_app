@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
   warningText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.ink },
   note: { flexDirection: 'row', gap: 8 },
   noteText: { flex: 1, fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
-  owner: { minHeight: 48, marginTop: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 24, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.surface },
+  owner: { minHeight: 48, marginTop: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 24, borderWidth: 1.5, borderColor: colors.nightSoft, backgroundColor: colors.surface },
   ownerMoney: { borderColor: colors.finance },
   ownerText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });
