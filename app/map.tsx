@@ -244,6 +244,12 @@ export default function MapScreen() {
       ]);
       const coords = { latitude: position.coords.latitude, longitude: position.coords.longitude };
       setUserCoords(coords);
+      // Si el mapa todavía esperaba dónde arrancar, arranca en la persona (antes lo hacía un efecto al llegar userCoords).
+      setStartupRegion((r) => {
+        if (r) return r;
+        didCenterRef.current = true;
+        return { ...coords, latitudeDelta: 0.03, longitudeDelta: 0.03 };
+      });
       return coords;
     } catch (error) {
       setLocationError(
@@ -308,12 +314,6 @@ export default function MapScreen() {
   // Con permiso concedido pero sin posición en caché, el mapa espera (loading)
   // al fix fresco: en cuanto llega, arranca centrado en el usuario (nunca la
   // vista del país completo).
-  useEffect(() => {
-    if (startupRegion === null && userCoords) {
-      setStartupRegion({ ...userCoords, latitudeDelta: 0.03, longitudeDelta: 0.03 });
-      didCenterRef.current = true;
-    }
-  }, [startupRegion, userCoords]);
 
   // Pide la ubicación del usuario (permite centrar el mapa y ordenar/filtrar por distancia).
   // Esto PIDE el permiso si todavía no se ha concedido, y en cualquier caso
@@ -612,7 +612,7 @@ export default function MapScreen() {
   const mapLoading = !searching && startupRegion !== null && markers.length === 0 && (entities.isFetching || cellsQuery.isFetching);
   // El mapa está «listo» para la bienvenida cuando ya se dibujó y llegaron los negocios (o se sabe que no hay).
   const welcomeReady = mapReady && (markers.length > 0 || (!entities.isFetching && !cellsQuery.isFetching));
-  const endWelcome = useCallback(() => setWelcome(false), []);
+  const endWelcome = useCallback(() => setWelcome(false), [setWelcome]);
 
   // En qué zona está la persona (o qué zona mira el mapa): nombre del encabezado del panel.
   const viewPoint = useMemo(() => ({ latitude: region.latitude, longitude: region.longitude }), [region.latitude, region.longitude]);
@@ -933,24 +933,21 @@ export default function MapScreen() {
   const headerCategory = selectedCategory?.name ?? selectedGroup?.name;
   // Mientras el mapa trae negocios, abajo dice «Buscando…» (no «0 destacados») y corre la línea fina del panel.
   const headerZoneStatus: 'loading' | 'error' | 'ok' = entities.isError ? 'error' : entities.isLoading || mapLoading ? 'loading' : 'ok';
-  const header = useMemo(
-    () =>
-      sheetHeader({
-        searching,
-        query: debouncedSearch,
-        status: resultsStatus,
-        results: items.length,
-        scope: searchScope,
-        zoneCount: items.length,
-        categoryName: headerCategory,
-        view,
-        extraCount: extraModels.length,
-        openCount: items.filter((e) => e.has_hours && e.is_open_now).length,
-        zoneStatus: headerZoneStatus,
-        typeLabel: usingType && typeArt ? ART_LABEL[typeArt] : undefined,
-      }),
-    [searching, debouncedSearch, resultsStatus, items, searchScope, headerCategory, view, extraModels.length, headerZoneStatus, usingType, typeArt],
-  );
+  // El encabezado del panel: un cálculo barato, sin useMemo.
+  const header = sheetHeader({
+    searching,
+    query: debouncedSearch,
+    status: resultsStatus,
+    results: items.length,
+    scope: searchScope,
+    zoneCount: items.length,
+    categoryName: headerCategory,
+    view,
+    extraCount: extraModels.length,
+    openCount: items.filter((e) => e.has_hours && e.is_open_now).length,
+    zoneStatus: headerZoneStatus,
+    typeLabel: usingType && typeArt ? ART_LABEL[typeArt] : undefined,
+  });
   // Visor de fotos de un destacado, encima del mapa (3.22).
   const [viewer, setViewer] = useState<ViewerTarget | null>(null);
   const openPhoto = (m: CardModel, index: number) => {

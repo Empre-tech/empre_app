@@ -292,10 +292,11 @@ export default function OffersScreen() {
   const resolvePhoto = useCallback((id?: string) => (id ? mediaUrl(id) : undefined), []);
 
   // Lista unificada para «Todas» y búsqueda: ofertas + servicios del catálogo + hallazgos de Empre AI
+  const askItems = askSearchQuery.data?.items;
   const items = useMemo(() => {
     const merged = mergeCatalogIntoMarket(rawAllItems, nearbyBiz, catalogsByEntity, resolvePhoto);
-    if (q && askSearchQuery.data?.items.length) {
-      const askMapped = askItemsToMarketItems(askSearchQuery.data.items, bizById, resolvePhoto);
+    if (q && askItems?.length) {
+      const askMapped = askItemsToMarketItems(askItems, bizById, resolvePhoto);
       const seen = new Set(merged.map((m) => m.service_id ?? m.id));
       for (const a of askMapped) {
         const keyId = a.service_id ?? a.id;
@@ -306,7 +307,7 @@ export default function OffersScreen() {
       }
     }
     return filterVitrinaItems(merged, vitrinaFilter);
-  }, [rawAllItems, nearbyBiz, catalogsByEntity, q, askSearchQuery.data?.items, bizById, vitrinaFilter, resolvePhoto]);
+  }, [rawAllItems, nearbyBiz, catalogsByEntity, q, askItems, bizById, vitrinaFilter, resolvePhoto]);
 
   const saved = useRef('');
   useEffect(() => {
@@ -329,7 +330,7 @@ export default function OffersScreen() {
   // Al tocar cualquier tarjeta se abre la ficha interactiva rápida (con Empre AI y chat directo)
   const open = useCallback((o: MarketItem) => {
     setSelectedItem(o);
-  }, []);
+  }, [setSelectedItem]);
 
   // Lo que tocaste en el muro de Inicio llega aquí y se abre en su media hoja (los componentes se pasan la mano).
   useFocusEffect(

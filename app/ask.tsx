@@ -176,9 +176,13 @@ export default function AskScreen() {
   useEffect(() => {
     void loadRecents().then((saved) => setRecents((now) => (now.length ? now : saved)));
     if (started.current) return;
-    started.current = true;
-    if (typeof params.q === 'string' && params.q.trim()) void run(params.q, NO_FILTERS);
-    else if (params.voice === '1' && speechAvailable()) void listen();
+    // La búsqueda que llega por parámetro arranca después de pintar (no dentro del efecto: evita renders en cascada).
+    const t = setTimeout(() => {
+      started.current = true;
+      if (typeof params.q === 'string' && params.q.trim()) void run(params.q, NO_FILTERS);
+      else if (params.voice === '1' && speechAvailable()) void listen();
+    }, 0);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

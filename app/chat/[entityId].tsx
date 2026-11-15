@@ -85,6 +85,7 @@ export default function ChatScreen() {
   const queryClient = useQueryClient();
   const { status: authStatus, user } = useAuth();
   const chat = useChat();
+  const { subscribe: subscribeChat, subscribeRead } = chat;
 
   // Cliente: la conversación es entre yo y el negocio. Dueño: llega ?userId= del cliente.
   const customerId = userId ?? user?.id;
@@ -194,7 +195,7 @@ export default function ChatScreen() {
 
   // Mensajes en tiempo real que pertenecen a esta conversación.
   useEffect(() => {
-    return chat.subscribe((message) => {
+    return subscribeChat((message) => {
       if (message.entity_id !== entityId || message.user_id !== customerId) return;
       setLive((prev) => {
         if (prev.some((m) => m.id === message.id)) return prev;
@@ -207,13 +208,13 @@ export default function ChatScreen() {
         return [message, ...prev];
       });
     });
-  }, [chat.subscribe, entityId, customerId, user?.id]);
+  }, [subscribeChat, entityId, customerId, user?.id]);
 
   // Avisos en vivo de "ya te leyeron": el otro lado acaba de abrir esta
   // conversación, así que todo lo que YO mandé pasa a leído de una, sin
   // esperar a que se vuelva a pedir el historial.
   useEffect(() => {
-    return chat.subscribeRead((readEntityId) => {
+    return subscribeRead((readEntityId) => {
       if (readEntityId !== entityId || !user?.id) return;
       const markRead = (list: ChatMessage[]) =>
         list.map((m) => (m.sender_id === user.id && !m.is_read ? { ...m, is_read: true } : m));
@@ -222,25 +223,21 @@ export default function ChatScreen() {
         prev ? markRead(prev) : prev,
       );
     });
-  }, [chat.subscribeRead, entityId, customerId, user?.id, queryClient]);
-
-  // Si el eco no llegó, al recargar el historial esos mensajes ya vienen de la base de datos,
-  // así que descartamos las copias locales que queden.
-  useEffect(() => {
-    if (!history.dataUpdatedAt) return;
-    setLive((prev) => prev.filter((m) => !m.id.startsWith(LOCAL_PREFIX)));
-  }, [history.dataUpdatedAt]);
+  }, [subscribeRead, entityId, customerId, user?.id, queryClient]);
 
   const messages = useMemo(() => {
     const seen = new Set<string>();
     const out: ChatMessage[] = [];
-    for (const message of [...live, ...(history.data ?? [])]) {
+    // Si el eco no llegó, al recargar el historial esos mensajes ya vienen de la base de datos: las copias locales
+    // anteriores a la recarga no se muestran (antes un efecto las borraba del estado).
+    const fresh = live.filter((m) => !(m.id.startsWith(LOCAL_PREFIX) && history.dataUpdatedAt && Date.parse(m.created_at) <= history.dataUpdatedAt));
+    for (const message of [...fresh, ...(history.data ?? [])]) {
       if (seen.has(message.id)) continue;
       seen.add(message.id);
       out.push(message);
     }
     return out; // ya viene más nuevo primero: encaja con FlatList `inverted`
-  }, [live, history.data]);
+  }, [live, history.data, history.dataUpdatedAt]);
 
   // Empre AI responde con lo que publicó el negocio (3.62, F1). Las reglas viven en `lib/chatAutoAnswer`.
   const latest = useRef({ messages, otherOnline, aiRows, pending, opening });
@@ -334,7 +331,7 @@ export default function ChatScreen() {
       if (saved.length) setLive((prev) => [...saved.filter((m) => !prev.some((x) => x.id === m.id)).reverse(), ...prev]);
       if (local.length) setAiRows((prev) => [...local.filter((r) => !prev.some((x) => x.id === r.id)).reverse(), ...prev]);
     })();
-  }, [answerData?.name, name, entityId, user?.id]);
+  }, [answerData?.name, name, entityId]);
 
   // Mientras haya preguntas en espera, se revisa cada segundo (el dueño puede contestar o pasar los 45 s).
   useEffect(() => {
