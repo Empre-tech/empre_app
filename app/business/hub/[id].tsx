@@ -1,16 +1,19 @@
 import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi, type Appointment } from '@/api/agenda';
 import { answersApi } from '@/api/answers';
-import { entitiesApi, paymentsApi } from '@/api/endpoints';
+import { chatApi, entitiesApi, paymentsApi } from '@/api/endpoints';
 import { ledgerApi } from '@/api/ledger';
 import { novedadesApi } from '@/api/novedades';
 import { offersApi } from '@/api/offers';
+import { useChat } from '@/chat/ChatProvider';
 import { useInboxSummary } from '@/chat/useInboxSummary';
+import { Chispa } from '@/components/ai/Chispa';
+import { useAnswerData } from '@/components/chat/useAnswerData';
 import { Avatar } from '@/components/Avatar';
 import { Cover } from '@/components/Cover';
 import { EmpreSymbol, type EmpreProduct } from '@/components/EmpreSymbol';
@@ -20,6 +23,7 @@ import { GrowthCard } from '@/components/profile/GrowthCard';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { ActionTile, StatusCap, SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
 import { FEATURES } from '@/config';
+import { ownerDraft } from '@/lib/answers';
 import { catalogCopy } from '@/lib/catalog';
 import { addDays, presetRange, todayCO } from '@/lib/finance';
 import { formatPesos } from '@/lib/ledger';
@@ -80,6 +84,15 @@ export default function BusinessHubScreen() {
   const items = useQuery({ queryKey: ['ledger', entityId, 'items'], queryFn: () => ledgerApi.items(entityId), enabled: Boolean(entityId) && FEATURES.ledger, staleTime: 60_000, retry: false });
   const insights = useQuery({ queryKey: ['ledger', entityId, 'insights'], queryFn: () => ledgerApi.insights(entityId), enabled: Boolean(entityId) && FEATURES.ledger, staleTime: 60_000, retry: false });
   const offerList = useQuery({ queryKey: ['offers', entityId], queryFn: () => offersApi.list(entityId), enabled: Boolean(entityId), staleTime: 60_000, retry: false });
+  // La pregunta de un cliente que espera respuesta: la conversación más nueva de este negocio cuyo último mensaje es
+  // un texto del cliente (no una respuesta de Empre AI). Se lee de la lista: abrir el chat lo marcaría como leído.
+  const chat = useChat();
+  const answerData = useAnswerData(entityId, true, true);
+  const convs = useQuery({ queryKey: ['conversations'], queryFn: chatApi.conversations, enabled: Boolean(entityId), staleTime: 30_000 });
+  const [sentTo, setSentTo] = useState<string[]>([]);
+  const waiting = (convs.data ?? [])
+    .filter((c) => c.entity_id === entityId && c.other_party.type === 'user' && !c.sent_by_entity && c.unread_count > 0 && (c.kind ?? 'text') === 'text' && c.content.trim() && !sentTo.includes(c.id))
+    .sort((x, y) => Date.parse(y.created_at) - Date.parse(x.created_at))[0];
 
   if (business.isLoading) {
     return (
@@ -259,6 +272,21 @@ export default function BusinessHubScreen() {
           )}
         </View>
 
+        {/* Empre AI te deja lista la respuesta (tablero «Mi negocio», teléfono 2): la envías o la cambias */}
+        {waiting ? (
+          <DraftCard
+            customer={waiting.other_party.name}
+            question={waiting.content}
+            draft={answerData ? ownerDraft(answerData, waiting.content, { weekday: new Date(nowMs).getDay(), now: nowMs }) : null}
+            onSend={(text) => {
+              const ok = chat.send({ entity_id: entityId, user_id: waiting.other_party.id, sent_by_entity: true, content: text });
+              if (ok) setSentTo((prev) => [...prev, waiting.id]);
+              else router.push({ pathname: '/chat/[entityId]', params: { entityId, userId: waiting.other_party.id, name: waiting.other_party.name, avatar: waiting.other_party.profile_url, draft: text } });
+            }}
+            onOpen={(text) => router.push({ pathname: '/chat/[entityId]', params: { entityId, userId: waiting.other_party.id, name: waiting.other_party.name, avatar: waiting.other_party.profile_url, ...(text ? { draft: text } : {}) } })}
+          />
+        ) : null}
+
         <GrowthCard entityId={entityId} onGo={(g) => (g === 'catalog' ? products() : g === 'offer' ? offers() : g === 'photos' ? photos() : edit())} />
 
         <View style={styles.spaces} accessibilityRole="menu" accessibilityLabel="Tus espacios">
@@ -297,7 +325,48 @@ export default function BusinessHubScreen() {
   );
 }
 
+/**
+ * La pregunta de un cliente con la respuesta que Empre AI dejó lista, en primera persona y con lo publicado. Si no la
+ * sabe, solo dice qué preguntó y «Responder» abre el chat. Nada se envía sin un toque del dueño.
+ */
+function DraftCard({ customer, question, draft, onSend, onOpen }: { customer: string; question: string; draft: string | null; onSend: (text: string) => void; onOpen: (text: string | null) => void }) {
+  const first = customer.trim().split(/\s+/)[0] || 'Un cliente';
+  return (
+    <View style={styles.draft} accessibilityLiveRegion="polite">
+      <View style={styles.draftHead}>
+        <Chispa size={20} mood="responde" />
+        <Text style={styles.draftWho}>Empre AI</Text>
+      </View>
+      <Text style={styles.draftText}>
+        <Text style={styles.draftBold}>{first}</Text>
+        {` preguntó «${question.trim()}».${draft ? ' Te dejé lista la respuesta:' : ' No lo sé con lo que publicaste: respóndele tú.'}`}
+      </Text>
+      {draft ? <Text style={styles.draftQuote}>{`«${draft}»`}</Text> : null}
+      <View style={styles.draftBtns}>
+        {draft ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Enviarle a ${first}: ${draft}`} onPress={() => onSend(draft)} style={({ pressed }) => [styles.btnRed, styles.draftBtn, pressed && { opacity: 0.85 }]}>
+            <Text style={styles.btnRedText}>Enviar</Text>
+          </Pressable>
+        ) : null}
+        <Pressable accessibilityRole="button" onPress={() => onOpen(draft)} style={({ pressed }) => [styles.draftEdit, styles.draftBtn, pressed && { opacity: 0.85 }]}>
+          <Text style={styles.draftEditText}>{draft ? 'Cambiarla' : 'Responder'}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  draft: { gap: 8, padding: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  draftHead: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  draftWho: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  draftText: { fontSize: 15, lineHeight: 21, fontFamily: fonts.ui.semibold, color: colors.ink },
+  draftBold: { fontFamily: fonts.ui.extrabold },
+  draftQuote: { fontSize: 15, lineHeight: 21, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  draftBtns: { flexDirection: 'row', gap: 8, marginTop: 2 },
+  draftBtn: { flex: 1, alignItems: 'center' },
+  draftEdit: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderColor: colors.nightSoft },
+  draftEditText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   switchRow: { flexDirection: 'row', marginBottom: 12 },
   screen: { flex: 1, backgroundColor: colors.bg },
   body: { paddingHorizontal: 20, gap: 16 },

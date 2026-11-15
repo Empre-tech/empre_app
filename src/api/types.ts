@@ -224,6 +224,8 @@ export interface Conversation {
   other_party: ConversationParty;
   /** Cuántos mensajes del otro lado están sin leer en esta conversación. */
   unread_count: number;
+  /** De qué tipo es el último mensaje («text», «ai_answer»…). Un servidor viejo no lo manda. */
+  kind?: string;
 }
 
 /** Campos editables de un negocio (POST /api/entities y PUT /api/entities/:id). */
