@@ -1,7 +1,7 @@
 import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi, type Appointment } from '@/api/agenda';
@@ -25,6 +25,7 @@ import { addDays, presetRange, todayCO } from '@/lib/finance';
 import { formatPesos } from '@/lib/ledger';
 import { displayIcon } from '@/lib/mapView';
 import { timeLeftLabel, timeLeftMs } from '@/lib/offer';
+import { useNow } from '@/lib/useNow';
 import { colors, fonts, softShadow, spacing } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -39,18 +40,12 @@ interface HubRow {
   onPress: () => void;
 }
 
-const DAY_FROM = 8;
-const DAY_TO = 20;
 const startCO = (ymd: string) => `${ymd}T00:00:00-05:00`;
-const hourOf = (iso: string) => {
-  const d = new Date(new Date(iso).getTime() - 5 * 3600 * 1000);
-  return d.getUTCHours() + d.getUTCMinutes() / 60;
-};
-const dayPct = (h: number) => Math.max(0, Math.min(100, ((h - DAY_FROM) / (DAY_TO - DAY_FROM)) * 100));
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
 
 /**
- * «Mi negocio», ordenado por lo que el dueño viene a hacer: la portada de cómo lo ven, cómo va hoy con su acción roja, sus
+ * «Mi negocio», ordenado por lo que el dueño viene a hacer (tablero «Mi negocio», teléfono 2): la portada de cómo lo ven,
+ * el día en una frase, «Lo que sigue» (lo que pide respuesta y las citas de hoy), sus
  * cuatro espacios con su dato, lo de todos los días y, al final, lo de vez en cuando. Lo principal cabe en la primera pantalla.
  */
 export default function BusinessHubScreen() {
@@ -61,7 +56,8 @@ export default function BusinessHubScreen() {
   const inbox = useInboxSummary();
   const today = todayCO();
   const dayRange = useMemo(() => presetRange('today', today), [today]);
-  const [selId, setSelId] = useState<string | null>(null);
+  // La hora de «Lo que sigue» (qué cita es «Ahora»): se refresca cada minuto.
+  const nowMs = useNow(60_000);
 
   const business = useQuery({ queryKey: ['entity', entityId], queryFn: () => entitiesApi.get(entityId), enabled: Boolean(entityId) });
   const subscription = useQuery({ queryKey: ['subscription', entityId], queryFn: () => paymentsApi.getSubscription(entityId), enabled: Boolean(entityId) });
@@ -120,13 +116,20 @@ export default function BusinessHubScreen() {
 
   const appts = (agendaDay.data ?? []).filter((a) => a.kind === 'booking' && (a.status === 'requested' || a.status === 'confirmed'));
   const confirmed = appts.filter((a) => a.status === 'confirmed').length;
-  const nowH = hourOf(new Date().toISOString());
-  const next = appts.find((a) => a.status === 'confirmed' && hourOf(a.starts_at) >= nowH);
-  const sel: Appointment | undefined = appts.find((a) => a.id === selId) ?? next ?? appts[0];
-  const showDay = FEATURES.agenda && (appts.length > 0 || requests > 0);
-  // La acción roja cambia con lo que toca: responder si hay una cita pendiente; si no, vender.
-  const responding = Boolean(sel && showDay && sel.status === 'requested');
   const who = (a: Appointment) => [a.customer?.name, a.service?.name].filter(Boolean).join(' · ') || 'Cita';
+  // «Lo que sigue» (tablero «Mi negocio», teléfono 2): lo que pide respuesta primero; después las citas de hoy en orden,
+  // con la que está pasando como «Ahora». Solo lo que hay: sin citas, no hay lista.
+  const coming = appts.filter((a) => Date.parse(a.ends_at) > nowMs).sort((x, y) => Date.parse(x.starts_at) - Date.parse(y.starts_at));
+  const listedRequests = coming.slice(0, 4).filter((a) => a.status === 'requested').length;
+  const steps: { key: string; hora: string; t: string; d: string; cta: string | null; now: boolean }[] = FEATURES.agenda
+    ? [
+        ...(requests > listedRequests ? [{ key: 'req', hora: '•', t: requests === 1 ? '1 cita por responder' : `${requests} citas por responder`, d: 'Esperan tu sí', cta: 'Ver', now: true }] : []),
+        ...coming.slice(0, 4).map((a) => {
+          const on = Date.parse(a.starts_at) <= nowMs;
+          return { key: a.id, hora: on ? 'Ahora' : timeOf(a.starts_at), t: who(a), d: a.status === 'requested' ? 'Por responder' : on ? `Termina ${timeOf(a.ends_at)}` : 'Confirmada', cta: a.status === 'requested' ? 'Responder' : null, now: on };
+        }),
+      ]
+    : [];
 
   const short = copy.kind === 'service' ? 'Servicios' : 'Productos';
   const running = (offerList.data ?? []).map((o) => timeLeftMs(o.ends_at)).filter((ms) => ms > 0).sort((x, y) => x - y)[0];
@@ -202,62 +205,58 @@ export default function BusinessHubScreen() {
           )}
         </Text>
         <View style={styles.main}>
-          {soldToday > 0 || (FEATURES.agenda && appts.length > 0) ? (
+          {FEATURES.ledger && soldToday > 0 ? (
             <View style={styles.mainTop}>
-              {FEATURES.ledger ? (
-                <Pressable accessibilityRole="button" accessibilityLabel={soldToday > 0 ? `Hoy vas ${formatPesos(soldToday)}. Abrir Finanzas` : 'Aún sin ventas hoy. Abrir Finanzas'} onPress={finance} style={styles.today}>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.label}>{soldToday > 0 ? 'Hoy vas' : 'Hoy'}</Text>
-                    <Text style={soldToday > 0 ? styles.big : styles.todayWords} numberOfLines={1} adjustsFontSizeToFit>
-                      {soldToday > 0 ? formatPesos(soldToday) : 'Aún sin ventas'}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={colors.ink} />
-                </Pressable>
-              ) : null}
-              {FEATURES.agenda && appts.length > 0 ? (
-                <View style={{ gap: 6 }}>
-                  <View style={styles.dayTrack}>
-                    {appts.map((a) => {
-                      const on = sel?.id === a.id;
-                      const pending = a.status === 'requested';
-                      return (
-                        <Pressable
-                          key={a.id}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected: on }}
-                          accessibilityLabel={`${timeOf(a.starts_at)}, ${who(a)}${pending ? ', por responder' : ''}`}
-                          onPress={() => setSelId(a.id)}
-                          style={[styles.dayBlock, { left: `${dayPct(hourOf(a.starts_at))}%`, width: `${Math.max(5, dayPct(hourOf(a.ends_at)) - dayPct(hourOf(a.starts_at)))}%` }, pending ? styles.dayPending : styles.dayConfirmed, on && styles.dayOn]}
-                        />
-                      );
-                    })}
-                    {nowH >= DAY_FROM && nowH <= DAY_TO ? <View pointerEvents="none" style={[styles.dayNow, { left: `${dayPct(nowH)}%` }]} /> : null}
-                  </View>
-                  <View style={styles.dayLabels}>
-                    {['8 am', '12 m', '4 pm', '8 pm'].map((l) => (
-                      <Text key={l} style={styles.dayLabel}>
-                        {l}
-                      </Text>
-                    ))}
-                  </View>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Hoy vas ${formatPesos(soldToday)}. Abrir Finanzas`} onPress={finance} style={styles.today}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.label}>Hoy vas</Text>
+                  <Text style={styles.big} numberOfLines={1} adjustsFontSizeToFit>
+                    {formatPesos(soldToday)}
+                  </Text>
                 </View>
-              ) : null}
+                <Ionicons name="chevron-forward" size={18} color={colors.ink} />
+              </Pressable>
             </View>
           ) : null}
-          <View style={styles.mainFoot}>
-            <View style={styles.footText} accessibilityLiveRegion="polite">
-              <Text style={styles.footHead} numberOfLines={1}>
-                {sel && showDay ? `${sel.status === 'requested' ? 'Por responder' : 'Cita'}: ${timeOf(sel.starts_at)}` : soldToday > 0 ? 'Sin citas por ahora' : 'Aún sin ventas hoy'}
-              </Text>
-              <Text style={styles.footSub} numberOfLines={1}>
-                {sel && showDay ? who(sel) : soldToday > 0 ? '¿Vendiste algo más?' : 'Toma dos toques registrar la primera'}
-              </Text>
+          {steps.length ? (
+            <View style={styles.next}>
+              <Text style={styles.label}>Lo que sigue</Text>
+              {steps.map((st, i) => (
+                <Pressable key={st.key} accessibilityRole="button" accessibilityLabel={`${st.hora === '•' ? '' : `${st.hora}. `}${st.t}. ${st.d}. Abrir agenda`} onPress={agenda} style={({ pressed }) => [styles.nextRow, i > 0 && styles.nextLine, pressed && { opacity: 0.85 }]}>
+                  <Text style={[styles.nextHour, st.now && styles.nextHourNow]}>{st.hora}</Text>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.nextTitle} numberOfLines={1}>
+                      {st.t}
+                    </Text>
+                    <Text style={styles.nextSub} numberOfLines={1}>
+                      {st.d}
+                    </Text>
+                  </View>
+                  {st.cta ? (
+                    <View style={styles.nextCta}>
+                      <Text style={styles.nextCtaText}>{st.cta}</Text>
+                    </View>
+                  ) : (
+                    <Ionicons name="chevron-forward" size={16} color={colors.placeholder} />
+                  )}
+                </Pressable>
+              ))}
             </View>
-            <Pressable accessibilityRole="button" onPress={responding ? agenda : sale} style={styles.btnRed}>
-              <Text style={styles.btnRedText}>{responding ? 'Responder' : 'Registrar venta'}</Text>
-            </Pressable>
-          </View>
+          ) : (
+            <View style={styles.mainFoot}>
+              <View style={styles.footText} accessibilityLiveRegion="polite">
+                <Text style={styles.footHead} numberOfLines={1}>
+                  {soldToday > 0 ? 'Sin citas por ahora' : 'Aún sin ventas hoy'}
+                </Text>
+                <Text style={styles.footSub} numberOfLines={1}>
+                  {soldToday > 0 ? '¿Vendiste algo más?' : 'Toma dos toques registrar la primera'}
+                </Text>
+              </View>
+              <Pressable accessibilityRole="button" onPress={sale} style={styles.btnRed}>
+                <Text style={styles.btnRedText}>Registrar venta</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
 
         <GrowthCard entityId={entityId} onGo={(g) => (g === 'catalog' ? products() : g === 'offer' ? offers() : g === 'photos' ? photos() : edit())} />
@@ -282,9 +281,10 @@ export default function BusinessHubScreen() {
         <View style={{ gap: 8 }}>
           <Text style={styles.label}>Lo de todos los días</Text>
           <View style={styles.tiles}>
-            <ActionTile icon="qr-code-outline" label="Canjear" onPress={go('/business/scan')} />
-            {FEATURES.ledger ? <ActionTile icon="remove-circle-outline" label="Gasto" onPress={go({ pathname: '/business/ledger/expense/[id]', params: { id: entityId } })} /> : null}
-            <ActionTile icon="add-circle-outline" label={copy.kind === 'service' ? 'Agregar servicio' : 'Agregar producto'} onPress={go({ pathname: '/business/products/item', params: { entityId } })} />
+            {/* Las tres del tablero «Mi negocio»: canjear y anotar un gasto viven en el botón Empre y en tu perfil */}
+            <ActionTile icon="add-circle-outline" label={copy.kind === 'service' ? 'Subir un servicio' : 'Subir un producto'} onPress={go({ pathname: '/business/products/item', params: { entityId } })} />
+            <ActionTile icon="pricetag-outline" label="Crear una oferta" onPress={offers} />
+            {FEATURES.ledger ? <ActionTile icon="cash-outline" label="Anotar una venta" onPress={sale} /> : null}
           </View>
         </View>
 
@@ -305,18 +305,20 @@ const styles = StyleSheet.create({
   mainTop: { gap: 10, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.selectedSoft },
   big: { fontSize: 30, lineHeight: 34, fontFamily: fonts.display.bold, color: colors.finance, fontVariant: ['tabular-nums'] },
   label: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  dayTrack: { height: 32, borderRadius: 8, justifyContent: 'center', backgroundColor: colors.selectedSoft },
-  dayBlock: { position: 'absolute', top: 0, bottom: 0, borderRadius: 6 },
-  dayConfirmed: { backgroundColor: colors.agenda },
-  dayPending: { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.ink },
-  dayOn: { shadowColor: colors.ink, shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 3, transform: [{ scale: 1.08 }] },
-  dayNow: { position: 'absolute', top: -5, bottom: -5, width: 2, backgroundColor: colors.brand },
+  // «Lo que sigue»: la hora a la izquierda (roja si es ahora), qué es y, si pide algo, el botón.
+  next: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+  nextRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  nextLine: { borderTopWidth: 1, borderTopColor: colors.selectedSoft },
+  nextHour: { width: 52, fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  nextHourNow: { color: colors.agenda },
+  nextTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  nextSub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
+  nextCta: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 18, borderWidth: 1.5, borderColor: colors.nightSoft },
+  nextCtaText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   daySentence: { fontFamily: fonts.display.bold, fontSize: 22, lineHeight: 26, color: colors.ink, marginBottom: 12 },
   dsAgenda: { color: colors.agenda },
   dsUnder: { textDecorationLine: 'underline' },
   dsMoney: { color: colors.finance },
-  dayLabels: { flexDirection: 'row', justifyContent: 'space-between' },
-  dayLabel: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.faint },
   mainFoot: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingLeft: 16, paddingRight: 12 },
   footText: { flex: 1, minWidth: 0, gap: 2 },
   footHead: { fontSize: 16, lineHeight: 20, fontFamily: fonts.display.bold, color: colors.ink },
@@ -331,7 +333,6 @@ const styles = StyleSheet.create({
   seenLink: { flexShrink: 0, fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: '#fff', textDecorationLine: 'underline' },
   back: { position: 'absolute', top: 10, left: 10, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   today: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  todayWords: { fontSize: 19, lineHeight: 24, fontFamily: fonts.display.bold, color: colors.ink },
   spaces: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   space: { width: '48.8%', minHeight: 92, justifyContent: 'space-between', gap: 6, padding: 12, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
   spaceDot: { position: 'absolute', top: 12, right: 12, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.brand },
