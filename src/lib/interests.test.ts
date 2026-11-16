@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { addSignal, decay, forYou, forYouHeader, myInterests, peopleInterests, seenBusinesses, sharedReasonTitle, MAX_SIGNALS, type Signal } from './interests.ts';
+import { addSignal, decay, forYou, forYouHeader, myInterests, peopleInterests, seenBusinesses, sharedReasonTitle, focusReasonRow, MAX_SIGNALS, type Signal } from './interests.ts';
 
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 10, 14, 17);
@@ -99,4 +99,17 @@ test('sharedReasonTitle: la misma razón para todos va una vez, en el título', 
   // Razones distintas o uno solo: cada uno dice la suya
   assert.equal(sharedReasonTitle(['Lo viste hace poco', 'Buscas comida']), null);
   assert.equal(sharedReasonTitle(['Lo viste hace poco']), null);
+});
+
+test('focusReasonRow: cuatro con la misma razón se quedan solos con su título', () => {
+  const r = (reason: string, id: string) => ({ reason, id });
+  const picks = [r('Lo viste hace poco', 'a'), r('Lo viste hace poco', 'b'), r('Lo viste hace poco', 'c'), r('Lo viste hace poco', 'd'), r('Abierto cerca', 'e'), r('Abierto cerca', 'f')];
+  const row = focusReasonRow(picks);
+  assert.equal(row.title, 'Lo que viste hace poco');
+  assert.deepEqual(row.picks.map((p) => p.id), ['a', 'b', 'c', 'd']);
+  // Todos iguales: igual, con todos
+  assert.equal(focusReasonRow(picks.slice(0, 3)).title, 'Lo que viste hace poco');
+  // Mezclados y ninguno llega a cuatro: cada uno dice la suya
+  const mixed = [r('Buscas comida', 'a'), r('Lo viste hace poco', 'b'), r('Lo buscan cerca', 'c'), r('Abierto cerca', 'd')];
+  assert.deepEqual(focusReasonRow(mixed), { title: null, picks: mixed });
 });

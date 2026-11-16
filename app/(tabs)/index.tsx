@@ -7,8 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { ScreenGlow } from '@/components/ScreenGlow';
 import { artKeyFor, artKeyMatch } from '@/components/CategoryArt';
-import { forYou, forYouHeader, myInterests, peopleInterests, seenBusinesses, sharedReasonTitle } from '@/lib/interests';
-import { otherZone, rowNames } from '@/lib/businessName';
+import { focusReasonRow, forYou, forYouHeader, myInterests, peopleInterests, seenBusinesses } from '@/lib/interests';
+import { learnPlaceSuffixes, otherZone, rowNames } from '@/lib/businessName';
 import { noteInterest, useInterestSignals } from '@/lib/interestStore';
 import { BusinessArt } from '@/components/CategoryIllustration';
 import { artCounts, closeChip, hourLabel, type ArtCount } from '@/lib/offerHome';
@@ -127,18 +127,22 @@ export default function HomeScreen() {
   const people = useMemo(() => peopleInterests((market.data?.searched.terms ?? []).map((t) => t.label || t.term), artKeyMatch), [market.data]);
   const forYouPicks = useMemo(() => (strip.length ? [] : forYou(discovery, mine, people, seen, artKeyFor, 8)), [strip.length, discovery, mine, people, seen]);
   const forYouHead = forYouPicks.length ? forYouHeader(mine, people) : null;
-  // Si todos están por la misma razón («Lo viste hace poco» ×4), va una vez en el título y debajo, lo que los distingue.
-  const forYouShared = sharedReasonTitle(forYouPicks.map((p) => p.reason));
-  // Los nombres sin el barrio («Helados del Mar Mamatoco» → «Helados del Mar»), salvo dos sedes juntas.
-  const zoneNames = useMemo(() => zones.map((z) => z.name), [zones]);
+  // Si todos (o al menos cuatro) están por la misma razón («Lo viste hace poco»), la razón va una vez en el título, la
+  // fila se queda con esos y debajo de cada uno va lo que lo distingue; el resto sigue en «Abierto ahora cerca».
+  const forYouRow = useMemo(() => focusReasonRow(forYouPicks), [forYouPicks]);
+  const forYouShown = forYouRow.picks;
+  const forYouShared = forYouRow.title;
+  // Los nombres sin el barrio («Helados del Mar Mamatoco» → «Helados del Mar»), salvo dos sedes juntas. Los barrios
+  // salen de las zonas registradas y de los mismos nombres cercanos (las zonas registradas son pocas).
+  const zoneNames = useMemo(() => [...zones.map((z) => z.name), ...learnPlaceSuffixes(discovery.map((b) => b.name))], [zones, discovery]);
 
   // Abierto ahora cerca: lo más cercano primero, con cuándo cierra; sin repetir lo que ya salió en «Para ti».
   const openCards = useMemo(() => {
     const sorted = [...openNear].sort((a, b) => a.distance_meters - b.distance_meters);
-    const shown = new Set(forYouPicks.map((p) => p.item.id));
+    const shown = new Set(forYouShown.map((p) => p.item.id));
     const rest = sorted.filter((b) => !shown.has(b.id));
     return (rest.length >= 2 ? rest : sorted).slice(0, 8);
-  }, [openNear, forYouPicks]);
+  }, [openNear, forYouShown]);
 
   // Al bajar: un muro corto tipo Pinterest de lo que ofrecen los negocios cerca (tablero «Inicio», teléfono 2). Solo lo
   // que publicaron, seis para no saturar; al tocar uno se abre en Ofertas, con su media hoja (los componentes se pasan
@@ -195,7 +199,7 @@ export default function HomeScreen() {
 
   // Los nombres de cada fila, sin el barrio (dos sedes juntas quedan completas).
   const stripNames = rowNames(strip.map((w) => w.name), zoneNames);
-  const forYouNames = rowNames(forYouPicks.map((p) => p.item.name), zoneNames);
+  const forYouNames = rowNames(forYouShown.map((p) => p.item.name), zoneNames);
   const openNames = rowNames(openCards.map((b) => b.name), zoneNames);
   // Cuando la razón va en el título, debajo de cada uno: cuándo cierra si es pronto, si no el tipo y a cuánto queda.
   const distinct = (b: (typeof forYouPicks)[number]['item']) => {
@@ -293,14 +297,14 @@ export default function HomeScreen() {
           ) : null}
 
           {/* Para ti: cuando no sigues a nadie, lo que más buscas y lo que busca la gente; cada uno dice por qué está */}
-          {forYouHead && forYouPicks.length ? (
+          {forYouHead && forYouShown.length ? (
             <View style={styles.section}>
               {/* Solo el título: el porqué va debajo de cada negocio; si es el mismo para todos, va aquí una vez */}
               <Text style={styles.secTitle} accessibilityRole="header">
                 {forYouShared ?? forYouHead.title}
               </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.followIn}>
-                {forYouPicks.map(({ item: b, reason, source }, i) => {
+                {forYouShown.map(({ item: b, reason, source }, i) => {
                   const name = forYouNames[i].name;
                   const why = forYouShared ? distinct(b) : reason;
                   return (

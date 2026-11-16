@@ -185,6 +185,24 @@ export function sharedReasonTitle(reasons: readonly string[]): string | null {
   return r;
 }
 
+/**
+ * La fila de «Para ti» con su título: si todos comparten la razón, va al título; si una razón la comparten al menos
+ * `min` (los cuatro que viste hace poco y luego otros por estar abiertos), la fila se queda con esos y el resto sigue en
+ * «Abierto ahora cerca». Si no, la fila queda como está y cada uno dice la suya.
+ */
+export function focusReasonRow<T extends { reason: string }>(picks: readonly T[], min = 4): { title: string | null; picks: T[] } {
+  const all = sharedReasonTitle(picks.map((p) => p.reason));
+  if (all) return { title: all, picks: [...picks] };
+  const count = new Map<string, number>();
+  for (const p of picks) count.set(p.reason, (count.get(p.reason) ?? 0) + 1);
+  const top = [...count].sort((a, b) => b[1] - a[1])[0];
+  if (top && top[1] >= min) {
+    const kept = picks.filter((p) => p.reason === top[0]);
+    return { title: sharedReasonTitle(kept.map((p) => p.reason)), picks: kept };
+  }
+  return { title: null, picks: [...picks] };
+}
+
 /** El título de la fila y su porqué. Sin señales, nada. */
 export function forYouHeader(mine: Map<ArtKey, number>, people: Map<ArtKey, number>): { title: string; sub: string } | null {
   const top = [...mine].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k]) => label(k));
