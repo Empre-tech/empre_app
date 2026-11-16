@@ -56,7 +56,9 @@ export function EmpreMark({ size = 34, color = '#FFFFFF' }: { size?: number; col
  * - Con negocio: subir un servicio, crear una oferta, la agenda y Empre AI; junto al botón, anotar un gasto o una venta.
  *   Con varios negocios, cada atajo pregunta «¿En cuál negocio?» y entra directo; con uno solo, ese paso no aparece.
  * - Sin negocio: tus salidas, citas y guardados; donde el dueño anota la plata está Empre AI.
- * Al abrir, lo de atrás se aclara con un velo blanco y el botón se vuelve negro con una X.
+ * Al abrir, lo de atrás se aclara con un velo blanco y el botón muestra una X.
+ * 2026-11-15: el botón es del color del fondo con un aro en el rojo de referencia (#FF1D25) y el logo en tinta, como el
+ * botón flotante de la app donde corre Empre; ya no es un círculo rojo lleno.
  */
 export function EmpreButton({ bottom }: { bottom: number }) {
   const router = useRouter();
@@ -144,7 +146,7 @@ export function EmpreButton({ bottom }: { bottom: number }) {
         onPress={() => setOpen(true)}
         style={({ pressed }) => [styles.fab, { bottom }, pressed && styles.pressed]}
       >
-        <EmpreMark />
+        <EmpreMark color={colors.ink} />
       </Pressable>
 
       <Modal visible={open} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => (asking ? setAsking(null) : close())}>
@@ -230,7 +232,7 @@ export function EmpreButton({ bottom }: { bottom: number }) {
 
           {/* El botón abierto: el logo se vuelve una X en el mismo lugar. */}
           <Pressable accessibilityRole="button" accessibilityLabel="Cerrar el menú de Empre" onPress={() => close()} style={[styles.fab, styles.fabOpen, { bottom }]}>
-            <Ionicons name="close" size={26} color="#FFFFFF" />
+            <Ionicons name="close" size={26} color={colors.ink} />
           </Pressable>
         </Animated.View>
       </Modal>
@@ -249,14 +251,16 @@ const styles = StyleSheet.create({
     borderRadius: EMPRE_BUTTON / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.brand,
-    shadowColor: colors.brand,
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
+    backgroundColor: colors.surface,
+    borderWidth: 2.5,
+    borderColor: colors.brandRef,
+    shadowColor: colors.ink,
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
-  fabOpen: { backgroundColor: colors.primary, shadowColor: colors.ink, shadowOpacity: 0.25 },
+  fabOpen: { backgroundColor: colors.surface, shadowOpacity: 0.2 },
   pressed: { opacity: 0.8 },
   veil: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(43,38,34,0.06)' },
   menu: { position: 'absolute', right: SIDE, left: SIDE, alignItems: 'flex-end', gap: 8 },
