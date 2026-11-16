@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
     height: 28,
     paddingHorizontal: 11,
     borderRadius: radius.pill,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.well,
     borderWidth: 1,
     borderColor: colors.line,
   },

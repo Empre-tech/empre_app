@@ -198,6 +198,6 @@ const styles = StyleSheet.create({
   alert: { flexShrink: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 5 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   alertText: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
-  chev: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
+  chev: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.well },
   fold: { paddingBottom: 6 },
 });

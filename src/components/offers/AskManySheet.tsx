@@ -663,7 +663,7 @@ const styles = StyleSheet.create({
   rowSub: { fontFamily: fonts.ui.bold, fontSize: 11.5, color: colors.muted },
   rowValue: { fontFamily: fonts.display.bold, fontSize: 15.5, color: colors.ink },
   askBtn: { minHeight: 44, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 5 },
-  askBtnSent: { backgroundColor: colors.bg },
+  askBtnSent: { backgroundColor: colors.well },
   askText: { fontFamily: fonts.ui.extrabold, fontSize: 12.5, color: colors.ink },
   askAll: { alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 6 },
   askAllText: { fontFamily: fonts.ui.extrabold, fontSize: 13, color: colors.ink },

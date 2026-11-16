@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
   segHint: { fontSize: 11, fontFamily: fonts.ui.bold, color: '#5B606B' },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  stepBtn: { width: 52, height: 52, borderRadius: 14, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
+  stepBtn: { width: 52, height: 52, borderRadius: 14, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.well, alignItems: 'center', justifyContent: 'center' },
   count: { fontSize: 26, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center', minWidth: 120, paddingVertical: 0 },
   actions: { flexDirection: 'row', gap: spacing.sm },
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },

@@ -28,6 +28,9 @@ export const colors = {
   // 2026-11-15: el fondo es 80 % BLANCO y 20 % arena cálida. La arena solo vive arriba, en un degradado que se funde
   // con el blanco (ScreenGlow); no es lo que destaca.
   bg: '#FFFFFF',
+  // ARENA suave para lo de adentro (pozos, buscadores, pasos, fichas pequeñas): el tono del fondo de antes. Es parte del
+  // 20 % de arena: se nota sin destacar.
+  well: '#FEFAF2',
   surface: '#FFFEFB', // CREMA, ~20 %: tarjetas, hojas y barras, un paso más claras que el fondo
   verified: '#B91C1C', // abierto, verificado, hecho (texto)
   verifiedSoft: '#FDECEC',

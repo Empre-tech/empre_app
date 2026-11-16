@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   meta: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
   row: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
-  tile: { width: TILE, height: TILE, borderRadius: 14, overflow: 'visible', backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line },
+  tile: { width: TILE, height: TILE, borderRadius: 14, overflow: 'visible', backgroundColor: colors.well, borderWidth: 1, borderColor: colors.line },
   cover: { borderWidth: 2, borderColor: colors.primary },
   img: { width: '100%', height: '100%', borderRadius: 12 },
   veil: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: 12, backgroundColor: 'rgba(22,35,58,0.45)', alignItems: 'center', justifyContent: 'center' },
@@ -172,6 +172,6 @@ const styles = StyleSheet.create({
   grab: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.line, alignSelf: 'center' },
   title: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
   sources: { flexDirection: 'row', gap: spacing.sm },
-  source: { flex: 1, minHeight: 92, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  source: { flex: 1, minHeight: 92, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.well, alignItems: 'center', justifyContent: 'center', gap: 6 },
   sourceText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink, textAlign: 'center' },
 });

@@ -708,7 +708,7 @@ const styles = StyleSheet.create({
   altGroup: { gap: 8 },
   altHead: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   ideas: { flexDirection: 'row', gap: 8 },
-  idea: { flex: 1, minWidth: 0, minHeight: 84, alignItems: 'center', justifyContent: 'center', gap: 6, padding: 8, borderRadius: 16, backgroundColor: colors.bg },
+  idea: { flex: 1, minWidth: 0, minHeight: 84, alignItems: 'center', justifyContent: 'center', gap: 6, padding: 8, borderRadius: 16, backgroundColor: colors.well },
   ideaText: { fontSize: 12.5, textAlign: 'center', fontFamily: fonts.ui.extrabold, color: colors.ink },
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   openDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#D42020' },
@@ -717,7 +717,7 @@ const styles = StyleSheet.create({
   // Escribiendo
   header: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingBottom: 10, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.hairline },
   back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  searchBox: { flex: 1, minWidth: 0, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 16, paddingRight: 8, borderRadius: 24, backgroundColor: colors.bg, borderWidth: 2, borderColor: colors.ink },
+  searchBox: { flex: 1, minWidth: 0, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 16, paddingRight: 8, borderRadius: 24, backgroundColor: colors.well, borderWidth: 2, borderColor: colors.ink },
   input: { flex: 1, minWidth: 0, minHeight: 48, fontSize: 16, fontFamily: fonts.ui.bold, color: colors.ink, padding: 0 },
   clearBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.line },
   micBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
@@ -798,6 +798,6 @@ const styles = StyleSheet.create({
   why: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
   statusText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold },
   note: { fontSize: 12, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.faint },
-  none: { gap: spacing.sm, padding: 14, borderRadius: 16, backgroundColor: colors.bg },
+  none: { gap: spacing.sm, padding: 14, borderRadius: 16, backgroundColor: colors.well },
   noneTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

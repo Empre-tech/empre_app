@@ -658,7 +658,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1.5,
     borderColor: colors.line,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.well,
     fontSize: 15,
     fontFamily: fonts.ui.semibold,
     color: colors.ink,

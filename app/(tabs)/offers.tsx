@@ -1101,7 +1101,7 @@ const styles = StyleSheet.create({
   peekCell: { flex: 1, gap: 4 },
   // Sin ofertas cerca, lo que venden se ve más grande: seis, en dos filas (nunca un aviso vacío)
   peekCellWide: { flex: 0, width: '31%' },
-  peekImg: { width: '100%', aspectRatio: 1, borderRadius: 12, backgroundColor: colors.bg },
+  peekImg: { width: '100%', aspectRatio: 1, borderRadius: 12, backgroundColor: colors.well },
   peekText: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.ink, textAlign: 'center' },
   barrios: { gap: 20, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.line, marginTop: -8 },
   barrio: { minHeight: 44, justifyContent: 'flex-end', gap: 8 },

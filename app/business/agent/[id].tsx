@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
   reqName: { fontSize: 17, lineHeight: 21, fontFamily: fonts.display.bold, color: colors.ink },
   reqService: { fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.muted },
   reqMeta: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.agenda },
-  why: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.bg },
+  why: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.well },
   whyIcon: { marginTop: 2 },
   whyText: { flex: 1, fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.ink },
   reqBtns: { flexDirection: 'row', gap: 8 },
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
   sheet: { gap: spacing.md, padding: spacing.lg, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, backgroundColor: colors.surface },
   sheetBrand: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   sheetTitle: { fontSize: 19, fontFamily: fonts.display.bold, color: colors.ink },
-  facts: { gap: 6, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.bg },
+  facts: { gap: 6, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.well },
   factLine: { fontSize: 14.5, lineHeight: 20, fontFamily: fonts.ui.extrabold, color: colors.ink },
   factNote: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.muted },
 });

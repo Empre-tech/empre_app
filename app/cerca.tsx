@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
   col: { flex: 1, gap: 8 },
   card: { borderRadius: 16, overflow: 'hidden', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
-  img: { width: '100%', backgroundColor: colors.bg },
+  img: { width: '100%', backgroundColor: colors.well },
   cardChip: { position: 'absolute', left: 8, bottom: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, overflow: 'hidden', backgroundColor: colors.surface, fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
   cardBody: { padding: 10, gap: 3 },
   name: { fontSize: 13, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.ink },

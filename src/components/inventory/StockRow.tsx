@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
     gap: 6,
     padding: 4,
     borderRadius: radius.md,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.well,
     borderWidth: 1,
     borderColor: colors.line,
   },
@@ -255,6 +255,6 @@ const styles = StyleSheet.create({
   exactQty: { fontSize: 28, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
   countBox: { gap: spacing.sm },
   countRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  countInput: { flex: 1, minHeight: 48, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 18, fontFamily: fonts.ui.bold, color: colors.ink, backgroundColor: colors.bg, textAlign: 'center' },
+  countInput: { flex: 1, minHeight: 48, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 18, fontFamily: fonts.ui.bold, color: colors.ink, backgroundColor: colors.well, textAlign: 'center' },
   add: { gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg },
 });

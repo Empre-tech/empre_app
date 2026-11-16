@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   input: { minHeight: 110, padding: 14, borderRadius: radius.md, borderWidth: 2, borderColor: colors.ink, fontSize: 16, lineHeight: 22, fontFamily: fonts.ui.medium, color: colors.ink, textAlignVertical: 'top' },
   label: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.bg },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.well },
   chipKey: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   chipVal: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   note: { flexDirection: 'row', gap: 10, padding: 12, borderRadius: radius.md, backgroundColor: colors.primarySoft },

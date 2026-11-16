@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
   rowFaint: { flexShrink: 1, fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.faint, textAlign: 'right' },
   rowLabel: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.muted },
   rowValue: { flex: 1, fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.bold, color: colors.ink, textAlign: 'right' },
-  where: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 16, backgroundColor: colors.bg },
+  where: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 16, backgroundColor: colors.well },
   whereMap: { width: 64, height: 64, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
   whereText: { flex: 1, minWidth: 0, gap: 2 },
   whereAddress: { fontSize: 14.5, lineHeight: 20, fontFamily: fonts.ui.extrabold, color: colors.ink },

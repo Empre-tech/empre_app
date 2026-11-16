@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
   opt: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   optOn: { borderColor: colors.selected, backgroundColor: colors.selectedSoft },
   optText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  switchRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.bg },
+  switchRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.well },
   switchText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   track: { width: 46, height: 28, padding: 3, borderRadius: 14, backgroundColor: colors.placeholder, alignItems: 'flex-start' },
   trackOn: { backgroundColor: colors.selectedSoft, alignItems: 'flex-end' },

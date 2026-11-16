@@ -31,7 +31,7 @@ export default function BusinessReadyScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={[styles.body, { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.lg }]}>
       <View style={styles.top}>
         <View style={styles.seal}>
-          <EmpreMark size={44} color="#FFFFFF" />
+          <EmpreMark size={44} color={colors.brandRef} />
         </View>
         <Text style={styles.title} accessibilityRole="header">
           {onMap ? `${name} ya está en el mapa` : `${name} ya está en Empre`}
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.surface },
   body: { flexGrow: 1, paddingHorizontal: 20, gap: spacing.lg },
   top: { alignItems: 'center', gap: 10 },
-  seal: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.brandRef },
+  seal: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sandSoft },
   title: { fontSize: 24, lineHeight: 28, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center', letterSpacing: -0.4 },
   lead: { fontSize: 15, lineHeight: 21, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
   card: { padding: 14, gap: 4, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line },

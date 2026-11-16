@@ -72,7 +72,7 @@ export function HandoffLine() {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingBottom: 10, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.hairline },
-  voice: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, backgroundColor: colors.bg },
+  voice: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, backgroundColor: colors.well },
   texts: { flex: 1, minWidth: 0 },
   name: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   sub: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.muted },

@@ -31,7 +31,7 @@ interface Item {
 }
 
 const TONE: Record<Item['tone'], { bg: string; ink: string }> = {
-  plain: { bg: colors.bg, ink: colors.ink },
+  plain: { bg: colors.well, ink: colors.ink },
   offer: { bg: colors.accentSoft, ink: colors.accentInk },
   ai: { bg: colors.primarySoft, ink: colors.brand },
   money: { bg: colors.financeSoft, ink: colors.finance },
@@ -304,10 +304,10 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   pickerHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 6, paddingTop: 6, paddingBottom: 10 },
-  back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
+  back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.well },
   bizRow: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 8, borderRadius: 16 },
-  bizRowOn: { backgroundColor: colors.bg },
-  bizIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
+  bizRowOn: { backgroundColor: colors.well },
+  bizIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.well },
   tag: { marginLeft: 'auto', paddingHorizontal: 7, paddingVertical: 1, borderRadius: 999, backgroundColor: colors.sand },
   tagText: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.ink },
 });

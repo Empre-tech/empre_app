@@ -11,9 +11,9 @@ export function dayPart(hour: number): DayPart {
 
 /** El tema de la franja de arriba (3.59): limpio bajo la regla de los 3 colores (Alabastro / Blanco de día, Negro Carbón de noche). */
 export const BAND: Record<DayPart, { bg: string; hello: string; ink: string; sub: string; chipBg: string; chipLine: string; astro: string | null }> = {
-  'mañana': { bg: colors.surface, hello: 'Buenos días', ink: colors.ink, sub: colors.muted, chipBg: colors.bg, chipLine: colors.line, astro: colors.brand },
-  'mediodía': { bg: colors.surface, hello: 'Buen mediodía', ink: colors.ink, sub: colors.muted, chipBg: colors.bg, chipLine: colors.line, astro: colors.brand },
-  'tarde': { bg: colors.surface, hello: 'Buenas tardes', ink: colors.ink, sub: colors.muted, chipBg: colors.bg, chipLine: colors.line, astro: colors.brand },
+  'mañana': { bg: colors.surface, hello: 'Buenos días', ink: colors.ink, sub: colors.muted, chipBg: colors.well, chipLine: colors.line, astro: colors.brand },
+  'mediodía': { bg: colors.surface, hello: 'Buen mediodía', ink: colors.ink, sub: colors.muted, chipBg: colors.well, chipLine: colors.line, astro: colors.brand },
+  'tarde': { bg: colors.surface, hello: 'Buenas tardes', ink: colors.ink, sub: colors.muted, chipBg: colors.well, chipLine: colors.line, astro: colors.brand },
   'noche': { bg: colors.ink, hello: 'Buenas noches', ink: '#FFFFFF', sub: 'rgba(255,255,255,0.8)', chipBg: 'rgba(255,255,255,0.1)', chipLine: 'rgba(255,255,255,0.28)', astro: null },
 };
 

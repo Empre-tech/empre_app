@@ -1346,7 +1346,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.primary,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.well,
     textAlignVertical: 'top',
   },
   captionSaveButton: { alignSelf: 'flex-start', marginTop: spacing.xs },

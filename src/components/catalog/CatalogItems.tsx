@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
   consult: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: spacing.sm },
   tile: { width: '48.5%', backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
-  tileImg: { aspectRatio: 4 / 3, backgroundColor: colors.bg },
+  tileImg: { aspectRatio: 4 / 3, backgroundColor: colors.well },
   tileIcon: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   outBadge: { position: 'absolute', left: 8, top: 8, paddingHorizontal: 8, height: 22, borderRadius: 11, backgroundColor: '#EFF0F2', justifyContent: 'center' },
   outBadgeText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#2B2622' },

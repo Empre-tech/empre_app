@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   statusOpen: { backgroundColor: colors.verifiedSoft },
-  statusClosed: { backgroundColor: colors.bg },
+  statusClosed: { backgroundColor: colors.well },
   openDot: { width: 6, height: 6, borderRadius: 3 },
   openDotOpen: { backgroundColor: colors.verified },
   openDotClosed: { backgroundColor: colors.muted },

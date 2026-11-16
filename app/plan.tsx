@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
   shareHead: { gap: 4 },
   shareTitle: { fontSize: 21, fontFamily: fonts.display.bold, color: colors.ink },
   shareSub: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.muted },
-  preview: { padding: 14, gap: 10, borderRadius: 16, backgroundColor: colors.bg },
+  preview: { padding: 14, gap: 10, borderRadius: 16, backgroundColor: colors.well },
   eyebrowSm: { fontSize: 11, letterSpacing: 1.1, fontFamily: fonts.ui.extrabold, color: colors.faint },
   previewTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   previewRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },

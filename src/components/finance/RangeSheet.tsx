@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
   grab: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.line, alignSelf: 'center' },
   title: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
   monthRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  nav: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
+  nav: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.well, alignItems: 'center', justifyContent: 'center' },
   month: { flex: 1, textAlign: 'center', fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   wd: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.muted, paddingBottom: 4 },

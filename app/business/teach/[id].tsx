@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
   topic: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   topicOn: { borderColor: colors.selected, backgroundColor: colors.selectedSoft },
   topicText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  input: { minHeight: 48, paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
+  input: { minHeight: 48, paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.well, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
   multi: { minHeight: 96, textAlignVertical: 'top' },
   count: { alignSelf: 'flex-end', fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.faint },
   editorActions: { gap: 8, marginTop: 4 },

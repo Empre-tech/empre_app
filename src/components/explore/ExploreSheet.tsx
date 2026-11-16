@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
   avatars: { flexDirection: 'row' },
   avatar: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 10, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  chevron: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
+  chevron: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.well, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1 },
   bodyWrap: { flex: 1 },
   bodyContent: { paddingBottom: spacing.lg },

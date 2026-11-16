@@ -387,7 +387,7 @@ const styles = StyleSheet.create({
   buyHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   buyName: { flex: 1, fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   buyInputs: { flexDirection: 'row', gap: spacing.sm },
-  buyInput: { minHeight: 46, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 16, fontFamily: fonts.ui.bold, color: colors.ink, backgroundColor: colors.bg },
+  buyInput: { minHeight: 46, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 16, fontFamily: fonts.ui.bold, color: colors.ink, backgroundColor: colors.well },
   tiny: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },
   footer: { gap: 8, paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.hairline, backgroundColor: colors.surface },

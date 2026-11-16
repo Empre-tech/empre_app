@@ -628,7 +628,7 @@ const styles = StyleSheet.create({
   picked: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.selectedSoft, borderRadius: radius.md, padding: spacing.md },
   pickedName: { flex: 1, fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
   link: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.finance },
-  search: { minHeight: 48, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.lg, paddingHorizontal: spacing.md, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink, backgroundColor: colors.bg },
+  search: { minHeight: 48, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.lg, paddingHorizontal: spacing.md, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink, backgroundColor: colors.well },
   statTitle: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   statValue: { fontSize: 20, fontFamily: fonts.display.bold },
   statBig: { fontSize: 30, fontFamily: fonts.display.bold },

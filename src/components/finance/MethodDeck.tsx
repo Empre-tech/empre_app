@@ -31,9 +31,9 @@ interface Face {
 
 const FACE: Record<DeckMethod, Face> = {
   cash: { bg: colors.ink, fg: '#FFFFFF', sub: '#C9D3E2', iconBg: 'rgba(255,255,255,0.12)', well: 'rgba(255,255,255,0.08)', rule: 'rgba(255,255,255,0.12)' },
-  transfer: { bg: colors.surface, fg: colors.ink, sub: colors.muted, iconBg: colors.selectedSoft, well: colors.bg, rule: colors.hairline },
+  transfer: { bg: colors.surface, fg: colors.ink, sub: colors.muted, iconBg: colors.selectedSoft, well: colors.well, rule: colors.hairline },
   card: { bg: colors.selectedSoft, fg: colors.ink, sub: colors.muted, iconBg: colors.surface, well: colors.surface, rule: colors.line },
-  credit: { bg: colors.surface, fg: colors.ink, sub: colors.muted, iconBg: colors.selectedSoft, well: colors.bg, rule: colors.hairline },
+  credit: { bg: colors.surface, fg: colors.ink, sub: colors.muted, iconBg: colors.selectedSoft, well: colors.well, rule: colors.hairline },
 };
 
 export interface MethodDeckProps {

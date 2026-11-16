@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.ui.medium,
     color: colors.ink,
     textAlignVertical: 'top',
-    backgroundColor: colors.bg,
+    backgroundColor: colors.well,
   },
   captionCounter: { fontSize: 11, fontFamily: fonts.ui.medium, color: colors.muted, alignSelf: 'flex-end' },
   error: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.danger, textAlign: 'center' },

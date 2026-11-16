@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   upText: { color: '#0B7F3D' },
   down: { backgroundColor: '#FBE4E4' },
   downText: { color: '#8E2A2A' },
-  same: { backgroundColor: colors.bg },
+  same: { backgroundColor: colors.well },
   sameText: { color: colors.muted },
   idea: { padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.financeSoft },
   ideaText: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.bold, color: colors.finance },

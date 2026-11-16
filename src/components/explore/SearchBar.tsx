@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     opacity: 0.02,
   },
   clearHit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: -6 },
-  clearDot: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
+  clearDot: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.well, alignItems: 'center', justifyContent: 'center' },
   filterButton: {
     width: 40,
     height: 40,

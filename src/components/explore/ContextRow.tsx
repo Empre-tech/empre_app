@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   // La ✕ mide 44 × 44 aunque el chip mida 32: los márgenes negativos no agrandan la fila.
   removeHit: { width: 44, height: 44, marginVertical: -6, marginLeft: -4, marginRight: -2, alignItems: 'center', justifyContent: 'center' },
-  removeDot: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
+  removeDot: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.well, alignItems: 'center', justifyContent: 'center' },
   clear: { minHeight: 44, paddingHorizontal: 6, justifyContent: 'center', marginVertical: -6 },
   clearText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark, textDecorationLine: 'underline' },
   areaHit: { minHeight: 44, justifyContent: 'center', marginVertical: -6, paddingHorizontal: 2 },

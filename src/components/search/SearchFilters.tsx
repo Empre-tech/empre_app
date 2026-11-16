@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   sheet: { maxHeight: '88%', borderTopLeftRadius: 28, borderTopRightRadius: 28, backgroundColor: colors.surface },
   head: { flexDirection: 'row', alignItems: 'center', paddingLeft: 20, paddingRight: 10, paddingTop: 10, paddingBottom: 4 },
   title: { flex: 1, fontSize: 19, fontFamily: fonts.display.bold, color: colors.ink },
-  close: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
+  close: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.well, alignItems: 'center', justifyContent: 'center' },
   body: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 12, gap: 18 },
   section: { gap: 8 },
   sectionTitle: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },

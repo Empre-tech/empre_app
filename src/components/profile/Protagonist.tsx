@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { minHeight: 40, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, justifyContent: 'center' },
   chipText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  match: { borderRadius: radius.md, backgroundColor: colors.bg, padding: spacing.md, gap: 2 },
+  match: { borderRadius: radius.md, backgroundColor: colors.well, padding: spacing.md, gap: 2 },
   matchLead: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   matchName: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   noMatch: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted },

@@ -58,7 +58,7 @@ export function ChatItemCard({ item, mine = false, onPress, onRemove }: Props) {
 const styles = StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: 6, paddingRight: spacing.sm, borderRadius: radius.md, minWidth: 220 },
   cardMine: { backgroundColor: colors.surface },
-  cardTheirs: { backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line },
+  cardTheirs: { backgroundColor: colors.well, borderWidth: 1, borderColor: colors.line },
   thumb: { width: 56, height: 56, borderRadius: radius.sm },
   noPhoto: { backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1, gap: 1 },

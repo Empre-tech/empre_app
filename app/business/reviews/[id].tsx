@@ -95,7 +95,7 @@ export default function ReviewsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  filtersWrap: { backgroundColor: colors.bg },
+  filtersWrap: { backgroundColor: colors.well },
   filters: { gap: 6, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   chip: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   chipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },

@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl },
   emptyTitle: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
   editorBar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.sm, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.line },
-  close: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
+  close: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.well, alignItems: 'center', justifyContent: 'center' },
   editorTitle: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
   preview: { borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   captionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

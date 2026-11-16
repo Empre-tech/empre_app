@@ -1537,7 +1537,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     height: 36,
     borderRadius: radius.pill,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.well,
     borderWidth: 1,
     borderColor: colors.primary,
     maxWidth: 140,
