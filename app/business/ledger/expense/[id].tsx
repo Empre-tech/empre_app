@@ -352,7 +352,7 @@ export default function NewExpenseScreen() {
             <Pop value={amount}>
               <Text style={styles.primaryBtnText}>{amount > 0 ? `Seguir · ${formatPesos(amount)}` : 'Seguir'}</Text>
             </Pop>
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
+            <Ionicons name="arrow-forward" size={18} color={colors.ink} />
           </Pressable>
         )}
       </View>
@@ -391,8 +391,8 @@ const styles = StyleSheet.create({
   tiny: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },
   footer: { gap: 8, paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.hairline, backgroundColor: colors.surface },
-  primaryBtn: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.primary },
+  primaryBtn: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
   primaryBtnDisabled: { backgroundColor: colors.hairline },
-  primaryBtnText: { fontSize: 15.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  primaryBtnText: { fontSize: 15.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   primaryBtnTextDisabled: { color: colors.faint },
 });

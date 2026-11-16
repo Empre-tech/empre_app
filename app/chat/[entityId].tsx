@@ -777,7 +777,7 @@ export default function ChatScreen() {
             disabled={!text.trim() || !connected}
             style={[styles.send, (!text.trim() || !connected) && styles.sendDisabled]}
           >
-            <Ionicons name="send" size={18} color="#fff" />
+            <Ionicons name="send" size={18} color={colors.ink} />
           </Pressable>
         </View>
       ) : null}
@@ -913,6 +913,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.ui.semibold,
     color: colors.ink,
   },
-  send: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  send: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, alignItems: 'center', justifyContent: 'center' },
   sendDisabled: { opacity: 0.4 },
 });

@@ -121,6 +121,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, lineHeight: 28, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
   body: { fontSize: 15, lineHeight: 22, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
   saved: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.brand },
-  btn: { minHeight: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.primary },
-  btnText: { fontSize: 17, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  btn: { minHeight: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  btnText: { fontSize: 17, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

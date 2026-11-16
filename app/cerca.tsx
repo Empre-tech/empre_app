@@ -201,6 +201,6 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl, paddingHorizontal: spacing.lg },
   emptyTitle: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
   emptyText: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
-  emptyBtn: { minHeight: 44, paddingHorizontal: 18, borderRadius: 999, backgroundColor: colors.primary, justifyContent: 'center' },
-  emptyBtnText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.surface },
+  emptyBtn: { minHeight: 44, paddingHorizontal: 18, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, justifyContent: 'center' },
+  emptyBtnText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
 });

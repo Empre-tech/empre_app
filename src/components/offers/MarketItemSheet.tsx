@@ -521,7 +521,7 @@ function SheetContent({ item, onClose, pool, onPick }: { item: MarketItem; onClo
                   onPress={() => void submitCustomQuestion()}
                   style={[styles.aiSendBtn, (!aiQuestion.trim() || thinking) && styles.aiSendBtnDisabled]}
                 >
-                  <Ionicons name="arrow-up" size={18} color="#fff" />
+                  <Ionicons name="arrow-up" size={18} color={colors.ink} />
                 </Pressable>
               </View>
             </View>
@@ -553,7 +553,7 @@ function SheetContent({ item, onClose, pool, onPick }: { item: MarketItem; onClo
             style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
           >
             <Text style={styles.primaryBtnText}>{isService ? 'Ver detalle completo' : 'Reclamar oferta'}</Text>
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
+            <Ionicons name="arrow-forward" size={18} color={colors.ink} />
           </Pressable>
         </View>
       </View>
@@ -700,12 +700,12 @@ const styles = StyleSheet.create({
   aiWriteLinkText: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.ink },
   aiInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   aiInput: { flex: 1, height: 42, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line, fontSize: 13, fontFamily: fonts.ui.medium, color: colors.ink },
-  aiSendBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  aiSendBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, alignItems: 'center', justifyContent: 'center' },
   aiSendBtnDisabled: { opacity: 0.4 },
   footerBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingTop: 12, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
   chatBtn: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 16, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line },
   chatBtnText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  primaryBtn: { flex: 1, minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16, borderRadius: 16, backgroundColor: colors.primary },
-  primaryBtnText: { fontSize: 15.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  primaryBtn: { flex: 1, minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  primaryBtnText: { fontSize: 15.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   pressed: { opacity: 0.86, transform: [{ scale: 0.98 }] },
 });

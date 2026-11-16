@@ -81,6 +81,6 @@ const styles = StyleSheet.create({
   skip: { minHeight: 44, minWidth: 44, justifyContent: 'center' },
   skipText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.muted },
   count: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
-  next: { minHeight: 44, paddingHorizontal: spacing.lg, borderRadius: radius.md, backgroundColor: colors.primary, justifyContent: 'center' },
-  nextText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  next: { minHeight: 44, paddingHorizontal: spacing.lg, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, justifyContent: 'center' },
+  nextText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

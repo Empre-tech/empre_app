@@ -27,7 +27,7 @@ export default function WelcomeScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={[styles.body, { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.lg }]}>
       <View style={styles.top}>
         <View style={styles.brand} accessible accessibilityLabel="Empre">
-          <EmpreMark size={44} color={colors.ink} />
+          <EmpreMark size={44} color={colors.brandRef} />
           <Text style={styles.word}>empre</Text>
         </View>
         <Text style={styles.title} accessibilityRole="header">

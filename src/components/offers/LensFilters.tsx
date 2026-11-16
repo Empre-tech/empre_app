@@ -212,6 +212,6 @@ const styles = StyleSheet.create({
   track: { width: 46, height: 28, padding: 3, borderRadius: 14, backgroundColor: colors.placeholder, alignItems: 'flex-start' },
   trackOn: { backgroundColor: colors.selectedSoft, alignItems: 'flex-end' },
   knob: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.surface },
-  apply: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.primary },
-  applyText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
+  apply: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  applyText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

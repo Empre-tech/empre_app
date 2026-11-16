@@ -1515,8 +1515,8 @@ const styles = StyleSheet.create({
   panelSub: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.surface },
   panelClear: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   panelClearText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink, textDecorationLine: 'underline' },
-  panelGo: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.primary },
-  panelGoText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  panelGo: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  panelGoText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
   screen: { flex: 1, backgroundColor: colors.bg },
   // Buscador y chips flotan sobre el mapa: el mapa ocupa toda la pantalla.

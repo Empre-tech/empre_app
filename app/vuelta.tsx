@@ -198,7 +198,7 @@ export default function VueltaScreen() {
             <Text style={styles.note}>Solo elige negocios abiertos ahora. Si alguno tiene oferta, la suma a la ruta.</Text>
             {error ? <Text style={styles.err}>{error}</Text> : null}
             <Pressable accessibilityRole="button" disabled={!errands.length || busy} onPress={() => void build()} style={[styles.main, (!errands.length || busy) && { opacity: 0.45 }]}>
-              {busy ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.mainText}>Armar la vuelta</Text>}
+              {busy ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.mainText}>Armar la vuelta</Text>}
             </Pressable>
           </>
         ) : stage === 'route' ? (
@@ -245,7 +245,7 @@ export default function VueltaScreen() {
               <>
                 <Pressable accessibilityRole="button" disabled={booking} onPress={() => void begin()} style={[styles.main, booking && { opacity: 0.6 }]}>
                   {booking ? (
-                    <ActivityIndicator color={colors.surface} />
+                    <ActivityIndicator color={colors.ink} />
                   ) : (
                     <Text style={styles.mainText}>{toBook.length ? `Empezar · reservar ${toBook.map((b) => clockOf(b.min)).join(' y ')}` : `Empezar · ${clockOf(shifted[0].arrive)}`}</Text>
                   )}
@@ -323,8 +323,8 @@ const styles = StyleSheet.create({
   note: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
   err: { fontSize: 13.5, fontFamily: fonts.ui.medium, color: colors.ink },
   warn: { padding: 12, borderRadius: radius.md, backgroundColor: colors.surface, fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.ink },
-  main: { minHeight: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary },
-  mainText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.surface },
+  main: { minHeight: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  mainText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
   secondary: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   secondaryText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.muted },
   summary: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },

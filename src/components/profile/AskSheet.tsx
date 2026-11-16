@@ -76,9 +76,9 @@ const styles = StyleSheet.create({
   chips: { gap: 6 },
   chip: { minHeight: 44, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, justifyContent: 'center' },
   chipText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
-  send: { minHeight: 50, borderRadius: radius.pill, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: spacing.xs },
+  send: { minHeight: 50, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, alignItems: 'center', justifyContent: 'center', marginTop: spacing.xs },
   sendOff: { opacity: 0.5 },
-  sendText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  sendText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   pressed: { opacity: 0.85 },
   note: { fontSize: 11.5, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
 });

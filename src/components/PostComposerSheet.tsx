@@ -163,7 +163,7 @@ export function PostComposerSheet({ visible, onClose, entityId, businessName, ca
                   {error ? <Text style={styles.error}>{error}</Text> : null}
 
                   <Pressable accessibilityRole="button" onPress={publish} style={styles.publishButton}>
-                    <Ionicons name="paper-plane" size={16} color="#fff" />
+                    <Ionicons name="paper-plane" size={16} color={colors.ink} />
                     <Text style={styles.publishButtonText}>Publicar</Text>
                   </Pressable>
               </>
@@ -215,11 +215,11 @@ const styles = StyleSheet.create({
     height: 46,
     paddingHorizontal: spacing.xl,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pickButtonText: { fontSize: 14, fontFamily: fonts.ui.bold, color: '#fff' },
+  pickButtonText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
   composeBlock: { gap: spacing.md },
   previewWrap: {
     alignSelf: 'center',
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     height: 50,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef,
   },
-  publishButtonText: { fontSize: 15, fontFamily: fonts.ui.bold, color: '#fff' },
+  publishButtonText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
 });

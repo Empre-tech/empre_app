@@ -25,10 +25,9 @@ export const colors = {
   ink: '#2B2622', // el texto: tinta cálida, no negro puro. El negro es solo texto (~10 %)
   muted: '#5C5448', // texto secundario (7,2:1 sobre arena, 5,5:1 sobre arena elegida)
   line: '#E6DAC3', // bordes y separadores, cálidos
-  // ARENA casi blanca, ~65 %: el fondo de todas las pantallas (2026-11-14: a medio camino del blanco, con la misma
-  // intensidad de arena para que el tono se note).
-  // Arriba, un degradado apenas más hondo: ScreenGlow.
-  bg: '#FEFAF2',
+  // 2026-11-15: el fondo es 80 % BLANCO y 20 % arena cálida. La arena solo vive arriba, en un degradado que se funde
+  // con el blanco (ScreenGlow); no es lo que destaca.
+  bg: '#FFFFFF',
   surface: '#FFFEFB', // CREMA, ~20 %: tarjetas, hojas y barras, un paso más claras que el fondo
   verified: '#B91C1C', // abierto, verificado, hecho (texto)
   verifiedSoft: '#FDECEC',
@@ -57,8 +56,8 @@ export const colors = {
   agenda: '#D42020',
   agendaLight: '#F7A8A8',
   agendaSoft: '#FDECEC',
-  // El degradado de arriba en Inicio y Ofertas: arena más honda que se funde con el fondo.
-  glowTop: '#F2E8D5',
+  // La arena cálida de arriba del degradado: suave, para que acompañe y no destaque.
+  glowTop: '#F6EEE0',
   // Abajo, el fondo termina en blanco (el usuario lo pidió así, 2026-11-14): arena arriba → blanco abajo (ScreenGlow).
   bgEnd: '#FFFFFF',
 } as const;

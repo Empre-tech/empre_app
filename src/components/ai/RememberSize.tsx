@@ -48,8 +48,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
   sub: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
   row: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  yes: { minHeight: 44, paddingHorizontal: 16, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary },
-  yesText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.surface },
+  yes: { minHeight: 44, paddingHorizontal: 16, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  yesText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   no: { minHeight: 44, paddingHorizontal: 16, borderRadius: 999, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.line },
   noText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
 });

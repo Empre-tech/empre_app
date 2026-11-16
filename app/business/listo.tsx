@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.surface },
   body: { flexGrow: 1, paddingHorizontal: 20, gap: spacing.lg },
   top: { alignItems: 'center', gap: 10 },
-  seal: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary },
+  seal: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.brandRef },
   title: { fontSize: 24, lineHeight: 28, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center', letterSpacing: -0.4 },
   lead: { fontSize: 15, lineHeight: 21, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
   card: { padding: 14, gap: 4, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line },

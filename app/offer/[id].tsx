@@ -263,7 +263,7 @@ export default function OfferScreen() {
           style={styles.cta}
         >
           <Text style={styles.ctaText}>{redeemed ? 'Ver el negocio' : live ? 'Ver mi QR' : 'Reclamar oferta'}</Text>
-          <Ionicons name="arrow-forward" size={18} color="#fff" />
+          <Ionicons name="arrow-forward" size={18} color={colors.ink} />
         </Pressable>
       </View>
     </View>
@@ -312,6 +312,6 @@ const styles = StyleSheet.create({
   whereLink: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   bar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: 10, paddingTop: 12, paddingHorizontal: 16, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.hairline },
   barBtn: { width: 52, height: 52, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  cta: { flex: 1, minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, backgroundColor: colors.primary },
-  ctaText: { fontSize: 16.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  cta: { flex: 1, minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  ctaText: { fontSize: 16.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

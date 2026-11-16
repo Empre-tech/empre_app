@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
   line: { borderTopWidth: 1, borderTopColor: '#EFF0F2' },
   name: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   btn: { minHeight: 40, paddingHorizontal: 14, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
-  btnPrimary: { backgroundColor: colors.primary },
+  btnPrimary: { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
   btnSoft: { backgroundColor: colors.primarySoft },
   btnText: { fontSize: 13, fontFamily: fonts.ui.extrabold },
   share: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, minHeight: 52, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.primarySoft },

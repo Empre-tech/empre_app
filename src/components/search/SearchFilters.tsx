@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
   foot: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.hairline },
   footClear: { minHeight: 52, paddingHorizontal: 12, justifyContent: 'center' },
   footClearText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink, textDecorationLine: 'underline' },
-  see: { flex: 1, minHeight: 52, borderRadius: 16, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  see: { flex: 1, minHeight: 52, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, alignItems: 'center', justifyContent: 'center' },
   seeText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   pressed: { opacity: 0.85 },
 });

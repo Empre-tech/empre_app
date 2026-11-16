@@ -154,6 +154,6 @@ const styles = StyleSheet.create({
   was: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.faint, textDecorationLine: 'line-through' },
   clock: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   clockText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
-  btn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primary },
-  btnText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  btn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  btnText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

@@ -52,7 +52,7 @@ export function Button({ title, onPress, variant = 'primary', loading = false, d
         ]}
       >
         {loading ? (
-          <ActivityIndicator color={variant === 'primary' ? '#fff' : colors.primary} />
+          <ActivityIndicator color={colors.ink} />
         ) : badgeRight && variant === 'primary' ? (
           <>
             <Text style={styles.label}>{title}</Text>
@@ -83,8 +83,8 @@ const styles = StyleSheet.create({
     paddingRight: spacing.md,
     gap: spacing.sm,
   },
-  primary: { backgroundColor: colors.primary },
-  primaryPressed: { backgroundColor: colors.primaryDark },
+  primary: { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  primaryPressed: { backgroundColor: colors.selectedSoft },
   secondary: {
     backgroundColor: colors.surface,
     borderWidth: 1.5,
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
   ghost: { backgroundColor: 'transparent' },
   pressed: { opacity: 0.7 },
   disabled: { opacity: 0.5 },
-  label: { color: '#fff', fontSize: 15.5, fontFamily: fonts.ui.extrabold },
+  label: { color: colors.ink, fontSize: 15.5, fontFamily: fonts.ui.extrabold },
   labelAlt: { color: colors.ink },
   badgePill: {
     paddingHorizontal: 12,

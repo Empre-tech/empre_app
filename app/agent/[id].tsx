@@ -279,7 +279,7 @@ export default function AgentBookingScreen() {
               onPress={sendFreeText}
               style={[styles.sendBtn, (!draft.trim() || typing) && { opacity: 0.45 }]}
             >
-              <Ionicons name="arrow-up" size={18} color="#fff" />
+              <Ionicons name="arrow-up" size={18} color={colors.ink} />
             </Pressable>
           </View>
         </View>
@@ -316,9 +316,9 @@ const styles = StyleSheet.create({
   footContainer: { gap: 8, paddingTop: 10, paddingHorizontal: 16, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.hairline },
   footReplies: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   reply: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 999, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
-  replyMain: { backgroundColor: colors.primary, borderColor: colors.primary },
+  replyMain: { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
   replyText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  replyTextMain: { color: '#fff' },
+  replyTextMain: { color: colors.ink },
   composeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   composeInput: {
     flex: 1,
@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef,
     alignItems: 'center',
     justifyContent: 'center',
   },

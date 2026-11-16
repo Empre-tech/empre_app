@@ -257,7 +257,7 @@ export default function PlanScreen() {
           <Text style={styles.saveText}>{isSaved ? 'Guardado' : 'Guardar'}</Text>
         </Pressable>
         <Pressable accessibilityRole="button" disabled={located.length === 0} onPress={() => void Linking.openURL(routeUrl(stops))} style={[styles.routeBtn, located.length === 0 && { opacity: 0.5 }]}>
-          <Ionicons name="map-outline" size={18} color="#fff" />
+          <Ionicons name="map-outline" size={18} color={colors.ink} />
           <Text style={styles.routeText}>Ver la ruta</Text>
         </Pressable>
       </View>
@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
   saveBtn: { minHeight: 54, minWidth: 120, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   saveBtnOn: { borderColor: colors.ink, backgroundColor: colors.selectedSoft },
   saveText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  routeBtn: { flex: 1, minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, backgroundColor: colors.primary },
+  routeBtn: { flex: 1, minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
   routeText: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: colors.ink },
   veil: { flex: 1, backgroundColor: 'rgba(14,35,70,0.38)' },
   shareSheet: { gap: 12, paddingTop: 10, paddingHorizontal: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.surface },
@@ -378,6 +378,6 @@ const styles = StyleSheet.create({
   previewText: { flex: 1, fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.ink },
   previewBiz: { fontFamily: fonts.ui.extrabold },
   previewTime: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.faint },
-  sendBtn: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.primary },
-  sendText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  sendBtn: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  sendText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

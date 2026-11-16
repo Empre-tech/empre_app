@@ -212,7 +212,7 @@ export default function AIBusinessAssistantScreen() {
           onPress={reviewDraft}
           style={[styles.reviewButton, ready && styles.reviewButtonReady]}
         >
-          <Ionicons name={ready ? 'checkmark-circle' : 'document-text-outline'} size={18} color="#fff" />
+          <Ionicons name={ready ? 'checkmark-circle' : 'document-text-outline'} size={18} color={colors.ink} />
           <Text style={styles.reviewButtonText}>
             {ready ? '¡Listo! Revisar y crear negocio' : 'Revisar lo que llevamos hasta ahora'}
           </Text>
@@ -237,7 +237,7 @@ export default function AIBusinessAssistantScreen() {
           disabled={!input.trim() || sending}
           style={[styles.send, (!input.trim() || sending) && styles.sendDisabled]}
         >
-          <Ionicons name="send" size={18} color="#fff" />
+          <Ionicons name="send" size={18} color={colors.ink} />
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -334,10 +334,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     height: 44,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef,
   },
   reviewButtonReady: { backgroundColor: colors.verified },
-  reviewButtonText: { fontSize: 14, fontFamily: fonts.ui.bold, color: '#fff' },
+  reviewButtonText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -361,6 +361,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.ui.medium,
     color: colors.ink,
   },
-  send: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  send: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, alignItems: 'center', justifyContent: 'center' },
   sendDisabled: { opacity: 0.4 },
 });

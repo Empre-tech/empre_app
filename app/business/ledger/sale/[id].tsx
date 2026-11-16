@@ -544,7 +544,7 @@ export default function NewSaleScreen() {
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel={`Seguir a cobrar ${formatPesos(total)}`} onPress={goPay} style={styles.cartBtn}>
             <Text style={styles.primaryBtnText}>Seguir</Text>
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
+            <Ionicons name="arrow-forward" size={18} color={colors.ink} />
           </Pressable>
         </Animated.View>
       )}
@@ -655,14 +655,14 @@ const styles = StyleSheet.create({
   doneSub: { textAlign: 'center', fontSize: 14.5, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.muted },
   doneReceipt: { alignSelf: 'stretch' },
   footer: { gap: 8, paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.hairline, backgroundColor: colors.surface },
-  primaryBtn: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.primary },
+  primaryBtn: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
   primaryBtnDisabled: { backgroundColor: colors.hairline },
-  primaryBtnText: { fontSize: 15.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  primaryBtnText: { fontSize: 15.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   primaryBtnTextDisabled: { color: colors.faint },
   secondaryBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   secondaryBtnText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   cart: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 12, borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.12, shadowRadius: 18, shadowOffset: { width: 0, height: -6 }, elevation: 8 },
   cartWhat: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   cartTotal: { alignSelf: 'flex-start', fontSize: 22, lineHeight: 26, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
-  cartBtn: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, borderRadius: 16, backgroundColor: colors.primary },
+  cartBtn: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
 });

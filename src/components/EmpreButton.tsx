@@ -57,7 +57,7 @@ export function EmpreMark({ size = 34, color = '#FFFFFF' }: { size?: number; col
  *   Con varios negocios, cada atajo pregunta «¿En cuál negocio?» y entra directo; con uno solo, ese paso no aparece.
  * - Sin negocio: tus salidas, citas y guardados; donde el dueño anota la plata está Empre AI.
  * Al abrir, lo de atrás se aclara con un velo blanco y el botón muestra una X.
- * 2026-11-15: el botón es del color del fondo con un aro en el rojo de referencia (#FF1D25) y el logo en tinta, como el
+ * 2026-11-15: el botón es del color del fondo con un aro y el logo en el rojo de referencia (#FF1D25), como el
  * botón flotante de la app donde corre Empre; ya no es un círculo rojo lleno.
  */
 export function EmpreButton({ bottom }: { bottom: number }) {
@@ -146,7 +146,7 @@ export function EmpreButton({ bottom }: { bottom: number }) {
         onPress={() => setOpen(true)}
         style={({ pressed }) => [styles.fab, { bottom }, pressed && styles.pressed]}
       >
-        <EmpreMark color={colors.ink} />
+        <EmpreMark color={colors.brandRef} />
       </Pressable>
 
       <Modal visible={open} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => (asking ? setAsking(null) : close())}>
@@ -232,7 +232,7 @@ export function EmpreButton({ bottom }: { bottom: number }) {
 
           {/* El botón abierto: el logo se vuelve una X en el mismo lugar. */}
           <Pressable accessibilityRole="button" accessibilityLabel="Cerrar el menú de Empre" onPress={() => close()} style={[styles.fab, styles.fabOpen, { bottom }]}>
-            <Ionicons name="close" size={26} color={colors.ink} />
+            <Ionicons name="close" size={26} color={colors.brandRef} />
           </Pressable>
         </Animated.View>
       </Modal>

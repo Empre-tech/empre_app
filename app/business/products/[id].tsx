@@ -380,7 +380,7 @@ export default function ProductsScreen() {
               onPress={() => setVoiceOpen(true)}
               style={styles.aiVoiceBtn}
             >
-              <Ionicons name="mic-outline" size={18} color="#fff" />
+              <Ionicons name="mic-outline" size={18} color={colors.ink} />
               <Text style={styles.aiVoiceBtnText}>IA</Text>
             </Pressable>
           </View>
@@ -700,7 +700,7 @@ export default function ProductsScreen() {
 
       {tab === 'supplies' ? (
         <Pressable accessibilityRole="button" accessibilityLabel="Agregar un insumo" onPress={() => setNewSupply(true)} style={[styles.fab, { bottom: insets.bottom + spacing.lg }]}>
-          <Ionicons name="add" size={22} color="#fff" />
+          <Ionicons name="add" size={22} color={colors.ink} />
           <Text style={styles.fabText}>Insumo</Text>
         </Pressable>
       ) : null}
@@ -711,7 +711,7 @@ export default function ProductsScreen() {
           onPress={() => openDetail()}
           style={[styles.fab, { bottom: insets.bottom + spacing.lg }]}
         >
-          <Ionicons name="add" size={22} color="#fff" />
+          <Ionicons name="add" size={22} color={colors.ink} />
           <Text style={styles.fabText} numberOfLines={1}>
             Agregar
           </Text>
@@ -924,8 +924,8 @@ const styles = StyleSheet.create({
   semNum: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink, fontVariant: ['tabular-nums'] },
   search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, paddingLeft: spacing.md, paddingRight: 6, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   searchInput: { flex: 1, fontSize: 14.5, fontFamily: fonts.ui.semibold, color: colors.ink },
-  aiVoiceBtn: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 11, borderRadius: 12, backgroundColor: colors.primary },
-  aiVoiceBtnText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  aiVoiceBtn: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 11, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  aiVoiceBtnText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.ink },
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },
   meta: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   setup: { gap: spacing.sm, backgroundColor: colors.financeSoft, borderRadius: radius.lg, padding: spacing.md },
@@ -964,8 +964,8 @@ const styles = StyleSheet.create({
   emptySupplies: { padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.financeSoft },
   review: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.primary },
   reviewRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  fab: { position: 'absolute', right: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 56, paddingHorizontal: 22, borderRadius: 28, backgroundColor: colors.primary, elevation: 4, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-  fabText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#fff', maxWidth: 220 },
+  fab: { position: 'absolute', right: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 56, paddingHorizontal: 22, borderRadius: 28, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, elevation: 4, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  fabText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink, maxWidth: 220 },
   thumb: { width: 52, height: 52, borderRadius: 12, marginLeft: 10, marginVertical: 10 },
   thumbIcon: { backgroundColor: colors.selectedSoft, alignItems: 'center', justifyContent: 'center' },
   photoNudge: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, paddingHorizontal: spacing.md, borderRadius: 16, backgroundColor: colors.surface },

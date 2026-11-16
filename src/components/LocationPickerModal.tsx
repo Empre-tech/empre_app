@@ -189,7 +189,7 @@ export function LocationPickerModal({ visible, initial, onCancel, onConfirm }: P
             style={styles.searchButton}
             disabled={searching}
           >
-            {searching ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="arrow-forward" size={18} color="#fff" />}
+            {searching ? <ActivityIndicator size="small" color={colors.ink} /> : <Ionicons name="arrow-forward" size={18} color={colors.ink} />}
           </Pressable>
         </View>
 
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef,
     alignItems: 'center',
     justifyContent: 'center',
   },

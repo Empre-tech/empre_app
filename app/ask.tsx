@@ -701,8 +701,8 @@ function ResultRow({ b, tone, onOpen }: { b: AskPlace; tone: number; onOpen: () 
 
 const styles = StyleSheet.create({
   heardRow: { flexDirection: 'row', gap: 8 },
-  heardGo: { flex: 1, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary },
-  heardGoText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.surface },
+  heardGo: { flex: 1, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  heardGoText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
   heardFix: { flex: 1, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.line },
   heardFixText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
   altGroup: { gap: 8 },
@@ -783,8 +783,8 @@ const styles = StyleSheet.create({
   chipOnText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   chipAdd: { minHeight: 34, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 999, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.line, backgroundColor: colors.surface },
   chipAddText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
-  retry: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primary },
-  retryText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  retry: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  retryText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   loading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md },
   relaxed: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.accentSoft, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.bold, color: colors.accentInk },
   count: { marginTop: 2, fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },

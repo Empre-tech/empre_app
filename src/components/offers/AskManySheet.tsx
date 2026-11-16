@@ -362,7 +362,7 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
             onPress={submit}
             style={[styles.sendBtn, (!text.trim() || busy) && styles.sendOff]}
           >
-            <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
+            <Ionicons name="arrow-up" size={20} color={colors.ink} />
           </Pressable>
         </View>
       </View>
@@ -652,8 +652,8 @@ const styles = StyleSheet.create({
   offerTag: { alignSelf: 'flex-start', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: colors.accentSoft },
   offerTagText: { fontFamily: fonts.ui.extrabold, fontSize: 12, color: colors.warning },
   topActions: { flexDirection: 'row', gap: 6 },
-  primaryBtn: { flex: 1, minHeight: 44, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { fontFamily: fonts.ui.extrabold, fontSize: 13.5, color: '#FFFFFF' },
+  primaryBtn: { flex: 1, minHeight: 44, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, alignItems: 'center', justifyContent: 'center' },
+  primaryText: { fontFamily: fonts.ui.extrabold, fontSize: 13.5, color: colors.ink },
   secondaryBtn: { flex: 1, minHeight: 44, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   secondaryText: { fontFamily: fonts.ui.extrabold, fontSize: 13.5, color: colors.ink },
   list: { borderRadius: 18, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surface, overflow: 'hidden' },
@@ -676,7 +676,7 @@ const styles = StyleSheet.create({
   composerWrap: { paddingHorizontal: 12, paddingTop: 8, backgroundColor: colors.bg },
   composer: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 16, padding: 6, borderRadius: 28, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
   input: { flex: 1, minHeight: 44, fontFamily: fonts.ui.semibold, fontSize: 14.5, color: colors.ink },
-  sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, alignItems: 'center', justifyContent: 'center' },
   sendOff: { opacity: 0.35 },
   footLink: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44, paddingHorizontal: 12, marginTop: 10 },
   footLinkText: { fontFamily: fonts.ui.extrabold, fontSize: 13, color: colors.ink },

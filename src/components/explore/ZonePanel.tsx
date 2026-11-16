@@ -209,8 +209,8 @@ const styles = StyleSheet.create({
   btns: { alignSelf: 'stretch', gap: spacing.sm, alignItems: 'center' },
   btn: { minHeight: 44, paddingHorizontal: spacing.lg, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   btnCenter: { alignSelf: 'center', marginBottom: spacing.sm },
-  btnPrimary: { backgroundColor: colors.primary },
+  btnPrimary: { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
   btnSecondary: { borderWidth: 1.5, borderColor: colors.line, backgroundColor: 'transparent' },
   btnText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink, textAlign: 'center' },
-  btnTextPrimary: { color: '#fff' },
+  btnTextPrimary: { color: colors.ink },
 });
