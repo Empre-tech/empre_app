@@ -4,14 +4,14 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Animated, Easing, Linking, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
 import { ScreenGlow } from '@/components/ScreenGlow';
 import { artKeyFor, artKeyMatch } from '@/components/CategoryArt';
 import { focusReasonRow, forYou, forYouHeader, myInterests, peopleInterests, seenBusinesses } from '@/lib/interests';
-import { learnPlaceSuffixes, rowNames, splitZone } from '@/lib/businessName';
-import { buildZoneSlides, groupByNamedBarrio, inCircle } from '@/lib/zoneShowcase';
-import { distanceKm } from '@/lib/geo';
-import { useInterestSignals } from '@/lib/interestStore';
-import { closeChip, hourLabel } from '@/lib/offerHome';
+import { learnPlaceSuffixes, otherZone, rowNames } from '@/lib/businessName';
+import { noteInterest, useInterestSignals } from '@/lib/interestStore';
+import { BusinessArt, CategoryIllustration } from '@/components/CategoryIllustration';
+import { artCounts, closeChip, hourLabel } from '@/lib/offerHome';
 import { catalogApi } from '@/api/catalog';
 import type { ServiceItem } from '@/lib/catalog';
 import { novedadesApi } from '@/api/novedades';
@@ -24,12 +24,11 @@ import { useZones } from '@/components/explore/useZoneName';
 import type { DoorRect } from '@/components/home/HomeDoors';
 import { Muro, type MuroPin } from '@/components/home/Muro';
 import { PuertaMapa } from '@/components/home/PuertaMapa';
-import { ZoneCarousel } from '@/components/home/ZoneCarousel';
 import { handOffItem } from '@/lib/offerHandoff';
 import { SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
 import { ZoneButton, ZoneList } from '@/components/ZoneButton';
-import { mediaUrl } from '@/lib/image';
-import { stripEntries } from '@/lib/novedades';
+import { mediaUrl, resolveImageUrl } from '@/lib/image';
+import { dayLabel, stripEntries } from '@/lib/novedades';
 import { onFootOrDistance } from '@/lib/format';
 import { endingToday, mergeCatalogIntoMarket, priceView } from '@/lib/offerMarket';
 import { useLocation } from '@/lib/useCoords';
@@ -37,12 +36,23 @@ import { SkeletonBlock } from '@/components/Skeleton';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts } from '@/theme';
 
+function whenLabel(iso: string, now: number): string {
+  const min = Math.floor((now - Date.parse(iso)) / 60_000);
+  if (min < 1) return 'Ahora';
+  if (min < 60) return `Hace ${min} min`;
+  if (min < 24 * 60) return `Hace ${Math.floor(min / 60)} h`;
+  return dayLabel(iso, now);
+}
+
 /**
- * Inicio (tablero «Inicio», 2026-11-16): la ciudad variada sin saturar. Las zonas pasan solas como historias y debajo
- * salen tres negocios de la que se ve; si quieres más, el mapa pequeño (como Encontrar) abre Empre Finder, donde se busca
- * y se filtra. Luego tus negocios (o «Para ti»), una línea hacia Ofertas y, al bajar, el muro. Empre AI sigue en el
- * botón Empre. Con pocos datos cada parte se esconde: nunca se rellena con datos inventados.
+ * Inicio (tablero «Inicio a la puerta», 2026-11-14), en el orden de las apps de barrio que más se usan: dónde estás,
+ * buscar (abre el buscador del mapa), las categorías con cuántos negocios hay, el mapa, tus negocios, lo abierto ahora
+ * con cuándo cierra, una línea hacia Ofertas y, al bajar, el muro. Empre AI sigue en el botón Empre. Con pocos datos
+ * cada parte se esconde (buscar y el mapa siempre están): nunca se rellena con datos inventados.
  */
+/** Por debajo de este número de negocios cerca, Inicio muestra una sola lista (cada negocio una vez). */
+const FEW_BUSINESSES = 8;
+
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -109,6 +119,9 @@ export default function HomeScreen() {
 
   const discovery = useMemo(() => open.data?.items ?? [], [open.data]);
   const openNear = useMemo(() => discovery.filter((b) => b.is_open_now), [discovery]);
+  const mapItems = useMemo(() => openNear.filter((b) => b.latitude && b.longitude).slice(0, 8), [openNear]);
+  // Las categorías de arriba: solo las que tienen negocios cerca, juntadas por su dibujo, con el número real.
+  const cats = useMemo(() => artCounts(discovery, artKeyFor, 8), [discovery]);
   // Hoy en tu barrio: las ofertas que terminan hoy; aquí solo se cuentan, se ven en Ofertas.
   const endingSoon = useMemo(() => endingToday(marketItems, now, new Set(), 20), [marketItems, now]);
 
@@ -131,40 +144,15 @@ export default function HomeScreen() {
   const forYouShared = forYouRow.title;
   // Los nombres sin el barrio («Helados del Mar Mamatoco» → «Helados del Mar»), salvo dos sedes juntas. Los barrios
   // salen de las zonas registradas y de los mismos nombres cercanos (las zonas registradas son pocas).
-  const learnedPlaces = useMemo(() => learnPlaceSuffixes(discovery.map((b) => b.name)), [discovery]);
-  const zoneNames = useMemo(() => [...zones.map((z) => z.name), ...learnedPlaces], [zones, learnedPlaces]);
+  const zoneNames = useMemo(() => [...zones.map((z) => z.name), ...learnPlaceSuffixes(discovery.map((b) => b.name))], [zones, discovery]);
 
-  // Las zonas de la ciudad (tablero «Inicio», 2026-11-16): los negocios de cada zona registrada se piden a su centro y
-  // se quedan los de su círculo; los barrios que se ven en los nombres («… Mamatoco») salen de los cercanos. Pocas
-  // zonas y tres negocios por zona: el resto vive en Empre Finder.
-  const zoneList = useMemo(() => zones.slice(0, 6), [zones]);
-  const zoneQueries = useQueries({
-    queries: zoneList.map((z) => ({
-      queryKey: ['home-zone', z.id],
-      queryFn: () => discoveryApi.discover({ lat: z.latitude, long: z.longitude, limit: 30 }),
-      staleTime: 5 * 60_000,
-    })),
-  });
-  const registeredNames = new Set(zoneList.map((z) => z.name.toLowerCase()));
-  const slides = buildZoneSlides(
-    [
-      ...zoneList.map((z, k) => ({
-        key: z.id,
-        name: z.name,
-        items: inCircle(zoneQueries[k]?.data?.items ?? [], z, z.radius_m),
-        here: zone ? z.id === zone.id : coords ? distanceKm(coords, z) * 1000 <= z.radius_m : false,
-      })),
-      ...[...groupByNamedBarrio(discovery, learnedPlaces)].filter(([n]) => !registeredNames.has(n.toLowerCase())).map(([n, items]) => ({ key: `barrio:${n}`, name: n, items })),
-    ],
-    5,
-  );
-  const zonesLoading = zoneList.length > 0 && zoneQueries.some((q) => q.isLoading) && !slides.length;
-  const city = zoneList.find((z) => z.city)?.city ?? null;
-  const walkTo = (b: { latitude?: number | null; longitude?: number | null; distance_meters?: number }) =>
-    coords && b.latitude != null && b.longitude != null ? onFootOrDistance(distanceKm(coords, { latitude: b.latitude, longitude: b.longitude })) : null;
-  // El mapa pequeño: el abierto más cercano con foto (si no hay foto, el más cercano).
-  const nearOpen = [...openNear].sort((a, b) => a.distance_meters - b.distance_meters);
-  const featured = nearOpen.find((b) => b.photos?.[0] || b.profile_url) ?? nearOpen[0] ?? null;
+  // Abierto ahora cerca: lo más cercano primero, con cuándo cierra; sin repetir lo que ya salió en «Para ti».
+  const openCards = useMemo(() => {
+    const sorted = [...openNear].sort((a, b) => a.distance_meters - b.distance_meters);
+    const shown = new Set(forYouShown.map((p) => p.item.id));
+    const rest = sorted.filter((b) => !shown.has(b.id));
+    return (rest.length >= 2 ? rest : sorted).slice(0, 8);
+  }, [openNear, forYouShown]);
 
   // Al bajar: un muro corto tipo Pinterest de lo que ofrecen los negocios cerca (tablero «Inicio», teléfono 2). Solo lo
   // que publicaron, seis para no saturar; al tocar uno se abre en Ofertas, con su media hoja (los componentes se pasan
@@ -200,9 +188,20 @@ export default function HomeScreen() {
     });
   };
 
+  // Cuántos negocios hay a la puerta: el número sale de lo que encontró el mapa, nunca inventado.
+  const nearCount = discovery.length;
+  // Poco volumen: con menos de 8 negocios cerca, las filas repetirían los mismos negocios. Se muestra una sola lista
+  // donde cada uno sale una vez (sin los que ya sigues), abiertos primero y luego por cercanía.
+  const few = nearCount > 0 && nearCount < FEW_BUSINESSES;
+  const followedIds = new Set(strip.map((w) => w.entityId));
+  const fewList = few ? [...discovery].filter((b) => !followedIds.has(b.id)).sort((a, b) => Number(Boolean(b.is_open_now)) - Number(Boolean(a.is_open_now)) || a.distance_meters - b.distance_meters) : [];
+  const fewNames = rowNames(fewList.map((b) => b.name), zoneNames);
+  const reasonById = new Map(forYouPicks.map((p) => [p.item.id, p.reason]));
+
   // Los nombres de cada fila, sin el barrio (dos sedes juntas quedan completas).
   const stripNames = rowNames(strip.map((w) => w.name), zoneNames);
   const forYouNames = rowNames(forYouShown.map((p) => p.item.name), zoneNames);
+  const openNames = rowNames(openCards.map((b) => b.name), zoneNames);
   // Cuando la razón va en el título, debajo de cada uno: cuándo cierra si es pronto, si no el tipo y a cuánto queda.
   const distinct = (b: (typeof forYouPicks)[number]['item']) => {
     const chip = closeChip(b.closes_at, now);
@@ -240,6 +239,30 @@ export default function HomeScreen() {
             />
           ) : null}
 
+          {/* Buscar: abre el buscador del mapa ya escribiendo, no otra pantalla */}
+          <Pressable accessibilityRole="button" accessibilityLabel="Buscar en Empre" onPress={() => router.push({ pathname: '/map', params: { q: '', buscar: '1' } })} style={({ pressed }) => [styles.search, pressed && styles.pressed]}>
+            <Ionicons name="search" size={20} color={colors.ink} />
+            <Text style={styles.searchText} numberOfLines={1}>
+              Busca negocios, cortes, almuerzos…
+            </Text>
+          </Pressable>
+
+          {/* Las categorías con lo que hay: cada una abre el mapa ya filtrado */}
+          {cats.length ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.catsIn}>
+              {cats.map((c) => (
+                <Pressable key={c.key} accessibilityRole="button" accessibilityLabel={`${c.label}, ${c.count} ${c.count === 1 ? 'negocio' : 'negocios'} cerca`} onPress={() => {
+                    noteInterest('category', c.key);
+                    router.push({ pathname: '/map', params: { q: '', cat: c.ids, catName: c.label } });
+                  }} style={({ pressed }) => [styles.cat, pressed && styles.pressed]}>
+                  <CategoryIllustration k={c.key} size={34} />
+                  <Text style={styles.catText}>{c.label}</Text>
+                  <Text style={styles.catCount}>{c.count}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          ) : null}
+
           {location.denied && !coords && !zone ? (
             // Sin ubicación también funciona (tablero «Estados», teléfono 5): se elige el barrio y sigue igual.
             <View style={styles.where}>
@@ -260,25 +283,22 @@ export default function HomeScreen() {
                 </View>
               ) : null}
             </View>
-          ) : (open.isLoading && !open.data) || zonesLoading ? (
+          ) : open.isLoading && !open.data ? (
             // Cargando: la forma de lo que viene, nunca una rueda sola (tablero «Estados», teléfono 1).
             <View accessibilityLabel="Buscando negocios cerca" accessibilityLiveRegion="polite">
-              <SkeletonBlock height={220} borderRadius={22} />
+              <SkeletonBlock height={196} borderRadius={22} />
               <Text style={styles.loadingText}>Buscando negocios cerca…</Text>
             </View>
           ) : (
-            // Las zonas pasan solas y debajo sus negocios; si quieres más, el mapa pequeño abre Empre Finder.
-            <View style={styles.doors}>
-              {slides.length ? (
-                <ZoneCarousel
-                  slides={slides}
-                  city={city}
-                  nameOf={(b) => splitZone(b.name, zoneNames).base}
-                  lineOf={(b) => [b.category_name, walkTo(b)].filter(Boolean).join(' · ')}
-                  onBusiness={(id) => router.push({ pathname: '/business/[id]', params: { id } })}
-                />
-              ) : null}
-              <PuertaMapa featured={featured} featuredName={featured ? splitZone(featured.name, zoneNames).base : null} walk={featured ? onFootOrDistance(featured.distance_meters / 1000) : null} openCount={openNear.length} onExplore={openExplore} />
+            <View style={styles.mapBlock}>
+              {/* La promesa, como título de sección: ya no ocupa media pantalla */}
+              <View style={styles.secHead}>
+                <Text style={styles.secTitle} accessibilityRole="header">
+                  A la puerta de tu casa
+                </Text>
+                {nearCount > 1 ? <Text style={styles.secCount}>{`${nearCount} negocios`}</Text> : null}
+              </View>
+              <PuertaMapa items={mapItems} center={center} openCount={openNear.length} ticker={[]} whenOf={(iso) => whenLabel(iso, now)} onExplore={openExplore} />
             </View>
           )}
 
@@ -306,7 +326,7 @@ export default function HomeScreen() {
           ) : null}
 
           {/* Para ti: cuando no sigues a nadie, lo que más buscas y lo que busca la gente; cada uno dice por qué está */}
-          {forYouHead && forYouShown.length ? (
+          {!few && forYouHead && forYouShown.length ? (
             <View style={styles.section}>
               {/* Solo el título: el porqué va debajo de cada negocio; si es el mismo para todos, va aquí una vez */}
               <Text style={styles.secTitle} accessibilityRole="header">
@@ -331,6 +351,100 @@ export default function HomeScreen() {
                   );
                 })}
               </ScrollView>
+            </View>
+          ) : null}
+
+          {/* Abierto ahora cerca: cuándo cierra y a cuántos pasos (como DoorDash y Too Good To Go) */}
+          {!few && openCards.length ? (
+            <View style={styles.section}>
+              <View style={styles.secHead}>
+                <Text style={styles.secTitle} accessibilityRole="header">
+                  Abierto ahora cerca
+                </Text>
+                <Pressable accessibilityRole="link" accessibilityLabel="Ver todos los abiertos en el mapa" hitSlop={8} onPress={() => router.push({ pathname: '/map', params: { abierto: '1' } })} style={styles.seeAll}>
+                  <Text style={styles.seeAllText}>Ver todos</Text>
+                </Pressable>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.openIn}>
+                {openCards.map((b, i) => {
+                  const photo = resolveImageUrl(b.photos?.[0]) ?? resolveImageUrl(b.profile_url);
+                  const chip = closeChip(b.closes_at, now);
+                  const walk = onFootOrDistance(b.distance_meters / 1000);
+                  const { name, sede } = openNames[i];
+                  const away = otherZone(sede, zoneName);
+                  return (
+                    <Pressable key={b.id} accessibilityRole="button" accessibilityLabel={[name, away, b.category_name, chip?.text, walk].filter(Boolean).join(', ')} onPress={() => router.push({ pathname: '/business/[id]', params: { id: b.id } })} style={({ pressed }) => [styles.openCard, pressed && styles.pressed]}>
+                      <View style={styles.openImg}>
+                        {photo ? <Image source={{ uri: photo }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors /> : <BusinessArt k={artKeyFor(b.category_name, b.category_icon)} size={156} round={false} />}
+                        {chip ? <Text style={[styles.openChip, chip.soon && { color: colors.primaryDark }]}>{chip.text}</Text> : null}
+                      </View>
+                      <Text style={styles.openName} numberOfLines={1}>
+                        {name}
+                      </Text>
+                      <Text style={styles.openSub} numberOfLines={1}>
+                        {[away ?? b.category_name, walk].filter(Boolean).join(' · ')}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          ) : null}
+
+          {/* Poco volumen: cada negocio una vez, con lo suyo (abierto o no, a cuánto queda y por qué te sale) */}
+          {fewList.length ? (
+            <View style={styles.section}>
+              <View style={styles.secHead}>
+                <Text style={styles.secTitle} accessibilityRole="header">
+                  Todo lo que hay cerca
+                </Text>
+                <Text style={styles.secCount}>{fewList.length === 1 ? '1 negocio' : `${fewList.length} negocios`}</Text>
+              </View>
+              <View style={styles.fewList}>
+                {fewList.map((b, i) => {
+                  const photo = resolveImageUrl(b.photos?.[0]) ?? resolveImageUrl(b.profile_url);
+                  const chip = b.is_open_now ? closeChip(b.closes_at, now) : null;
+                  const walk = onFootOrDistance(b.distance_meters / 1000);
+                  const name = fewNames[i].name;
+                  const status = b.is_open_now ? (chip?.text ?? 'Abierto ahora') : 'Cerrado ahora';
+                  const why = reasonById.get(b.id);
+                  return (
+                    <Pressable key={b.id} accessibilityRole="button" accessibilityLabel={[name, b.category_name, walk, status, why].filter(Boolean).join(', ')} onPress={() => router.push({ pathname: '/business/[id]', params: { id: b.id } })} style={({ pressed }) => [styles.fewRow, i > 0 && styles.fewRowLine, pressed && styles.pressed]}>
+                      <View style={styles.fewImg}>
+                        {photo ? <Image source={{ uri: photo }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors /> : <BusinessArt k={artKeyFor(b.category_name, b.category_icon)} size={64} round={false} />}
+                      </View>
+                      <View style={styles.fewBody}>
+                        <Text style={styles.fewName} numberOfLines={1}>
+                          {name}
+                        </Text>
+                        <Text style={styles.fewSub} numberOfLines={1}>
+                          {[b.category_name, walk].filter(Boolean).join(' · ')}
+                        </Text>
+                        <View style={styles.fewStatus}>
+                          {b.is_open_now ? <View style={styles.fewDot} /> : null}
+                          <Text style={[styles.fewStatusText, chip?.soon && { color: colors.primaryDark }, !b.is_open_now && { color: colors.muted }]} numberOfLines={1}>
+                            {why ? `${status} · ${why}` : status}
+                          </Text>
+                        </View>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {/* El poco volumen juega a favor: Empre está empezando aquí y cualquiera puede sumar su negocio */}
+              <Pressable accessibilityRole="button" onPress={() => router.push('/business/new')} style={({ pressed }) => [styles.invite, pressed && styles.pressed]}>
+                <View style={styles.inviteIcon}>
+                  <Ionicons name="storefront-outline" size={20} color={colors.ink} />
+                </View>
+                <View style={styles.todayBody}>
+                  <Text style={styles.todayTitle}>{`Empre está empezando en ${zoneName ?? 'tu barrio'}`}</Text>
+                  <Text style={styles.todaySub} numberOfLines={2}>
+                    ¿Tienes un negocio cerca? Súmalo gratis en 2 minutos.
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+              </Pressable>
             </View>
           ) : null}
 
@@ -414,7 +528,23 @@ const styles = StyleSheet.create({
   bell: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: colors.surface },
   bellDot: { position: 'absolute', top: 10, right: 10, width: 9, height: 9, borderRadius: 5, borderWidth: 2, borderColor: colors.surface, backgroundColor: colors.brandRef },
   pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
-  doors: { gap: 18 },
+  search: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  searchText: { flex: 1, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.muted },
+  catsIn: { gap: 8, paddingHorizontal: 16, paddingVertical: 2 },
+  cat: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 5, paddingRight: 14, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  catText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
+  catCount: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, fontVariant: ['tabular-nums'] },
+  mapBlock: { gap: 10, marginTop: 4 },
+  secHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 },
+  secCount: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
+  seeAll: { minHeight: 44, justifyContent: 'center' },
+  seeAllText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
+  openIn: { gap: 12, paddingHorizontal: 16 },
+  openCard: { width: 156, gap: 5 },
+  openImg: { width: 156, height: 104, borderRadius: 16, overflow: 'hidden', backgroundColor: colors.sandSoft },
+  openChip: { position: 'absolute', left: 8, bottom: 8, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, overflow: 'hidden', backgroundColor: 'rgba(255,254,251,0.95)', fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.ink },
+  openName: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink, paddingHorizontal: 2 },
+  openSub: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted, paddingHorizontal: 2, marginTop: -3 },
   today: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   todayIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent },
   todayBody: { flex: 1, gap: 2 },
@@ -441,4 +571,16 @@ const styles = StyleSheet.create({
   moreOffers: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   moreOffersText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   forWhy: { fontSize: 11, lineHeight: 14, fontFamily: fonts.ui.semibold, color: colors.muted, textAlign: 'center', marginTop: -3 },
+  fewList: { borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
+  fewRow: { minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, paddingVertical: 10 },
+  fewRowLine: { borderTopWidth: 1, borderTopColor: colors.hairline },
+  fewImg: { width: 64, height: 64, borderRadius: 14, overflow: 'hidden', backgroundColor: colors.sandSoft },
+  fewBody: { flex: 1, minWidth: 0, gap: 2 },
+  fewName: { fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
+  fewSub: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
+  fewStatus: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  fewDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.brandRef },
+  fewStatusText: { flexShrink: 1, fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.ink },
+  invite: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 18, backgroundColor: colors.well },
+  inviteIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
 });
