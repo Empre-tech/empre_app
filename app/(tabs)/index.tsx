@@ -264,7 +264,7 @@ export default function HomeScreen() {
             <View style={styles.loading}>
               {searchBar}
               <View accessibilityLabel="Buscando negocios cerca" accessibilityLiveRegion="polite">
-                <SkeletonBlock height={190} borderRadius={22} />
+                <SkeletonBlock height={240} borderRadius={24} />
                 <Text style={styles.loadingText}>Buscando negocios cerca…</Text>
               </View>
             </View>
