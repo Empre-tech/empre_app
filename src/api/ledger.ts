@@ -352,6 +352,48 @@ export interface InventoryItem {
   variants?: number;
   /** Cuántos llegaron en la última compra registrada («como la última vez»). */
   last_purchase?: number;
+  /** Id de la foto de portada (la variante sin fotos usa la del producto). */
+  photo?: string;
+}
+
+/** Las pestañas del inventario (tablero «Inventario», 2026-11-16). */
+export type InventoryTab = 'product' | 'service' | 'supply';
+export type InventoryState = 'low' | 'out' | 'nophoto';
+export type InventorySort = 'az' | 'stock' | 'sales';
+
+export interface InventoryPageQuery {
+  tab: InventoryTab;
+  q?: string;
+  section?: string;
+  state?: InventoryState;
+  sort?: InventorySort;
+  /** El next_cursor de la página anterior. */
+  cursor?: string;
+  limit?: number;
+}
+
+/** Una página: las filas de arriba, las variantes de esos productos (para plegarlas), el total con ese filtro y el
+ * cursor de la siguiente (sin cursor, no hay más). */
+export interface InventoryPage {
+  items: InventoryItem[];
+  variants: InventoryItem[];
+  total: number;
+  next_cursor?: string;
+}
+
+export interface InventoryTabCounts {
+  total: number;
+  low: number;
+  out: number;
+  no_photo: number;
+  sections: { name: string; count: number }[];
+}
+
+/** Los números de las tres pestañas y del filtro, sin las filas. */
+export interface InventoryCounts {
+  products: InventoryTabCounts;
+  services: InventoryTabCounts;
+  supplies: InventoryTabCounts;
 }
 
 export interface NameStatus {
@@ -555,6 +597,13 @@ export const ledgerApi = {
     request<{ ok: boolean }>(`${base(entityId)}/items/${itemId}/cost`, { method: 'PUT', body: { cost } }),
 
   inventory: (entityId: string) => request<InventoryOverview>(`${base(entityId)}/inventory`),
+  /** Una página de una pestaña del inventario: se busca y se filtra en el servidor. */
+  inventoryPage: (entityId: string, q: InventoryPageQuery) =>
+    request<InventoryPage>(`${base(entityId)}/inventory/page`, {
+      query: { tab: q.tab, q: q.q || undefined, section: q.section || undefined, state: q.state, sort: q.sort, cursor: q.cursor, limit: q.limit },
+    }),
+  /** Los números de las pestañas y del filtro. */
+  inventoryCounts: (entityId: string) => request<InventoryCounts>(`${base(entityId)}/inventory/counts`),
   setupInventory: (entityId: string, choice: SetupChoice) =>
     request<InventoryOverview>(`${base(entityId)}/inventory/setup`, { method: 'POST', body: { choice } }),
   stockSettings: (entityId: string, ref: string, input: ItemSettings) =>
