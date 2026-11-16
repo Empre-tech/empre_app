@@ -45,6 +45,8 @@ const SORTS: { key: InventorySort; label: string }[] = [
 ];
 const STATE_LABEL: Record<InventoryState, string> = { low: 'Se acaban', out: 'Agotados', nophoto: 'Sin foto' };
 const PAGE = 50;
+const pageKey = (entityId: string, tab: InventoryTab, q: string, section?: string, state?: InventoryState, sort?: InventorySort) =>
+  ['ledger', entityId, 'inventory', 'page', tab, q, section ?? '', state ?? '', sort ?? ''] as const;
 const unitShort = (u?: string) => (!u || u === 'unidad' ? 'und' : u);
 
 /**
@@ -91,16 +93,32 @@ export default function InventoryScreen() {
     return () => clearTimeout(t);
   }, [search]);
 
+  const tabTotal = counts.data?.[(TABS.find((t) => t.key === tab) ?? TABS[0]).counts].total;
   const pages = useInfiniteQuery({
-    queryKey: ['ledger', entityId, 'inventory', 'page', tab, q, section ?? '', state ?? '', sort ?? ''],
+    queryKey: pageKey(entityId, tab, q, section, state, sort),
     queryFn: ({ pageParam }) => ledgerApi.inventoryPage(entityId, { tab, q, section, state, sort, cursor: pageParam, limit: PAGE }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor || undefined,
-    enabled: ledgerOn,
+    // Una pestaña en 0 no pide nada: su vacío se ve al instante (cada consulta tarda casi un segundo).
+    enabled: ledgerOn && tabTotal !== 0,
     // Mientras llega otra búsqueda u otro filtro de la misma pestaña se queda lo de antes; al cambiar de pestaña no, para
     // no mostrar productos bajo «Servicios».
     placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[4] === tab ? keepPreviousData(prev) : undefined),
   });
+
+  // Las otras pestañas se piden de una vez, en paralelo, para que cambiar de pestaña no espere.
+  useEffect(() => {
+    if (!ledgerOn || !counts.data) return;
+    for (const t of TABS) {
+      if (counts.data[t.counts].total === 0) continue;
+      void qc.prefetchInfiniteQuery({
+        queryKey: pageKey(entityId, t.key, ''),
+        queryFn: ({ pageParam }) => ledgerApi.inventoryPage(entityId, { tab: t.key, cursor: pageParam, limit: PAGE }),
+        initialPageParam: undefined as string | undefined,
+        staleTime: 30_000,
+      });
+    }
+  }, [ledgerOn, counts.data, qc, entityId]);
 
   const refresh = useCallback(() => {
     void qc.invalidateQueries({ queryKey: ['catalog', entityId] });
@@ -256,15 +274,18 @@ export default function InventoryScreen() {
           </Pressable>
         </View>
       ) : null}
-      {/* Empre AI aparte: es de pago, no vive en el buscador ni en el filtro. Un servicio no tiene existencias que dictar. */}
-      {tab !== 'service' ? (
+      {/* Empre AI aparte: es de pago, no vive en el buscador ni en el filtro. Un servicio no tiene existencias que dictar,
+          y sin nada en la pestaña no hay qué actualizar. */}
+      {tab !== 'service' && (tc?.total ?? 0) > 0 ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Actualizar con Empre AI: dicta lo que llegó o se acabó"
           onPress={() => setVoiceOpen(true)}
           style={({ pressed }) => [styles.aiEntry, pressed && { backgroundColor: colors.well }]}
         >
-          <EmpreSymbol product="ai" size={32} />
+          <View style={styles.chispa}>
+            <Ionicons name="sparkles" size={16} color={colors.ink} />
+          </View>
           <View style={{ flex: 1, gap: 1 }}>
             <Text style={styles.aiTitle}>Actualizar con Empre AI</Text>
             <Text style={styles.aiSub}>Dicta lo que llegó o se acabó</Text>
@@ -272,7 +293,7 @@ export default function InventoryScreen() {
           <Ionicons name="chevron-forward" size={16} color={colors.muted} />
         </Pressable>
       ) : null}
-      {tab === 'supply' && few ? <Text style={styles.meta}>Lo que gastas para atender o preparar y no vendes solo. Tus clientes no lo ven.</Text> : null}
+      {tab === 'supply' && few && rows.length > 0 ? <Text style={styles.meta}>Lo que gastas para atender o preparar y no vendes solo. Tus clientes no lo ven.</Text> : null}
       {few && rows.length > 0 ? <Text style={styles.meta}>{`Con menos de ${FEW_BUSINESSES} no hace falta buscar ni filtrar: todo se ve de una vez.`}</Text> : null}
     </View>
   );
@@ -299,9 +320,11 @@ export default function InventoryScreen() {
   ) : q || state || section ? (
     <Text style={[styles.meta, { paddingVertical: spacing.lg }]}>Nada por aquí con esta búsqueda o este filtro.</Text>
   ) : tab === 'supply' ? (
-    <View style={styles.emptySupplies}>
-      <Text style={styles.meta}>¿Gastas ingredientes, vasos o bolsas? Agrégalos con «Nuevo insumo» y te avisamos cuando se acaben. Si no usas, esta lista puede quedar vacía.</Text>
-    </View>
+    <EmptyState
+      icon="cube-outline"
+      title="Aún no tienes insumos"
+      body="Lo que gastas para atender o preparar: ingredientes, vasos, bolsas. Agrégalos con «Nuevo insumo» y te avisamos cuando se acaben. Si no usas, puede quedar vacío."
+    />
   ) : (
     <EmptyState icon="cube-outline" title={`Aún no tienes ${meta.many}`} body={`Agrega el primero con «Nuevo ${meta.one}»: queda en tu perfil y, si lo cuentas, en tu inventario.`} />
   );
@@ -713,7 +736,8 @@ const styles = StyleSheet.create({
   listHead: { gap: spacing.md, paddingTop: spacing.xs, paddingBottom: spacing.sm },
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },
   meta: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
-  setup: { gap: spacing.sm, backgroundColor: colors.financeSoft, borderRadius: radius.lg, padding: spacing.md },
+  // Arena, no verde: el verde es de Finance y el dinero.
+  setup: { gap: spacing.sm, backgroundColor: colors.well, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: spacing.md },
   setupTitle: { fontSize: 15.5, fontFamily: fonts.display.bold, color: colors.ink },
   row: { flexDirection: 'row', gap: spacing.sm },
   linkRow: { minHeight: 44, justifyContent: 'center', alignSelf: 'center' },
@@ -731,12 +755,14 @@ const styles = StyleSheet.create({
   alertLink: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   // Empre AI: su propia entrada, aparte del buscador (tablero, teléfono 1).
   aiEntry: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 10, paddingHorizontal: spacing.md, borderRadius: 16, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
+  // La chispa del tablero: círculo de arena con la chispa en tinta (sin relleno negro). El anillo de usos del tablero
+  // espera el contador de Empre AI, que aún no existe.
+  chispa: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.sand, alignItems: 'center', justifyContent: 'center' },
   aiTitle: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   aiSub: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
   loadingMore: { textAlign: 'center', fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted, paddingVertical: spacing.xs },
   confirm: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, backgroundColor: colors.surface },
   confirmText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  emptySupplies: { padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.financeSoft },
   // Título de sección pegado arriba mientras bajas, con su número real (no el de la página).
   secHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingTop: spacing.md, paddingBottom: spacing.xs, backgroundColor: colors.bg },
   secTitle: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
