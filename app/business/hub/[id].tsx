@@ -144,7 +144,6 @@ export default function BusinessHubScreen() {
       ]
     : [];
 
-  const short = copy.kind === 'service' ? 'Servicios' : 'Productos';
   const running = (offerList.data ?? []).map((o) => timeLeftMs(o.ends_at)).filter((ms) => ms > 0).sort((x, y) => x - y)[0];
   const hasRunning = running !== undefined;
   const stockAlert = (insights.data ?? []).find((i) => i.kind === 'soon' || i.kind === 'out' || i.kind === 'low');
@@ -152,7 +151,7 @@ export default function BusinessHubScreen() {
   const nUnanswered = unansweredQ.data?.data?.length ?? 0;
   const spaces: { key: string; title: string; sub: string; symbol?: EmpreProduct; alert?: boolean; onPress: () => void }[] = [
     ...(FEATURES.ledger ? [{ key: 'finance', title: 'Finanzas', sub: soldToday > 0 ? `Hoy ${formatPesos(soldToday)}` : 'Tu caja y lo que te deben', symbol: 'finance' as const, onPress: finance }] : []),
-    { key: 'products', title: short, sub: stockAlert ? stockAlert.title : nItems > 0 ? (nItems === 1 ? '1 en tu catálogo' : `${nItems} en tu catálogo`) : `Agrega lo que ${copy.kind === 'service' ? 'ofreces' : 'vendes'}`, alert: Boolean(stockAlert), onPress: products },
+    { key: 'products', title: 'Inventario', sub: stockAlert ? stockAlert.title : nItems > 0 ? (nItems === 1 ? '1 en tu catálogo' : `${nItems} en tu catálogo`) : `Agrega lo que ${copy.kind === 'service' ? 'ofreces' : 'vendes'}`, alert: Boolean(stockAlert), onPress: products },
     ...(FEATURES.agenda ? [{ key: 'agenda', title: 'Agenda', sub: requests > 0 ? `${requests} por responder` : confirmed > 0 ? (confirmed === 1 ? '1 cita hoy' : `${confirmed} citas hoy`) : 'Sin citas por ahora', symbol: 'agenda' as const, alert: requests > 0, onPress: agenda }] : []),
     { key: 'offers', title: 'Ofertas', sub: hasRunning ? timeLeftLabel(running) : 'Publica una', symbol: 'offers', onPress: offers },
   ];
@@ -312,7 +311,7 @@ export default function BusinessHubScreen() {
           <Text style={styles.label}>Lo de todos los días</Text>
           <View style={styles.tiles}>
             {/* Las tres del tablero «Mi negocio»: canjear y anotar un gasto viven en el botón Empre y en tu perfil */}
-            <ActionTile icon="add-circle-outline" label={copy.kind === 'service' ? 'Subir un servicio' : 'Subir un producto'} onPress={go({ pathname: '/business/products/item', params: { entityId } })} />
+            <ActionTile icon="add-circle-outline" label={copy.kind === 'service' ? 'Nuevo servicio' : 'Nuevo producto'} onPress={go({ pathname: '/business/products/item', params: { entityId, kind: copy.kind === 'service' ? 'service' : 'product' } })} />
             <ActionTile icon="pricetag-outline" label="Crear una oferta" onPress={offers} />
             {FEATURES.ledger ? <ActionTile icon="cash-outline" label="Anotar una venta" onPress={sale} /> : null}
           </View>

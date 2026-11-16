@@ -44,7 +44,8 @@ const TRACK: { mode: StockMode; label: string; hint: string }[] = [
  * Todo se guarda con un botón; los ajustes de existencias de un producto que ya existe se guardan al instante.
  */
 export default function ItemScreen() {
-  const { entityId: rawEntity, itemId, sectionId, sectionName } = useLocalSearchParams<{ entityId: string; itemId?: string; sectionId?: string; sectionName?: string }>();
+  // kind: desde Inventario, «Nuevo servicio» abre la ficha ya como servicio (y «Nuevo producto», como producto).
+  const { entityId: rawEntity, itemId, sectionId, sectionName, kind: kindParam } = useLocalSearchParams<{ entityId: string; itemId?: string; sectionId?: string; sectionName?: string; kind?: string }>();
   const entityId = rawEntity ?? '';
   const isNew = !itemId;
   const router = useRouter();
@@ -104,7 +105,7 @@ export default function ItemScreen() {
     if (isNew) {
       // Llenado único al llegar los datos (lo protege «loaded»): no hay cascada de renders.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setKind(defaultItemKind(copy));
+      setKind(kindParam === 'service' || kindParam === 'product' ? kindParam : defaultItemKind(copy));
       // Agregado desde una sección de la lista: ya nace en ella.
       if (sectionId && sectionName) setSection({ id: sectionId, name: sectionName });
       // Cómo llevar la cuenta: lo que recomendamos para este tipo de negocio.
@@ -143,7 +144,7 @@ export default function ItemScreen() {
   if (!loaded) {
     return (
       <View style={styles.screen}>
-        <SubScreenHeader title={isNew ? 'Agregar' : 'Cargando…'} />
+        <SubScreenHeader title={isNew ? (kindParam === 'service' ? 'Nuevo servicio' : 'Nuevo producto') : 'Cargando…'} />
         <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
       </View>
     );
@@ -509,7 +510,7 @@ export default function ItemScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <SubScreenHeader title={isNew ? 'Agregar' : isVariant ? existing!.variant_label ?? existing!.name : existing!.name} />
+      <SubScreenHeader title={isNew ? (isService ? 'Nuevo servicio' : 'Nuevo producto') : isVariant ? existing!.variant_label ?? existing!.name : existing!.name} />
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl }} keyboardShouldPersistTaps="handled">
         {isNew ? (
           <View style={styles.segment} accessibilityRole="radiogroup" accessibilityLabel="Qué vas a agregar">
