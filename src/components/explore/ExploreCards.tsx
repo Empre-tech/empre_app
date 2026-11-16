@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { resolveImageUrl } from '@/lib/image';
 import type { Pill } from '@/lib/discover';
+import type { OpenStatus } from '@/lib/openStatus';
 import { PhotoGallery } from './PhotoGallery';
 import { colors, fonts, radius, spacing } from '@/theme';
 
@@ -22,8 +23,10 @@ export interface CardModel {
   open: boolean | null;
   distance: string | null;
   sub: string;
-  /** Tercera línea: motivo de coincidencia, frase corta o «Abierto · hasta…». */
+  /** Tercera línea: motivo de coincidencia, frase corta o «Abierto · cierra…». */
   line?: string;
+  /** El estado ya dicho con las palabras de siempre («Abierto · cierra 8 pm», «Cierra en 40 min», «Cerrado»). */
+  status?: OpenStatus | null;
   pill?: Pill | null;
   /** Tiene un QR activo del usuario: la pastilla pasa a verde. */
   mine?: boolean;
@@ -216,12 +219,14 @@ export function MiniRow({
   onPhoto?: (index: number) => void;
 }) {
   const photos = (model.photos ?? []).slice(0, 3);
-  const statusLine = model.line && /^(Abierto|Cerrado)/.test(model.line) ? model.line : null;
-  const reason = statusLine ? null : model.line;
+  const said = model.status ?? null;
+  const statusLine = !said && model.line && /^(Abierto|Cerrado|Cierra)/.test(model.line) ? model.line : null;
+  const reason = statusLine || (model.line && /^(Abierto|Cerrado|Cierra)/.test(model.line)) ? null : model.line;
   const stars = model.rating && model.reviews ? `★ ${model.rating.toFixed(1)} (${model.reviews})` : null;
   const meta = [stars, model.sub, model.distance].filter(Boolean).join(' · ');
-  const openNow = statusLine ? statusLine.startsWith('Abierto') : model.open === true;
-  const status = statusLine ?? (model.open === null ? null : model.open ? 'Abierto' : 'Cerrado');
+  const openNow = said ? said.open : statusLine ? !statusLine.startsWith('Cerrado') : model.open === true;
+  const soon = said?.soon ?? false;
+  const status = said?.text ?? statusLine ?? (model.open === null ? null : model.open ? 'Abierto' : 'Cerrado');
   const about = model.review?.quote ?? model.tagline ?? reason ?? null;
   return (
     <Pressable
@@ -247,7 +252,7 @@ export function MiniRow({
         </Text>
       ) : null}
       {status ? (
-        <Text style={[styles.dcMeta, openNow ? styles.open : null]} numberOfLines={1}>
+        <Text style={[styles.dcMeta, openNow ? styles.open : null, soon && styles.soon]} numberOfLines={1}>
           {openNow ? <Text style={styles.openDot}>● </Text> : null}
           {status}
         </Text>
@@ -291,7 +296,8 @@ const styles = StyleSheet.create({
   pillTextNew: { color: colors.ink },
   pillTextMine: { color: '#D42020' },
   open: { color: colors.ink, fontFamily: fonts.ui.semibold },
-  openDot: { color: colors.brand, fontSize: 9 },
+  openDot: { color: colors.brandRef, fontSize: 9 },
+  soon: { color: colors.primaryDark },
   closed: { color: '#9B2C2C', fontFamily: fonts.ui.bold },
   why: { color: colors.muted },
   pressed: { opacity: 0.85 },

@@ -124,7 +124,7 @@ function PinMarkerView({ entity, tier, selected, mine, emphasis, distanceLabel, 
           </View>
         ) : null}
         {tier === 'far' ? (
-          <View style={[styles.pinFar, { backgroundColor: open ? colors.brand : '#8E929A' }, selected && styles.pinFarSelected]} />
+          <View style={[styles.pinFar, { backgroundColor: open ? colors.brandRef : '#8E929A' }, selected && styles.pinFarSelected]} />
         ) : (
           <View style={!open && entity.has_hours ? styles.closedFade : null}>
             <View style={[styles.gPin, tier === 'mid' && styles.gPinSmall, selected && styles.gPinSelected]}>
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   gPin: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line, shadowColor: '#2B2622', shadowOpacity: 0.22, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   gPinSelected: { borderColor: colors.ink, borderWidth: 2.5 },
   gPinSmall: { width: 30, height: 30, borderRadius: 15 },
-  gOpen: { position: 'absolute', left: -2, bottom: -2, width: 11, height: 11, borderRadius: 6, backgroundColor: colors.brand, borderWidth: 2, borderColor: '#FFFFFF' },
+  gOpen: { position: 'absolute', left: -2, bottom: -2, width: 11, height: 11, borderRadius: 6, backgroundColor: colors.brandRef, borderWidth: 2, borderColor: '#FFFFFF' },
   offerBadgeLow: { position: 'absolute', left: -5, bottom: -5, zIndex: 2, marginBottom: 0 },
   thumbNear: { width: 40, height: 40, borderRadius: 20 },
   fallback: { alignItems: 'center', justifyContent: 'center' },

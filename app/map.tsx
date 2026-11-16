@@ -34,6 +34,9 @@ import { artKeyFor, artKeyMatch } from '@/components/CategoryArt';
 import { noteInterest } from '@/lib/interestStore';
 import { addRecent, loadRecents, saveRecents } from '@/lib/searchRecents';
 import { ART_LABEL } from '@/lib/offerHome';
+import { learnPlaceSuffixes, splitZone } from '@/lib/businessName';
+import { openStatus } from '@/lib/openStatus';
+import { oneListWhenFew } from '@/lib/fewBusinesses';
 import { ContextRow } from '@/components/explore/ContextRow';
 import { FinderWelcome } from '@/components/explore/FinderWelcome';
 import { LocationStrip } from '@/components/explore/LocationStrip';
@@ -877,9 +880,28 @@ export default function MapScreen() {
   });
   const snippets = useMemo(() => ({ ...snippetStore.data, ...(snippetsQuery.data ?? {}) }), [snippetStore.data, snippetsQuery.data]);
 
+  // Los nombres sin el barrio, como en Inicio («Helados del Mar Mamatoco» → «Helados del Mar»); dos sedes que quedarían
+  // iguales en lo que se ve se dejan completas.
+  const placeNames = useMemo(() => [...zones.map((z) => z.name), ...learnPlaceSuffixes(items.map((e) => e.name))], [zones, items]);
+  const repeatedBases = useMemo(() => {
+    const count = new Map<string, number>();
+    for (const e of items) {
+      const k = splitZone(e.name, placeNames).base.toLowerCase();
+      count.set(k, (count.get(k) ?? 0) + 1);
+    }
+    return new Set([...count].filter(([, n]) => n > 1).map(([k]) => k));
+  }, [items, placeNames]);
+  const shownName = useCallback(
+    (name: string) => {
+      const base = splitZone(name, placeNames).base;
+      return repeatedBases.has(base.toLowerCase()) ? name : base;
+    },
+    [placeNames, repeatedBases],
+  );
+
   const toModel = useCallback((e: WithDistance, line?: string): CardModel => ({
     id: e.id,
-    name: e.name,
+    name: shownName(e.name),
     latitude: e.latitude,
     longitude: e.longitude,
     image: e.profile_url,
@@ -889,6 +911,7 @@ export default function MapScreen() {
     distance: onFootOrDistance(e.distanceKm),
     sub: e.subcategory || e.category_name,
     line,
+    status: openStatus(e.has_hours ? e.is_open_now : null, e.closes_at, now),
     pill: e.has_active_offer && e.active_offer ? reasonPill({ kind: 'offer', ends_at: e.active_offer.ends_at }, now) : null,
     mine: qrByEntity.has(e.id),
     rating: e.avg_rating,
@@ -897,10 +920,10 @@ export default function MapScreen() {
     review: snippets?.[e.id] ? snippetLines(snippets[e.id], now) : undefined,
     photos: e.photos,
     photosCount: e.photos_count,
-  }), [now, qrByEntity, snippets]);
+  }), [now, qrByEntity, snippets, shownName]);
   const discoverModel = useCallback((it: DiscoverItem, sectionId: DiscoverSectionId): CardModel => ({
     id: it.entity_id,
-    name: it.name,
+    name: shownName(it.name),
     latitude: it.latitude,
     longitude: it.longitude,
     image: it.profile_url,
@@ -911,12 +934,13 @@ export default function MapScreen() {
     // La distancia se calcula aquí (Descubre se guarda por área, no por tu posición).
     distance: onFootOrDistance(reference ? distanceKm(reference, it) : it.distance_meters > 0 ? it.distance_meters / 1000 : null),
     sub: it.subcategory || it.category_name,
-    line: sectionId === 'open' ? openLine(it.closes_at) : it.tagline || undefined,
+    line: sectionId === 'open' ? openLine(it.closes_at, now) : it.tagline || undefined,
+    status: openStatus(it.is_open_now, it.closes_at, now),
     pill: reasonPill(it.reason, now),
     mine: qrByEntity.has(it.entity_id),
     photos: it.photos,
     photosCount: it.photos_count,
-  }), [now, qrByEntity, reference]);
+  }), [now, qrByEntity, reference, shownName]);
   const zoneModels = useMemo(() => (searching ? [] : items.map((e) => toModel(e))), [searching, items, toModel]);
   // Adicionales: los pines acumulados que están cerca pero fuera de la zona que se ve, con el nombre de su zona.
   const extraModels = useMemo(() => extraEntities.map((e) => ({ ...toModel(e), zoneLabel: zoneAt(zones, e)?.zone.name ?? null })), [extraEntities, zones, toModel]);
@@ -959,7 +983,8 @@ export default function MapScreen() {
     const coords = userCoords ?? (await requestLocation());
     if (coords) mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 500);
   };
-  const sections = useMemo(() => sectionsInView(sectionsQuery.data ?? [], listBox), [sectionsQuery.data, listBox]);
+  // Con pocos negocios a la vista, Descubre es una sola lista donde cada uno sale una vez (como Inicio).
+  const sections = useMemo(() => oneListWhenFew(sectionsInView(sectionsQuery.data ?? [], listBox), items.length), [sectionsQuery.data, listBox, items.length]);
   // Llega algo nuevo con lo anterior todavía a la vista: barra fina arriba del panel y lo anterior atenuado (3.26).
   const updating =
     mapLoading ||

@@ -3,6 +3,7 @@
 
 import { containsPoint, type Box } from './mapArea';
 import { formatEndsWhen } from './offer';
+import { openStatus } from './openStatus';
 
 export const MINUTE = 60_000;
 
@@ -17,11 +18,9 @@ export function formatClockLabel(hhmm?: string | null): string {
   return `${h12}:${String(m).padStart(2, '0')} ${suffix}`;
 }
 
-/** «Abierto · hasta las 8:00 pm», «Abierto las 24 horas» o «Abierto». */
-export function openLine(closesAt?: string | null): string {
-  if (closesAt === '24h') return 'Abierto las 24 horas';
-  const clock = formatClockLabel(closesAt);
-  return clock ? `Abierto · hasta las ${clock}` : 'Abierto';
+/** «Abierto · cierra 8 pm», «Cierra en 40 min», «Abierto 24 h» o «Abierto»: las mismas palabras que Inicio (openStatus). */
+export function openLine(closesAt?: string | null, now: number = Date.now()): string {
+  return openStatus(true, closesAt, now)?.text ?? 'Abierto';
 }
 
 /** Tiempo corto para pastillas: «25 min», «2 h», «3 d». */

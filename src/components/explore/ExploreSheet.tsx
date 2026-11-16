@@ -239,7 +239,7 @@ function Body(p: Props) {
             <View key={sec.id}>
               <View style={styles.secHead}>
                 <Text style={styles.secTitle}>{sec.title}</Text>
-                <Pressable accessibilityRole="button" accessibilityLabel={`Ver más: ${sec.title}`} onPress={() => p.onSeeSection(sec.id)} hitSlop={8}>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Ver más: ${sec.title}`} onPress={() => ((sec as { merged?: boolean }).merged ? p.onView('results') : p.onSeeSection(sec.id))} hitSlop={8}>
                   <Text style={styles.link}>Ver más ›</Text>
                 </Pressable>
               </View>

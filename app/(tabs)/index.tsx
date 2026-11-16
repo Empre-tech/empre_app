@@ -9,6 +9,8 @@ import { ScreenGlow } from '@/components/ScreenGlow';
 import { artKeyFor, artKeyMatch } from '@/components/CategoryArt';
 import { focusReasonRow, forYou, forYouHeader, myInterests, peopleInterests, seenBusinesses } from '@/lib/interests';
 import { learnPlaceSuffixes, otherZone, rowNames } from '@/lib/businessName';
+import { FEW_BUSINESSES } from '@/lib/fewBusinesses';
+import { openStatus } from '@/lib/openStatus';
 import { noteInterest, useInterestSignals } from '@/lib/interestStore';
 import { BusinessArt, CategoryIllustration } from '@/components/CategoryIllustration';
 import { artCounts, closeChip, hourLabel } from '@/lib/offerHome';
@@ -50,9 +52,6 @@ function whenLabel(iso: string, now: number): string {
  * con cuándo cierra, una línea hacia Ofertas y, al bajar, el muro. Empre AI sigue en el botón Empre. Con pocos datos
  * cada parte se esconde (buscar y el mapa siempre están): nunca se rellena con datos inventados.
  */
-/** Por debajo de este número de negocios cerca, Inicio muestra una sola lista (cada negocio una vez). */
-const FEW_BUSINESSES = 8;
-
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -403,10 +402,10 @@ export default function HomeScreen() {
               <View style={styles.fewList}>
                 {fewList.map((b, i) => {
                   const photo = resolveImageUrl(b.photos?.[0]) ?? resolveImageUrl(b.profile_url);
-                  const chip = b.is_open_now ? closeChip(b.closes_at, now) : null;
+                  const said = openStatus(b.has_hours === false ? null : b.is_open_now, b.closes_at, now);
                   const walk = onFootOrDistance(b.distance_meters / 1000);
                   const name = fewNames[i].name;
-                  const status = b.is_open_now ? (chip?.text ?? 'Abierto ahora') : 'Cerrado ahora';
+                  const status = said?.text ?? null;
                   const why = reasonById.get(b.id);
                   return (
                     <Pressable key={b.id} accessibilityRole="button" accessibilityLabel={[name, b.category_name, walk, status, why].filter(Boolean).join(', ')} onPress={() => router.push({ pathname: '/business/[id]', params: { id: b.id } })} style={({ pressed }) => [styles.fewRow, i > 0 && styles.fewRowLine, pressed && styles.pressed]}>
@@ -420,12 +419,14 @@ export default function HomeScreen() {
                         <Text style={styles.fewSub} numberOfLines={1}>
                           {[b.category_name, walk].filter(Boolean).join(' · ')}
                         </Text>
-                        <View style={styles.fewStatus}>
-                          {b.is_open_now ? <View style={styles.fewDot} /> : null}
-                          <Text style={[styles.fewStatusText, chip?.soon && { color: colors.primaryDark }, !b.is_open_now && { color: colors.muted }]} numberOfLines={1}>
-                            {why ? `${status} · ${why}` : status}
-                          </Text>
-                        </View>
+                        {status || why ? (
+                          <View style={styles.fewStatus}>
+                            {said?.open ? <View style={styles.fewDot} /> : null}
+                            <Text style={[styles.fewStatusText, said?.soon && { color: colors.primaryDark }, said && !said.open && { color: colors.muted }]} numberOfLines={1}>
+                              {[status, why].filter(Boolean).join(' · ')}
+                            </Text>
+                          </View>
+                        ) : null}
                       </View>
                       <Ionicons name="chevron-forward" size={16} color={colors.muted} />
                     </Pressable>
