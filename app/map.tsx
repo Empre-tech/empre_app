@@ -98,9 +98,9 @@ export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
 
-  // Desde las categorías del inicio se llega con el filtro puesto (?cat=ids separados por coma&catName=Comida), y desde
-  // «Buscar» con el campo abierto (?buscar=1).
-  const fromHome = useLocalSearchParams<{ cat?: string; catName?: string; buscar?: string }>();
+  // Desde las categorías del inicio se llega con el filtro puesto (?cat=ids separados por coma&catName=Comida), desde
+  // «Buscar» con el campo abierto (?buscar=1) y desde «Ver todos» de Abierto ahora con ese filtro (?abierto=1).
+  const fromHome = useLocalSearchParams<{ cat?: string; catName?: string; buscar?: string; abierto?: string }>();
   const [categoryId, setCategoryId] = useState<string | undefined>(() => (typeof fromHome.cat === 'string' && fromHome.cat ? fromHome.cat : undefined));
   // El grupo elegido (filtra por todas sus categorías) y, dentro, opcionalmente una categoría.
   const [groupId, setGroupId] = useState<GroupId | undefined>();
@@ -190,7 +190,7 @@ export default function MapScreen() {
   const [search, setSearch] = useState(() => (typeof entry.q === 'string' ? entry.q.slice(0, 80) : ''));
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [radiusKm, setRadiusKm] = useState<number | null>(null);
-  const [openNow, setOpenNow] = useState(false);
+  const [openNow, setOpenNow] = useState(() => fromHome.abierto === '1');
   // Un solo buscador (3.66): lo que la fila de filtros suma a «abierto», distancia y tipo.
   const [extra, setExtra] = useState<Pick<SearchFilters, 'offer' | 'delivery' | 'verified' | 'sort'>>({ offer: false, delivery: false, verified: false, sort: 'near' });
   const [locating, setLocating] = useState(false);

@@ -15,6 +15,8 @@ export const colors = {
   brand: '#F03232', // el rojo de Empre en formas: punto, foco y lo que pasa ahora
   /** El rojo de referencia del logo (R255 G29 B37, 2026-11-15): trazos como el aro del botón Empre. 3,9:1 sobre blanco: sirve en bordes y formas, no en texto pequeño. */
   brandRef: '#FF1D25',
+  // Su cápsula clara (la pestaña elegida): el rojo de referencia al 10 % sobre blanco.
+  brandRefSoft: '#FFE8E9',
   selected: '#2B2622', // lo elegido: texto en tinta...
   selectedSoft: '#E8DCC2', // ...sobre arena (el complemento del rojo)
   // Ofertas: naranja solo en sus piezas (etiqueta, «termina hoy», lo que ahorras)

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { addSignal, decay, forYou, forYouHeader, myInterests, peopleInterests, seenBusinesses, MAX_SIGNALS, type Signal } from './interests.ts';
+import { addSignal, decay, forYou, forYouHeader, myInterests, peopleInterests, seenBusinesses, sharedReasonTitle, MAX_SIGNALS, type Signal } from './interests.ts';
 
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 10, 14, 17);
@@ -89,4 +89,14 @@ test('forYouHeader explica de dónde sale la fila', () => {
   assert.deepEqual(forYouHeader(new Map([['barberia' as never, 1], ['comida' as never, 0.4]]), new Map()), { title: 'Para ti', sub: 'Por lo que más buscas: barbería y comida' });
   assert.deepEqual(forYouHeader(new Map(), new Map([['comida' as never, 1]])), { title: 'Lo que más se busca cerca', sub: 'Lo que la gente de tu barrio está buscando' });
   assert.equal(forYouHeader(new Map(), new Map()), null);
+});
+
+test('sharedReasonTitle: la misma razón para todos va una vez, en el título', () => {
+  assert.equal(sharedReasonTitle(['Lo viste hace poco', 'Lo viste hace poco', 'Lo viste hace poco']), 'Lo que viste hace poco');
+  assert.equal(sharedReasonTitle(['Buscas barbería', 'Buscas barbería']), 'Porque buscas barbería');
+  assert.equal(sharedReasonTitle(['Lo buscan cerca', 'Lo buscan cerca']), 'Lo que buscan cerca');
+  assert.equal(sharedReasonTitle(['Abierto cerca', 'Abierto cerca']), 'Abierto cerca de ti');
+  // Razones distintas o uno solo: cada uno dice la suya
+  assert.equal(sharedReasonTitle(['Lo viste hace poco', 'Buscas comida']), null);
+  assert.equal(sharedReasonTitle(['Lo viste hace poco']), null);
 });

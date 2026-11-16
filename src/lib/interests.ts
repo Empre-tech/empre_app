@@ -171,6 +171,20 @@ export function forYou<T extends Candidate>(
   return picks;
 }
 
+/**
+ * Cuando todos los de la fila están por la misma razón (los cuatro «Lo viste hace poco»), la razón va una vez, en el
+ * título, y debajo de cada uno va lo que lo distingue (tablero «Inicio», 2026-11-16). Si las razones son distintas, null.
+ */
+export function sharedReasonTitle(reasons: readonly string[]): string | null {
+  if (reasons.length < 2 || reasons.some((r) => r !== reasons[0])) return null;
+  const r = reasons[0];
+  if (r === 'Lo viste hace poco') return 'Lo que viste hace poco';
+  if (r === 'Lo buscan cerca') return 'Lo que buscan cerca';
+  if (r === 'Abierto cerca') return 'Abierto cerca de ti';
+  if (r.startsWith('Buscas ')) return `Porque buscas ${r.slice('Buscas '.length)}`;
+  return r;
+}
+
 /** El título de la fila y su porqué. Sin señales, nada. */
 export function forYouHeader(mine: Map<ArtKey, number>, people: Map<ArtKey, number>): { title: string; sub: string } | null {
   const top = [...mine].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k]) => label(k));

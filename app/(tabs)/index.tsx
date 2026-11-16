@@ -7,10 +7,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { ScreenGlow } from '@/components/ScreenGlow';
 import { artKeyFor, artKeyMatch } from '@/components/CategoryArt';
-import { forYou, forYouHeader, myInterests, peopleInterests, seenBusinesses } from '@/lib/interests';
+import { forYou, forYouHeader, myInterests, peopleInterests, seenBusinesses, sharedReasonTitle } from '@/lib/interests';
+import { otherZone, rowNames } from '@/lib/businessName';
 import { noteInterest, useInterestSignals } from '@/lib/interestStore';
-import { BusinessArt, CategoryIllustration } from '@/components/CategoryIllustration';
-import { artCounts, closeChip, hourLabel } from '@/lib/offerHome';
+import { BusinessArt } from '@/components/CategoryIllustration';
+import { artCounts, closeChip, hourLabel, type ArtCount } from '@/lib/offerHome';
 import { catalogApi } from '@/api/catalog';
 import type { ServiceItem } from '@/lib/catalog';
 import { novedadesApi } from '@/api/novedades';
@@ -27,7 +28,7 @@ import { handOffItem } from '@/lib/offerHandoff';
 import { SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
 import { ZoneButton, ZoneList } from '@/components/ZoneButton';
 import { mediaUrl, resolveImageUrl } from '@/lib/image';
-import { dayLabel, stripEntries } from '@/lib/novedades';
+import { stripEntries } from '@/lib/novedades';
 import { onFootOrDistance } from '@/lib/format';
 import { endingToday, mergeCatalogIntoMarket, priceView } from '@/lib/offerMarket';
 import { useLocation } from '@/lib/useCoords';
@@ -35,19 +36,12 @@ import { SkeletonBlock } from '@/components/Skeleton';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts } from '@/theme';
 
-function whenLabel(iso: string, now: number): string {
-  const min = Math.floor((now - Date.parse(iso)) / 60_000);
-  if (min < 1) return 'Ahora';
-  if (min < 60) return `Hace ${min} min`;
-  if (min < 24 * 60) return `Hace ${Math.floor(min / 60)} h`;
-  return dayLabel(iso, now);
-}
-
 /**
- * Inicio (tablero «Inicio a la puerta», 2026-11-14), en el orden de las apps de barrio que más se usan: dónde estás,
- * buscar (abre el buscador del mapa), las categorías con cuántos negocios hay, el mapa, tus negocios, lo abierto ahora
- * con cuándo cierra, una línea hacia Ofertas y, al bajar, el muro. Empre AI sigue en el botón Empre. Con pocos datos
- * cada parte se esconde (buscar y el mapa siempre están): nunca se rellena con datos inventados.
+ * Inicio (tablero «Inicio a la puerta»), en el orden de las apps de barrio que más se usan: dónde estás, una sola
+ * puerta al mapa (2026-11-16: la búsqueda y las categorías van dentro del mapa, como en Google Maps; antes eran tres
+ * entradas al mismo lugar), tus negocios, lo abierto ahora con cuándo cierra, una línea hacia Ofertas y, al bajar, el
+ * muro. Empre AI sigue en el botón Empre. Con pocos datos cada parte se esconde (buscar y el mapa siempre están): nunca
+ * se rellena con datos inventados.
  */
 export default function HomeScreen() {
   const router = useRouter();
@@ -133,6 +127,10 @@ export default function HomeScreen() {
   const people = useMemo(() => peopleInterests((market.data?.searched.terms ?? []).map((t) => t.label || t.term), artKeyMatch), [market.data]);
   const forYouPicks = useMemo(() => (strip.length ? [] : forYou(discovery, mine, people, seen, artKeyFor, 8)), [strip.length, discovery, mine, people, seen]);
   const forYouHead = forYouPicks.length ? forYouHeader(mine, people) : null;
+  // Si todos están por la misma razón («Lo viste hace poco» ×4), va una vez en el título y debajo, lo que los distingue.
+  const forYouShared = sharedReasonTitle(forYouPicks.map((p) => p.reason));
+  // Los nombres sin el barrio («Helados del Mar Mamatoco» → «Helados del Mar»), salvo dos sedes juntas.
+  const zoneNames = useMemo(() => zones.map((z) => z.name), [zones]);
 
   // Abierto ahora cerca: lo más cercano primero, con cuándo cierra; sin repetir lo que ya salió en «Para ti».
   const openCards = useMemo(() => {
@@ -179,6 +177,33 @@ export default function HomeScreen() {
   // Cuántos negocios hay a la puerta: el número sale de lo que encontró el mapa, nunca inventado.
   const nearCount = discovery.length;
 
+  // Las tres formas de entrar a la misma puerta: escribir, elegir una categoría o solo mirar (openExplore).
+  const openSearch = () => router.push({ pathname: '/map', params: { q: '', buscar: '1' } });
+  const openCategory = (c: ArtCount) => {
+    noteInterest('category', c.key);
+    router.push({ pathname: '/map', params: { q: '', cat: c.ids, catName: c.label } });
+  };
+  // Sin mapa todavía (cargando o sin ubicación), buscar sigue a mano.
+  const searchBar = (
+    <Pressable accessibilityRole="button" accessibilityLabel="Buscar en Empre" onPress={openSearch} style={({ pressed }) => [styles.search, pressed && styles.pressed]}>
+      <Ionicons name="search" size={20} color={colors.ink} />
+      <Text style={styles.searchText} numberOfLines={1}>
+        Busca negocios, cortes, almuerzos…
+      </Text>
+    </Pressable>
+  );
+
+  // Los nombres de cada fila, sin el barrio (dos sedes juntas quedan completas).
+  const stripNames = rowNames(strip.map((w) => w.name), zoneNames);
+  const forYouNames = rowNames(forYouPicks.map((p) => p.item.name), zoneNames);
+  const openNames = rowNames(openCards.map((b) => b.name), zoneNames);
+  // Cuando la razón va en el título, debajo de cada uno: cuándo cierra si es pronto, si no el tipo y a cuánto queda.
+  const distinct = (b: (typeof forYouPicks)[number]['item']) => {
+    const chip = closeChip(b.closes_at, now);
+    if (chip?.soon) return chip.text;
+    return [b.category_name, b.distance_meters != null ? onFootOrDistance(b.distance_meters / 1000) : null].filter(Boolean).join(' · ');
+  };
+
   return (
     <View style={styles.screen}>
       <ScreenGlow />
@@ -209,33 +234,10 @@ export default function HomeScreen() {
             />
           ) : null}
 
-          {/* Buscar: abre el buscador del mapa ya escribiendo, no otra pantalla */}
-          <Pressable accessibilityRole="button" accessibilityLabel="Buscar en Empre" onPress={() => router.push({ pathname: '/map', params: { q: '', buscar: '1' } })} style={({ pressed }) => [styles.search, pressed && styles.pressed]}>
-            <Ionicons name="search" size={20} color={colors.ink} />
-            <Text style={styles.searchText} numberOfLines={1}>
-              Busca negocios, cortes, almuerzos…
-            </Text>
-          </Pressable>
-
-          {/* Las categorías con lo que hay: cada una abre el mapa ya filtrado */}
-          {cats.length ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.catsIn}>
-              {cats.map((c) => (
-                <Pressable key={c.key} accessibilityRole="button" accessibilityLabel={`${c.label}, ${c.count} ${c.count === 1 ? 'negocio' : 'negocios'} cerca`} onPress={() => {
-                    noteInterest('category', c.key);
-                    router.push({ pathname: '/map', params: { q: '', cat: c.ids, catName: c.label } });
-                  }} style={({ pressed }) => [styles.cat, pressed && styles.pressed]}>
-                  <CategoryIllustration k={c.key} size={34} />
-                  <Text style={styles.catText}>{c.label}</Text>
-                  <Text style={styles.catCount}>{c.count}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          ) : null}
-
           {location.denied && !coords && !zone ? (
             // Sin ubicación también funciona (tablero «Estados», teléfono 5): se elige el barrio y sigue igual.
             <View style={styles.where}>
+              {searchBar}
               <Text style={styles.whereTitle} accessibilityRole="header">
                 ¿Dónde estás?
               </Text>
@@ -255,21 +257,16 @@ export default function HomeScreen() {
             </View>
           ) : open.isLoading && !open.data ? (
             // Cargando: la forma de lo que viene, nunca una rueda sola (tablero «Estados», teléfono 1).
-            <View accessibilityLabel="Buscando negocios cerca" accessibilityLiveRegion="polite">
-              <SkeletonBlock height={196} borderRadius={22} />
-              <Text style={styles.loadingText}>Buscando negocios cerca…</Text>
+            <View style={styles.loading}>
+              {searchBar}
+              <View accessibilityLabel="Buscando negocios cerca" accessibilityLiveRegion="polite">
+                <SkeletonBlock height={190} borderRadius={22} />
+                <Text style={styles.loadingText}>Buscando negocios cerca…</Text>
+              </View>
             </View>
           ) : (
-            <View style={styles.mapBlock}>
-              {/* La promesa, como título de sección: ya no ocupa media pantalla */}
-              <View style={styles.secHead}>
-                <Text style={styles.secTitle} accessibilityRole="header">
-                  A la puerta de tu casa
-                </Text>
-                {nearCount > 1 ? <Text style={styles.secCount}>{`${nearCount} negocios`}</Text> : null}
-              </View>
-              <PuertaMapa items={mapItems} center={center} openCount={openNear.length} ticker={[]} whenOf={(iso) => whenLabel(iso, now)} onExplore={openExplore} />
-            </View>
+            // Una sola puerta: escribir, elegir una categoría o solo mirar; todo abre Empre Finder.
+            <PuertaMapa items={mapItems} center={center} openCount={openNear.length} nearCount={nearCount} cats={cats} onSearch={openSearch} onCategory={openCategory} onExplore={openExplore} />
           )}
 
           {strip.length ? (
@@ -281,13 +278,13 @@ export default function HomeScreen() {
                 <Text style={styles.secSub}>El anillo rojo: publicó algo nuevo</Text>
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.followIn}>
-                {strip.map((w) => (
-                  <Pressable key={w.entityId} accessibilityRole="button" accessibilityLabel={`${w.name}${w.ring === 'offer' ? ', oferta nueva' : w.ring === 'post' ? ', publicó' : ''}`} onPress={() => router.push({ pathname: '/business/[id]', params: { id: w.entityId } })} style={styles.follow}>
-                    <View style={[styles.followRing, { borderColor: w.ring === 'none' ? colors.line : colors.brand }]}>
-                      <Avatar uri={w.profileUrl} name={w.name} size={56} />
+                {strip.map((w, i) => (
+                  <Pressable key={w.entityId} accessibilityRole="button" accessibilityLabel={`${stripNames[i].name}${w.ring === 'offer' ? ', oferta nueva' : w.ring === 'post' ? ', publicó' : ''}`} onPress={() => router.push({ pathname: '/business/[id]', params: { id: w.entityId } })} style={styles.follow}>
+                    <View style={[styles.followRing, { borderColor: w.ring === 'none' ? colors.line : colors.brandRef }]}>
+                      <Avatar uri={w.profileUrl} name={stripNames[i].name} size={56} />
                     </View>
                     <Text style={styles.followName} numberOfLines={2}>
-                      {w.name}
+                      {stripNames[i].name}
                     </Text>
                   </Pressable>
                 ))}
@@ -298,24 +295,28 @@ export default function HomeScreen() {
           {/* Para ti: cuando no sigues a nadie, lo que más buscas y lo que busca la gente; cada uno dice por qué está */}
           {forYouHead && forYouPicks.length ? (
             <View style={styles.section}>
-              {/* Solo el título: el porqué va debajo de cada negocio, no hace falta repetir lo que más buscas */}
+              {/* Solo el título: el porqué va debajo de cada negocio; si es el mismo para todos, va aquí una vez */}
               <Text style={styles.secTitle} accessibilityRole="header">
-                {forYouHead.title}
+                {forYouShared ?? forYouHead.title}
               </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.followIn}>
-                {forYouPicks.map(({ item: b, reason, source }) => (
-                  <Pressable key={b.id} accessibilityRole="button" accessibilityLabel={`${b.name}. ${reason}`} onPress={() => router.push({ pathname: '/business/[id]', params: { id: b.id } })} style={({ pressed }) => [styles.follow, styles.forYou, pressed && styles.pressed]}>
-                    <View style={[styles.followRing, { borderColor: source === 'visto' ? colors.ink : colors.line }]}>
-                      <Avatar uri={b.profile_url} name={b.name} size={56} />
-                    </View>
-                    <Text style={styles.followName} numberOfLines={2}>
-                      {b.name}
-                    </Text>
-                    <Text style={styles.forWhy} numberOfLines={2}>
-                      {reason}
-                    </Text>
-                  </Pressable>
-                ))}
+                {forYouPicks.map(({ item: b, reason, source }, i) => {
+                  const name = forYouNames[i].name;
+                  const why = forYouShared ? distinct(b) : reason;
+                  return (
+                    <Pressable key={b.id} accessibilityRole="button" accessibilityLabel={`${name}. ${why}`} onPress={() => router.push({ pathname: '/business/[id]', params: { id: b.id } })} style={({ pressed }) => [styles.follow, styles.forYou, pressed && styles.pressed]}>
+                      <View style={[styles.followRing, { borderColor: source === 'visto' ? colors.ink : colors.line }]}>
+                        <Avatar uri={b.profile_url} name={name} size={56} />
+                      </View>
+                      <Text style={styles.followName} numberOfLines={2}>
+                        {name}
+                      </Text>
+                      <Text style={styles.forWhy} numberOfLines={2}>
+                        {why}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </ScrollView>
             </View>
           ) : null}
@@ -327,26 +328,28 @@ export default function HomeScreen() {
                 <Text style={styles.secTitle} accessibilityRole="header">
                   Abierto ahora cerca
                 </Text>
-                <Pressable accessibilityRole="link" accessibilityLabel="Ver todos en el mapa" hitSlop={8} onPress={() => router.push('/map')} style={styles.seeAll}>
+                <Pressable accessibilityRole="link" accessibilityLabel="Ver todos los abiertos en el mapa" hitSlop={8} onPress={() => router.push({ pathname: '/map', params: { abierto: '1' } })} style={styles.seeAll}>
                   <Text style={styles.seeAllText}>Ver todos</Text>
                 </Pressable>
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.openIn}>
-                {openCards.map((b) => {
+                {openCards.map((b, i) => {
                   const photo = resolveImageUrl(b.photos?.[0]) ?? resolveImageUrl(b.profile_url);
                   const chip = closeChip(b.closes_at, now);
                   const walk = onFootOrDistance(b.distance_meters / 1000);
+                  const { name, sede } = openNames[i];
+                  const away = otherZone(sede, zoneName);
                   return (
-                    <Pressable key={b.id} accessibilityRole="button" accessibilityLabel={[b.name, b.category_name, chip?.text, walk].filter(Boolean).join(', ')} onPress={() => router.push({ pathname: '/business/[id]', params: { id: b.id } })} style={({ pressed }) => [styles.openCard, pressed && styles.pressed]}>
+                    <Pressable key={b.id} accessibilityRole="button" accessibilityLabel={[name, away, b.category_name, chip?.text, walk].filter(Boolean).join(', ')} onPress={() => router.push({ pathname: '/business/[id]', params: { id: b.id } })} style={({ pressed }) => [styles.openCard, pressed && styles.pressed]}>
                       <View style={styles.openImg}>
                         {photo ? <Image source={{ uri: photo }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors /> : <BusinessArt k={artKeyFor(b.category_name, b.category_icon)} size={156} round={false} />}
                         {chip ? <Text style={[styles.openChip, chip.soon && { color: colors.primaryDark }]}>{chip.text}</Text> : null}
                       </View>
                       <Text style={styles.openName} numberOfLines={1}>
-                        {b.name}
+                        {name}
                       </Text>
                       <Text style={styles.openSub} numberOfLines={1}>
-                        {[b.category_name, walk].filter(Boolean).join(' · ')}
+                        {[away ?? b.category_name, walk].filter(Boolean).join(' · ')}
                       </Text>
                     </Pressable>
                   );
@@ -433,17 +436,12 @@ const styles = StyleSheet.create({
   me: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   zone: { flex: 1, minWidth: 0 },
   bell: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: colors.surface },
-  bellDot: { position: 'absolute', top: 10, right: 10, width: 9, height: 9, borderRadius: 5, borderWidth: 2, borderColor: colors.surface, backgroundColor: colors.brand },
+  bellDot: { position: 'absolute', top: 10, right: 10, width: 9, height: 9, borderRadius: 5, borderWidth: 2, borderColor: colors.surface, backgroundColor: colors.brandRef },
   pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
   search: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   searchText: { flex: 1, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.muted },
-  catsIn: { gap: 8, paddingHorizontal: 16, paddingVertical: 2 },
-  cat: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 5, paddingRight: 14, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
-  catText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
-  catCount: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, fontVariant: ['tabular-nums'] },
-  mapBlock: { gap: 10, marginTop: 4 },
+  loading: { gap: 14 },
   secHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 },
-  secCount: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   seeAll: { minHeight: 44, justifyContent: 'center' },
   seeAllText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   openIn: { gap: 12, paddingHorizontal: 16 },

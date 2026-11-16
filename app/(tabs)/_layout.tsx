@@ -13,7 +13,8 @@ import { colors, fonts } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-const ON = colors.primaryDark; // la pestaña elegida: rojo de texto sobre su cápsula clara
+// La pestaña elegida (2026-11-16): el ícono en el rojo de referencia y la palabra en tinta, sobre su cápsula clara.
+const ON = colors.brandRef;
 const OFF = colors.faint;
 
 function TabPillIcon({ name, focused }: { name: IconName; focused: boolean }) {
@@ -137,9 +138,9 @@ const styles = StyleSheet.create({
   tabItem: { flex: 1, minHeight: 52, alignItems: 'center', justifyContent: 'center' },
   iconWrap: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
   pillBox: { width: 56, height: 28, alignItems: 'center', justifyContent: 'center' },
-  pill: { position: 'absolute', width: 56, height: 28, borderRadius: 14, backgroundColor: colors.primarySoft },
+  pill: { position: 'absolute', width: 56, height: 28, borderRadius: 14, backgroundColor: colors.brandRefSoft },
   label: { fontFamily: fonts.ui.semibold, fontSize: 12, marginTop: 3, color: OFF },
-  labelOn: { color: ON },
+  labelOn: { color: colors.ink },
   badge: {
     position: 'absolute',
     top: -4,
