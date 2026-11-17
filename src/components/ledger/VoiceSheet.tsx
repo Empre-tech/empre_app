@@ -49,6 +49,8 @@ const QUICK_PROMPTS: Record<EmpreAIMode, string[]> = {
 function errorText(e: unknown): string {
   if (e instanceof ApiError) {
     if (e.status === 503) return 'Empre AI no está disponible en este momento. Intenta de nuevo en unos segundos.';
+    // Planes (tablero «Base y Empre Pro»): el servidor cierra Empre AI a los negocios en Base.
+    if (e.status === 402) return 'Hablar con Empre AI es de Empre Pro. Pásate desde Mi negocio > Suscripción.';
     if (e.status === 429) return 'Llegaste al límite de consultas de voz de este mes.';
     if (e.status === 0) return 'Necesitas conexión a internet para confirmar con Empre AI.';
     return e.message;
@@ -170,6 +172,16 @@ export function VoiceSheet({
     enabled: visible && Boolean(entityId),
     staleTime: 60_000,
   });
+
+  // El tope de Empre AI del mes (tablero «Base y Empre Pro»): siempre ves cuánto te queda. Se refresca al confirmar.
+  const usage = useQuery({
+    queryKey: ['ledger', entityId, 'voice', 'usage'],
+    queryFn: () => ledgerApi.voiceUsage(entityId),
+    enabled: visible && Boolean(entityId),
+    staleTime: 60_000,
+  });
+  // En Base no hay tope que mostrar: el servidor responde 402 y la hoja dice que es de Empre Pro.
+  const quota = usage.data && usage.data.pro !== false && usage.data.limit > 0 ? { left: Math.max(0, usage.data.limit - usage.data.used), limit: usage.data.limit } : null;
 
   const live = useMemo(
     () =>
@@ -524,6 +536,9 @@ export function VoiceSheet({
                 ))}
               </View>
 
+              {quota ? (
+                <Text style={styles.quota} accessibilityLiveRegion="polite">{`Quedan ${quota.left} de ${quota.limit} este mes`}</Text>
+              ) : null}
               <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.stage} keyboardShouldPersistTaps="handled">
                 <View style={[styles.orbArea, copy.big && styles.orbAreaBig]}>
                   <VoiceOrb size={copy.big ? 132 : 96} mood={copy.mood} level={level} listening={listening} />
@@ -1165,6 +1180,7 @@ function ActionCard({ entityId, heard, action: a, problem, onChange, onRemove, o
 }
 
 const styles = StyleSheet.create({
+  quota: { alignSelf: 'center', marginTop: 6, fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.medium, color: colors.muted },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   topTitle: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
   topStatus: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },

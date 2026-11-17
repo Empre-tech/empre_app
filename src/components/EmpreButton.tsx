@@ -1,4 +1,4 @@
-import { Ionicons } from '@/components/Icon';
+import { CrownIcon, Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -9,8 +9,13 @@ import type { EntityOwnerItem } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { Avatar } from '@/components/Avatar';
 import { EmpreAISheet } from '@/components/ai/EmpreAISheet';
+import { VoiceSheet } from '@/components/ledger/VoiceSheet';
+import { GoProSheet } from '@/components/pro/GoProSheet';
+import { LOCKED_OPACITY, ProTag } from '@/components/pro/ProTag';
 import { FEATURES } from '@/config';
 import { getPhoneFlag, setPhoneFlag } from '@/lib/phoneFlags';
+import { PRO_PRICE_AMOUNT } from '@/lib/proPlan';
+import { usePlans } from '@/lib/useProPlan';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts } from '@/theme';
 
@@ -22,12 +27,16 @@ interface Item {
   key: string;
   title: string;
   sub: string;
-  icon: IconName;
-  /** El color va solo en el ícono: gris para lo de siempre, naranja para ofertas, rojo para Empre AI, verde para la plata. */
-  tone: 'plain' | 'offer' | 'ai' | 'money';
+  icon: IconName | 'crown';
+  /** El color va solo en el ícono: gris para lo de siempre, naranja para ofertas, rojo para Empre AI, verde para la plata, arena para Pro. */
+  tone: 'plain' | 'offer' | 'ai' | 'money' | 'pro';
   /** Lo que pide un negocio: con varios, primero se elige a cuál. */
   forBusiness?: (id: string) => void;
   go?: () => void;
+  /** Es de Empre Pro y aquí todo está en Base: se ve en gris con la corona y abre «Pásate a Empre Pro». */
+  locked?: boolean;
+  /** Es de Empre Pro: al elegir negocio, los que están en Base llevan la corona. */
+  proOnly?: boolean;
 }
 
 const TONE: Record<Item['tone'], { bg: string; ink: string }> = {
@@ -35,11 +44,58 @@ const TONE: Record<Item['tone'], { bg: string; ink: string }> = {
   offer: { bg: colors.accentSoft, ink: colors.accentInk },
   ai: { bg: colors.primarySoft, ink: colors.brand },
   money: { bg: colors.financeSoft, ink: colors.finance },
+  pro: { bg: colors.sand, ink: colors.ink },
 };
 
+/** Lo de la pantalla donde estás: va primero en el menú, junto al botón, bajo su nombre («En Inventario»). */
+export interface EmpreHere {
+  label: string;
+  items: { key: string; title: string; sub: string; icon: IconName; tone: Item['tone']; onPress: () => void; locked?: boolean }[];
+  /** «Habla con Empre AI» desde esta pantalla, con lo que ella sabe (en Inventario: los nombres y modo inventario). */
+  onTalk?: () => void;
+}
+
+function ItemIcon({ icon, tone }: { icon: Item['icon']; tone: Item['tone'] }) {
+  const t = TONE[tone];
+  return (
+    <View style={[styles.iconDot, { backgroundColor: t.bg }]}>
+      {icon === 'crown' ? <CrownIcon size={18} color={t.ink} /> : <Ionicons name={icon} size={18} color={t.ink} />}
+    </View>
+  );
+}
+
+/** Un ítem del menú. Bloqueado (Base): el contenido en gris y la corona de Pro a la derecha; sigue tocándose. */
+function MenuItem({ it, onPress, big }: { it: Pick<Item, 'key' | 'title' | 'sub' | 'icon' | 'tone' | 'locked'>; onPress: () => void; big?: boolean }) {
+  return (
+    <Pressable
+      accessibilityRole="menuitem"
+      accessibilityLabel={`${it.title}. ${it.sub}${it.locked ? '. Es de Empre Pro' : ''}`}
+      accessibilityHint={it.locked ? 'Abre Pásate a Empre Pro' : undefined}
+      onPress={onPress}
+      style={({ pressed }) => [styles.item, big && styles.itemAi, it.tone === 'pro' && styles.itemPro, it.locked && styles.itemLocked, pressed && styles.pressed]}
+    >
+      <View style={[styles.itemBody, it.locked && { opacity: LOCKED_OPACITY }]}>
+        <ItemIcon icon={it.icon} tone={it.locked ? 'plain' : it.tone} />
+        <View style={styles.texts}>
+          <Text style={styles.title} numberOfLines={1}>
+            {it.title}
+          </Text>
+          <Text style={styles.sub} numberOfLines={1}>
+            {it.sub}
+          </Text>
+        </View>
+      </View>
+      {it.locked ? <ProTag /> : null}
+    </Pressable>
+  );
+}
+
 export const EMPRE_BUTTON = 60;
+/** En la barra de una pantalla del negocio el botón es un poco más chico (junto a «Nuevo producto»). */
+export const EMPRE_BUTTON_INLINE = 52;
 const SIDE = 16;
 const FADE_MS = 140;
+const FOLLOW_MS = 80;
 
 /** El símbolo de Empre (blanco o negro, nunca rojo), con su punto naranja (tablero «Dirección clara»). */
 /**
@@ -60,18 +116,50 @@ export function EmpreMark({ size = 34, color = '#FFFFFF' }: { size?: number; col
  * 2026-11-16: el botón va lleno del rojo de referencia (#FF1D25) con el logo en blanco: es la marca, como el ícono de
  * la app (el blanco solo va sobre ese rojo). La sombra es suave y en tinta, sin brillo rojo.
  */
-export function EmpreButton({ bottom }: { bottom: number }) {
+export function EmpreButton({
+  bottom,
+  inline,
+  entityId: givenId,
+  here,
+  onOpen,
+}: {
+  /** Desde el borde de abajo de la pantalla hasta el botón (flotando) o hasta donde queda en la barra (en línea). */
+  bottom: number;
+  /** En la barra de abajo de una pantalla del negocio: no flota (no tapa filas) y el menú sale desde ahí. */
+  inline?: boolean;
+  /** El negocio de esta pantalla: los atajos van directo a él, sin preguntar cuál. */
+  entityId?: string;
+  /** Lo de esta pantalla, primero y junto al botón (tablero «Inventario», teléfono 15). */
+  here?: EmpreHere;
+  /** Al abrir el menú (para pedir, solo entonces, lo que el menú muestra: lo usado de Empre AI). */
+  onOpen?: () => void;
+}) {
+  const size = inline ? EMPRE_BUTTON_INLINE : EMPRE_BUTTON;
   const router = useRouter();
   const reduce = useReduceMotion();
   const { status } = useAuth();
   const signedIn = status === 'signedIn';
   const mine = useQuery({ queryKey: ['my-entities'], queryFn: entitiesApi.mine, enabled: signedIn, staleTime: 60_000 });
   const entities = mine.data ?? [];
+  // Solo un negocio tuyo: en la página de otro negocio (sus reseñas, sus fotos) el menú es el de siempre.
+  const entityId = givenId && entities.some((e) => e.id === givenId) ? givenId : undefined;
   const [open, setOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [asking, setAsking] = useState<Item | null>(null);
   const [lastId, setLastId] = useState<string | null>(null);
+  const [voiceFor, setVoiceFor] = useState<string | null>(null);
+  const [goPro, setGoPro] = useState<{ id: string; name: string }[] | null>(null);
   const [fade] = useState(() => new Animated.Value(0));
+
+  // Empre Pro va por negocio: el de esta pantalla, o todos los tuyos. Mientras no se sabe, nada sale cerrado.
+  const planIds = entityId ? [entityId] : entities.map((e) => e.id);
+  const plans = usePlans(planIds, signedIn && entities.length > 0);
+  const isBase = (id: string) => plans.known && !plans.proIds.includes(id);
+  const baseBusinesses = entities.filter((e) => planIds.includes(e.id) && isBase(e.id)).map((e) => ({ id: e.id, name: e.name }));
+  const offerPro = (id?: string) => {
+    const only = id ? baseBusinesses.filter((b) => b.id === id) : [];
+    setGoPro(only.length ? only : baseBusinesses);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -84,15 +172,16 @@ export function EmpreButton({ bottom }: { bottom: number }) {
     if (reduce) {
       setOpen(false);
       setAsking(null);
-      then?.();
+      if (then) setTimeout(then, FOLLOW_MS);
       return;
     }
     Animated.timing(fade, { toValue: 0, duration: FADE_MS, useNativeDriver: true }).start();
-    // Se cierra por tiempo y no al terminar la animación: nunca queda abierto si el sistema la detiene.
+    // Se cierra por tiempo y no al terminar la animación: nunca queda abierto si el sistema la detiene. Lo que sigue va
+    // un momento después: en Android una hoja (Modal) no se abre en el mismo instante en que se cierra el menú.
     setTimeout(() => {
       setOpen(false);
       setAsking(null);
-      then?.();
+      if (then) setTimeout(then, FOLLOW_MS);
     }, FADE_MS);
   };
 
@@ -102,26 +191,66 @@ export function EmpreButton({ bottom }: { bottom: number }) {
   };
 
   const run = (item: Item) => {
+    if (item.locked) return close(() => offerPro(entityId ?? (entities.length === 1 ? entities[0].id : undefined)));
     if (item.go) return close(item.go);
     if (!item.forBusiness) return;
+    if (entityId) return inBusiness(entityId, item.forBusiness);
     if (entities.length === 1) return inBusiness(entities[0].id, item.forBusiness);
     setAsking(item);
   };
 
-  const one = entities.length === 1 ? entities[0].name : null;
-  const ai: Item = { key: 'ai', title: 'Pregúntale a Empre AI', sub: entities.length ? 'Te responde al instante' : 'Escribe o habla', icon: 'sparkles-outline', tone: 'ai', go: () => setAiOpen(true) };
+  // En la pantalla de un negocio, lo de la plata dice en cuál (ese); si no, con uno solo, ese.
+  const one = entityId ? (entities.find((e) => e.id === entityId)?.name ?? null) : entities.length === 1 ? entities[0].name : null;
+  // Tablero «Base y Empre Pro»: una sola entrada de Empre AI. El dueño habla y Empre entiende si es venta, gasto o
+  // inventario (siempre muestra antes de guardar). Es de Pro: en Base se ve en gris con la corona.
+  const allBase = plans.known && plans.proIds.length === 0;
+  const talk: Item = {
+    key: 'ai',
+    title: 'Habla con Empre AI',
+    sub: 'Registra, vende y gasta con tu voz',
+    icon: 'sparkles-outline',
+    tone: 'ai',
+    locked: allBase,
+    proOnly: true,
+    forBusiness: (id) => (isBase(id) ? offerPro(id) : id === entityId && here?.onTalk ? here.onTalk() : setVoiceFor(id)),
+  };
+  // Para quien no tiene negocio sigue abierta mientras no exista un plan para clientes (el Pro de hoy va por negocio).
+  const ask: Item = { key: 'ai', title: 'Habla con Empre AI', sub: 'Pregunta qué hay cerca y abierto', icon: 'sparkles-outline', tone: 'ai', go: () => setAiOpen(true) };
+  const goProItem: Item[] = allBase
+    ? [{ key: 'pro', title: 'Pásate a Empre Pro', sub: `Empre AI${FEATURES.agenda ? ', agenda' : ''} y más · ${PRO_PRICE_AMOUNT} al mes`, icon: 'crown', tone: 'pro', go: () => offerPro(entityId) }]
+    : [];
+  const expense: Item = { key: 'expense', title: 'Anotar un gasto', sub: one ? `En ${one}` : 'Eliges el negocio al tocar', icon: 'remove', tone: 'money', forBusiness: (id) => router.push({ pathname: '/business/ledger/expense/[id]', params: { id } }) };
+  const sale: Item = { key: 'sale', title: 'Anotar una venta', sub: one ? `En ${one}` : 'Eliges el negocio al tocar', icon: 'add', tone: 'money', forBusiness: (id) => router.push({ pathname: '/business/ledger/sale/[id]', params: { id } }) };
+  const offer: Item = { key: 'offer', title: 'Crear una oferta', sub: 'Sale en Ofertas al instante', icon: 'pricetag-outline', tone: 'offer', forBusiness: (id) => router.push({ pathname: '/business/offers/new', params: { entityId: id } }) };
 
-  // De arriba hacia abajo, como se ven: lo de la plata queda junto al botón, donde llega el pulgar.
-  const items: Item[] = entities.length
+  // De arriba hacia abajo, como se ven: «Pásate a Empre Pro» arriba (solo en Base) y lo de la plata junto al botón,
+  // donde llega el pulgar. En una pantalla del negocio, lo de esa pantalla va todavía más cerca (debajo de todo).
+  const items: Item[] = here
+    ? entities.length
+      ? [...goProItem, offer, talk, expense, sale]
+      : []
+    : entities.length
     ? [
+        ...goProItem,
         { key: 'service', title: 'Subir un servicio', sub: 'Con foto, en 1 min', icon: 'camera-outline', tone: 'plain', forBusiness: (id) => router.push({ pathname: '/business/products/item', params: { entityId: id } }) },
-        { key: 'offer', title: 'Crear una oferta', sub: 'Sale en Ofertas al instante', icon: 'pricetag-outline', tone: 'offer', forBusiness: (id) => router.push({ pathname: '/business/offers/new', params: { entityId: id } }) },
+        offer,
         ...(FEATURES.agenda
-          ? [{ key: 'agenda', title: 'Tu agenda', sub: 'Citas y horas libres', icon: 'calendar-outline' as IconName, tone: 'plain' as const, forBusiness: (id: string) => router.push({ pathname: '/business/agenda/[id]', params: { id } }) }]
+          ? [
+              {
+                key: 'agenda',
+                title: 'Tu agenda',
+                sub: allBase ? 'Las citas se apartan solas' : 'Citas y horas libres',
+                icon: 'calendar-outline' as IconName,
+                tone: 'plain' as const,
+                locked: allBase,
+                proOnly: true,
+                forBusiness: (id: string) => (isBase(id) ? offerPro(id) : router.push({ pathname: '/business/agenda/[id]', params: { id } })),
+              },
+            ]
           : []),
-        ai,
-        { key: 'expense', title: 'Anotar un gasto', sub: one ? `En ${one}` : 'Eliges el negocio al tocar', icon: 'remove', tone: 'money', forBusiness: (id) => router.push({ pathname: '/business/ledger/expense/[id]', params: { id } }) },
-        { key: 'sale', title: 'Anotar una venta', sub: one ? `En ${one}` : 'Eliges el negocio al tocar', icon: 'add', tone: 'money', forBusiness: (id) => router.push({ pathname: '/business/ledger/sale/[id]', params: { id } }) },
+        talk,
+        expense,
+        sale,
       ]
     : [
         ...(signedIn
@@ -132,7 +261,7 @@ export function EmpreButton({ bottom }: { bottom: number }) {
               { key: 'saved', title: 'Guardados', sub: 'Los negocios que te gustan', icon: 'bookmark-outline' as IconName, tone: 'plain' as const, go: () => router.push('/favorites') },
             ]
           : []),
-        ai,
+        ask,
       ];
 
   // El último negocio que usaste va primero y se marca como sugerido.
@@ -143,10 +272,13 @@ export function EmpreButton({ bottom }: { bottom: number }) {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={entities.length ? 'Empre: anotar una venta o un gasto, Empre AI y más' : 'Empre: Empre AI, tus salidas y tus citas'}
-        onPress={() => setOpen(true)}
-        style={({ pressed }) => [styles.fab, { bottom }, pressed && styles.pressed]}
+        onPress={() => {
+          onOpen?.();
+          setOpen(true);
+        }}
+        style={({ pressed }) => [inline ? styles.fabInline : styles.fab, !inline && { bottom }, { width: size, height: size, borderRadius: size / 2 }, pressed && styles.pressed]}
       >
-        <EmpreMark color="#FFFFFF" />
+        <EmpreMark color="#FFFFFF" size={inline ? 30 : 34} />
       </Pressable>
 
       <Modal visible={open} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => (asking ? setAsking(null) : close())}>
@@ -155,14 +287,12 @@ export function EmpreButton({ bottom }: { bottom: number }) {
           <Pressable accessibilityRole="button" accessibilityLabel="Cerrar el menú de Empre" onPress={() => close()} style={styles.veil} />
 
           {asking ? (
-            <View accessibilityViewIsModal style={[styles.picker, { bottom: bottom + EMPRE_BUTTON + 10 }]}>
+            <View accessibilityViewIsModal style={[styles.picker, { bottom: bottom + size + 10 }]}>
               <View style={styles.pickerHead}>
                 <Pressable accessibilityRole="button" accessibilityLabel="Volver al menú" onPress={() => setAsking(null)} style={styles.back}>
                   <Ionicons name="chevron-back" size={20} color={colors.ink} />
                 </Pressable>
-                <View style={[styles.iconDot, { backgroundColor: TONE[asking.tone].bg }]}>
-                  <Ionicons name={asking.icon} size={18} color={TONE[asking.tone].ink} />
-                </View>
+                <ItemIcon icon={asking.icon} tone={asking.tone} />
                 <View style={styles.texts}>
                   <Text style={styles.title} numberOfLines={1}>
                     {asking.title}
@@ -172,11 +302,12 @@ export function EmpreButton({ bottom }: { bottom: number }) {
               </View>
               {ordered.map((e) => {
                 const suggested = e.id === lastId;
+                const base = Boolean(asking.proOnly) && isBase(e.id);
                 return (
                   <Pressable
                     key={e.id}
                     accessibilityRole="button"
-                    accessibilityLabel={`${asking.title} en ${e.name}${suggested ? ', el último que usaste' : ''}`}
+                    accessibilityLabel={`${asking.title} en ${e.name}${base ? '. Está en Base: es de Empre Pro' : suggested ? ', el último que usaste' : ''}`}
                     onPress={() => asking.forBusiness && inBusiness(e.id, asking.forBusiness)}
                     style={({ pressed }) => [styles.bizRow, suggested && styles.bizRowOn, pressed && styles.pressed]}
                   >
@@ -195,7 +326,11 @@ export function EmpreButton({ bottom }: { bottom: number }) {
                         {suggested ? 'El último que usaste' : e.category_name}
                       </Text>
                     </View>
-                    {suggested ? (
+                    {base ? (
+                      <View style={styles.tagEnd}>
+                        <ProTag />
+                      </View>
+                    ) : suggested ? (
                       <View style={styles.tag}>
                         <Text style={styles.tagText}>Sugerido</Text>
                       </View>
@@ -205,39 +340,31 @@ export function EmpreButton({ bottom }: { bottom: number }) {
               })}
             </View>
           ) : (
-            <View accessibilityRole="menu" style={[styles.menu, { bottom: bottom + EMPRE_BUTTON + 10 }]}>
+            <View accessibilityRole="menu" style={[styles.menu, { bottom: bottom + size + 10 }]}>
               {items.map((it) => (
-                <Pressable
-                  key={it.key}
-                  accessibilityRole="menuitem"
-                  accessibilityLabel={`${it.title}. ${it.sub}`}
-                  onPress={() => run(it)}
-                  style={({ pressed }) => [styles.item, it.key === 'ai' && !entities.length && styles.itemAi, pressed && styles.pressed]}
-                >
-                  <View style={[styles.iconDot, { backgroundColor: TONE[it.tone].bg }]}>
-                    <Ionicons name={it.icon} size={18} color={TONE[it.tone].ink} />
-                  </View>
-                  <View style={styles.texts}>
-                    <Text style={styles.title} numberOfLines={1}>
-                      {it.title}
-                    </Text>
-                    <Text style={styles.sub} numberOfLines={1}>
-                      {it.sub}
-                    </Text>
-                  </View>
-                </Pressable>
+                <MenuItem key={it.key} it={it} big={it.key === 'ai' && !entities.length} onPress={() => run(it)} />
               ))}
+              {here && here.items.length > 0 ? (
+                <>
+                  <Text style={styles.hereLabel}>{here.label}</Text>
+                  {here.items.map((it) => (
+                    <MenuItem key={it.key} it={it} onPress={() => close(it.locked ? () => offerPro(entityId) : it.onPress)} />
+                  ))}
+                </>
+              ) : null}
             </View>
           )}
 
           {/* El botón abierto: el logo se vuelve una X en el mismo lugar. */}
-          <Pressable accessibilityRole="button" accessibilityLabel="Cerrar el menú de Empre" onPress={() => close()} style={[styles.fab, styles.fabOpen, { bottom }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Cerrar el menú de Empre" onPress={() => close()} style={[styles.fab, styles.fabOpen, { bottom, width: size, height: size, borderRadius: size / 2 }]}>
             <Ionicons name="close" size={26} color="#FFFFFF" />
           </Pressable>
         </Animated.View>
       </Modal>
 
       <EmpreAISheet visible={aiOpen} onClose={() => setAiOpen(false)} />
+      {voiceFor ? <VoiceSheet entityId={voiceFor} visible onClose={() => setVoiceFor(null)} hints={[]} defaultMode="finance" /> : null}
+      <GoProSheet visible={goPro !== null} onClose={() => setGoPro(null)} businesses={goPro ?? []} />
     </>
   );
 }
@@ -259,9 +386,40 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   fabOpen: { shadowOpacity: 0.22 },
+  // En la barra de una pantalla del negocio: en línea, a la derecha de «Nuevo producto».
+  fabInline: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.brandRef,
+    shadowColor: colors.ink,
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  // El nombre de la pantalla («En Inventario») con su propio fondo: se lee aunque detrás haya una lista.
+  hereLabel: {
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 999,
+    overflow: 'hidden',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    fontSize: 12,
+    fontFamily: fonts.ui.semibold,
+    color: colors.muted,
+  },
   pressed: { opacity: 0.8 },
   veil: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(43,38,34,0.06)' },
   menu: { position: 'absolute', right: SIDE, left: SIDE, alignItems: 'flex-end', gap: 8 },
+  itemBody: { flexShrink: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  // Lo de Pro en Base: sobre arena clara, sin sombra que lo haga parecer activo.
+  itemLocked: { backgroundColor: colors.well, shadowOpacity: 0.06, elevation: 1 },
+  // «Pásate a Empre Pro»: el único ítem con el aro rojo, como los botones con texto.
+  itemPro: { minHeight: 52, borderWidth: 2, borderColor: colors.brandRef },
+  tagEnd: { marginLeft: 'auto' },
   item: {
     minHeight: 48,
     maxWidth: '100%',

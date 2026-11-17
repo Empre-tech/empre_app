@@ -7,10 +7,9 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { paymentsApi } from '@/api/endpoints';
 import { Button } from '@/components/Button';
+import { PRO_PRICE_AMOUNT, PRO_PRICE_UNIT } from '@/lib/proPlan';
 import { colors, fonts, radius, spacing } from '@/theme';
 
-const PLAN_PRICE_AMOUNT = '$39.900';
-const PLAN_PRICE_UNIT = 'COP / mes';
 
 function formatDate(iso?: string): string {
   if (!iso) return '';
@@ -140,8 +139,8 @@ export default function BusinessSubscriptionScreen() {
             <View style={styles.planHeaderRow}>
               <Text style={styles.planName}>Empre Pro</Text>
               <View style={styles.planPriceWrap}>
-                <Text style={styles.planPrice}>{PLAN_PRICE_AMOUNT}</Text>
-                <Text style={styles.planPriceUnit}>{PLAN_PRICE_UNIT}</Text>
+                <Text style={styles.planPrice}>{PRO_PRICE_AMOUNT}</Text>
+                <Text style={styles.planPriceUnit}>{PRO_PRICE_UNIT}</Text>
               </View>
             </View>
             <View style={styles.planFeatures}>

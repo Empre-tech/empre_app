@@ -1,4 +1,4 @@
-import { Ionicons } from '@/components/Icon';
+import { CrownIcon, Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -19,6 +19,9 @@ import { Cover } from '@/components/Cover';
 import { EmpreSymbol, type EmpreProduct } from '@/components/EmpreSymbol';
 import { EmptyState } from '@/components/EmptyState';
 import { BusinessSwitcher } from '@/components/profile/BusinessSwitcher';
+import { EMPRE_BUTTON } from '@/components/EmpreButton';
+import { GoProSheet } from '@/components/pro/GoProSheet';
+import { LOCKED_OPACITY, ProTag } from '@/components/pro/ProTag';
 import { GrowthCard } from '@/components/profile/GrowthCard';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { ActionTile, StatusCap, SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
@@ -29,6 +32,7 @@ import { addDays, presetRange, todayCO } from '@/lib/finance';
 import { formatPesos } from '@/lib/ledger';
 import { displayIcon } from '@/lib/mapView';
 import { timeLeftLabel, timeLeftMs } from '@/lib/offer';
+import { isProSubscription } from '@/lib/proPlan';
 import { useNow } from '@/lib/useNow';
 import { colors, fonts, softShadow, spacing } from '@/theme';
 
@@ -64,6 +68,7 @@ export default function BusinessHubScreen() {
   const nowMs = useNow(60_000);
 
   const business = useQuery({ queryKey: ['entity', entityId], queryFn: () => entitiesApi.get(entityId), enabled: Boolean(entityId) });
+  const [goPro, setGoPro] = useState(false);
   const subscription = useQuery({ queryKey: ['subscription', entityId], queryFn: () => paymentsApi.getSubscription(entityId), enabled: Boolean(entityId) });
   const followers = useQuery({ queryKey: ['followers', entityId], queryFn: () => novedadesApi.followers(entityId), enabled: Boolean(entityId) });
   const unansweredQ = useQuery({ queryKey: ['answers-unanswered', entityId], queryFn: () => answersApi.unanswered(entityId), enabled: Boolean(entityId), staleTime: 60_000 });
@@ -114,6 +119,9 @@ export default function BusinessHubScreen() {
 
   const copy = catalogCopy(b.category?.name, b.business_profile);
   const requiresPayment = subscription.data?.requires_payment ?? false;
+  // Base y Empre Pro (tablero, teléfono 7): en Base la Agenda no desaparece, queda en gris con la corona, y abajo de los
+  // espacios sale «Pásate a Empre Pro». Mientras no se sabe el plan, nada se muestra cerrado.
+  const base = subscription.isSuccess && !isProSubscription(subscription.data?.subscription);
   const nFollowers = followers.data ?? 0;
   const go = (href: Href) => () => router.push(href);
   const edit = go({ pathname: '/business/edit/[id]', params: { id: entityId } });
@@ -149,10 +157,10 @@ export default function BusinessHubScreen() {
   const stockAlert = (insights.data ?? []).find((i) => i.kind === 'soon' || i.kind === 'out' || i.kind === 'low');
   const nItems = items.data?.length ?? 0;
   const nUnanswered = unansweredQ.data?.data?.length ?? 0;
-  const spaces: { key: string; title: string; sub: string; symbol?: EmpreProduct; alert?: boolean; onPress: () => void }[] = [
+  const spaces: { key: string; title: string; sub: string; symbol?: EmpreProduct; alert?: boolean; locked?: boolean; onPress: () => void }[] = [
     ...(FEATURES.ledger ? [{ key: 'finance', title: 'Finanzas', sub: soldToday > 0 ? `Hoy ${formatPesos(soldToday)}` : 'Tu caja y lo que te deben', symbol: 'finance' as const, onPress: finance }] : []),
     { key: 'products', title: 'Inventario', sub: stockAlert ? stockAlert.title : nItems > 0 ? (nItems === 1 ? '1 en tu catálogo' : `${nItems} en tu catálogo`) : `Agrega lo que ${copy.kind === 'service' ? 'ofreces' : 'vendes'}`, alert: Boolean(stockAlert), onPress: products },
-    ...(FEATURES.agenda ? [{ key: 'agenda', title: 'Agenda', sub: requests > 0 ? `${requests} por responder` : confirmed > 0 ? (confirmed === 1 ? '1 cita hoy' : `${confirmed} citas hoy`) : 'Sin citas por ahora', symbol: 'agenda' as const, alert: requests > 0, onPress: agenda }] : []),
+    ...(FEATURES.agenda ? [{ key: 'agenda', title: 'Agenda', sub: requests > 0 ? `${requests} por responder` : confirmed > 0 ? (confirmed === 1 ? '1 cita hoy' : `${confirmed} citas hoy`) : 'Sin citas por ahora', symbol: 'agenda' as const, alert: requests > 0, onPress: agenda, ...(base && !requests && !confirmed ? { sub: 'Citas que se apartan solas', locked: true, onPress: () => setGoPro(true) } : {}) }] : []),
     { key: 'offers', title: 'Ofertas', sub: hasRunning ? timeLeftLabel(running) : 'Publica una', symbol: 'offers', onPress: offers },
   ];
   const later: HubRow[] = [
@@ -171,7 +179,7 @@ export default function BusinessHubScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.body, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 28 }]}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.body, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 28 + EMPRE_BUTTON }]}>
         {/* Varios negocios: una casilla para cambiar sin salir (tablero «Mi negocio»). */}
         <View style={styles.switchRow}>
           <BusinessSwitcher currentId={entityId} onPick={(id) => router.replace({ pathname: '/business/hub/[id]', params: { id } })} onAdd={() => router.push('/business/new')} />
@@ -292,20 +300,46 @@ export default function BusinessHubScreen() {
 
         <View style={styles.spaces} accessibilityRole="menu" accessibilityLabel="Tus espacios">
           {spaces.map((s) => (
-            <Pressable key={s.key} accessibilityRole="button" accessibilityLabel={`${s.title}. ${s.sub}`} onPress={s.onPress} style={({ pressed }) => [styles.space, pressed && { opacity: 0.85 }]}>
-              {s.symbol ? <EmpreSymbol product={s.symbol} size={28} animated={false} /> : <Ionicons name="cube-outline" size={24} color={colors.ink} />}
-              {s.alert ? <View style={styles.spaceDot} /> : null}
-              <View style={{ gap: 1 }}>
-                <Text style={styles.spaceTitle} numberOfLines={1}>
-                  {s.title}
-                </Text>
-                <Text style={styles.spaceSub} numberOfLines={2}>
-                  {s.sub}
-                </Text>
+            <Pressable
+              key={s.key}
+              accessibilityRole="button"
+              accessibilityLabel={`${s.title}. ${s.sub}${s.locked ? '. Es de Empre Pro' : ''}`}
+              accessibilityHint={s.locked ? 'Abre Pásate a Empre Pro' : undefined}
+              onPress={s.onPress}
+              style={({ pressed }) => [styles.space, s.locked && styles.spaceLocked, pressed && { opacity: 0.85 }]}
+            >
+              <View style={[styles.spaceBody, s.locked && { opacity: LOCKED_OPACITY }]}>
+                {s.symbol ? <EmpreSymbol product={s.symbol} size={28} animated={false} /> : <Ionicons name="cube-outline" size={24} color={colors.ink} />}
+                <View style={{ gap: 1 }}>
+                  <Text style={styles.spaceTitle} numberOfLines={1}>
+                    {s.title}
+                  </Text>
+                  <Text style={styles.spaceSub} numberOfLines={2}>
+                    {s.sub}
+                  </Text>
+                </View>
               </View>
+              {s.locked ? (
+                <View style={styles.spaceTag}>
+                  <ProTag />
+                </View>
+              ) : s.alert ? (
+                <View style={styles.spaceDot} />
+              ) : null}
             </Pressable>
           ))}
         </View>
+
+        {base ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Pásate a Empre Pro. Empre AI, agenda y conteo por sección" onPress={() => setGoPro(true)} style={({ pressed }) => [styles.goPro, pressed && { opacity: 0.85 }]}>
+            <CrownIcon size={20} color={colors.ink} />
+            <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
+              <Text style={styles.goProTitle}>Pásate a Empre Pro</Text>
+              <Text style={styles.spaceSub} numberOfLines={1}>{FEATURES.agenda ? 'Empre AI, agenda y conteo por sección' : 'Empre AI y conteo por sección'}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+          </Pressable>
+        ) : null}
 
         <View style={{ gap: 8 }}>
           <Text style={styles.label}>Lo de todos los días</Text>
@@ -321,6 +355,7 @@ export default function BusinessHubScreen() {
           <SystemGroup>{renderRows(later)}</SystemGroup>
         </SystemSection>
       </ScrollView>
+      <GoProSheet visible={goPro} onClose={() => setGoPro(false)} businesses={[{ id: entityId, name: b.name }]} />
       <StatusCap />
     </View>
   );
@@ -405,6 +440,11 @@ const styles = StyleSheet.create({
   today: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8 },
   spaces: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   space: { width: '48.8%', minHeight: 92, justifyContent: 'space-between', gap: 6, padding: 12, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
+  spaceBody: { flex: 1, justifyContent: 'space-between', gap: 6 },
+  spaceLocked: { backgroundColor: colors.well },
+  spaceTag: { position: 'absolute', top: 12, right: 12 },
+  goPro: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderRadius: 16, borderWidth: 2, borderColor: colors.brandRef, backgroundColor: colors.surface },
+  goProTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   spaceDot: { position: 'absolute', top: 12, right: 12, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.brand },
   spaceTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   spaceSub: { fontSize: 12.5, lineHeight: 16, fontFamily: fonts.ui.semibold, color: colors.muted },

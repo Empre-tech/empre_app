@@ -625,6 +625,8 @@ export const ledgerApi = {
     entityId: string,
     input: { client_id: string; tab: 'product' | 'supply'; section: string; lines: { ref: string; expected?: number; counted?: number; level?: StockLevel; reason?: string }[] },
   ) => request<{ counted: number; changed: number; counted_at: string }>(`${base(entityId)}/inventory/count`, { method: 'POST', body: input }),
+  /** Cuántos dictados de Empre AI lleva el negocio este mes y su tope (0 = sin tope). */
+  voiceUsage: (entityId: string) => request<{ used: number; limit: number; pro: boolean }>(`${base(entityId)}/voice/usage`),
   /** Lo de arriba de Inventario, ya contado. */
   inventorySummary: (entityId: string) => request<InventorySummary>(`${base(entityId)}/inventory/summary`),
   /** Solo las filas pedidas (por id de la fila o de su ítem del catálogo; hasta 100). */

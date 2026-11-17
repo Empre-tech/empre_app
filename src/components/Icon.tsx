@@ -139,6 +139,7 @@ const SignOut = pick(require('phosphor-react-native/src/icons/SignOut'), 'SignOu
 const SlidersHorizontal = pick(require('phosphor-react-native/src/icons/SlidersHorizontal'), 'SlidersHorizontal');
 const SoccerBall = pick(require('phosphor-react-native/src/icons/SoccerBall'), 'SoccerBall');
 const Sparkle = pick(require('phosphor-react-native/src/icons/Sparkle'), 'Sparkle');
+const Crown = pick(require('phosphor-react-native/src/icons/Crown'), 'Crown');
 const SpeakerHigh = pick(require('phosphor-react-native/src/icons/SpeakerHigh'), 'SpeakerHigh');
 const SpeakerSlash = pick(require('phosphor-react-native/src/icons/SpeakerSlash'), 'SpeakerSlash');
 const Square = pick(require('phosphor-react-native/src/icons/Square'), 'Square');
@@ -347,3 +348,11 @@ export function Ionicons({ name, size = 24, color, style, ...rest }: Props) {
 
 /** Para los tipos que leen los nombres válidos (`keyof typeof Ionicons.glyphMap`). */
 Ionicons.glyphMap = Fallback.glyphMap;
+
+/**
+ * La corona de Empre Pro (tablero «Base y Empre Pro»): marca lo que es de Pro y queda en gris en Base. No es un nombre
+ * de Ionicons, por eso va aparte.
+ */
+export function CrownIcon({ size = 14, color }: { size?: number; color?: string }) {
+  return <Crown size={size} color={color} weight="regular" />;
+}

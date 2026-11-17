@@ -3,7 +3,7 @@ import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClie
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { catalogApi } from '@/api/catalog';
 import { entitiesApi } from '@/api/endpoints';
@@ -13,9 +13,12 @@ import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { QuickStockSheet } from '@/components/inventory/QuickStockSheet';
 import { NewSupplySheet } from '@/components/inventory/NewSupplySheet';
+import { EmpreButton, EMPRE_BUTTON_INLINE, type EmpreHere } from '@/components/EmpreButton';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { Chip } from '@/components/ledger/parts';
 import { VoiceSheet } from '@/components/ledger/VoiceSheet';
+import { GoProSheet } from '@/components/pro/GoProSheet';
+import { LOCKED_OPACITY, ProTag } from '@/components/pro/ProTag';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { FEATURES } from '@/config';
 import { catalogCopy, priceNote, priceText, type ItemKind, type ServiceItem } from '@/lib/catalog';
@@ -30,6 +33,7 @@ import { countsLine } from '@/lib/alerts';
 import { safeIcon, type IconName } from '@/lib/icons';
 import { mediaUrl } from '@/lib/image';
 import { useNow } from '@/lib/useNow';
+import { useEntityPlan } from '@/lib/useProPlan';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 type Row = InventoryItem & { children: InventoryItem[] };
@@ -52,6 +56,9 @@ const SORTS: { key: InventorySort; label: string }[] = [
 ];
 const STATE_LABEL: Record<InventoryState, string> = { low: 'Se acaban', out: 'Agotados', nophoto: 'Sin foto' };
 const PAGE = 50;
+// Con más de 8 secciones el índice se alarga: el filtro también las lista; con más de 20, con su buscador.
+const SECTIONS_IN_FILTER = 8;
+const SECTION_SEARCH = 20;
 const pageKey = (entityId: string, tab: InventoryTab, q: string, section?: string, state?: InventoryState, sort?: InventorySort) =>
   ['ledger', entityId, 'inventory', 'page', tab, q, section ?? '', state ?? '', sort ?? ''] as const;
 const unitShort = (u?: string) => (!u || u === 'unidad' ? 'und' : u);
@@ -90,6 +97,8 @@ export default function InventoryScreen() {
   // La sección abierta, una a la vez. Sin tocar: la primera; null: todas plegadas.
   const [openPick, setOpenPick] = useState<string | null | undefined>(undefined);
   const [sort, setSort] = useState<InventorySort | undefined>();
+  // La sección elegida en el filtro (solo cuando son muchas): la lista sale corrida, solo con esa.
+  const [filterSection, setFilterSection] = useState<string | undefined>();
   const [filterOpen, setFilterOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [sheet, setSheet] = useState<InventoryItem | null>(null);
@@ -112,9 +121,9 @@ export default function InventoryScreen() {
   const few = tc ? tc.total < FEW_BUSINESSES && !q && !state : false;
   // Con tu orden y sin buscar ni filtrar, la lista es el índice: las secciones se pliegan y solo se pide la abierta.
   // Buscando, filtrando u ordenando, la lista sale corrida, de todas las secciones.
-  const grouped = Boolean(tc && tc.sections.length > 0) && !few && !sort && !q && !state;
+  const grouped = Boolean(tc && tc.sections.length > 0) && !few && !sort && !q && !state && !filterSection;
   const openSection = openPick === undefined ? tc?.sections[0]?.name : (openPick ?? undefined);
-  const section = grouped ? openSection : undefined;
+  const section = grouped ? openSection : filterSection;
   const pages = useInfiniteQuery({
     queryKey: pageKey(entityId, tab, q, section, state, sort),
     queryFn: ({ pageParam }) => ledgerApi.inventoryPage(entityId, { tab, q, section, state, sort, cursor: pageParam, limit: PAGE }),
@@ -175,6 +184,11 @@ export default function InventoryScreen() {
     }, [entityId]),
   );
   const openCount = (sec: string, t: InventoryTab = tab) => router.push({ pathname: '/business/products/count', params: { entityId, tab: t, section: sec } });
+  // El botón Empre: lo usado de Empre AI se pide solo al abrir su menú (es de pago; el número sale de datos reales).
+  // Base y Empre Pro: contar por sección es de Pro; en Base se ve en gris con la corona y abre «Pásate a Empre Pro».
+  const plan = useEntityPlan(entityId, ledgerOn);
+  const [goPro, setGoPro] = useState(false);
+  const startCount = (sec: string, t: InventoryTab = tab) => (plan.base ? setGoPro(true) : openCount(sec, t));
 
   const setup = useMutation({
     mutationFn: (choice: SetupChoice) => ledgerApi.setupInventory(entityId, choice),
@@ -235,6 +249,36 @@ export default function InventoryScreen() {
   const draftHere = Boolean(draftLeft && countDraft && countDraft.section === openSection && countDraft.tab === tab);
   const stale = tc ? staleSection(tc.sections, now) : null;
 
+  // Lo de Inventario en el botón Empre (tablero v103, teléfono 15): contar la sección que más tiempo lleva sin contarse
+  // (o la abierta). Lo que llegó o se acabó se dice en «Habla con Empre AI» (una sola entrada, tablero «Base y Empre
+  // Pro»), que aquí abre en modo inventario. En Servicios no hay existencias: el menú de siempre.
+  const countTarget = stale?.name ?? openSection ?? tc?.sections[0]?.name;
+  const countTargetRow = countTarget ? tc?.sections.find((x) => x.name === countTarget) : undefined;
+  const here: EmpreHere | undefined =
+    tab === 'service' || !tc || tc.total === 0
+      ? undefined
+      : {
+          label: 'En Inventario',
+          items: [
+            ...(countTarget
+              ? [
+                  {
+                    key: 'count',
+                    title: 'Contar una sección',
+                    sub: stale ? `${stale.name} no se cuenta hace ${stale.days} días` : `${countTarget} · ${countedAgo(countTargetRow?.counted_at, now) ?? 'nunca contada'}`,
+                    icon: 'list-outline' as const,
+                    tone: 'plain' as const,
+                    locked: plan.base,
+                    onPress: () => openCount(countTarget),
+                  },
+                ]
+              : []),
+          ],
+          onTalk: () => setVoiceOpen(true),
+        };
+  // La barra de abajo mide lo que el botón «Nuevo …» (el botón Empre queda centrado en ella).
+  const createBarHeight = 52;
+
   const sellSections = useEntitySections(entityId, 'sell');
   const sellIcons = useMemo(() => new Map((sellSections.data ?? []).map((s) => [s.name, s.icon])), [sellSections.data]);
   const supplySections = useEntitySections(entityId, 'supply');
@@ -283,13 +327,14 @@ export default function InventoryScreen() {
     setPickedTab(t);
     setState(undefined);
     setOpenPick(undefined);
+    setFilterSection(undefined);
     setSort(undefined);
     setSearch('');
     setQ('');
   };
   // Un solo lugar para elegir: el filtro (cómo están y el orden). Sin nada elegido dice «Filtrar»; si no, lo elegido.
-  const activeFilters = [state, sort].filter(Boolean).length;
-  const filterLabel = state ? STATE_LABEL[state] : ((sort ? SORTS.find((x) => x.key === sort)?.label : null) ?? 'Filtrar');
+  const activeFilters = [state, sort, filterSection].filter(Boolean).length;
+  const filterLabel = [filterSection, state ? STATE_LABEL[state] : null, sort ? SORTS.find((x) => x.key === sort)?.label : null].filter(Boolean).join(' · ') || 'Filtrar';
   // Con un filtro o una búsqueda, cuántos salieron (y de cuántas secciones, cuando ya llegaron todos).
   const flatSecs = new Set(rows.map((r) => (tab === 'supply' ? r.group || r.section : r.section) || '')).size;
   const flatLine = state ? `${total} ${STATE_LABEL[state].toLowerCase()}${!pages.hasNextPage && flatSecs > 1 ? ` · en ${flatSecs} secciones` : ''}` : `${total} ${total === 1 ? 'resultado' : 'resultados'}`;
@@ -324,13 +369,13 @@ export default function InventoryScreen() {
           <Ionicons name="chevron-forward" size={16} color={colors.muted} />
         </Pressable>
       ) : null}
-      {!q && !state && tab !== 'service' && stale && stale.name !== openSection ? (
+      {!q && !state && tab !== 'service' && !plan.base && stale && stale.name !== openSection ? (
         <View style={styles.countCard}>
           <View style={{ flex: 1, gap: 1 }}>
             <Text style={styles.aiTitle}>{`${stale.name} no se cuenta hace ${stale.days} días`}</Text>
             <Text style={styles.aiSub}>Contar seguido evita sorpresas al cerrar el mes</Text>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Contar ${stale.name}`} onPress={() => openCount(stale.name)} style={styles.countBtn}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Contar ${stale.name}`} onPress={() => startCount(stale.name)} style={styles.countBtn}>
             <Text style={styles.countBtnText}>Contar</Text>
           </Pressable>
         </View>
@@ -386,25 +431,6 @@ export default function InventoryScreen() {
           </Pressable>
         </View>
       ) : null}
-      {/* Empre AI aparte: es de pago, no vive en el buscador ni en el filtro. Un servicio no tiene existencias que dictar,
-          y sin nada en la pestaña no hay qué actualizar. */}
-      {tab !== 'service' && (tc?.total ?? 0) > 0 && !q ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Actualizar con Empre AI: dicta lo que llegó o se acabó"
-          onPress={() => setVoiceOpen(true)}
-          style={({ pressed }) => [styles.aiEntry, pressed && { backgroundColor: colors.well }]}
-        >
-          <View style={styles.chispa}>
-            <Ionicons name="sparkles" size={16} color={colors.ink} />
-          </View>
-          <View style={{ flex: 1, gap: 1 }}>
-            <Text style={styles.aiTitle}>Actualizar con Empre AI</Text>
-            <Text style={styles.aiSub}>Dicta lo que llegó o se acabó</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={colors.muted} />
-        </Pressable>
-      ) : null}
       {!grouped && !few && (q || state) && rows.length > 0 ? <Text style={styles.meta}>{flatLine}</Text> : null}
       {few && rows.length > 0 ? (
         <Text style={styles.meta}>
@@ -436,7 +462,7 @@ export default function InventoryScreen() {
     <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.ink} />
   ) : pages.isError ? (
     <EmptyState icon="cloud-offline-outline" title="No pudimos cargar tu inventario" body="Revisa tu conexión e inténtalo de nuevo." action={{ title: 'Reintentar', onPress: refresh }} />
-  ) : q || state ? (
+  ) : q || state || filterSection ? (
     <Text style={[styles.meta, { paddingVertical: spacing.lg }]}>Nada por aquí con esta búsqueda o este filtro.</Text>
   ) : tab === 'supply' ? (
     <EmptyState
@@ -501,6 +527,7 @@ export default function InventoryScreen() {
                   onPress={() => {
                     setState(undefined);
                     setSort(undefined);
+                    setFilterSection(undefined);
                   }}
                 >
                   <Ionicons name="close" size={16} color={colors.ink} />
@@ -557,10 +584,20 @@ export default function InventoryScreen() {
               return (
                 <View style={styles.countLine}>
                   <Text style={styles.meta}>{ago ? ago[0].toUpperCase() + ago.slice(1) : 'Nunca contada'}</Text>
-                  <Pressable accessibilityRole="button" accessibilityLabel={draftHere ? `Seguir contando ${s.title}` : `Contar ${s.title}`} onPress={() => openCount(s.title)} style={styles.countBtn}>
-                    <Ionicons name="checkmark" size={16} color={colors.ink} />
-                    <Text style={styles.countBtnText}>{draftHere ? 'Seguir' : 'Contar'}</Text>
-                  </Pressable>
+                  {plan.base && !draftHere ? (
+                    <Pressable accessibilityRole="button" accessibilityLabel={`Contar ${s.title}. Es de Empre Pro`} accessibilityHint="Abre Pásate a Empre Pro" onPress={() => setGoPro(true)} style={[styles.countBtn, styles.countBtnLocked]}>
+                      <View style={[styles.countBtnBody, { opacity: LOCKED_OPACITY }]}>
+                        <Ionicons name="checkmark" size={16} color={colors.ink} />
+                        <Text style={styles.countBtnText}>Contar</Text>
+                      </View>
+                      <ProTag />
+                    </Pressable>
+                  ) : (
+                    <Pressable accessibilityRole="button" accessibilityLabel={draftHere ? `Seguir contando ${s.title}` : `Contar ${s.title}`} onPress={() => startCount(s.title)} style={styles.countBtn}>
+                      <Ionicons name="checkmark" size={16} color={colors.ink} />
+                      <Text style={styles.countBtnText}>{draftHere ? 'Seguir' : 'Contar'}</Text>
+                    </Pressable>
+                  )}
                 </View>
               );
             }
@@ -600,9 +637,10 @@ export default function InventoryScreen() {
         }}
       />
 
-      {/* Crear lo de la pestaña: producto, servicio o insumo */}
+      {/* Crear lo de la pestaña y, a la derecha, el botón Empre: Empre AI va ahí, no en una tarjeta (tablero v103). */}
       <View style={[styles.createBar, { paddingBottom: insets.bottom + spacing.md }]}>
-        <Button title={`Nuevo ${meta.one}`} onPress={create} />
+        <Button title={`Nuevo ${meta.one}`} onPress={create} style={{ flex: 1 }} />
+        {ledgerOn ? <EmpreButton inline bottom={insets.bottom + spacing.md + (createBarHeight - EMPRE_BUTTON_INLINE) / 2} entityId={entityId} here={here} /> : null}
       </View>
 
       <FilterSheet
@@ -615,9 +653,13 @@ export default function InventoryScreen() {
         sort={sort}
         onState={setState}
         onSort={setSort}
+        sections={tc && tc.sections.length > SECTIONS_IN_FILTER ? tc.sections : []}
+        section={filterSection}
+        onSection={setFilterSection}
         onClear={() => {
           setState(undefined);
           setSort(undefined);
+          setFilterSection(undefined);
         }}
         onClose={() => setFilterOpen(false)}
       />
@@ -632,16 +674,24 @@ export default function InventoryScreen() {
           openDetail(i.item_id ?? i.ref);
         }}
       />
+      <GoProSheet visible={goPro} onClose={() => setGoPro(false)} businesses={[{ id: entityId, name: business.data?.name ?? '' }]} />
       <VoiceSheet entityId={entityId} visible={voiceOpen} onClose={() => setVoiceOpen(false)} defaultMode="inventory" hints={(names.data ?? []).map((n) => n.name)} onConfirmed={() => refresh()} />
     </View>
   );
 }
 
 /** Una ficha del filtro (tablero «Inventario»): arena si está elegida, borde si no. */
-function FilterChip({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
+function FilterChip({ label, on, onPress, dot }: { label: string; on: boolean; onPress: () => void; dot?: boolean }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityState={{ selected: on }} onPress={onPress} style={({ pressed }) => [styles.fChip, on && styles.fChipOn, pressed && !on && { backgroundColor: colors.well }]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: on }}
+      accessibilityLabel={dot ? `${label}, algo se acaba` : label}
+      onPress={onPress}
+      style={({ pressed }) => [styles.fChip, on && styles.fChipOn, pressed && !on && { backgroundColor: colors.well }]}
+    >
       <Text style={styles.fChipText}>{label}</Text>
+      {dot ? <View style={styles.accDot} /> : null}
     </Pressable>
   );
 }
@@ -662,6 +712,8 @@ function FilterSheet({
   sort,
   onState,
   onSort,
+  sections,
+  onSection,
   onClear,
   onClose,
 }: {
@@ -674,12 +726,18 @@ function FilterSheet({
   state?: InventoryState;
   section?: string;
   sort?: InventorySort;
+  /** Las secciones, solo cuando son más de 8 (si no, el índice basta y no se repiten aquí). */
+  sections: InventoryTabCounts['sections'];
   onState: (s: InventoryState | undefined) => void;
   onSort: (s: InventorySort | undefined) => void;
+  onSection: (s: string | undefined) => void;
   onClear: () => void;
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const [findSec, setFindSec] = useState('');
+  const fold = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const shownSecs = findSec.trim() ? sections.filter((x) => fold(x.name).includes(fold(findSec.trim())) || x.name === section) : sections;
   const meta = TABS.find((t) => t.key === tab) ?? TABS[0];
   // Con una sección elegida en la fila, los números son los de esa sección (no los de toda la pestaña). «Sin foto» no se
   // cuenta por sección: va sin número.
@@ -696,7 +754,7 @@ function FilterSheet({
         ...(tab !== 'supply' ? [{ key: 'nophoto' as const, n: base.nophoto }] : []),
       ].filter((s) => s.n == null || s.n > 0 || s.key === state)
     : [];
-  const any = Boolean(state || sort);
+  const any = Boolean(state || sort || section);
   // Lo que ya se sabe por los conteos sale al instante; lo demás (buscando, o «Sin foto» en una sección) espera al servidor.
   const known = !base || searching ? undefined : !state ? base.total : { low: base.low, out: base.out, nophoto: base.nophoto }[state];
   const n = total ?? known;
@@ -707,7 +765,7 @@ function FilterSheet({
         <View style={styles.sheetHandle} />
         <View style={styles.sheetHead}>
           <Text style={styles.sheetTitle} accessibilityRole="header">
-            {section ? `Filtrar ${section}` : `Filtrar ${meta.many}`}
+            {`Filtrar ${meta.many}`}
           </Text>
           {any ? (
             <Pressable accessibilityRole="button" onPress={onClear} style={styles.linkRow}>
@@ -724,6 +782,26 @@ function FilterSheet({
                 <FilterChip key={s.key} label={s.n != null ? `${STATE_LABEL[s.key]} ${s.n}` : STATE_LABEL[s.key]} on={state === s.key} onPress={() => onState(state === s.key ? undefined : s.key)} />
               ))}
             </View>
+          </>
+        ) : null}
+        {sections.length > 0 ? (
+          <>
+            <Text style={styles.sheetLabel}>{`Sección · ${sections.length}`}</Text>
+            {sections.length > SECTION_SEARCH ? (
+              <TextInput value={findSec} onChangeText={setFindSec} placeholder="Buscar sección" placeholderTextColor={colors.muted} style={styles.findSec} accessibilityLabel="Buscar sección" />
+            ) : null}
+            <ScrollView style={{ maxHeight: 220 }} contentContainerStyle={styles.chips} keyboardShouldPersistTaps="handled">
+              <FilterChip label="Todas" on={!section} onPress={() => onSection(undefined)} />
+              {shownSecs.map((x) => (
+                <FilterChip
+                  key={x.name}
+                  label={`${x.name} ${x.count}`}
+                  dot={(x.low ?? 0) + (x.out ?? 0) > 0}
+                  on={section === x.name}
+                  onPress={() => onSection(section === x.name ? undefined : x.name)}
+                />
+              ))}
+            </ScrollView>
           </>
         ) : null}
         <Text style={styles.sheetLabel}>Ordenar</Text>
@@ -926,14 +1004,13 @@ const styles = StyleSheet.create({
   alertFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 44, borderTopWidth: 1, borderTopColor: '#F5E6D6' },
   alertLink: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   // Empre AI: su propia entrada, aparte del buscador (tablero, teléfono 1).
-  aiEntry: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 10, paddingHorizontal: spacing.md, borderRadius: 16, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
-  // La chispa del tablero: círculo de arena con la chispa en tinta (sin relleno negro). El anillo de usos del tablero
-  // espera el contador de Empre AI, que aún no existe.
-  chispa: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.sand, alignItems: 'center', justifyContent: 'center' },
   aiTitle: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   // Contar: la tarjeta de la sección (arena) con su botón en contorno rojo, y «Seguir contando» (blanca, con flecha).
   countCard: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 10, paddingHorizontal: spacing.md, borderRadius: 16, backgroundColor: colors.well },
   countBtn: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: 12, borderWidth: 2, borderColor: colors.brandRef, backgroundColor: colors.surface },
+  // Contar en Base: sin el aro rojo (no invita a lo que no tienes), el contenido en gris y la corona de Pro.
+  countBtnLocked: { borderWidth: 1, borderColor: colors.line, backgroundColor: colors.well, paddingHorizontal: 10 },
+  countBtnBody: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   countBtnText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   resume: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 10, paddingHorizontal: spacing.md, borderRadius: 16, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
   aiSub: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
@@ -954,8 +1031,9 @@ const styles = StyleSheet.create({
   fewCard: { paddingHorizontal: spacing.md, borderLeftWidth: 1, borderRightWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
   fewFirst: { borderTopWidth: 1, borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   fewLast: { borderBottomWidth: 1, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 },
-  createBar: { paddingTop: spacing.md, paddingHorizontal: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg },
-  fChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
+  createBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: spacing.md, paddingHorizontal: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg },
+  findSec: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.well, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink },
+  fChip: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
   fChipOn: { backgroundColor: colors.sand, borderColor: colors.sand },
   fChipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   sheetVeil: { flex: 1, backgroundColor: 'rgba(43,38,34,0.28)' },

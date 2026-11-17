@@ -16,6 +16,7 @@ import { initUploads } from '@/upload/uploadStore';
 import { NoticeHost } from '@/components/Notice';
 import { flushLedger, initLedgerOutbox } from '@/ledger/ledgerStore';
 import { colors } from '@/theme';
+import { GlobalEmpreButton } from '@/components/GlobalEmpreButton';
 
 // Se mantiene la splash nativa visible hasta que Inter esté
 // lista, así se evita el "parpadeo" de la tipografía del sistema al abrir.
@@ -99,6 +100,7 @@ export default function RootLayout() {
           <ChatProvider>
             <StatusBar style="dark" />
             <AppStack />
+            <GlobalEmpreButton />
             <UploadCapsule />
             <NoticeHost />
           </ChatProvider>
