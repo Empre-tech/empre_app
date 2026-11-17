@@ -3,7 +3,7 @@ import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClie
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { catalogApi } from '@/api/catalog';
 import { entitiesApi } from '@/api/endpoints';
@@ -147,7 +147,8 @@ export default function InventoryScreen() {
   // Pocos: sin barra ni filtro, todo de una vez y cada uno una vez (como Inicio con pocos negocios).
   const few = tc ? tc.total < FEW_BUSINESSES && !q && !state && !section : false;
   // Con tu orden y sin búsqueda, la lista va por secciones (con su título pegado arriba); si no, una sola.
-  const grouped = !few && !sort && !q;
+  // Con una sección elegida en la fila, la lista es solo esa y su nombre ya está en la ficha: sin título repetido.
+  const grouped = !few && !sort && !q && !section;
   const sections = useMemo(() => {
     if (!rows.length) return [];
     if (!grouped) return [{ title: '', data: rows }];
@@ -216,8 +217,9 @@ export default function InventoryScreen() {
     setSearch('');
     setQ('');
   };
-  const activeFilters = [state, section, sort].filter(Boolean).length;
-  const filterLabel = state ? STATE_LABEL[state] : (section ?? (sort ? SORTS.find((s) => s.key === sort)?.label : null) ?? 'Todos');
+  // El filtro es cómo están y el orden; la sección va en su fila (tablero «Inventario», v97).
+  const activeFilters = [state, sort].filter(Boolean).length;
+  const filterLabel = state ? STATE_LABEL[state] : ((sort ? SORTS.find((s) => s.key === sort)?.label : null) ?? 'Todos');
 
   if (!FEATURES.ledger) {
     return (
@@ -246,7 +248,8 @@ export default function InventoryScreen() {
           </Pressable>
         </View>
       ) : null}
-      {alerts.total > 0 && !q && tab !== 'service' ? (
+      {/* Buscando o con una sección elegida, primero lo que pediste (los avisos son de todo el negocio). */}
+      {alerts.total > 0 && !q && !section && tab !== 'service' ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Tienes ${alerts.total} cosas por revisar: ${alertsLine(alerts)}. Ver los avisos`}
@@ -286,7 +289,7 @@ export default function InventoryScreen() {
       ) : null}
       {/* Empre AI aparte: es de pago, no vive en el buscador ni en el filtro. Un servicio no tiene existencias que dictar,
           y sin nada en la pestaña no hay qué actualizar. */}
-      {tab !== 'service' && (tc?.total ?? 0) > 0 && !q ? (
+      {tab !== 'service' && (tc?.total ?? 0) > 0 && !q && !section ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Actualizar con Empre AI: dicta lo que llegó o se acabó"
@@ -368,7 +371,7 @@ export default function InventoryScreen() {
               <TextInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder={`Buscar en ${tc.total} ${tc.total === 1 ? meta.one : meta.many}`}
+                placeholder={section ? `Buscar en ${section}` : `Buscar en ${tc.total} ${tc.total === 1 ? meta.one : meta.many}`}
                 placeholderTextColor={colors.muted}
                 style={styles.searchInput}
                 accessibilityLabel={`Buscar ${meta.many}`}
@@ -393,6 +396,7 @@ export default function InventoryScreen() {
             </Pressable>
           </View>
         ) : null}
+        {tc && !few && tc.sections.length > 1 ? <SectionRail sections={tc.sections} total={tc.total} selected={section} onPick={setSection} /> : null}
       </View>
 
       <SectionList
@@ -464,11 +468,9 @@ export default function InventoryScreen() {
         section={section}
         sort={sort}
         onState={setState}
-        onSection={setSection}
         onSort={setSort}
         onClear={() => {
           setState(undefined);
-          setSection(undefined);
           setSort(undefined);
         }}
         onClose={() => setFilterOpen(false)}
@@ -486,6 +488,41 @@ export default function InventoryScreen() {
       />
       <VoiceSheet entityId={entityId} visible={voiceOpen} onClose={() => setVoiceOpen(false)} defaultMode="inventory" hints={(inv.data?.items ?? []).map((i) => i.name)} onConfirmed={() => refresh()} />
     </View>
+  );
+}
+
+type SectionCountRow = InventoryTabCounts['sections'][number];
+
+/**
+ * La fila de secciones (tablero «Inventario», v97): ir directo a una sección sin bajar por las demás. Tocar una muestra
+ * solo esa (se filtra en el servidor, así sirve igual con 50 que con 5.000); «Todas» vuelve a la lista completa. El punto
+ * rojo dice que algo de esa sección se acaba o se acabó. Se desliza de lado si son muchas.
+ */
+function SectionRail({ sections, total, selected, onPick }: { sections: SectionCountRow[]; total: number; selected?: string; onPick: (name: string | undefined) => void }) {
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.railWrap} contentContainerStyle={styles.rail} accessibilityLabel="Secciones" keyboardShouldPersistTaps="handled">
+      <RailChip label="Todas" n={total} on={!selected} onPress={() => onPick(undefined)} />
+      {sections.map((s) => (
+        <RailChip key={s.name} label={s.name} n={s.count} alert={(s.low ?? 0) + (s.out ?? 0) > 0} on={selected === s.name} onPress={() => onPick(selected === s.name ? undefined : s.name)} />
+      ))}
+    </ScrollView>
+  );
+}
+
+function RailChip({ label, n, alert, on, onPress }: { label: string; n: number; alert?: boolean; on: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: on }}
+      accessibilityLabel={`${label}, ${n}${alert ? ', algo se acaba' : ''}`}
+      onPress={onPress}
+      hitSlop={{ top: 4, bottom: 4 }}
+      style={({ pressed }) => [styles.railChip, on && styles.railChipOn, pressed && !on && { backgroundColor: colors.well }]}
+    >
+      <Text style={styles.railText}>{label}</Text>
+      <Text style={styles.railCount}>{n}</Text>
+      {alert ? <View style={styles.railDot} /> : null}
+    </Pressable>
   );
 }
 
@@ -513,7 +550,6 @@ function FilterSheet({
   section,
   sort,
   onState,
-  onSection,
   onSort,
   onClear,
   onClose,
@@ -528,31 +564,30 @@ function FilterSheet({
   section?: string;
   sort?: InventorySort;
   onState: (s: InventoryState | undefined) => void;
-  onSection: (s: string | undefined) => void;
   onSort: (s: InventorySort | undefined) => void;
   onClear: () => void;
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const meta = TABS.find((t) => t.key === tab) ?? TABS[0];
-  const states: { key: InventoryState; n: number }[] = counts
+  // Con una sección elegida en la fila, los números son los de esa sección (no los de toda la pestaña). «Sin foto» no se
+  // cuenta por sección: va sin número.
+  const sec = section ? counts?.sections.find((s) => s.name === section) : undefined;
+  const base: { total: number; low: number; out: number; nophoto?: number } | undefined = sec
+    ? { total: sec.count, low: sec.low ?? 0, out: sec.out ?? 0 }
+    : counts
+      ? { total: counts.total, low: counts.low, out: counts.out, nophoto: counts.no_photo }
+      : undefined;
+  const states: { key: InventoryState; n?: number }[] = base
     ? [
-        { key: 'low' as const, n: counts.low },
-        { key: 'out' as const, n: counts.out },
-        ...(tab !== 'supply' ? [{ key: 'nophoto' as const, n: counts.no_photo }] : []),
-      ].filter((s) => s.n > 0 || s.key === state)
+        { key: 'low' as const, n: base.low },
+        { key: 'out' as const, n: base.out },
+        ...(tab !== 'supply' ? [{ key: 'nophoto' as const, n: base.nophoto }] : []),
+      ].filter((s) => s.n == null || s.n > 0 || s.key === state)
     : [];
-  const any = Boolean(state || section || sort);
-  // Con un solo filtro el número ya se sabe por los conteos; con dos (o buscando), se espera al servidor.
-  const known = !counts || searching
-    ? undefined
-    : !state && !section
-      ? counts.total
-      : state && !section
-        ? { low: counts.low, out: counts.out, nophoto: counts.no_photo }[state]
-        : !state && section
-          ? counts.sections.find((s) => s.name === section)?.count
-          : undefined;
+  const any = Boolean(state || sort);
+  // Lo que ya se sabe por los conteos sale al instante; lo demás (buscando, o «Sin foto» en una sección) espera al servidor.
+  const known = !base || searching ? undefined : !state ? base.total : { low: base.low, out: base.out, nophoto: base.nophoto }[state];
   const n = total ?? known;
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -561,7 +596,7 @@ function FilterSheet({
         <View style={styles.sheetHandle} />
         <View style={styles.sheetHead}>
           <Text style={styles.sheetTitle} accessibilityRole="header">
-            {`Filtrar ${meta.many}`}
+            {section ? `Filtrar ${section}` : `Filtrar ${meta.many}`}
           </Text>
           {any ? (
             <Pressable accessibilityRole="button" onPress={onClear} style={styles.linkRow}>
@@ -573,20 +608,9 @@ function FilterSheet({
           <>
             <Text style={styles.sheetLabel}>Cómo están</Text>
             <View style={styles.chips}>
-              <FilterChip label={counts ? `Todos ${counts.total}` : 'Todos'} on={!state} onPress={() => onState(undefined)} />
+              <FilterChip label={base ? `Todos ${base.total}` : 'Todos'} on={!state} onPress={() => onState(undefined)} />
               {states.map((s) => (
-                <FilterChip key={s.key} label={`${STATE_LABEL[s.key]} ${s.n}`} on={state === s.key} onPress={() => onState(state === s.key ? undefined : s.key)} />
-              ))}
-            </View>
-          </>
-        ) : null}
-        {counts && counts.sections.length > 1 ? (
-          <>
-            <Text style={styles.sheetLabel}>Sección</Text>
-            <View style={styles.chips}>
-              <FilterChip label="Todas" on={!section} onPress={() => onSection(undefined)} />
-              {counts.sections.map((s) => (
-                <FilterChip key={s.name} label={`${s.name} ${s.count}`} on={section === s.name} onPress={() => onSection(section === s.name ? undefined : s.name)} />
+                <FilterChip key={s.key} label={s.n != null ? `${STATE_LABEL[s.key]} ${s.n}` : STATE_LABEL[s.key]} on={state === s.key} onPress={() => onState(state === s.key ? undefined : s.key)} />
               ))}
             </View>
           </>
@@ -809,6 +833,14 @@ const styles = StyleSheet.create({
   fewFirst: { borderTopWidth: 1, borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   fewLast: { borderBottomWidth: 1, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 },
   createBar: { paddingTop: spacing.md, paddingHorizontal: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg },
+  // La fila de secciones: llega al borde derecho para que se note que se desliza.
+  railWrap: { marginHorizontal: -spacing.lg },
+  rail: { gap: 6, paddingHorizontal: spacing.lg },
+  railChip: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
+  railChipOn: { backgroundColor: colors.sand, borderColor: colors.sand },
+  railText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
+  railCount: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, fontVariant: ['tabular-nums'] },
+  railDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.brandRef },
   fChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
   fChipOn: { backgroundColor: colors.sand, borderColor: colors.sand },
   fChipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },

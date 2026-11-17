@@ -386,7 +386,8 @@ export interface InventoryTabCounts {
   low: number;
   out: number;
   no_photo: number;
-  sections: { name: string; count: number }[];
+  /** Cada sección con cuántas filas tiene y cuántas se acaban o se acabaron (el punto rojo de la fila de secciones). */
+  sections: { name: string; count: number; low?: number; out?: number }[];
 }
 
 /** Los números de las tres pestañas y del filtro, sin las filas. */
