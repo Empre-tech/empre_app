@@ -387,7 +387,7 @@ export interface InventoryTabCounts {
   out: number;
   no_photo: number;
   /** Cada sección con cuántas filas tiene y cuántas se acaban o se acabaron (el punto rojo de la fila de secciones). */
-  sections: { name: string; count: number; low?: number; out?: number }[];
+  sections: { name: string; count: number; low?: number; out?: number; counted_at?: string | null }[];
 }
 
 /**
@@ -620,6 +620,11 @@ export const ledgerApi = {
     }),
   /** Los números de las pestañas y del filtro. */
   inventoryCounts: (entityId: string) => request<InventoryCounts>(`${base(entityId)}/inventory/counts`),
+  /** Guarda el conteo de una sección de una vez (reenviar el mismo client_id no lo aplica dos veces). */
+  countSection: (
+    entityId: string,
+    input: { client_id: string; tab: 'product' | 'supply'; section: string; lines: { ref: string; expected?: number; counted?: number; level?: StockLevel; reason?: string }[] },
+  ) => request<{ counted: number; changed: number; counted_at: string }>(`${base(entityId)}/inventory/count`, { method: 'POST', body: input }),
   /** Lo de arriba de Inventario, ya contado. */
   inventorySummary: (entityId: string) => request<InventorySummary>(`${base(entityId)}/inventory/summary`),
   /** Solo las filas pedidas (por id de la fila o de su ítem del catálogo; hasta 100). */

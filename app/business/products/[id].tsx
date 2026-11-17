@@ -24,6 +24,7 @@ import { addDays, todayCO } from '@/lib/finance';
 import { FEW_BUSINESSES } from '@/lib/fewBusinesses';
 import { formatPesos } from '@/lib/ledger';
 import { getPhoneFlag, setPhoneFlag } from '@/lib/phoneFlags';
+import { countDraftKey, countedAgo, readDraft, staleSection, type CountDraft } from '@/lib/inventoryCount';
 import { stockNews } from '@/lib/stockNews';
 import { countsLine } from '@/lib/alerts';
 import { safeIcon, type IconName } from '@/lib/icons';
@@ -147,6 +148,14 @@ export default function InventoryScreen() {
       refresh();
     }, [refresh]),
   );
+  // El conteo a medias que guardó el teléfono (se lee cada vez que vuelves, por si lo dejaste o lo guardaste).
+  const [countDraft, setCountDraft] = useState<CountDraft | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      void getPhoneFlag(countDraftKey(entityId)).then((raw) => setCountDraft(readDraft(raw)));
+    }, [entityId]),
+  );
+  const openCount = (sec: string, t: InventoryTab = tab) => router.push({ pathname: '/business/products/count', params: { entityId, tab: t, section: sec } });
 
   const setup = useMutation({
     mutationFn: (choice: SetupChoice) => ledgerApi.setupInventory(entityId, choice),
@@ -192,6 +201,12 @@ export default function InventoryScreen() {
   // «Sin asignar» (un insumo que ningún producto usa) solo dice algo si otros sí están asignados.
   const someAssigned = useMemo(() => rows.some((r) => (r.used_in ?? []).length > 0), [rows]);
   const headCount = (title: string, loaded: number) => (state ? (pages.hasNextPage ? undefined : loaded) : tc?.sections.find((s) => s.name === title)?.count);
+
+  // Lo del conteo: la sección elegida, si el conteo a medias es de ella y la que más tiempo lleva sin contarse.
+  const sectionRow = section ? tc?.sections.find((s) => s.name === section) : undefined;
+  const draftLeft = countDraft && Object.keys(countDraft.entries).length > 0 ? { done: countDraft.rows.filter((r) => countDraft.entries[r.ref]).length, total: countDraft.rows.length } : null;
+  const draftHere = Boolean(draftLeft && countDraft && countDraft.section === section && countDraft.tab === tab);
+  const stale = tc ? staleSection(tc.sections, now) : null;
 
   const sellSections = useEntitySections(entityId, 'sell');
   const sellIcons = useMemo(() => new Map((sellSections.data ?? []).map((s) => [s.name, s.icon])), [sellSections.data]);
@@ -263,6 +278,45 @@ export default function InventoryScreen() {
   const header = (
     <View style={styles.listHead}>
       {error ? <Text style={styles.error}>{error}</Text> : null}
+      {/* Contar (tablero «Inventario», teléfonos 9 y 12): seguir el conteo a medias, contar la sección elegida o la que
+          más tiempo lleva sin contarse. */}
+      {draftLeft && countDraft && countDraft.section !== section ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Seguir contando ${countDraft.section}: vas en ${draftLeft.done} de ${draftLeft.total}`}
+          onPress={() => openCount(countDraft.section, countDraft.tab)}
+          style={({ pressed }) => [styles.resume, pressed && { backgroundColor: colors.well }]}
+        >
+          <View style={{ flex: 1, gap: 1 }}>
+            <Text style={styles.aiTitle}>{`Seguir contando ${countDraft.section}`}</Text>
+            <Text style={styles.aiSub}>{`Vas en ${draftLeft.done} de ${draftLeft.total}`}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+        </Pressable>
+      ) : null}
+      {section && tab !== 'service' ? (
+        <View style={styles.countCard}>
+          <View style={{ flex: 1, gap: 1 }}>
+            <Text style={styles.aiTitle}>{`${section} · ${countedAgo(sectionRow?.counted_at, now) ?? 'nunca contada'}`}</Text>
+            <Text style={styles.aiSub}>{sectionRow ? `${sectionRow.count} ${sectionRow.count === 1 ? meta.one : meta.many} · cuentas solo esta sección` : 'Cuentas solo esta sección'}</Text>
+          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel={draftHere ? `Seguir contando ${section}` : `Contar ${section}`} onPress={() => openCount(section)} style={styles.countBtn}>
+            <Ionicons name="checkmark" size={16} color={colors.ink} />
+            <Text style={styles.countBtnText}>{draftHere ? 'Seguir' : 'Contar'}</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      {!section && !q && tab !== 'service' && stale ? (
+        <View style={styles.countCard}>
+          <View style={{ flex: 1, gap: 1 }}>
+            <Text style={styles.aiTitle}>{`${stale.name} no se cuenta hace ${stale.days} días`}</Text>
+            <Text style={styles.aiSub}>Contar seguido evita sorpresas al cerrar el mes</Text>
+          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Contar ${stale.name}`} onPress={() => openCount(stale.name)} style={styles.countBtn}>
+            <Text style={styles.countBtnText}>Contar</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {news ? (
         <View style={styles.news} accessibilityLiveRegion="polite">
           <EmpreSymbol product="finance" size={32} />
@@ -847,6 +901,11 @@ const styles = StyleSheet.create({
   // espera el contador de Empre AI, que aún no existe.
   chispa: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.sand, alignItems: 'center', justifyContent: 'center' },
   aiTitle: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
+  // Contar: la tarjeta de la sección (arena) con su botón en contorno rojo, y «Seguir contando» (blanca, con flecha).
+  countCard: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 10, paddingHorizontal: spacing.md, borderRadius: 16, backgroundColor: colors.well },
+  countBtn: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: 12, borderWidth: 2, borderColor: colors.brandRef, backgroundColor: colors.surface },
+  countBtnText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
+  resume: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 10, paddingHorizontal: spacing.md, borderRadius: 16, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
   aiSub: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
   loadingMore: { textAlign: 'center', fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted, paddingVertical: spacing.xs },
   confirm: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, backgroundColor: colors.surface },
