@@ -3,7 +3,7 @@ import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClie
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { catalogApi } from '@/api/catalog';
 import { entitiesApi } from '@/api/endpoints';
@@ -33,6 +33,12 @@ import { useNow } from '@/lib/useNow';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 type Row = InventoryItem & { children: InventoryItem[] };
+// La lista con el índice (tablero «Inventario», v102): cada sección es un título plegable; la abierta trae, antes de sus
+// filas, la línea de contar y, al final, «Ver más» si quedan. Las filas de mentira se marcan con `pseudo`.
+type Pseudo = { pseudo: 'count' | 'loading' | 'more' };
+type ListItem = Row | Pseudo;
+type ListSection = { title: string; count: number; alert: boolean; open: boolean; data: ListItem[] };
+const isPseudo = (i: ListItem): i is Pseudo => 'pseudo' in i;
 
 const TABS: { key: InventoryTab; label: string; one: string; many: string; counts: 'products' | 'services' | 'supplies' }[] = [
   { key: 'product', label: 'Productos', one: 'producto', many: 'productos', counts: 'products' },
@@ -81,7 +87,8 @@ export default function InventoryScreen() {
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
   const [state, setState] = useState<InventoryState | undefined>();
-  const [section, setSection] = useState<string | undefined>();
+  // La sección abierta, una a la vez. Sin tocar: la primera; null: todas plegadas.
+  const [openPick, setOpenPick] = useState<string | null | undefined>(undefined);
   const [sort, setSort] = useState<InventorySort | undefined>();
   const [filterOpen, setFilterOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -98,28 +105,40 @@ export default function InventoryScreen() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const tabTotal = counts.data?.[(TABS.find((t) => t.key === tab) ?? TABS[0]).counts].total;
+  const meta = TABS.find((t) => t.key === tab) ?? TABS[0];
+  const tc: InventoryTabCounts | undefined = counts.data?.[meta.counts];
+  const tabTotal = tc?.total;
+  // Pocos: sin barra ni filtro, todo de una vez y cada uno una vez (como Inicio con pocos negocios).
+  const few = tc ? tc.total < FEW_BUSINESSES && !q && !state : false;
+  // Con tu orden y sin buscar ni filtrar, la lista es el índice: las secciones se pliegan y solo se pide la abierta.
+  // Buscando, filtrando u ordenando, la lista sale corrida, de todas las secciones.
+  const grouped = Boolean(tc && tc.sections.length > 0) && !few && !sort && !q && !state;
+  const openSection = openPick === undefined ? tc?.sections[0]?.name : (openPick ?? undefined);
+  const section = grouped ? openSection : undefined;
   const pages = useInfiniteQuery({
     queryKey: pageKey(entityId, tab, q, section, state, sort),
     queryFn: ({ pageParam }) => ledgerApi.inventoryPage(entityId, { tab, q, section, state, sort, cursor: pageParam, limit: PAGE }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor || undefined,
-    // Una pestaña en 0 no pide nada: su vacío se ve al instante (cada consulta tarda casi un segundo). Si el 0 es viejo y
-    // los conteos se están pidiendo otra vez (volviste de agregar algo), pide la página de una vez.
-    enabled: ledgerOn && (tabTotal !== 0 || counts.isFetching),
-    // Mientras llega otra búsqueda u otro filtro de la misma pestaña se queda lo de antes; al cambiar de pestaña no, para
-    // no mostrar productos bajo «Servicios».
-    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[4] === tab ? keepPreviousData(prev) : undefined),
+    // Espera los conteos (dicen si hay algo y qué secciones hay). Una pestaña en 0 no pide nada (su vacío se ve al
+    // instante) y, con todas las secciones plegadas, tampoco.
+    enabled: ledgerOn && Boolean(counts.data) && (tabTotal ?? 0) > 0 && (!grouped || Boolean(openSection)),
+    // Mientras llega otra búsqueda u otro filtro de la misma pestaña y la misma sección se queda lo de antes; al cambiar
+    // de pestaña o de sección no, para no mostrar filas bajo otro título.
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[4] === tab && prevQuery?.queryKey[6] === (section ?? '') ? keepPreviousData(prev) : undefined),
   });
 
   // Las otras pestañas se piden de una vez, en paralelo, para que cambiar de pestaña no espere.
   useEffect(() => {
     if (!ledgerOn || !counts.data) return;
     for (const t of TABS) {
-      if (counts.data[t.counts].total === 0) continue;
+      const c = counts.data[t.counts];
+      if (c.total === 0) continue;
+      // Lo que se ve al entrar a esa pestaña: su primera sección abierta (o todo, si son pocos).
+      const sec = c.total >= FEW_BUSINESSES ? c.sections[0]?.name : undefined;
       void qc.prefetchInfiniteQuery({
-        queryKey: pageKey(entityId, t.key, ''),
-        queryFn: ({ pageParam }) => ledgerApi.inventoryPage(entityId, { tab: t.key, cursor: pageParam, limit: PAGE }),
+        queryKey: pageKey(entityId, t.key, '', sec),
+        queryFn: ({ pageParam }) => ledgerApi.inventoryPage(entityId, { tab: t.key, section: sec, cursor: pageParam, limit: PAGE }),
         initialPageParam: undefined as string | undefined,
         staleTime: 30_000,
       });
@@ -171,41 +190,49 @@ export default function InventoryScreen() {
     return all.flatMap((p) => p.items).map((it) => ({ ...it, children: kids.get(it.ref) ?? [] }));
   }, [pages.data]);
   const total = pages.data?.pages[0]?.total ?? 0;
-  const meta = TABS.find((t) => t.key === tab) ?? TABS[0];
-  const tc: InventoryTabCounts | undefined = counts.data?.[meta.counts];
-  // Pocos: sin barra ni filtro, todo de una vez y cada uno una vez (como Inicio con pocos negocios).
-  const few = tc ? tc.total < FEW_BUSINESSES && !q && !state && !section : false;
-  // Con tu orden y sin búsqueda, la lista va por secciones (con su título pegado arriba); si no, una sola.
-  // Con una sección elegida en la fila, la lista es solo esa y su nombre ya está en la ficha: sin título repetido.
-  const grouped = !few && !sort && !q && !section;
-  const sections = useMemo(() => {
-    if (!rows.length) return [];
-    if (!grouped) return [{ title: '', data: rows }];
-    const out: { title: string; data: Row[] }[] = [];
-    const at = new Map<string, number>();
-    for (const r of rows) {
-      const name = (tab === 'supply' ? r.group || r.section : r.section) || 'Sin sección';
-      if (!at.has(name)) {
-        at.set(name, out.length);
-        out.push({ title: name, data: [] });
-      }
-      out[at.get(name) as number].data.push(r);
+  // La lista: con el índice, cada sección con su número y su punto; solo la abierta trae filas. Si no, una sola corrida.
+  const sections: ListSection[] = useMemo(() => {
+    if (grouped && tc) {
+      return tc.sections.map((sc) => {
+        const open = sc.name === openSection;
+        const data: ListItem[] = [];
+        if (open) {
+          if (tab !== 'service') data.push({ pseudo: 'count' });
+          if (rows.length) data.push(...rows);
+          else if (pages.isFetching) data.push({ pseudo: 'loading' });
+          if (pages.hasNextPage) data.push({ pseudo: 'more' });
+        }
+        return { title: sc.name, count: sc.count, alert: (sc.low ?? 0) + (sc.out ?? 0) > 0, open, data };
+      });
     }
-    return out;
-  }, [grouped, rows, tab]);
-  // El número de cada sección es su total real. Con un estado elegido («Se acaban») ese total ya no sirve: va lo que quedó
-  // de la sección, y solo cuando ya llegó todo.
+    return rows.length ? [{ title: '', count: 0, alert: false, open: true, data: rows }] : [];
+  }, [grouped, tc, openSection, tab, rows, pages.isFetching, pages.hasNextPage]);
+  const listRef = useRef<SectionList<ListItem, ListSection>>(null);
+  // Tocar una sección la abre y cierra la que estaba abierta (y la deja arriba); tocar la abierta la pliega.
+  const toggleSection = (name: string) => {
+    const opening = name !== openSection;
+    setOpenPick(opening ? name : null);
+    const idx = tc?.sections.findIndex((x) => x.name === name) ?? -1;
+    if (opening && idx >= 0) {
+      requestAnimationFrame(() => {
+        try {
+          listRef.current?.scrollToLocation({ sectionIndex: idx, itemIndex: 0, viewOffset: 0, animated: true });
+        } catch {
+          // Si aún no se midió, se queda donde está.
+        }
+      });
+    }
+  };
   // Sin títulos de sección (pocos, buscando u ordenando) la sección va en cada fila, salvo que todas compartan la misma:
   // lo que comparten todas no se repite debajo de cada una.
   const mixedSections = useMemo(() => new Set(rows.map((r) => r.section || '')).size > 1, [rows]);
   // «Sin asignar» (un insumo que ningún producto usa) solo dice algo si otros sí están asignados.
   const someAssigned = useMemo(() => rows.some((r) => (r.used_in ?? []).length > 0), [rows]);
-  const headCount = (title: string, loaded: number) => (state ? (pages.hasNextPage ? undefined : loaded) : tc?.sections.find((s) => s.name === title)?.count);
 
   // Lo del conteo: la sección elegida, si el conteo a medias es de ella y la que más tiempo lleva sin contarse.
-  const sectionRow = section ? tc?.sections.find((s) => s.name === section) : undefined;
+  const sectionRow = openSection ? tc?.sections.find((x) => x.name === openSection) : undefined;
   const draftLeft = countDraft && Object.keys(countDraft.entries).length > 0 ? { done: countDraft.rows.filter((r) => countDraft.entries[r.ref]).length, total: countDraft.rows.length } : null;
-  const draftHere = Boolean(draftLeft && countDraft && countDraft.section === section && countDraft.tab === tab);
+  const draftHere = Boolean(draftLeft && countDraft && countDraft.section === openSection && countDraft.tab === tab);
   const stale = tc ? staleSection(tc.sections, now) : null;
 
   const sellSections = useEntitySections(entityId, 'sell');
@@ -255,14 +282,17 @@ export default function InventoryScreen() {
   const pickTab = (t: InventoryTab) => {
     setPickedTab(t);
     setState(undefined);
-    setSection(undefined);
+    setOpenPick(undefined);
     setSort(undefined);
     setSearch('');
     setQ('');
   };
-  // El filtro es cómo están y el orden; la sección va en su fila (tablero «Inventario», v97).
+  // Un solo lugar para elegir: el filtro (cómo están y el orden). Sin nada elegido dice «Filtrar»; si no, lo elegido.
   const activeFilters = [state, sort].filter(Boolean).length;
-  const filterLabel = state ? STATE_LABEL[state] : ((sort ? SORTS.find((s) => s.key === sort)?.label : null) ?? 'Todos');
+  const filterLabel = state ? STATE_LABEL[state] : ((sort ? SORTS.find((x) => x.key === sort)?.label : null) ?? 'Filtrar');
+  // Con un filtro o una búsqueda, cuántos salieron (y de cuántas secciones, cuando ya llegaron todos).
+  const flatSecs = new Set(rows.map((r) => (tab === 'supply' ? r.group || r.section : r.section) || '')).size;
+  const flatLine = state ? `${total} ${STATE_LABEL[state].toLowerCase()}${!pages.hasNextPage && flatSecs > 1 ? ` · en ${flatSecs} secciones` : ''}` : `${total} ${total === 1 ? 'resultado' : 'resultados'}`;
 
   if (!FEATURES.ledger) {
     return (
@@ -280,7 +310,7 @@ export default function InventoryScreen() {
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {/* Contar (tablero «Inventario», teléfonos 9 y 12): seguir el conteo a medias, contar la sección elegida o la que
           más tiempo lleva sin contarse. */}
-      {draftLeft && countDraft && countDraft.section !== section ? (
+      {draftLeft && countDraft && !draftHere ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Seguir contando ${countDraft.section}: vas en ${draftLeft.done} de ${draftLeft.total}`}
@@ -294,19 +324,7 @@ export default function InventoryScreen() {
           <Ionicons name="chevron-forward" size={16} color={colors.muted} />
         </Pressable>
       ) : null}
-      {section && tab !== 'service' ? (
-        <View style={styles.countCard}>
-          <View style={{ flex: 1, gap: 1 }}>
-            <Text style={styles.aiTitle}>{`${section} · ${countedAgo(sectionRow?.counted_at, now) ?? 'nunca contada'}`}</Text>
-            <Text style={styles.aiSub}>{sectionRow ? `${sectionRow.count} ${sectionRow.count === 1 ? meta.one : meta.many} · cuentas solo esta sección` : 'Cuentas solo esta sección'}</Text>
-          </View>
-          <Pressable accessibilityRole="button" accessibilityLabel={draftHere ? `Seguir contando ${section}` : `Contar ${section}`} onPress={() => openCount(section)} style={styles.countBtn}>
-            <Ionicons name="checkmark" size={16} color={colors.ink} />
-            <Text style={styles.countBtnText}>{draftHere ? 'Seguir' : 'Contar'}</Text>
-          </Pressable>
-        </View>
-      ) : null}
-      {!section && !q && tab !== 'service' && stale ? (
+      {!q && !state && tab !== 'service' && stale && stale.name !== openSection ? (
         <View style={styles.countCard}>
           <View style={{ flex: 1, gap: 1 }}>
             <Text style={styles.aiTitle}>{`${stale.name} no se cuenta hace ${stale.days} días`}</Text>
@@ -329,8 +347,8 @@ export default function InventoryScreen() {
           </Pressable>
         </View>
       ) : null}
-      {/* Buscando o con una sección elegida, primero lo que pediste (los avisos son de todo el negocio). */}
-      {alerts.total > 0 && !q && !section && tab !== 'service' ? (
+      {/* Buscando, primero lo que pediste (los avisos son de todo el negocio). */}
+      {alerts.total > 0 && !q && tab !== 'service' ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Tienes ${alerts.total} cosas por revisar: ${countsLine(alerts)}. Ver los avisos`}
@@ -370,7 +388,7 @@ export default function InventoryScreen() {
       ) : null}
       {/* Empre AI aparte: es de pago, no vive en el buscador ni en el filtro. Un servicio no tiene existencias que dictar,
           y sin nada en la pestaña no hay qué actualizar. */}
-      {tab !== 'service' && (tc?.total ?? 0) > 0 && !q && !section ? (
+      {tab !== 'service' && (tc?.total ?? 0) > 0 && !q ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Actualizar con Empre AI: dicta lo que llegó o se acabó"
@@ -387,6 +405,7 @@ export default function InventoryScreen() {
           <Ionicons name="chevron-forward" size={16} color={colors.muted} />
         </Pressable>
       ) : null}
+      {!grouped && !few && (q || state) && rows.length > 0 ? <Text style={styles.meta}>{flatLine}</Text> : null}
       {few && rows.length > 0 ? (
         <Text style={styles.meta}>
           {tab === 'supply'
@@ -399,8 +418,8 @@ export default function InventoryScreen() {
 
   const footer = (
     <View style={{ gap: spacing.sm, paddingTop: spacing.md }}>
-      {pages.isFetchingNextPage ? <Text style={styles.loadingMore}>{`Cargando los siguientes ${PAGE}…`}</Text> : null}
-      {tab !== 'supply' && rows.length > 0 && !pages.hasNextPage && !q && !state && !section ? (
+      {!grouped && pages.isFetchingNextPage ? <Text style={styles.loadingMore}>{`Cargando los siguientes ${PAGE}…`}</Text> : null}
+      {tab !== 'supply' && (tc?.total ?? 0) > 0 && !q && !state && !sort && (grouped || !pages.hasNextPage) ? (
         <>
           {note ? <Text style={styles.meta}>{note}</Text> : null}
           <Pressable accessibilityRole="button" onPress={() => void catalogApi.confirm(entityId).then(refresh, () => setError('No pudimos confirmar los precios'))} style={styles.confirm}>
@@ -413,11 +432,11 @@ export default function InventoryScreen() {
   );
 
   // Nunca «Aún no tienes…» con un 0 viejo: mientras llegan los conteos o la página, se espera.
-  const empty = pages.isFetching || (counts.isFetching && tabTotal === 0) ? (
+  const empty = pages.isFetching || !counts.data || (counts.isFetching && tabTotal === 0) ? (
     <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.ink} />
   ) : pages.isError ? (
     <EmptyState icon="cloud-offline-outline" title="No pudimos cargar tu inventario" body="Revisa tu conexión e inténtalo de nuevo." action={{ title: 'Reintentar', onPress: refresh }} />
-  ) : q || state || section ? (
+  ) : q || state ? (
     <Text style={[styles.meta, { paddingVertical: spacing.lg }]}>Nada por aquí con esta búsqueda o este filtro.</Text>
   ) : tab === 'supply' ? (
     <EmptyState
@@ -452,7 +471,7 @@ export default function InventoryScreen() {
               <TextInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder={section ? `Buscar en ${section}` : `Buscar en ${tc.total} ${tc.total === 1 ? meta.one : meta.many}`}
+                placeholder={`Buscar en ${tc.total} ${tc.total === 1 ? meta.one : meta.many}`}
                 placeholderTextColor={colors.muted}
                 style={styles.searchInput}
                 accessibilityLabel={`Buscar ${meta.many}`}
@@ -470,21 +489,35 @@ export default function InventoryScreen() {
               onPress={() => setFilterOpen(true)}
               style={[styles.filterPill, activeFilters > 0 && styles.filterOn]}
             >
+              {activeFilters ? null : <Ionicons name="options-outline" size={16} color={colors.ink} />}
               <Text style={styles.filterText} numberOfLines={1}>
                 {filterLabel}
               </Text>
-              <Ionicons name="chevron-down" size={16} color={colors.ink} />
+              {activeFilters ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Quitar el filtro"
+                  hitSlop={10}
+                  onPress={() => {
+                    setState(undefined);
+                    setSort(undefined);
+                  }}
+                >
+                  <Ionicons name="close" size={16} color={colors.ink} />
+                </Pressable>
+              ) : null}
             </Pressable>
           </View>
         ) : null}
-        {tc && !few && tc.sections.length > 1 ? <SectionRail sections={tc.sections} total={tc.total} selected={section} onPick={setSection} /> : null}
       </View>
 
-      <SectionList
+      <SectionList<ListItem, ListSection>
+        ref={listRef}
         // Otra pestaña, búsqueda o filtro es otra lista: arranca desde arriba.
-        key={`${tab}|${q}|${state ?? ''}|${section ?? ''}|${sort ?? ''}`}
+        key={`${tab}|${q}|${state ?? ''}|${sort ?? ''}`}
         sections={sections}
-        keyExtractor={(r) => r.ref}
+        keyExtractor={(r) => (isPseudo(r) ? r.pseudo : r.ref)}
+        onScrollToIndexFailed={() => {}}
         stickySectionHeadersEnabled
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
@@ -496,26 +529,59 @@ export default function InventoryScreen() {
         windowSize={9}
         onEndReachedThreshold={0.5}
         onEndReached={() => {
-          if (pages.hasNextPage && !pages.isFetchingNextPage) void pages.fetchNextPage();
+          // Con el índice, la sección abierta pide más con «Ver más» (el final de la lista son las otras secciones).
+          if (!grouped && pages.hasNextPage && !pages.isFetchingNextPage) void pages.fetchNextPage();
         }}
         renderSectionHeader={({ section: s }) =>
           s.title ? (
-            <View style={styles.secHead}>
-              <Text style={styles.secTitle} accessibilityRole="header">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: s.open }}
+              accessibilityLabel={`${s.title}, ${s.count}${s.alert ? ', algo se acaba' : ''}. ${s.open ? 'Plegar' : 'Abrir'}`}
+              onPress={() => toggleSection(s.title)}
+              style={({ pressed }) => [styles.accHead, s.open && styles.accOpen, pressed && !s.open && { backgroundColor: colors.well }]}
+            >
+              <Ionicons name={s.open ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.ink} />
+              <Text style={styles.accName} numberOfLines={1}>
                 {s.title}
               </Text>
-              {headCount(s.title, s.data.length) != null ? <Text style={styles.secCount}>{headCount(s.title, s.data.length)}</Text> : null}
-            </View>
+              {s.alert ? <View style={styles.accDot} /> : null}
+              <Text style={styles.accCount}>{s.count}</Text>
+            </Pressable>
           ) : null
         }
-        renderItem={({ item: i, index, section: s }) => {
+        renderItem={({ item, index, section: s }) => {
+          if (isPseudo(item)) {
+            if (item.pseudo === 'count') {
+              const ago = countedAgo(sectionRow?.counted_at, now);
+              return (
+                <View style={styles.countLine}>
+                  <Text style={styles.meta}>{ago ? ago[0].toUpperCase() + ago.slice(1) : 'Nunca contada'}</Text>
+                  <Pressable accessibilityRole="button" accessibilityLabel={draftHere ? `Seguir contando ${s.title}` : `Contar ${s.title}`} onPress={() => openCount(s.title)} style={styles.countBtn}>
+                    <Ionicons name="checkmark" size={16} color={colors.ink} />
+                    <Text style={styles.countBtnText}>{draftHere ? 'Seguir' : 'Contar'}</Text>
+                  </Pressable>
+                </View>
+              );
+            }
+            if (item.pseudo === 'loading') return <ActivityIndicator style={{ marginVertical: spacing.md }} color={colors.ink} />;
+            const left = Math.max(0, s.count - rows.length);
+            return (
+              <Pressable accessibilityRole="button" onPress={() => void pages.fetchNextPage()} disabled={pages.isFetchingNextPage} style={styles.moreBtn}>
+                {pages.isFetchingNextPage ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.moreText}>{`Ver ${Math.min(PAGE, left || PAGE)} más de ${s.title}`}</Text>}
+              </Pressable>
+            );
+          }
+          const i = item;
+          const prev = index > 0 ? s.data[index - 1] : undefined;
+          const firstRow = index === 0 || (prev !== undefined && isPseudo(prev));
           const open = expanded[i.ref] ?? Boolean(q);
           const supplyRow = tab === 'supply';
           return (
             <View style={few ? [styles.fewCard, index === 0 && styles.fewFirst, index === s.data.length - 1 && styles.fewLast] : undefined}>
               <ItemRow
                 item={i}
-                first={index === 0}
+                first={firstRow}
                 cover={i.photo}
                 icon={safeIcon(supplyRow ? supplyIcons.get(i.group ?? '') : sellIcons.get(i.section ?? ''), supplyRow ? 'cube-outline' : 'pricetag-outline')}
                 group={i.children.length > 0 ? { pill: variantPill(i), open, from: Math.min(...i.children.map((c) => c.price ?? Infinity)) } : undefined}
@@ -543,10 +609,9 @@ export default function InventoryScreen() {
         visible={filterOpen}
         tab={tab}
         counts={tc}
-        total={pages.isPlaceholderData ? undefined : total}
+        total={pages.isPlaceholderData || !pages.data ? undefined : total}
         searching={Boolean(q)}
         state={state}
-        section={section}
         sort={sort}
         onState={setState}
         onSort={setSort}
@@ -569,41 +634,6 @@ export default function InventoryScreen() {
       />
       <VoiceSheet entityId={entityId} visible={voiceOpen} onClose={() => setVoiceOpen(false)} defaultMode="inventory" hints={(names.data ?? []).map((n) => n.name)} onConfirmed={() => refresh()} />
     </View>
-  );
-}
-
-type SectionCountRow = InventoryTabCounts['sections'][number];
-
-/**
- * La fila de secciones (tablero «Inventario», v97): ir directo a una sección sin bajar por las demás. Tocar una muestra
- * solo esa (se filtra en el servidor, así sirve igual con 50 que con 5.000); «Todas» vuelve a la lista completa. El punto
- * rojo dice que algo de esa sección se acaba o se acabó. Se desliza de lado si son muchas.
- */
-function SectionRail({ sections, total, selected, onPick }: { sections: SectionCountRow[]; total: number; selected?: string; onPick: (name: string | undefined) => void }) {
-  return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.railWrap} contentContainerStyle={styles.rail} accessibilityLabel="Secciones" keyboardShouldPersistTaps="handled">
-      <RailChip label="Todas" n={total} on={!selected} onPress={() => onPick(undefined)} />
-      {sections.map((s) => (
-        <RailChip key={s.name} label={s.name} n={s.count} alert={(s.low ?? 0) + (s.out ?? 0) > 0} on={selected === s.name} onPress={() => onPick(selected === s.name ? undefined : s.name)} />
-      ))}
-    </ScrollView>
-  );
-}
-
-function RailChip({ label, n, alert, on, onPress }: { label: string; n: number; alert?: boolean; on: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected: on }}
-      accessibilityLabel={`${label}, ${n}${alert ? ', algo se acaba' : ''}`}
-      onPress={onPress}
-      hitSlop={{ top: 4, bottom: 4 }}
-      style={({ pressed }) => [styles.railChip, on && styles.railChipOn, pressed && !on && { backgroundColor: colors.well }]}
-    >
-      <Text style={styles.railText}>{label}</Text>
-      <Text style={styles.railCount}>{n}</Text>
-      {alert ? <View style={styles.railDot} /> : null}
-    </Pressable>
   );
 }
 
@@ -910,23 +940,21 @@ const styles = StyleSheet.create({
   loadingMore: { textAlign: 'center', fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted, paddingVertical: spacing.xs },
   confirm: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, backgroundColor: colors.surface },
   confirmText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  // Título de sección pegado arriba mientras bajas, con su número real (no el de la página).
-  secHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingTop: spacing.md, paddingBottom: spacing.xs, backgroundColor: colors.bg },
-  secTitle: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
-  secCount: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted, fontVariant: ['tabular-nums'] },
+  // El índice: cada sección es un título plegable (la abierta, en arena) con su punto y su número.
+  accHead: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingHorizontal: 4, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg },
+  accOpen: { marginTop: 4, paddingHorizontal: 10, borderTopWidth: 0, borderRadius: 12, backgroundColor: colors.well },
+  accName: { flex: 1, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
+  accDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.brandRef },
+  accCount: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted, fontVariant: ['tabular-nums'] },
+  // La primera línea de la sección abierta: cuándo se contó y contarla (alineada con el nombre).
+  countLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, minHeight: 52, paddingLeft: 28 },
+  moreBtn: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderTopWidth: 1, borderTopColor: colors.line },
+  moreText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink, textDecorationLine: 'underline' },
   // Con pocos, la lista va en una sola tarjeta (tablero, teléfono 5).
   fewCard: { paddingHorizontal: spacing.md, borderLeftWidth: 1, borderRightWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
   fewFirst: { borderTopWidth: 1, borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   fewLast: { borderBottomWidth: 1, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 },
   createBar: { paddingTop: spacing.md, paddingHorizontal: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg },
-  // La fila de secciones: llega al borde derecho para que se note que se desliza.
-  railWrap: { marginHorizontal: -spacing.lg },
-  rail: { gap: 6, paddingHorizontal: spacing.lg },
-  railChip: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
-  railChipOn: { backgroundColor: colors.sand, borderColor: colors.sand },
-  railText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
-  railCount: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, fontVariant: ['tabular-nums'] },
-  railDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.brandRef },
   fChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
   fChipOn: { backgroundColor: colors.sand, borderColor: colors.sand },
   fChipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
