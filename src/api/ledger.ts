@@ -390,6 +390,21 @@ export interface InventoryTabCounts {
   sections: { name: string; count: number; low?: number; out?: number }[];
 }
 
+/**
+ * Lo de arriba de Inventario ya contado en el servidor (avisos, empezar a llevar inventario, revisar qué es cada cosa y la
+ * nota de precios), para no bajar todas las filas ni el catálogo entero.
+ */
+export interface InventorySummary {
+  kind: string;
+  category: string;
+  unset: number;
+  tracked: number;
+  alerts: { out: number; soon: number; risk: number; total: number };
+  unchecked: { id: string; name: string; kind: 'service' | 'product' }[];
+  unchecked_total: number;
+  prices: { priced: number; stale: number; oldest_at?: string | null };
+}
+
 /** Los números de las tres pestañas y del filtro, sin las filas. */
 export interface InventoryCounts {
   products: InventoryTabCounts;
@@ -605,6 +620,14 @@ export const ledgerApi = {
     }),
   /** Los números de las pestañas y del filtro. */
   inventoryCounts: (entityId: string) => request<InventoryCounts>(`${base(entityId)}/inventory/counts`),
+  /** Lo de arriba de Inventario, ya contado. */
+  inventorySummary: (entityId: string) => request<InventorySummary>(`${base(entityId)}/inventory/summary`),
+  /** Solo las filas pedidas (por id de la fila o de su ítem del catálogo; hasta 100). */
+  inventoryItems: async (entityId: string, ids: string[]): Promise<InventoryItem[]> =>
+    (await request<{ items: InventoryItem[] | null }>(`${base(entityId)}/inventory/items`, { query: { ids: ids.slice(0, 100).join(',') } })).items ?? [],
+  /** Los nombres de todas las filas (para Empre AI y para no repetir un insumo). Se piden al abrir esas hojas. */
+  inventoryNames: async (entityId: string): Promise<{ name: string; kind: 'product' | 'supply' }[]> =>
+    (await request<{ names: { name: string; kind: 'product' | 'supply' }[] | null }>(`${base(entityId)}/inventory/names`)).names ?? [],
   setupInventory: (entityId: string, choice: SetupChoice) =>
     request<InventoryOverview>(`${base(entityId)}/inventory/setup`, { method: 'POST', body: { choice } }),
   stockSettings: (entityId: string, ref: string, input: ItemSettings) =>

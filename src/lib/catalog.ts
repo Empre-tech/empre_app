@@ -75,9 +75,15 @@ function latest(item: ServiceItem): number | null {
  */
 export function freshnessNote(items: ServiceItem[], now: number): string | null {
   const priced = items.filter((i) => i.price !== null);
-  if (priced.length === 0) return null;
-  if (priced.some((i) => !i.fresh)) return 'Algunos precios no se han confirmado hace tiempo';
-  const oldest = Math.min(...priced.map((i) => latest(i) ?? now));
+  const oldest = priced.reduce((min, i) => Math.min(min, latest(i) ?? now), now);
+  return priceNote({ priced: priced.length, stale: priced.filter((i) => !i.fresh).length, oldest_at: new Date(oldest).toISOString() }, now);
+}
+
+/** La misma nota a partir del resumen del servidor: cuántos precios hay, cuántos sin confirmar y el más viejo. */
+export function priceNote(p: { priced: number; stale: number; oldest_at?: string | null }, now: number): string | null {
+  if (p.priced === 0) return null;
+  if (p.stale > 0) return 'Algunos precios no se han confirmado hace tiempo';
+  const oldest = p.oldest_at ? Date.parse(p.oldest_at) : now;
   const days = Math.max(0, Math.round((now - oldest) / 86_400_000));
   if (days === 0) return 'Precios habituales · actualizados hoy';
   return `Precios habituales · actualizados hace ${days} ${days === 1 ? 'día' : 'días'}`;

@@ -2,7 +2,7 @@ import { Ionicons } from '@/components/Icon';
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { catalogApi } from '@/api/catalog';
@@ -18,14 +18,14 @@ import { Chip } from '@/components/ledger/parts';
 import { VoiceSheet } from '@/components/ledger/VoiceSheet';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { FEATURES } from '@/config';
-import { catalogCopy, freshnessNote, priceText, type ItemKind, type ServiceItem } from '@/lib/catalog';
+import { catalogCopy, priceNote, priceText, type ItemKind, type ServiceItem } from '@/lib/catalog';
 import { fmtQty, missingIngredients, recommendationText, stockPill, unitFor, variantPill, type PillTone } from '@/lib/inventory';
 import { addDays, todayCO } from '@/lib/finance';
 import { FEW_BUSINESSES } from '@/lib/fewBusinesses';
 import { formatPesos } from '@/lib/ledger';
 import { getPhoneFlag, setPhoneFlag } from '@/lib/phoneFlags';
 import { stockNews } from '@/lib/stockNews';
-import { alertsLine, inventoryAlerts } from '@/lib/alerts';
+import { countsLine } from '@/lib/alerts';
 import { safeIcon, type IconName } from '@/lib/icons';
 import { mediaUrl } from '@/lib/image';
 import { useNow } from '@/lib/useNow';
@@ -67,9 +67,11 @@ export default function InventoryScreen() {
 
   const business = useQuery({ queryKey: ['entity', entityId], queryFn: () => entitiesApi.get(entityId), enabled: Boolean(entityId) });
   const copy = catalogCopy(business.data?.category?.name, business.data?.business_profile);
-  const catalog = useQuery({ queryKey: ['catalog', entityId], queryFn: () => catalogApi.list(entityId), enabled: Boolean(entityId) });
-  // La vista completa solo alimenta los avisos de arriba (alertas, lo que cambió una venta, empezar a llevar inventario).
-  const inv = useQuery({ queryKey: ['ledger', entityId, 'inventory'], queryFn: () => ledgerApi.inventory(entityId), enabled: ledgerOn, staleTime: 30_000 });
+  // Sin el módulo de administración la pantalla es solo el catálogo (nombre y precio); con él, no se baja entero.
+  const catalog = useQuery({ queryKey: ['catalog', entityId], queryFn: () => catalogApi.list(entityId), enabled: Boolean(entityId) && !FEATURES.ledger });
+  // Lo de arriba (avisos, empezar a llevar inventario, revisar qué es cada cosa, la nota de precios) llega ya contado:
+  // la pantalla no baja todas las filas ni el catálogo entero, solo la página que se ve.
+  const summary = useQuery({ queryKey: ['ledger', entityId, 'inventory', 'summary'], queryFn: () => ledgerApi.inventorySummary(entityId), enabled: ledgerOn });
   const counts = useQuery({ queryKey: ['ledger', entityId, 'inventory', 'counts'], queryFn: () => ledgerApi.inventoryCounts(entityId), enabled: ledgerOn });
 
   const [pickedTab, setPickedTab] = useState<InventoryTab | null>(null);
@@ -86,6 +88,8 @@ export default function InventoryScreen() {
   const [newSupply, setNewSupply] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Los nombres (para que Empre AI entienda lo que dictas y para no repetir un insumo) solo al abrir esas hojas.
+  const names = useQuery({ queryKey: ['ledger', entityId, 'inventory', 'names'], queryFn: () => ledgerApi.inventoryNames(entityId), enabled: ledgerOn && (voiceOpen || newSupply), staleTime: 60_000 });
 
   // Buscar espera a que dejes de escribir (y se resuelve en el servidor).
   useEffect(() => {
@@ -121,12 +125,28 @@ export default function InventoryScreen() {
     }
   }, [ledgerOn, counts.data, qc, entityId]);
 
+  // Al entrar o al cambiar algo, se pide otra vez solo lo de esta pantalla. Lo demás del negocio (Finance, Mi negocio,
+  // el catálogo) solo se marca viejo: se pide cuando vuelvas a esa pantalla, no ahora y no todo de una vez.
   const refresh = useCallback(() => {
-    void qc.invalidateQueries({ queryKey: ['catalog', entityId] });
-    void qc.invalidateQueries({ queryKey: ['ledger', entityId] });
+    void qc.invalidateQueries({ queryKey: ['ledger', entityId, 'inventory'] });
+    void qc.invalidateQueries({ queryKey: ['ledger', entityId, 'sales', 'stock-news'] });
     void qc.invalidateQueries({ queryKey: ['sections', entityId] });
+    void qc.invalidateQueries({ queryKey: ['ledger', entityId], refetchType: 'none' });
+    // Sin el módulo de administración, el catálogo es lo de esta pantalla: ese sí se pide.
+    void qc.invalidateQueries({ queryKey: ['catalog', entityId], refetchType: FEATURES.ledger ? 'none' : 'active' });
   }, [qc, entityId]);
-  useFocusEffect(refresh);
+  // Al abrir, las consultas ya se piden solas; volver a pedir al enfocar solo cuando regresas a la pantalla (si no, cada
+  // cosa se pedía dos veces).
+  const focusedOnce = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!focusedOnce.current) {
+        focusedOnce.current = true;
+        return;
+      }
+      refresh();
+    }, [refresh]),
+  );
 
   const setup = useMutation({
     mutationFn: (choice: SetupChoice) => ledgerApi.setupInventory(entityId, choice),
@@ -171,7 +191,7 @@ export default function InventoryScreen() {
   const mixedSections = useMemo(() => new Set(rows.map((r) => r.section || '')).size > 1, [rows]);
   // «Sin asignar» (un insumo que ningún producto usa) solo dice algo si otros sí están asignados.
   const someAssigned = useMemo(() => rows.some((r) => (r.used_in ?? []).length > 0), [rows]);
-  const headCount =(title: string, loaded: number) => (state ? (pages.hasNextPage ? undefined : loaded) : tc?.sections.find((s) => s.name === title)?.count);
+  const headCount = (title: string, loaded: number) => (state ? (pages.hasNextPage ? undefined : loaded) : tc?.sections.find((s) => s.name === title)?.count);
 
   const sellSections = useEntitySections(entityId, 'sell');
   const sellIcons = useMemo(() => new Map((sellSections.data ?? []).map((s) => [s.name, s.icon])), [sellSections.data]);
@@ -179,8 +199,8 @@ export default function InventoryScreen() {
   const supplyIcons = useMemo(() => new Map((supplySections.data ?? []).map((s) => [s.name, s.icon])), [supplySections.data]);
 
   const items = useMemo(() => catalog.data ?? [], [catalog.data]);
-  const unchecked = items.filter((i) => i.kind_checked === false);
-  const alerts = useMemo(() => inventoryAlerts(inv.data?.items ?? []), [inv.data]);
+  const sum = summary.data;
+  const alerts = sum?.alerts ?? { out: 0, soon: 0, risk: 0, total: 0 };
 
   // Aviso cuando una venta en Empre Finance cambia tus existencias; se cierra hasta la siguiente venta.
   const today = todayCO();
@@ -194,7 +214,15 @@ export default function InventoryScreen() {
   useEffect(() => {
     void getPhoneFlag(`stock-news-${entityId}`).then(setSeenSale);
   }, [entityId]);
-  const tracked = useMemo(() => (inv.data?.items ?? []).filter((i) => !i.is_service && (i.mode === 'light' || i.mode === 'exact')).map((i) => ({ ids: [i.ref, i.item_id].filter((x): x is string => Boolean(x)), name: i.name, qty: i.qty })), [inv.data]);
+  // Solo las filas de lo vendido hoy (no todo el inventario): con ellas se arma el aviso.
+  const soldIds = useMemo(() => [...new Set((salesToday.data ?? []).flatMap((s) => (s.lines ?? []).map((l) => l.item_id).filter((x): x is string => Boolean(x))))].sort(), [salesToday.data]);
+  const soldRows = useQuery({
+    queryKey: ['ledger', entityId, 'inventory', 'items', soldIds.join(',')],
+    queryFn: () => ledgerApi.inventoryItems(entityId, soldIds),
+    enabled: ledgerOn && soldIds.length > 0,
+    staleTime: 30_000,
+  });
+  const tracked = useMemo(() => (soldRows.data ?? []).filter((i) => !i.is_service && (i.mode === 'light' || i.mode === 'exact')).map((i) => ({ ids: [i.ref, i.item_id].filter((x): x is string => Boolean(x)), name: i.name, qty: i.qty })), [soldRows.data]);
   const news = useMemo(() => stockNews(salesToday.data ?? [], tracked, seenSale), [salesToday.data, tracked, seenSale]);
   const dismissNews = () => {
     if (!news) return;
@@ -230,8 +258,7 @@ export default function InventoryScreen() {
     );
   }
 
-  const unset = inv.data?.unset ?? 0;
-  const note = freshnessNote(items, now);
+  const note = sum ? priceNote(sum.prices, now) : null;
 
   const header = (
     <View style={styles.listHead}>
@@ -252,7 +279,7 @@ export default function InventoryScreen() {
       {alerts.total > 0 && !q && !section && tab !== 'service' ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Tienes ${alerts.total} cosas por revisar: ${alertsLine(alerts)}. Ver los avisos`}
+          accessibilityLabel={`Tienes ${alerts.total} cosas por revisar: ${countsLine(alerts)}. Ver los avisos`}
           onPress={() => router.push({ pathname: '/business/products/alerts', params: { entityId } })}
           style={({ pressed }) => [styles.alertCard, pressed && { opacity: 0.9 }]}
         >
@@ -262,7 +289,7 @@ export default function InventoryScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.alertTitle}>{alerts.total === 1 ? 'Tienes 1 cosa por revisar' : `Tienes ${alerts.total} cosas por revisar`}</Text>
-              <Text style={styles.alertLine}>{copy.kind === 'food' ? alertsLine(alerts) : alertsLine(alerts, 'producto', 'productos')}</Text>
+              <Text style={styles.alertLine}>{copy.kind === 'food' ? countsLine(alerts) : countsLine(alerts, 'producto', 'productos')}</Text>
             </View>
           </View>
           <View style={styles.alertFoot}>
@@ -271,13 +298,13 @@ export default function InventoryScreen() {
           </View>
         </Pressable>
       ) : null}
-      {tab !== 'supply' && unchecked.length > 0 ? <KindReview entityId={entityId} items={unchecked} onChanged={refresh} /> : null}
+      {tab !== 'supply' && sum && sum.unchecked_total > 0 ? <KindReview entityId={entityId} items={sum.unchecked} total={sum.unchecked_total} onChanged={refresh} /> : null}
       {/* Empezar a llevar inventario: solo si todavía no se cuenta nada (con 55 contados y 6 sin decidir, esos 6 dicen
           «Sin control» en su fila y se ajustan ahí). */}
-      {tab === 'product' && unset > 0 && tracked.length === 0 && inv.data ? (
+      {tab === 'product' && sum && sum.unset > 0 && sum.tracked === 0 ? (
         <View style={styles.setup}>
           <Text style={styles.setupTitle}>¿Quieres saber cuándo se acaba algo?</Text>
-          <Text style={styles.meta}>{recommendationText(inv.data.kind, inv.data.category)}</Text>
+          <Text style={styles.meta}>{recommendationText(sum.kind, sum.category)}</Text>
           <View style={styles.row}>
             <Button title="Sí, empezar" loading={setup.isPending} onPress={() => setup.mutate('recommended')} style={{ flex: 1 }} />
             <Button title="Más simple" variant="secondary" disabled={setup.isPending} onPress={() => setup.mutate('simple')} style={{ flex: 1 }} />
@@ -475,7 +502,7 @@ export default function InventoryScreen() {
         }}
         onClose={() => setFilterOpen(false)}
       />
-      <NewSupplySheet visible={newSupply} entityId={entityId} existing={(inv.data?.items ?? []).filter((i) => i.kind === 'supply').map((i) => i.name)} onClose={() => setNewSupply(false)} onAdded={refresh} />
+      <NewSupplySheet visible={newSupply} entityId={entityId} existing={(names.data ?? []).filter((n) => n.kind === 'supply').map((n) => n.name)} onClose={() => setNewSupply(false)} onAdded={refresh} />
       <QuickStockSheet
         entityId={entityId}
         item={sheet}
@@ -486,7 +513,7 @@ export default function InventoryScreen() {
           openDetail(i.item_id ?? i.ref);
         }}
       />
-      <VoiceSheet entityId={entityId} visible={voiceOpen} onClose={() => setVoiceOpen(false)} defaultMode="inventory" hints={(inv.data?.items ?? []).map((i) => i.name)} onConfirmed={() => refresh()} />
+      <VoiceSheet entityId={entityId} visible={voiceOpen} onClose={() => setVoiceOpen(false)} defaultMode="inventory" hints={(names.data ?? []).map((n) => n.name)} onConfirmed={() => refresh()} />
     </View>
   );
 }
@@ -738,9 +765,9 @@ function PlainList({ items, onOpen }: { items: ServiceItem[]; onOpen: (it: Servi
 }
 
 /** Ítems de antes que la app clasificó sola: el dueño confirma en un toque si son servicio o producto. */
-function KindReview({ entityId, items, onChanged }: { entityId: string; items: ServiceItem[]; onChanged: () => void }) {
+function KindReview({ entityId, items, total, onChanged }: { entityId: string; items: { id: string; name: string; kind: ItemKind }[]; total: number; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
-  const set = async (it: ServiceItem, kind: ItemKind) => {
+  const set = async (it: { id: string; kind: ItemKind }, kind: ItemKind) => {
     if (it.kind === kind) return;
     setBusy(true);
     try {
@@ -772,7 +799,7 @@ function KindReview({ entityId, items, onChanged }: { entityId: string; items: S
           <Chip label="Producto" selected={it.kind === 'product'} onPress={() => void set(it, 'product')} />
         </View>
       ))}
-      {items.length > 8 ? <Text style={styles.meta}>Y {items.length - 8} más: los ves en la lista.</Text> : null}
+      {total > items.length ? <Text style={styles.meta}>Y {total - items.length} más: los ves en la lista.</Text> : null}
       <Button title="Todo está bien" loading={busy} onPress={() => void confirm()} />
     </View>
   );

@@ -100,10 +100,15 @@ export function firstTab(s: { sell: Alerts; supplies: Alerts }): 'sell' | 'suppl
 
 /** «2 se acabaron · 3 se acaban pronto · 1 plato en riesgo» (por tipo, sin nombrar productos). */
 export function alertsLine(a: Alerts, one = 'plato', plural = 'platos'): string {
+  return countsLine({ out: a.out.length, soon: a.soon.length, risk: a.risk.length }, one, plural);
+}
+
+/** La misma línea a partir de cuántos hay (el resumen que manda el servidor, sin las filas). */
+export function countsLine(c: { out: number; soon: number; risk: number }, one = 'plato', plural = 'platos'): string {
   return [
-    a.out.length ? (a.out.length === 1 ? '1 se acabó' : `${a.out.length} se acabaron`) : null,
-    a.soon.length ? (a.soon.length === 1 ? '1 se acaba pronto' : `${a.soon.length} se acaban pronto`) : null,
-    a.risk.length ? `${a.risk.length} ${a.risk.length === 1 ? one : plural} en riesgo` : null,
+    c.out ? (c.out === 1 ? '1 se acabó' : `${c.out} se acabaron`) : null,
+    c.soon ? (c.soon === 1 ? '1 se acaba pronto' : `${c.soon} se acaban pronto`) : null,
+    c.risk ? `${c.risk} ${c.risk === 1 ? one : plural} en riesgo` : null,
   ]
     .filter(Boolean)
     .join(' · ');
