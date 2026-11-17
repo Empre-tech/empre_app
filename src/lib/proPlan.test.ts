@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { isProRequired, isProSubscription, proPerks } from './proPlan.ts';
+import { isProRequired, isProSubscription, proGroups } from './proPlan.ts';
 
 const NOW = Date.parse('2026-11-17T12:00:00Z');
 
@@ -13,9 +13,12 @@ test('Pro solo si está activa y no ha vencido, como el servidor', () => {
   assert.equal(isProSubscription({ status: 'active', current_period_end: 'no es fecha' }, NOW), false);
 });
 
-test('lo que suma Pro: sin agenda si la agenda está apagada', () => {
-  assert.deepEqual(proPerks({ agenda: true }).map((p) => p.key), ['ai', 'agenda', 'count']);
-  assert.deepEqual(proPerks({ agenda: false }).map((p) => p.key), ['ai', 'count']);
+test('lo que suma Pro, por área: Finance primero, sin agenda si está apagada', () => {
+  assert.deepEqual(proGroups({ agenda: true }).map((g) => g.key), ['finance', 'ai', 'inventory', 'agenda']);
+  assert.deepEqual(proGroups({ agenda: false }).map((g) => g.key), ['finance', 'ai', 'inventory']);
+  const finance = proGroups({ agenda: false })[0];
+  assert.deepEqual(finance.items.map((i) => i.title), ['Plata', 'Cuentas', 'Rentabilidad', 'Análisis con Empre AI']);
+  for (const g of proGroups({ agenda: true })) assert.ok(g.items.length > 0 && g.short.length > 0);
 });
 
 test('el 402 del servidor es «pásate a Pro»', () => {

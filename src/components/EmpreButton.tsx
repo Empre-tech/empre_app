@@ -217,7 +217,7 @@ export function EmpreButton({
   // Para quien no tiene negocio sigue abierta mientras no exista un plan para clientes (el Pro de hoy va por negocio).
   const ask: Item = { key: 'ai', title: 'Habla con Empre AI', sub: 'Pregunta qué hay cerca y abierto', icon: 'sparkles-outline', tone: 'ai', go: () => setAiOpen(true) };
   const goProItem: Item[] = allBase
-    ? [{ key: 'pro', title: 'Pásate a Empre Pro', sub: `Empre AI${FEATURES.agenda ? ', agenda' : ''} y más · ${PRO_PRICE_AMOUNT} al mes`, icon: 'crown', tone: 'pro', go: () => offerPro(entityId) }]
+    ? [{ key: 'pro', title: 'Pásate a Empre Pro', sub: `Empre AI, Finance completo y más · ${PRO_PRICE_AMOUNT} al mes`, icon: 'crown', tone: 'pro', go: () => offerPro(entityId) }]
     : [];
   const expense: Item = { key: 'expense', title: 'Anotar un gasto', sub: one ? `En ${one}` : 'Eliges el negocio al tocar', icon: 'remove', tone: 'money', forBusiness: (id) => router.push({ pathname: '/business/ledger/expense/[id]', params: { id } }) };
   const sale: Item = { key: 'sale', title: 'Anotar una venta', sub: one ? `En ${one}` : 'Eliges el negocio al tocar', icon: 'add', tone: 'money', forBusiness: (id) => router.push({ pathname: '/business/ledger/sale/[id]', params: { id } }) };

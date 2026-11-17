@@ -359,14 +359,10 @@ export interface SubscriptionRecord {
   current_period_end?: string;
 }
 
-/** Gratis hasta que el negocio reciba mensajes de `trial_threshold` clientes
- * distintos; `requires_payment` se vuelve true en ese punto si todavía no
- * tiene un plan activo. */
+/** El plan del negocio (Base y Empre Pro): Pro si la suscripción está activa y sin vencer; si no, Base, que es gratis
+ * y nunca oculta el negocio. Ya no hay prueba gratis ni pago para seguir a la vista. */
 export interface Subscription {
   subscription: SubscriptionRecord;
-  distinct_customers: number;
-  trial_threshold: number;
-  requires_payment: boolean;
 }
 
 export interface SubscriptionCheckout {

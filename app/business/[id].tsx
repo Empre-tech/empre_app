@@ -21,7 +21,7 @@ import {
 import { notifyError } from '@/components/Notice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { catalogApi } from '@/api/catalog';
-import { entitiesApi, paymentsApi, reviewsApi } from '@/api/endpoints';
+import { entitiesApi, reviewsApi } from '@/api/endpoints';
 import { novedadesApi } from '@/api/novedades';
 import type { Photo } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
@@ -113,15 +113,6 @@ export default function BusinessScreen() {
 
   const isOwner = status === 'signedIn' && user?.id === business?.owner_id;
 
-  // Solo se pide si es el dueño: es la única info de suscripción que le
-  // interesa a alguien que no sea él, y evitamos una llamada de más para
-  // cualquier visitante viendo el perfil del negocio.
-  const subscriptionQuery = useQuery({
-    queryKey: ['subscription', business?.id],
-    queryFn: () => paymentsApi.getSubscription(business!.id),
-    enabled: isOwner && Boolean(business?.id),
-  });
-  const requiresPayment = subscriptionQuery.data?.requires_payment ?? false;
   const followers = useQuery({
     queryKey: ['followers', business?.id],
     queryFn: () => novedadesApi.followers(business!.id),

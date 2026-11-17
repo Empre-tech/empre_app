@@ -20,18 +20,66 @@ export function isProSubscription(sub: ProSubscription | null | undefined, now: 
   return Number.isFinite(end) && end > now;
 }
 
-/** Lo que Pro suma hoy en la app: solo lo que de verdad está cerrado en Base (nunca se promete lo que ya tienes). */
-export interface ProPerk {
-  key: 'ai' | 'agenda' | 'count';
+/**
+ * Lo que suma Empre Pro, por área (tablero «Base y Empre Pro»; el usuario pidió el 2026-11-17 ordenarlo por categorías,
+ * con Empre Finance y su análisis con Empre AI primero, y decir qué tiene Base en cada una). Cada línea describe algo
+ * que ya existe en la app. Ojo: Finance solo Hoy y el inventario en semáforo todavía no están cerrados en Base.
+ */
+export interface ProGroup {
+  key: 'finance' | 'ai' | 'inventory' | 'agenda';
   title: string;
-  sub: string;
+  /** En una línea, para la hoja «Pásate a Empre Pro». */
+  short: string;
+  /** Lo que tiene Base en esta área; null si nada. */
+  base: string | null;
+  /** Lo que suma Pro, con su detalle (pantalla Tu plan). */
+  items: { title: string; sub: string }[];
 }
 
-export function proPerks({ agenda }: { agenda: boolean }): ProPerk[] {
+export function proGroups({ agenda }: { agenda: boolean }): ProGroup[] {
   return [
-    { key: 'ai', title: 'Habla con Empre AI', sub: 'Registra, vende y gasta con tu voz. Con un tope al mes: siempre ves cuánto te queda.' },
-    ...(agenda ? [{ key: 'agenda' as const, title: 'Agenda', sub: 'Las citas se apartan solas y te avisan.' }] : []),
-    { key: 'count', title: 'Conteo por sección', sub: 'Cuentas una sección y Empre ajusta lo que no cuadra.' },
+    {
+      key: 'finance',
+      title: 'Empre Finance',
+      short: 'Plata, Cuentas, Rentabilidad y el análisis con Empre AI',
+      base: 'En Base: Hoy, y cuánto vendiste y gastaste entre dos fechas.',
+      items: [
+        { title: 'Plata', sub: 'Lo que entra y sale: de dónde entró, en qué salió, cuándo vendes más y quién te trajo las ventas.' },
+        { title: 'Cuentas', sub: 'Quién te debe y a quién le debes, cuánto llevan y un mensaje listo para cobrar por WhatsApp.' },
+        { title: 'Rentabilidad', sub: 'Qué te deja plata de verdad: lo que cobras contra lo que te cuesta, y lo que tienes en mercancía.' },
+        { title: 'Análisis con Empre AI', sub: 'Lo que dice tu plata, tu semana día por día, qué cobrar primero, qué precios revisar, qué comprar pronto, lo que perdiste y la plata quieta.' },
+      ],
+    },
+    {
+      key: 'ai',
+      title: 'Empre AI',
+      short: 'Habla con Empre AI: registra, vende y gasta con tu voz',
+      base: null,
+      items: [
+        { title: 'Habla con Empre AI', sub: 'Dices lo que pasó y entiende si es venta, gasto o inventario; te muestra todo antes de guardar. Con un tope al mes: siempre ves cuánto te queda.' },
+      ],
+    },
+    {
+      key: 'inventory',
+      title: 'Inventario',
+      short: 'Cantidades exactas y conteo por sección',
+      base: 'En Base: el semáforo (hay, hay más o menos, se acabó).',
+      items: [
+        { title: 'Cantidades exactas', sub: 'Cuántas unidades te quedan de cada producto e insumo.' },
+        { title: 'Conteo por sección', sub: 'Cuentas una sección y Empre ajusta lo que no cuadra.' },
+      ],
+    },
+    ...(agenda
+      ? [
+          {
+            key: 'agenda' as const,
+            title: 'Agenda',
+            short: 'Citas que se apartan solas',
+            base: 'En Base no hay agenda.',
+            items: [{ title: 'Citas que se apartan solas', sub: 'Tus clientes piden hora en tus horas libres y Empre te avisa.' }],
+          },
+        ]
+      : []),
   ];
 }
 

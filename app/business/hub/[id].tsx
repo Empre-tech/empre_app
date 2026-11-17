@@ -118,10 +118,10 @@ export default function BusinessHubScreen() {
   }
 
   const copy = catalogCopy(b.category?.name, b.business_profile);
-  const requiresPayment = subscription.data?.requires_payment ?? false;
   // Base y Empre Pro (tablero, teléfono 7): en Base la Agenda no desaparece, queda en gris con la corona, y abajo de los
   // espacios sale «Pásate a Empre Pro». Mientras no se sabe el plan, nada se muestra cerrado.
   const base = subscription.isSuccess && !isProSubscription(subscription.data?.subscription);
+  const goProLine = FEATURES.agenda ? 'Empre AI con análisis, Finance completo y agenda' : 'Empre AI con análisis y Finance completo';
   const nFollowers = followers.data ?? 0;
   const go = (href: Href) => () => router.push(href);
   const edit = go({ pathname: '/business/edit/[id]', params: { id: entityId } });
@@ -173,7 +173,7 @@ export default function BusinessHubScreen() {
     ...(FEATURES.agenda ? [{ key: 'agent', icon: 'chatbubble-ellipses-outline' as const, symbol: 'agent' as const, product: 'Empre Agent', title: 'Citas con Agent', sub: 'Lo que resolvió solo y lo que espera tu decisión', onPress: go({ pathname: '/business/agent/[id]', params: { id: entityId, name: b.name } }) }] : []),
     ...(FEATURES.ledger && FEATURES.tabs ? [{ key: 'tabs', icon: (b.business_profile === 'food' ? 'restaurant-outline' : 'receipt-outline') as IconName, title: b.business_profile === 'food' ? 'Mesas' : 'Cuentas abiertas', sub: b.business_profile === 'food' ? 'Lo que va pidiendo cada mesa, y cobrar al final' : 'Para clientes que piden varias cosas y pagan al final', onPress: go({ pathname: '/business/ledger/tabs/[id]', params: { id: entityId } }) }] : []),
     { key: 'practice', icon: 'school-outline', title: 'Practicar el canje', sub: 'Con un QR de práctica: no cuenta como venta', onPress: go('/business/practice') },
-    { key: 'sub', icon: 'diamond-outline', title: 'Suscripción del negocio', sub: 'Tu plan y pagos', alert: requiresPayment, onPress: go({ pathname: '/business/subscription/[id]', params: { id: entityId } }) },
+    { key: 'sub', icon: 'diamond-outline', title: 'Tu plan', sub: base ? 'Base, gratis · lo que suma Empre Pro' : subscription.isSuccess ? 'Empre Pro · pagos y renovación' : 'Base o Empre Pro', onPress: go({ pathname: '/business/subscription/[id]', params: { id: entityId } }) },
   ];
   const renderRows = (list: HubRow[]) => list.map(({ key, ...r }, i) => <SystemRow key={key} first={i === 0} {...r} />);
 
@@ -206,12 +206,6 @@ export default function BusinessHubScreen() {
             </Pressable>
           </Cover>
         </View>
-
-        {requiresPayment ? (
-          <SystemGroup>
-            <SystemRow first icon="sparkles" title="Tu prueba gratis terminó" sub="Actívalo pronto o tu negocio se ocultará del mapa y las búsquedas." alert onPress={go({ pathname: '/business/subscription/[id]', params: { id: entityId } })} />
-          </SystemGroup>
-        ) : null}
 
         {/* El día en una frase, armada con plantillas (tablero «Mi negocio · Hoy»): solo lo que sí pasó. */}
         <Text style={styles.daySentence} accessibilityRole="header">
@@ -331,11 +325,11 @@ export default function BusinessHubScreen() {
         </View>
 
         {base ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Pásate a Empre Pro. Empre AI, agenda y conteo por sección" onPress={() => setGoPro(true)} style={({ pressed }) => [styles.goPro, pressed && { opacity: 0.85 }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Pásate a Empre Pro. ${goProLine}`} onPress={() => setGoPro(true)} style={({ pressed }) => [styles.goPro, pressed && { opacity: 0.85 }]}>
             <CrownIcon size={20} color={colors.ink} />
             <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
               <Text style={styles.goProTitle}>Pásate a Empre Pro</Text>
-              <Text style={styles.spaceSub} numberOfLines={1}>{FEATURES.agenda ? 'Empre AI, agenda y conteo por sección' : 'Empre AI y conteo por sección'}</Text>
+              <Text style={styles.spaceSub} numberOfLines={1}>{goProLine}</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={colors.muted} />
           </Pressable>

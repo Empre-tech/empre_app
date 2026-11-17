@@ -1,19 +1,13 @@
 import { useRouter } from 'expo-router';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/Button';
 import { Ionicons } from '@/components/Icon';
 import { ProTag } from '@/components/pro/ProTag';
-import { FEATURES } from '@/config';
-import { PRO_PRICE_AMOUNT, proPerks, type ProPerk } from '@/lib/proPlan';
+import { ProPerkList } from '@/components/pro/ProPerkList';
+import { PRO_PRICE_AMOUNT } from '@/lib/proPlan';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, spacing } from '@/theme';
-
-const PERK_ICON: Record<ProPerk['key'], keyof typeof Ionicons.glyphMap> = {
-  ai: 'sparkles-outline',
-  agenda: 'calendar-outline',
-  count: 'checkbox-outline',
-};
 
 /**
  * «Pásate a Empre Pro» (tablero «Base y Empre Pro», teléfono 3): sale al tocar algo con la corona. Dice qué suma Pro,
@@ -33,7 +27,6 @@ export function GoProSheet({
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const reduce = useReduceMotion();
-  const perks = proPerks({ agenda: FEATURES.agenda });
 
   const go = (id: string) => {
     onClose();
@@ -54,17 +47,10 @@ export function GoProSheet({
           </View>
           <Text style={styles.lead}>Lo que ya tienes sigue igual. Con Pro se suma:</Text>
 
-          {perks.map((p) => (
-            <View key={p.key} style={styles.perk}>
-              <View style={styles.perkIcon}>
-                <Ionicons name={PERK_ICON[p.key]} size={18} color={colors.ink} />
-              </View>
-              <View style={styles.perkTexts}>
-                <Text style={styles.perkTitle}>{p.title}</Text>
-                <Text style={styles.perkSub}>{p.sub}</Text>
-              </View>
-            </View>
-          ))}
+          {/* La lista se desplaza en teléfonos bajos; el precio y el botón quedan siempre a la vista. */}
+          <ScrollView style={styles.perks} bounces={false}>
+            <ProPerkList />
+          </ScrollView>
 
           <View style={styles.price}>
             <Text style={styles.priceName}>Empre Pro</Text>
@@ -104,16 +90,12 @@ export function GoProSheet({
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(43,38,34,0.28)' },
-  sheet: { paddingHorizontal: spacing.md, paddingTop: 10, gap: spacing.sm, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.bg },
+  sheet: { maxHeight: '92%', paddingHorizontal: spacing.md, paddingTop: 10, gap: spacing.sm, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.bg },
+  perks: { flexGrow: 0, flexShrink: 1 },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   title: { fontSize: 20, lineHeight: 26, fontFamily: fonts.ui.semibold, color: colors.ink },
   lead: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
-  perk: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.line },
-  perkIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.well },
-  perkTexts: { flex: 1, gap: 1 },
-  perkTitle: { fontSize: 15, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.ink },
-  perkSub: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
   price: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingTop: spacing.sm, paddingBottom: 2, borderTopWidth: 1, borderTopColor: colors.line },
   priceName: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   priceAmount: { fontSize: 20, fontFamily: fonts.ui.semibold, color: colors.ink },

@@ -3,11 +3,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as WebBrowser from 'expo-web-browser';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { paymentsApi } from '@/api/endpoints';
 import { Button } from '@/components/Button';
-import { PRO_PRICE_AMOUNT, PRO_PRICE_UNIT } from '@/lib/proPlan';
+import { ProPerkList } from '@/components/pro/ProPerkList';
+import { ProTag } from '@/components/pro/ProTag';
+import { isProSubscription, PRO_PRICE_AMOUNT, PRO_PRICE_UNIT } from '@/lib/proPlan';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 
@@ -21,11 +23,10 @@ function sleep(ms: number) {
 }
 
 /**
- * "Mi negocio > Suscripción": muestra el estado del plan pago del negocio y
- * deja pagarlo (o renovarlo) abriendo el Widget Web Checkout de Wompi. Wompi
- * redirige de vuelta a la app (deep link) cuando el dueño termina de pagar;
- * como la confirmación real llega por un webhook al backend, refrescamos el
- * estado unas cuantas veces por si tarda un segundo en aplicarse.
+ * Tu plan (Mi negocio > Tu plan, tablero «Base y Empre Pro»): Base es gratis y nunca oculta el negocio; Empre Pro suma
+ * Empre AI, la agenda y contar por sección, por $39.900 al mes por negocio. Pagar (o renovar) abre el Widget Web
+ * Checkout de Wompi; la confirmación llega por un webhook al backend, así que el estado se refresca unas veces al
+ * volver por si tarda un segundo en aplicarse.
  */
 export default function BusinessSubscriptionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -42,11 +43,7 @@ export default function BusinessSubscriptionScreen() {
   });
 
   const sub = query.data?.subscription;
-  const isActive = sub?.status === 'active';
-  const distinctCustomers = query.data?.distinct_customers ?? 0;
-  const threshold = query.data?.trial_threshold ?? 10;
-  const requiresPayment = query.data?.requires_payment ?? false;
-  const inFreeTrial = !isActive && !requiresPayment;
+  const isPro = isProSubscription(sub);
 
   const pay = async () => {
     setError(null);
@@ -87,85 +84,54 @@ export default function BusinessSubscriptionScreen() {
         <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={() => router.back()} style={styles.headerButton}>
           <Ionicons name="chevron-back" size={24} color={colors.ink} />
         </Pressable>
-        <Text style={styles.title}>Suscripción</Text>
+        <Text style={styles.title}>Tu plan</Text>
       </View>
 
       {query.isLoading ? (
         <View style={styles.center}>
-          <ActivityIndicator color={colors.primary} />
+          <ActivityIndicator color={colors.ink} />
         </View>
       ) : query.isError ? (
         <View style={styles.center}>
-          <Text style={styles.muted}>No pudimos cargar la suscripción.</Text>
+          <Text style={styles.muted}>No pudimos cargar tu plan.</Text>
+          <Button title="Reintentar" variant="secondary" onPress={() => void query.refetch()} />
         </View>
       ) : (
-        <View style={styles.content}>
-          <View style={[styles.statusCard, isActive && styles.statusCardActive]}>
-            <View
-              style={[
-                styles.statusIconWrap,
-                { backgroundColor: isActive ? colors.verifiedSoft : requiresPayment ? colors.primarySoft : colors.line },
-              ]}
-            >
-              <Ionicons
-                name={isActive ? 'checkmark-circle' : requiresPayment ? 'alert-circle-outline' : 'time-outline'}
-                size={28}
-                color={isActive ? colors.verified : requiresPayment ? colors.primary : colors.muted}
-              />
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.lg }]}>
+          {/* Dónde estás: Base es gratis y nunca oculta tu negocio; Pro dice hasta cuándo. */}
+          <View style={styles.planCard}>
+            <View style={styles.planHead}>
+              {isPro ? <ProTag /> : null}
+              <Text style={styles.planTitle} accessibilityRole="header">
+                {isPro ? 'Empre Pro activo' : 'Plan Base · gratis'}
+              </Text>
             </View>
-            <Text style={styles.statusTitle}>
-              {isActive ? 'Plan Pro activo' : requiresPayment ? 'Tu prueba gratis terminó' : 'Prueba gratis'}
+            <Text style={styles.planSub}>
+              {isPro
+                ? `Hasta el ${formatDate(sub?.current_period_end)}. Si no renuevas, vuelves a Base y nada se pierde.`
+                : 'Vendes, anotas, publicas ofertas y te encuentran en Empre sin pagar. Lo de Pro se ve en gris con la corona.'}
             </Text>
-            <Text style={styles.statusSubtitle}>
-              {isActive
-                ? `Activo hasta el ${formatDate(sub?.current_period_end)}`
-                : requiresPayment
-                  ? 'Ya te contactaron suficientes clientes. Si no activas el plan pronto, tu negocio se ocultará del mapa y las búsquedas (tus conversaciones actuales siguen abiertas).'
-                  : `Es gratis hasta que te escriban ${threshold} clientes distintos. Vas en ${distinctCustomers} de ${threshold}.`}
-            </Text>
-            {inFreeTrial ? (
-              <View style={styles.progressTrack}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    { width: `${Math.min(100, (distinctCustomers / threshold) * 100)}%` },
-                  ]}
-                />
-              </View>
-            ) : null}
           </View>
 
-          <View style={styles.planCard}>
-            <View style={styles.planHeaderRow}>
-              <Text style={styles.planName}>Empre Pro</Text>
-              <View style={styles.planPriceWrap}>
-                <Text style={styles.planPrice}>{PRO_PRICE_AMOUNT}</Text>
-                <Text style={styles.planPriceUnit}>{PRO_PRICE_UNIT}</Text>
-              </View>
-            </View>
-            <View style={styles.planFeatures}>
-              <View style={styles.planFeature}>
-                <Ionicons name="sparkles" size={16} color={colors.primary} />
-                <Text style={styles.planFeatureText}>Tu negocio destacado en Empre</Text>
-              </View>
-              <View style={styles.planFeature}>
-                <Ionicons name="stats-chart" size={16} color={colors.primary} />
-                <Text style={styles.planFeatureText}>Más visibilidad en el mapa y las búsquedas</Text>
-              </View>
+          <View>
+            <Text style={styles.lead}>{isPro ? 'Lo que tienes con Empre Pro:' : 'Lo que ya tienes sigue igual. Con Empre Pro se suma:'}</Text>
+            <ProPerkList detail />
+            <View style={styles.price}>
+              <Text style={styles.priceName}>Empre Pro</Text>
+              <Text style={styles.priceAmount} accessibilityLabel={`${PRO_PRICE_AMOUNT} pesos al mes, por negocio`}>
+                {PRO_PRICE_AMOUNT}
+                <Text style={styles.priceUnit}> al mes</Text>
+              </Text>
             </View>
           </View>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <Button
-            title={isActive ? 'Renovar plan' : inFreeTrial ? 'Activar ahora (opcional)' : 'Pagar con Wompi'}
-            onPress={() => void pay()}
-            loading={paying}
-          />
+          <Button title={isPro ? 'Renovar un mes más' : 'Pásate a Pro'} onPress={() => void pay()} loading={paying} />
           <Text style={styles.disclaimer}>
-            El pago se procesa de forma segura en Wompi. Empre nunca ve ni guarda los datos de tu tarjeta.
+            {`Se paga por negocio, ${PRO_PRICE_AMOUNT} ${PRO_PRICE_UNIT}, en Wompi. Empre nunca ve ni guarda los datos de tu tarjeta.`}
           </Text>
-        </View>
+        </ScrollView>
       )}
     </View>
   );
@@ -184,46 +150,18 @@ const styles = StyleSheet.create({
   },
   headerButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 17, fontFamily: fonts.ui.bold, color: colors.ink },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, padding: spacing.lg },
   muted: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted },
-  content: { padding: spacing.lg, gap: spacing.lg },
-  statusCard: {
-    alignItems: 'center',
-    gap: spacing.xs,
-    padding: spacing.lg,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
-  },
-  statusCardActive: { borderColor: colors.verified, backgroundColor: colors.verified + '14' },
-  statusIconWrap: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  statusTitle: { fontSize: 16, fontFamily: fonts.ui.bold, color: colors.ink },
-  statusSubtitle: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
-  progressTrack: {
-    width: '100%',
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.line,
-    overflow: 'hidden',
-    marginTop: spacing.xs,
-  },
-  progressFill: { height: '100%', borderRadius: 4, backgroundColor: colors.primary },
-  planCard: {
-    padding: spacing.lg,
-    borderRadius: radius.lg,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    backgroundColor: 'rgba(36,104,198,0.06)',
-  },
-  planHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: spacing.sm },
-  planName: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
-  planPriceWrap: { alignItems: 'flex-end' },
-  planPrice: { fontSize: 20, fontFamily: fonts.display.semibold, color: colors.primary },
-  planPriceUnit: { fontSize: 11, fontFamily: fonts.ui.medium, color: colors.muted },
-  planFeatures: { gap: spacing.xs },
-  planFeature: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  planFeatureText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.ink },
+  content: { padding: spacing.md, gap: spacing.lg },
+  planCard: { gap: 4, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.well, borderWidth: 1, borderColor: colors.line },
+  planHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  planTitle: { fontSize: 17, lineHeight: 22, fontFamily: fonts.ui.semibold, color: colors.ink },
+  planSub: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
+  lead: { marginBottom: spacing.sm, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
+  price: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line },
+  priceName: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
+  priceAmount: { fontSize: 20, fontFamily: fonts.ui.semibold, color: colors.ink },
+  priceUnit: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   error: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.danger, textAlign: 'center' },
-  disclaimer: { fontSize: 11, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
+  disclaimer: { fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
 });
