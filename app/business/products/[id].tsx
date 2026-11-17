@@ -19,7 +19,7 @@ import { VoiceSheet } from '@/components/ledger/VoiceSheet';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { FEATURES } from '@/config';
 import { catalogCopy, freshnessNote, priceText, type ItemKind, type ServiceItem } from '@/lib/catalog';
-import { fmtQty, missingIngredients, recommendationText, stockPill, variantPill, type PillTone } from '@/lib/inventory';
+import { fmtQty, missingIngredients, recommendationText, stockPill, unitFor, variantPill, type PillTone } from '@/lib/inventory';
 import { addDays, todayCO } from '@/lib/finance';
 import { FEW_BUSINESSES } from '@/lib/fewBusinesses';
 import { formatPesos } from '@/lib/ledger';
@@ -99,8 +99,9 @@ export default function InventoryScreen() {
     queryFn: ({ pageParam }) => ledgerApi.inventoryPage(entityId, { tab, q, section, state, sort, cursor: pageParam, limit: PAGE }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor || undefined,
-    // Una pestaña en 0 no pide nada: su vacío se ve al instante (cada consulta tarda casi un segundo).
-    enabled: ledgerOn && tabTotal !== 0,
+    // Una pestaña en 0 no pide nada: su vacío se ve al instante (cada consulta tarda casi un segundo). Si el 0 es viejo y
+    // los conteos se están pidiendo otra vez (volviste de agregar algo), pide la página de una vez.
+    enabled: ledgerOn && (tabTotal !== 0 || counts.isFetching),
     // Mientras llega otra búsqueda u otro filtro de la misma pestaña se queda lo de antes; al cambiar de pestaña no, para
     // no mostrar productos bajo «Servicios».
     placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[4] === tab ? keepPreviousData(prev) : undefined),
@@ -162,7 +163,14 @@ export default function InventoryScreen() {
     }
     return out;
   }, [grouped, rows, tab]);
-  const countOf = (title: string) => tc?.sections.find((s) => s.name === title)?.count;
+  // El número de cada sección es su total real. Con un estado elegido («Se acaban») ese total ya no sirve: va lo que quedó
+  // de la sección, y solo cuando ya llegó todo.
+  // Sin títulos de sección (pocos, buscando u ordenando) la sección va en cada fila, salvo que todas compartan la misma:
+  // lo que comparten todas no se repite debajo de cada una.
+  const mixedSections = useMemo(() => new Set(rows.map((r) => r.section || '')).size > 1, [rows]);
+  // «Sin asignar» (un insumo que ningún producto usa) solo dice algo si otros sí están asignados.
+  const someAssigned = useMemo(() => rows.some((r) => (r.used_in ?? []).length > 0), [rows]);
+  const headCount =(title: string, loaded: number) => (state ? (pages.hasNextPage ? undefined : loaded) : tc?.sections.find((s) => s.name === title)?.count);
 
   const sellSections = useEntitySections(entityId, 'sell');
   const sellIcons = useMemo(() => new Map((sellSections.data ?? []).map((s) => [s.name, s.icon])), [sellSections.data]);
@@ -238,7 +246,7 @@ export default function InventoryScreen() {
           </Pressable>
         </View>
       ) : null}
-      {alerts.total > 0 && !q ? (
+      {alerts.total > 0 && !q && tab !== 'service' ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Tienes ${alerts.total} cosas por revisar: ${alertsLine(alerts)}. Ver los avisos`}
@@ -261,7 +269,9 @@ export default function InventoryScreen() {
         </Pressable>
       ) : null}
       {tab !== 'supply' && unchecked.length > 0 ? <KindReview entityId={entityId} items={unchecked} onChanged={refresh} /> : null}
-      {tab === 'product' && unset > 0 && inv.data ? (
+      {/* Empezar a llevar inventario: solo si todavía no se cuenta nada (con 55 contados y 6 sin decidir, esos 6 dicen
+          «Sin control» en su fila y se ajustan ahí). */}
+      {tab === 'product' && unset > 0 && tracked.length === 0 && inv.data ? (
         <View style={styles.setup}>
           <Text style={styles.setupTitle}>¿Quieres saber cuándo se acaba algo?</Text>
           <Text style={styles.meta}>{recommendationText(inv.data.kind, inv.data.category)}</Text>
@@ -276,7 +286,7 @@ export default function InventoryScreen() {
       ) : null}
       {/* Empre AI aparte: es de pago, no vive en el buscador ni en el filtro. Un servicio no tiene existencias que dictar,
           y sin nada en la pestaña no hay qué actualizar. */}
-      {tab !== 'service' && (tc?.total ?? 0) > 0 ? (
+      {tab !== 'service' && (tc?.total ?? 0) > 0 && !q ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Actualizar con Empre AI: dicta lo que llegó o se acabó"
@@ -293,15 +303,20 @@ export default function InventoryScreen() {
           <Ionicons name="chevron-forward" size={16} color={colors.muted} />
         </Pressable>
       ) : null}
-      {tab === 'supply' && few && rows.length > 0 ? <Text style={styles.meta}>Lo que gastas para atender o preparar y no vendes solo. Tus clientes no lo ven.</Text> : null}
-      {few && rows.length > 0 ? <Text style={styles.meta}>{`Con menos de ${FEW_BUSINESSES} no hace falta buscar ni filtrar: todo se ve de una vez.`}</Text> : null}
+      {few && rows.length > 0 ? (
+        <Text style={styles.meta}>
+          {tab === 'supply'
+            ? `Lo que gastas para atender o preparar; tus clientes no lo ven. Con menos de ${FEW_BUSINESSES}, todo se ve de una vez.`
+            : `Con menos de ${FEW_BUSINESSES} no hace falta buscar ni filtrar: todo se ve de una vez.`}
+        </Text>
+      ) : null}
     </View>
   );
 
   const footer = (
     <View style={{ gap: spacing.sm, paddingTop: spacing.md }}>
       {pages.isFetchingNextPage ? <Text style={styles.loadingMore}>{`Cargando los siguientes ${PAGE}…`}</Text> : null}
-      {tab !== 'supply' && rows.length > 0 && !pages.hasNextPage ? (
+      {tab !== 'supply' && rows.length > 0 && !pages.hasNextPage && !q && !state && !section ? (
         <>
           {note ? <Text style={styles.meta}>{note}</Text> : null}
           <Pressable accessibilityRole="button" onPress={() => void catalogApi.confirm(entityId).then(refresh, () => setError('No pudimos confirmar los precios'))} style={styles.confirm}>
@@ -313,7 +328,8 @@ export default function InventoryScreen() {
     </View>
   );
 
-  const empty = pages.isFetching ? (
+  // Nunca «Aún no tienes…» con un 0 viejo: mientras llegan los conteos o la página, se espera.
+  const empty = pages.isFetching || (counts.isFetching && tabTotal === 0) ? (
     <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.ink} />
   ) : pages.isError ? (
     <EmptyState icon="cloud-offline-outline" title="No pudimos cargar tu inventario" body="Revisa tu conexión e inténtalo de nuevo." action={{ title: 'Reintentar', onPress: refresh }} />
@@ -380,6 +396,8 @@ export default function InventoryScreen() {
       </View>
 
       <SectionList
+        // Otra pestaña, búsqueda o filtro es otra lista: arranca desde arriba.
+        key={`${tab}|${q}|${state ?? ''}|${section ?? ''}|${sort ?? ''}`}
         sections={sections}
         keyExtractor={(r) => r.ref}
         stickySectionHeadersEnabled
@@ -401,7 +419,7 @@ export default function InventoryScreen() {
               <Text style={styles.secTitle} accessibilityRole="header">
                 {s.title}
               </Text>
-              {countOf(s.title) != null ? <Text style={styles.secCount}>{countOf(s.title)}</Text> : null}
+              {headCount(s.title, s.data.length) != null ? <Text style={styles.secCount}>{headCount(s.title, s.data.length)}</Text> : null}
             </View>
           ) : null
         }
@@ -417,7 +435,8 @@ export default function InventoryScreen() {
                 icon={safeIcon(supplyRow ? supplyIcons.get(i.group ?? '') : sellIcons.get(i.section ?? ''), supplyRow ? 'cube-outline' : 'pricetag-outline')}
                 group={i.children.length > 0 ? { pill: variantPill(i), open, from: Math.min(...i.children.map((c) => c.price ?? Infinity)) } : undefined}
                 showSold={sort === 'sales'}
-                showSection={!grouped && !supplyRow}
+                showSection={!grouped && !supplyRow && mixedSections}
+                showUnassigned={someAssigned}
                 supplyView={supplyRow}
                 onOpen={() => (i.kind === 'supply' ? setSheet(i) : openDetail(i.item_id ?? i.ref))}
                 onPill={() => (i.children.length > 0 ? setExpanded((m) => ({ ...m, [i.ref]: !open })) : setSheet(i))}
@@ -439,7 +458,8 @@ export default function InventoryScreen() {
         visible={filterOpen}
         tab={tab}
         counts={tc}
-        total={total}
+        total={pages.isPlaceholderData ? undefined : total}
+        searching={Boolean(q)}
         state={state}
         section={section}
         sort={sort}
@@ -488,6 +508,7 @@ function FilterSheet({
   tab,
   counts,
   total,
+  searching,
   state,
   section,
   sort,
@@ -500,7 +521,9 @@ function FilterSheet({
   visible: boolean;
   tab: InventoryTab;
   counts?: InventoryTabCounts;
-  total: number;
+  /** Lo que devolvió el servidor con este filtro; vacío mientras llega (no se muestra un número viejo). */
+  total?: number;
+  searching: boolean;
   state?: InventoryState;
   section?: string;
   sort?: InventorySort;
@@ -520,6 +543,17 @@ function FilterSheet({
       ].filter((s) => s.n > 0 || s.key === state)
     : [];
   const any = Boolean(state || section || sort);
+  // Con un solo filtro el número ya se sabe por los conteos; con dos (o buscando), se espera al servidor.
+  const known = !counts || searching
+    ? undefined
+    : !state && !section
+      ? counts.total
+      : state && !section
+        ? { low: counts.low, out: counts.out, nophoto: counts.no_photo }[state]
+        : !state && section
+          ? counts.sections.find((s) => s.name === section)?.count
+          : undefined;
+  const n = total ?? known;
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable accessibilityRole="button" accessibilityLabel="Cerrar el filtro" style={styles.sheetVeil} onPress={onClose} />
@@ -563,7 +597,7 @@ function FilterSheet({
             <FilterChip key={s.key} label={s.label} on={sort === s.key} onPress={() => onSort(sort === s.key ? undefined : s.key)} />
           ))}
         </View>
-        <Button title={`Ver ${total} ${total === 1 ? meta.one : meta.many}`} onPress={onClose} />
+        <Button title={n != null ? `Ver ${n} ${n === 1 ? meta.one : meta.many}` : `Ver ${meta.many}`} onPress={onClose} />
       </View>
     </Modal>
   );
@@ -586,6 +620,7 @@ function ItemRow({
   icon,
   showSold,
   showSection,
+  showUnassigned,
 }: {
   item: InventoryItem;
   /** Id de la foto de portada y el ícono de su sección (lo que se ve sin foto). */
@@ -603,6 +638,8 @@ function ItemRow({
   showSold?: boolean;
   /** Sin títulos de sección (buscando u ordenando), la sección va en la línea de detalle. */
   showSection?: boolean;
+  /** Insumos: decir «Sin asignar» solo si otros sí están asignados. */
+  showUnassigned?: boolean;
 }) {
   const service = item.is_service && !group;
   const pill = group ? group.pill : stockPill(item);
@@ -615,12 +652,12 @@ function ItemRow({
   const ingCount = item.ingredients?.length ?? 0;
   const price = group ? (Number.isFinite(group.from) ? `desde ${formatPesos(group.from)}` : null) : item.price ? formatPesos(item.price) : 'Sin precio';
   const detail = supplyView
-    ? [item.kind === 'product' ? 'También se vende' : null, usedIn.length ? `Se usa en ${usedIn.length} ${usedIn.length === 1 ? 'producto' : 'productos'}` : 'Sin asignar', daysNote]
+    ? [item.kind === 'product' ? 'También se vende' : null, usedIn.length ? `Se usa en ${usedIn.length} ${usedIn.length === 1 ? 'producto' : 'productos'}` : showUnassigned ? 'Sin asignar' : null, daysNote]
     : service
       ? [showSection ? item.section : null]
       : [showSection && !child ? item.section : null, price, item.servings != null ? `alcanza para ${item.servings}` : daysNote, ingCount > 0 ? `usa ${ingCount} ${ingCount === 1 ? 'insumo' : 'insumos'}` : null];
   const line = [showSold && item.sold_28 > 0 ? `${fmtQty(item.sold_28)} ${item.sold_28 === 1 ? 'vendido' : 'vendidos'}` : null, ...detail].filter(Boolean).join(' · ');
-  const warnAt = supplyView && urgent && item.low_at != null ? `Avisa en ${fmtQty(item.low_at)} ${unitShort(item.unit)}` : null;
+  const warnAt = supplyView && urgent && item.low_at != null ? `Avisa en ${fmtQty(item.low_at)} ${unitFor(item.unit, item.low_at)}` : null;
   return (
     <View style={[styles.itemRow, !first && styles.itemLine, child && styles.childRow]}>
       {!child ? (

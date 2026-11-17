@@ -79,6 +79,20 @@ test('la pastilla dice en una palabra cómo está cada cosa', async () => {
   assert.equal(stockPill(mk({ name: 'Arroz', mode: 'exact', status: 'ok', qty: 18 })).label, '18 und');
   assert.equal(stockPill(mk({ name: 'Frijol', mode: 'exact', status: 'out' })).tone, 'out');
   assert.equal(stockPill(mk({ name: 'Pasta', mode: 'unset', status: 'none' })).label, 'Sin control');
+  assert.equal(stockPill(mk({ name: 'Cinta', mode: 'exact', status: 'ok', qty: 4, unit: 'rollo' })).label, '4 rollos');
+});
+
+test('la unidad va en plural cuando toca y las abreviaturas no cambian', async () => {
+  const { unitFor } = await import('./inventory.ts');
+  assert.equal(unitFor('rollo', 1), 'rollo');
+  assert.equal(unitFor('rollo', 2), 'rollos');
+  assert.equal(unitFor('porción', 3), 'porciones');
+  assert.equal(unitFor('paquete', 0), 'paquetes');
+  assert.equal(unitFor('kg', 2.5), 'kg');
+  assert.equal(unitFor('L', 3), 'L');
+  assert.equal(unitFor('unidad', 18), 'und');
+  assert.equal(unitFor('', 5), 'und');
+  assert.equal(unitFor('bolsas', 2), 'bolsas');
 });
 
 test('insumos y lo que se vende van en pestañas; un producto que también se usa sale en las dos', async () => {
