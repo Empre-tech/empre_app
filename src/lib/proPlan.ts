@@ -42,7 +42,7 @@ export function proGroups({ agenda }: { agenda: boolean }): ProGroup[] {
       key: 'finance',
       title: 'Empre Finance',
       short: 'Plata, Cuentas, Rentabilidad y el análisis con Empre AI',
-      base: 'En Base: Hoy, y cuánto vendiste y gastaste entre dos fechas.',
+      base: 'En Base: Hoy, con lo que vendiste, gastaste y lo que te deben.',
       items: [
         { title: 'Plata', sub: 'Lo que entra y sale: de dónde entró, en qué salió, cuándo vendes más y quién te trajo las ventas.' },
         { title: 'Cuentas', sub: 'Quién te debe y a quién le debes, cuánto llevan y un mensaje listo para cobrar por WhatsApp.' },
