@@ -302,7 +302,7 @@ export default function NewOfferScreen() {
             ))}
           </View>
         ) : null}
-        <AIWritingAssist kind="offer_title" currentText={[title.trim() || chosenNames.join(' + '), specialValue ? `Precio especial: ${formatPesos(specialValue)}` : '', preview.reference ? `Precio habitual: ${formatPesos(preview.reference)}` : ''].filter(Boolean).join('. ')} onApply={setTitle} label="Redactar con Empre AI" fallback={offerTitleIdeas(chosenNames.length ? chosenNames : title.trim() ? [title.trim()] : [], specialValue, preview.reference)} />
+        <AIWritingAssist kind="offer_title" currentText={[title.trim() || chosenNames.join(' + '), specialValue ? `Precio especial: ${formatPesos(specialValue)}` : '', preview.reference ? `Precio habitual: ${formatPesos(preview.reference)}` : ''].filter(Boolean).join('. ')} onApply={setTitle} label="Redactar con Empre AI" entityId={entityId} fallback={offerTitleIdeas(chosenNames.length ? chosenNames : title.trim() ? [title.trim()] : [], specialValue, preview.reference)} />
 
         <Regulator label="Cupos" value={slots} unit={slots === 1 ? 'cupo' : 'cupos'} min={1} max={500} onChange={setSlots} />
         {starSlots && starSlots !== slots ? (

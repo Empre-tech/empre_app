@@ -1,9 +1,15 @@
 import { Ionicons } from '@/components/Icon';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ApiError } from '@/api/client';
 import { aiApi } from '@/api/endpoints';
+import { ledgerApi } from '@/api/ledger';
 import type { AITextKind } from '@/api/types';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
+import { GoProSheet } from '@/components/pro/GoProSheet';
+import { LOCKED_OPACITY, ProTag } from '@/components/pro/ProTag';
+import { useEntityPlan } from '@/lib/useProPlan';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 interface Props {
@@ -20,6 +26,11 @@ interface Props {
   label?: string;
   /** Ideas listas, sin modelo: si el servicio falla, salen estas en vez de un error. */
   fallback?: string[];
+  /**
+   * El negocio para el que se redacta. Redactar es de Empre Pro y cuenta en el tope del mes (decisión del usuario,
+   * 2026-11-17): en Base se ve en gris con la corona. Sin negocio (al crearlo) la descripción va gratis.
+   */
+  entityId?: string;
 }
 
 /**
@@ -29,11 +40,23 @@ interface Props {
  * pedir otras opciones o cerrar sin aplicar nada — la IA nunca escribe por
  * su cuenta sin que él lo confirme tocando una opción.
  */
-export function AIWritingAssist({ kind, currentText, businessName, categoryName, onApply, variant = 'light', compact = false, label = 'Redactar con Empre AI', fallback }: Props) {
+export function AIWritingAssist({ kind, currentText, businessName, categoryName, onApply, variant = 'light', compact = false, label = 'Redactar con Empre AI', fallback, entityId }: Props) {
+  const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [goPro, setGoPro] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const plan = useEntityPlan(entityId, Boolean(entityId));
+  const locked = Boolean(entityId) && plan.base;
+  // Lo que queda del tope del mes (dictados y textos juntos). Sin negocio, la descripción del que se crea va gratis.
+  const usage = useQuery({
+    queryKey: ['ledger', entityId, 'voice', 'usage'],
+    queryFn: () => ledgerApi.voiceUsage(entityId ?? ''),
+    enabled: open && Boolean(entityId) && !locked,
+    staleTime: 60_000,
+  });
+  const left = usage.data && usage.data.limit > 0 ? Math.max(0, usage.data.limit - usage.data.used) : null;
 
   const generate = async () => {
     setLoading(true);
@@ -44,9 +67,21 @@ export function AIWritingAssist({ kind, currentText, businessName, categoryName,
         current_text: currentText?.trim() || undefined,
         business_name: businessName?.trim() || undefined,
         category_name: categoryName?.trim() || undefined,
+        entity_id: entityId || undefined,
       });
       setSuggestions(res.suggestions ?? []);
+      if (entityId) void qc.invalidateQueries({ queryKey: ['ledger', entityId, 'voice', 'usage'] });
     } catch (e) {
+      // Base (402): es de Empre Pro. Tope (429): se dice y se sigue escribiendo a mano.
+      if (e instanceof ApiError && e.status === 402) {
+        setOpen(false);
+        setGoPro(true);
+        return;
+      }
+      if (e instanceof ApiError && e.status === 429) {
+        setError('Llegaste al tope de Empre AI de este mes. Puedes seguir escribiendo a mano.');
+        return;
+      }
       if (kind === 'offer_title') {
         try {
           const compat = await aiApi.improveText({
@@ -54,6 +89,7 @@ export function AIWritingAssist({ kind, currentText, businessName, categoryName,
             current_text: `Título corto y directo para una oferta: ${currentText?.trim() || 'Promoción de hoy'}`,
             business_name: businessName?.trim() || undefined,
             category_name: categoryName?.trim() || undefined,
+            entity_id: entityId || undefined,
           });
           if (compat.suggestions?.length) {
             setSuggestions(compat.suggestions.map((s) => s.replace(/^["«]|["»]$/g, '').trim()).slice(0, 3));
@@ -78,6 +114,10 @@ export function AIWritingAssist({ kind, currentText, businessName, categoryName,
   };
 
   const openSheet = () => {
+    if (locked) {
+      setGoPro(true);
+      return;
+    }
     setOpen(true);
     setSuggestions([]);
     setError(null);
@@ -93,18 +133,24 @@ export function AIWritingAssist({ kind, currentText, businessName, categoryName,
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Redactar con Empre AI"
+        accessibilityLabel={locked ? 'Redactar con Empre AI. Es de Empre Pro' : 'Redactar con Empre AI'}
+        accessibilityHint={locked ? 'Abre Pásate a Empre Pro' : undefined}
         onPress={openSheet}
         style={({ pressed }) => [
           styles.trigger,
           variant === 'dark' ? styles.triggerDark : styles.triggerLight,
+          locked && styles.triggerLocked,
           pressed && styles.triggerPressed,
         ]}
       >
-        {variant === 'dark' ? <Ionicons name="sparkles" size={14} color="#fff" /> : <EmpreSymbol product="ai" size={22} animated={false} />}
-        {!compact ? (
-          <Text style={[styles.triggerText, variant === 'dark' && styles.triggerTextDark]}>{label}</Text>
-        ) : null}
+        {/* En Base: el contenido en gris y la corona, sin desaparecer (tablero «Base y Empre Pro»). */}
+        <View style={[styles.triggerBody, locked && { opacity: LOCKED_OPACITY }]}>
+          {variant === 'dark' ? <Ionicons name="sparkles" size={14} color="#fff" /> : <EmpreSymbol product="ai" size={22} animated={false} />}
+          {!compact ? (
+            <Text style={[styles.triggerText, variant === 'dark' && styles.triggerTextDark]}>{label}</Text>
+          ) : null}
+        </View>
+        {locked ? <ProTag /> : null}
       </Pressable>
 
       <Modal visible={open} animationType="slide" transparent onRequestClose={() => setOpen(false)}>
@@ -119,6 +165,14 @@ export function AIWritingAssist({ kind, currentText, businessName, categoryName,
                 {kind === 'post_caption' ? 'Redactar tu publicación' : kind === 'offer_title' ? 'Redactar tu oferta' : 'Redactar tu descripción'}
               </Text>
             </View>
+            {/* Lo que gasta, antes de usarlo (tablero «Empre AI · un asistente por trabajo», teléfono 7). */}
+            <Text style={styles.costLine}>
+              {entityId
+                ? left !== null
+                  ? `Cada pedido usa 1 de tu tope del mes · quedan ${left}`
+                  : 'Cada pedido usa 1 de tu tope del mes'
+                : 'La descripción de tu negocio nuevo va por cuenta de Empre.'}
+            </Text>
 
             {loading ? (
               <View style={styles.loadingBlock}>
@@ -163,6 +217,7 @@ export function AIWritingAssist({ kind, currentText, businessName, categoryName,
           </Pressable>
         </Pressable>
       </Modal>
+      {entityId ? <GoProSheet visible={goPro} onClose={() => setGoPro(false)} businesses={[{ id: entityId, name: businessName ?? '' }]} /> : null}
     </>
   );
 }
@@ -179,6 +234,10 @@ const styles = StyleSheet.create({
   triggerLight: { backgroundColor: colors.selectedSoft },
   triggerDark: { backgroundColor: 'rgba(255,255,255,0.18)' },
   triggerPressed: { opacity: 0.7 },
+  triggerBody: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // En Base: sobre arena clara, sin el fondo de selección que invita a tocar.
+  triggerLocked: { backgroundColor: colors.well, paddingRight: 4 },
+  costLine: { fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.medium, color: colors.muted },
   triggerText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   triggerTextDark: { color: '#fff' },
   backdrop: { flex: 1, backgroundColor: 'rgba(22,35,58,0.5)', justifyContent: 'flex-end' },

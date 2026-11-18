@@ -12,6 +12,7 @@ import { answerFor, askWhichReading, destinationLabel, MODULE_COPY, numberQuesti
 import { useEntitySections } from '@/api/sections';
 import { Button } from '@/components/Button';
 import { Chispa } from '@/components/ai/Chispa';
+import { TypeIn } from '@/components/chat/EmpreVoice';
 import { VoiceOrb } from '@/components/ai/VoiceOrb';
 import { AmountField, Chip, MethodChips, PartyPicker } from '@/components/ledger/parts';
 import { PayDeck } from '@/components/ledger/PayDeck';
@@ -114,6 +115,31 @@ const ROW_ICON: Record<LiveRow['icon'], keyof typeof Ionicons.glyphMap> = {
   delivery: 'bicycle-outline',
   cheap: 'cash-outline',
 };
+
+/**
+ * La cabecera de una respuesta, como en el chat (tablero «Empre AI · cuándo responde y cómo se ve»): sin burbuja, la
+ * Chispa pequeña, «Empre AI» y qué hizo.
+ */
+function AiHead({ status }: { status: string }) {
+  return (
+    <View style={styles.aiHead}>
+      <Chispa size={20} mood="contento" animated={false} />
+      <Text style={styles.aiName}>Empre AI</Text>
+      <Text style={styles.aiStatus} numberOfLines={1}>{`· ${status}`}</Text>
+    </View>
+  );
+}
+
+/** Lo que dijiste, a la derecha y quieto: la respuesta va debajo, a la izquierda, como en una conversación. */
+function Said({ text }: { text: string }) {
+  return (
+    <View style={styles.saidBubble}>
+      <Text style={styles.saidBubbleText} numberOfLines={3}>
+        {text}
+      </Text>
+    </View>
+  );
+}
 
 /** El ícono del chip de cada módulo (dónde se abrió la hoja). */
 const MODULE_ICON: Record<AssistantModule, keyof typeof Ionicons.glyphMap> = {
@@ -539,11 +565,10 @@ export function VoiceSheet({
             </View>
           ) : answer ? (
             <>
-              <View style={styles.headRow}>
-                <View style={styles.brandRow}>
-                  <Chispa size={30} animated={false} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.liveBrandText}>Empre AI · tu inventario</Text>
+              <AiHead status="tu inventario" />
+              <View>
+                <View>
+                  <View>
                     <Text style={styles.title} accessibilityLiveRegion="polite">
                       {answer.exact ? `${answer.exact.name}: ${availabilityLine(answer.exact).text.toLowerCase()}` : answer.rows.length ? `«${answer.name}» no está con ese nombre` : `«${answer.name}» no está en tu inventario`}
                     </Text>
@@ -592,85 +617,66 @@ export function VoiceSheet({
           ) : other ? (
             // Lo de otro trabajo (tablero, teléfono 5): no se responde a medias; se lleva a su lugar y no gasta el tope.
             <>
-              <View style={styles.headRow}>
-                <View style={styles.brandRow}>
-                  <Chispa size={30} animated={false} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.liveBrandText}>Empre AI · eso es de otro lugar</Text>
-                    <Text style={styles.title} accessibilityLiveRegion="polite">
-                      {other.job === 'search' ? 'Eso es para buscar negocios' : 'Eso se hace en Redactar'}
-                    </Text>
-                  </View>
+              <Said text={text.trim()} />
+              <View style={styles.aiTurn}>
+                <AiHead status="eso es de otro lugar" />
+                <View style={styles.aiBody}>
+                  <TypeIn
+                    play
+                    style={styles.aiLead}
+                    boldStyle={styles.aiLeadBold}
+                    parts={
+                      other.job === 'search'
+                        ? [{ t: 'Eso es para ' }, { t: 'buscar negocios', bold: true }, { t: `. Aquí anoto y respondo sobre ${businessName ?? 'tu negocio'}.` }]
+                        : [{ t: 'Eso se hace en ' }, { t: 'Redactar', bold: true }, { t: ', dentro de cada texto: el título de una oferta, una publicación o tu descripción.' }]
+                    }
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      onClose();
+                      setTimeout(() => (other.job === 'search' ? router.push({ pathname: '/ask', params: { q: other.query } }) : router.push({ pathname: '/business/offers/new', params: { entityId } })), 80);
+                    }}
+                    style={({ pressed }) => [styles.aiCta, pressed && styles.pressed]}
+                  >
+                    <Ionicons name={other.job === 'search' ? 'search' : 'create-outline'} size={16} color={colors.ink} />
+                    <Text style={styles.aiCtaText}>{other.job === 'search' ? `Buscar «${other.query}»` : 'Crear una oferta'}</Text>
+                  </Pressable>
+                  <Text style={styles.aiSource}>No gasta tu tope del mes</Text>
                 </View>
               </View>
-              <Text style={styles.heard} numberOfLines={3}>
-                Dijiste: «{text.trim()}»
-              </Text>
-              <Text style={styles.cardMeta}>
-                {other.job === 'search'
-                  ? `Aquí anoto y respondo sobre ${businessName ?? 'tu negocio'}. Para ver quién vende algo cerca, usa Buscar con Empre AI.`
-                  : 'Redactar con Empre AI vive dentro de cada texto: el título de una oferta, una publicación o la descripción de tu negocio.'}
-              </Text>
-              <View style={{ gap: spacing.sm }}>
-                {other.job === 'search' ? (
-                  <Button
-                    title={`Buscar «${other.query}»`}
-                    onPress={() => {
-                      onClose();
-                      setTimeout(() => router.push({ pathname: '/ask', params: { q: other.query } }), 80);
-                    }}
-                  />
-                ) : (
-                  <Button
-                    title="Crear una oferta"
-                    onPress={() => {
-                      onClose();
-                      setTimeout(() => router.push({ pathname: '/business/offers/new', params: { entityId } }), 80);
-                    }}
-                  />
-                )}
-                <Text style={styles.freeNote}>No gasta tu tope del mes.</Text>
-                <Button title="Decir otra cosa" variant="ghost" onPress={again} />
-              </View>
+              <View style={{ flex: 1 }} />
+              <Button title="Decir otra cosa" variant="ghost" onPress={again} />
             </>
           ) : numbers ? (
             // Tus números (teléfono 4): plantillas con tus datos; cada cifra lleva a su detalle.
             <>
-              <View style={styles.headRow}>
-                <View style={styles.brandRow}>
-                  <Chispa size={30} animated={false} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.liveBrandText}>Empre AI · tus números</Text>
-                    <Text style={styles.title} accessibilityLiveRegion="polite">
-                      «{text.trim()}»
-                    </Text>
-                  </View>
-                </View>
-              </View>
-              <ScrollView style={{ maxHeight: 470 }} contentContainerStyle={{ gap: spacing.sm }}>
-                {numbers.map((n) => (
-                  <Pressable
-                    key={n.topic}
-                    accessibilityRole="link"
-                    accessibilityLabel={`${n.title}: ${n.big ?? n.sub}. ${n.link}`}
-                    onPress={() => {
-                      onClose();
-                      const to = n.topic === 'owed_to_me' || n.topic === 'i_owe' ? '/business/ledger/debts/[id]' : '/business/ledger/[id]';
-                      setTimeout(() => router.push({ pathname: to, params: { id: entityId } }), 80);
-                    }}
-                    style={({ pressed }) => [styles.numberCard, pressed && styles.pressed]}
-                  >
-                    <Text style={styles.cardMeta}>{n.title}</Text>
-                    {n.big ? <Text style={styles.numberBig}>{n.big}</Text> : null}
-                    <Text style={n.big ? styles.cardMeta : styles.numberEmpty}>{n.sub}</Text>
-                    <View style={styles.numberLink}>
-                      <Text style={styles.numberLinkText}>{n.link}</Text>
-                      <Ionicons name="chevron-forward" size={14} color={colors.ink} />
+              <Said text={text.trim()} />
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.aiTurn}>
+                <AiHead status="tus números" />
+                <View style={styles.aiBody}>
+                  {numbers.map((n, i) => (
+                    <View key={n.topic} style={styles.aiPart}>
+                      {/* Una frase después de la otra, como en el chat: la segunda empieza cuando termina la primera. */}
+                      <TypeIn play delay={i * 700} style={styles.aiLead} boldStyle={styles.aiLeadBold} parts={n.say} />
+                      <Pressable
+                        accessibilityRole="link"
+                        accessibilityLabel={n.link}
+                        onPress={() => {
+                          onClose();
+                          const to = n.topic === 'owed_to_me' || n.topic === 'i_owe' ? '/business/ledger/debts/[id]' : '/business/ledger/[id]';
+                          setTimeout(() => router.push({ pathname: to, params: { id: entityId } }), 80);
+                        }}
+                        style={({ pressed }) => [styles.aiCta, pressed && styles.pressed]}
+                      >
+                        <Text style={styles.aiCtaText}>{n.link}</Text>
+                        <Ionicons name="chevron-forward" size={14} color={colors.ink} />
+                      </Pressable>
                     </View>
-                  </Pressable>
-                ))}
+                  ))}
+                  <Text style={styles.aiSource}>Sale de lo que anotaste en Empre Finance · no gasta tu tope</Text>
+                </View>
               </ScrollView>
-              <Text style={styles.freeNote}>Sale de lo que anotaste. Preguntar por tus números no gasta tu tope.</Text>
               <View style={{ gap: spacing.sm }}>
                 <Button title="Listo" onPress={onClose} />
                 <Button title="Preguntar otra cosa" variant="ghost" onPress={again} />
@@ -679,18 +685,14 @@ export function VoiceSheet({
           ) : doubt ? (
             // Lo dudoso (teléfono 3): desde otra pantalla «30 pollos» tiene dos lecturas; se pregunta antes de gastar.
             <>
-              <View style={styles.headRow}>
-                <View style={styles.brandRow}>
-                  <Chispa size={30} animated={false} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.liveBrandText}>Empre AI · una pregunta</Text>
-                    <Text style={styles.title} accessibilityLiveRegion="polite">
-                      {`¿Vendiste ${doubt.qty} ${doubt.name} o te llegaron?`}
-                    </Text>
-                  </View>
+              <Said text={doubt.text} />
+              <View style={styles.aiTurn}>
+                <AiHead status="una pregunta" />
+                <View style={styles.aiBody}>
+                  <TypeIn play style={styles.aiLead} boldStyle={styles.aiLeadBold} parts={[{ t: '¿' }, { t: `Vendiste ${doubt.qty} ${doubt.name}`, bold: true }, { t: ' o te llegaron? Elige y lo dejo listo para revisar.' }]} />
                 </View>
               </View>
-              <Text style={styles.cardMeta}>{`«${doubt.text}» puede ser las dos cosas. Elige y lo dejo listo para revisar.`}</Text>
+              <View style={{ flex: 1 }} />
               <View style={{ gap: spacing.sm }}>
                 <Button title="Los vendí" onPress={() => void resolveDoubt('sold')} loading={busy} />
                 <Button title="Me llegaron" variant="secondary" onPress={() => void resolveDoubt('add')} />
@@ -1448,12 +1450,20 @@ const styles = StyleSheet.create({
   hereChipText: { flexShrink: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   freeNote: { fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
   destTag: { fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.semibold, color: colors.muted },
-  numberCard: { gap: 2, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
-  numberBig: { fontSize: 26, lineHeight: 32, fontFamily: fonts.ui.bold, color: colors.finance, fontVariant: ['tabular-nums'] },
-  numberEmpty: { fontSize: 15, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.ink },
-  // El enlace es parte de la tarjeta, que es lo que se toca (mide más de 44).
-  numberLink: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  numberLinkText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink, textDecorationLine: 'underline' },
+  // La respuesta como en el chat: sin tarjetas; la frase con el dato en negrita y el siguiente paso, tranquilo.
+  aiTurn: { gap: 8, paddingTop: 4 },
+  aiHead: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  aiName: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  aiStatus: { flexShrink: 1, fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
+  aiBody: { marginLeft: 27, gap: 12 },
+  aiPart: { gap: 8 },
+  aiLead: { fontSize: 17, lineHeight: 25, fontFamily: fonts.ui.semibold, color: colors.ink },
+  aiLeadBold: { fontFamily: fonts.ui.extrabold, fontVariant: ['tabular-nums'] },
+  aiCta: { alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: 22, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  aiCtaText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  aiSource: { fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.semibold, color: colors.muted },
+  saidBubble: { alignSelf: 'flex-end', maxWidth: '86%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18, borderBottomRightRadius: 6, backgroundColor: colors.well, borderWidth: 1, borderColor: colors.line },
+  saidBubbleText: { fontSize: 15, lineHeight: 21, fontFamily: fonts.ui.semibold, color: colors.ink },
   stageInput: {
     minHeight: 84,
     maxHeight: 140,

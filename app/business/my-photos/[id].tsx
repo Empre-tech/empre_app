@@ -171,7 +171,7 @@ function PhotoEditor({ photo, entityId, businessName, categoryName, onClose, onC
           )}
           <View style={styles.captionHead}>
             <Text style={styles.label}>Descripción</Text>
-            <AIWritingAssist kind="post_caption" currentText={caption} businessName={businessName} categoryName={categoryName} onApply={setCaption} />
+            <AIWritingAssist kind="post_caption" currentText={caption} businessName={businessName} categoryName={categoryName} onApply={setCaption} entityId={entityId} />
           </View>
           <TextInput value={caption} onChangeText={setCaption} placeholder="Agrega una descripción…" placeholderTextColor={colors.muted} style={styles.input} maxLength={200} multiline />
           <Button title={saving ? 'Guardando…' : 'Guardar descripción'} onPress={() => void save()} disabled={!dirty || saving || deleting} />

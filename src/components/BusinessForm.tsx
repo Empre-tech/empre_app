@@ -717,6 +717,7 @@ export function BusinessForm({ initial, draft }: Props) {
                 businessName={name}
                 categoryName={selectedCategory?.name}
                 onApply={setDescription}
+                entityId={initial?.id}
               />
             }
           />
@@ -849,6 +850,7 @@ export function BusinessForm({ initial, draft }: Props) {
                   businessName={name}
                   categoryName={selectedCategory?.name}
                   onApply={setDescription}
+                  entityId={initial?.id}
                 />
               }
             />

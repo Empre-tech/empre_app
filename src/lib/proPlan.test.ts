@@ -18,6 +18,7 @@ test('lo que suma Pro, por área: Finance primero, sin agenda si está apagada',
   assert.deepEqual(proGroups({ agenda: false }).map((g) => g.key), ['finance', 'ai', 'inventory']);
   const finance = proGroups({ agenda: false })[0];
   assert.deepEqual(finance.items.map((i) => i.title), ['Plata', 'Cuentas', 'Rentabilidad', 'Análisis con Empre AI']);
+  assert.deepEqual(proGroups({ agenda: false })[1].items.map((i) => i.title), ['Habla con Empre AI', 'Redactar con Empre AI']);
   for (const g of proGroups({ agenda: true })) assert.ok(g.items.length > 0 && g.short.length > 0);
 });
 

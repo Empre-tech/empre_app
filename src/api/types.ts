@@ -342,6 +342,8 @@ export interface AITextRequest {
   current_text?: string;
   business_name?: string;
   category_name?: string;
+  /** El negocio para el que se redacta: es de Pro y cuenta en el tope del mes. Sin él, solo al crear el negocio. */
+  entity_id?: string;
 }
 
 export interface AITextResponse {

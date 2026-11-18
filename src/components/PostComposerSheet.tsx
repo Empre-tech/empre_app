@@ -145,6 +145,7 @@ export function PostComposerSheet({ visible, onClose, entityId, businessName, ca
                       categoryName={categoryName}
                       onApply={setCaption}
                       compact
+                      entityId={entityId}
                     />
                   </View>
                   <TextInput

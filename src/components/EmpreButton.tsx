@@ -27,7 +27,8 @@ type IconName = keyof typeof Ionicons.glyphMap;
 interface Item {
   key: string;
   title: string;
-  sub: string;
+  /** La línea de abajo: solo cuando dice algo que el título no dice (el precio, la sección que toca contar). */
+  sub?: string;
   icon: IconName | 'crown';
   /** El color va solo en el ícono: gris para lo de siempre, naranja para ofertas, rojo para Empre AI, verde para la plata, arena para Pro. */
   tone: 'plain' | 'offer' | 'ai' | 'money' | 'pro';
@@ -51,7 +52,7 @@ const TONE: Record<Item['tone'], { bg: string; ink: string }> = {
 /** Lo de la pantalla donde estás: va primero en el menú, junto al botón, bajo su nombre («En Inventario»). */
 export interface EmpreHere {
   label: string;
-  items: { key: string; title: string; sub: string; icon: IconName; tone: Item['tone']; onPress: () => void; locked?: boolean }[];
+  items: { key: string; title: string; sub?: string; icon: IconName; tone: Item['tone']; onPress: () => void; locked?: boolean }[];
   /** «Habla con Empre AI» desde esta pantalla, con lo que ella sabe (en Inventario: los nombres y modo inventario). */
   onTalk?: () => void;
 }
@@ -70,7 +71,7 @@ function MenuItem({ it, onPress, big }: { it: Pick<Item, 'key' | 'title' | 'sub'
   return (
     <Pressable
       accessibilityRole="menuitem"
-      accessibilityLabel={`${it.title}. ${it.sub}${it.locked ? '. Es de Empre Pro' : ''}`}
+      accessibilityLabel={`${it.title}${it.sub ? `. ${it.sub}` : ''}${it.locked ? '. Es de Empre Pro' : ''}`}
       accessibilityHint={it.locked ? 'Abre Pásate a Empre Pro' : undefined}
       onPress={onPress}
       style={({ pressed }) => [styles.item, big && styles.itemAi, it.tone === 'pro' && styles.itemPro, it.locked && styles.itemLocked, pressed && styles.pressed]}
@@ -81,9 +82,11 @@ function MenuItem({ it, onPress, big }: { it: Pick<Item, 'key' | 'title' | 'sub'
           <Text style={styles.title} numberOfLines={1}>
             {it.title}
           </Text>
-          <Text style={styles.sub} numberOfLines={1}>
-            {it.sub}
-          </Text>
+          {it.sub ? (
+            <Text style={styles.sub} numberOfLines={1}>
+              {it.sub}
+            </Text>
+          ) : null}
         </View>
       </View>
       {it.locked ? <ProTag /> : null}
@@ -203,15 +206,12 @@ export function EmpreButton({
     setAsking(item);
   };
 
-  // En la pantalla de un negocio, lo de la plata dice en cuál (ese); si no, con uno solo, ese.
-  const one = entityId ? (entities.find((e) => e.id === entityId)?.name ?? null) : entities.length === 1 ? entities[0].name : null;
   // Tablero «Base y Empre Pro»: una sola entrada de Empre AI. El dueño habla y Empre entiende si es venta, gasto o
   // inventario (siempre muestra antes de guardar). Es de Pro: en Base se ve en gris con la corona.
   const allBase = plans.known && plans.proIds.length === 0;
   const talk: Item = {
     key: 'ai',
     title: 'Habla con Empre AI',
-    sub: 'Registra, vende y gasta con tu voz',
     icon: 'sparkles-outline',
     tone: 'ai',
     locked: allBase,
@@ -219,13 +219,13 @@ export function EmpreButton({
     forBusiness: (id) => (isBase(id) ? offerPro(id) : id === entityId && here?.onTalk ? here.onTalk() : setVoiceFor(id)),
   };
   // Para quien no tiene negocio sigue abierta mientras no exista un plan para clientes (el Pro de hoy va por negocio).
-  const ask: Item = { key: 'ai', title: 'Buscar con Empre AI', sub: 'Pregunta qué hay cerca y abierto', icon: 'sparkles-outline', tone: 'ai', go: () => setAiOpen(true) };
+  const ask: Item = { key: 'ai', title: 'Buscar con Empre AI', icon: 'sparkles-outline', tone: 'ai', go: () => setAiOpen(true) };
   const goProItem: Item[] = allBase
     ? [{ key: 'pro', title: 'Pásate a Empre Pro', sub: `Empre AI, Finance completo y más · ${PRO_PRICE_AMOUNT} al mes`, icon: 'crown', tone: 'pro', go: () => offerPro(entityId) }]
     : [];
-  const expense: Item = { key: 'expense', title: 'Anotar un gasto', sub: one ? `En ${one}` : 'Eliges el negocio al tocar', icon: 'remove', tone: 'money', forBusiness: (id) => router.push({ pathname: '/business/ledger/expense/[id]', params: { id } }) };
-  const sale: Item = { key: 'sale', title: 'Anotar una venta', sub: one ? `En ${one}` : 'Eliges el negocio al tocar', icon: 'add', tone: 'money', forBusiness: (id) => router.push({ pathname: '/business/ledger/sale/[id]', params: { id } }) };
-  const offer: Item = { key: 'offer', title: 'Crear una oferta', sub: 'Sale en Ofertas al instante', icon: 'pricetag-outline', tone: 'offer', forBusiness: (id) => router.push({ pathname: '/business/offers/new', params: { entityId: id } }) };
+  const expense: Item = { key: 'expense', title: 'Anotar un gasto', icon: 'remove', tone: 'money', forBusiness: (id) => router.push({ pathname: '/business/ledger/expense/[id]', params: { id } }) };
+  const sale: Item = { key: 'sale', title: 'Anotar una venta', icon: 'add', tone: 'money', forBusiness: (id) => router.push({ pathname: '/business/ledger/sale/[id]', params: { id } }) };
+  const offer: Item = { key: 'offer', title: 'Crear una oferta', icon: 'pricetag-outline', tone: 'offer', forBusiness: (id) => router.push({ pathname: '/business/offers/new', params: { entityId: id } }) };
 
   // De arriba hacia abajo, como se ven: «Pásate a Empre Pro» arriba (solo en Base) y lo de la plata junto al botón,
   // donde llega el pulgar. En una pantalla del negocio, lo de esa pantalla va todavía más cerca (debajo de todo).
@@ -236,14 +236,13 @@ export function EmpreButton({
     : entities.length
     ? [
         ...goProItem,
-        { key: 'service', title: 'Subir un servicio', sub: 'Con foto, en 1 min', icon: 'camera-outline', tone: 'plain', forBusiness: (id) => router.push({ pathname: '/business/products/item', params: { entityId: id } }) },
+        { key: 'service', title: 'Subir un servicio', icon: 'camera-outline', tone: 'plain', forBusiness: (id) => router.push({ pathname: '/business/products/item', params: { entityId: id } }) },
         offer,
         ...(FEATURES.agenda
           ? [
               {
                 key: 'agenda',
                 title: 'Tu agenda',
-                sub: allBase ? 'Las citas se apartan solas' : 'Citas y horas libres',
                 icon: 'calendar-outline' as IconName,
                 tone: 'plain' as const,
                 locked: allBase,
@@ -259,10 +258,10 @@ export function EmpreButton({
     : [
         ...(signedIn
           ? [
-              { key: 'vuelta', title: 'Armar una vuelta', sub: 'Varias cosas en una salida a pie', icon: 'walk-outline' as IconName, tone: 'plain' as const, go: () => router.push('/vuelta') },
-              { key: 'salidas', title: 'Mis salidas', sub: 'Las ofertas que guardaste', icon: 'ticket-outline' as IconName, tone: 'plain' as const, go: () => router.push('/salidas') },
-              { key: 'citas', title: 'Mis citas', sub: 'Las que pediste', icon: 'calendar-outline' as IconName, tone: 'plain' as const, go: () => router.push('/appointments') },
-              { key: 'saved', title: 'Guardados', sub: 'Los negocios que te gustan', icon: 'bookmark-outline' as IconName, tone: 'plain' as const, go: () => router.push('/favorites') },
+              { key: 'vuelta', title: 'Armar una vuelta', icon: 'walk-outline' as IconName, tone: 'plain' as const, go: () => router.push('/vuelta') },
+              { key: 'salidas', title: 'Mis salidas', icon: 'ticket-outline' as IconName, tone: 'plain' as const, go: () => router.push('/salidas') },
+              { key: 'citas', title: 'Mis citas', icon: 'calendar-outline' as IconName, tone: 'plain' as const, go: () => router.push('/appointments') },
+              { key: 'saved', title: 'Guardados', icon: 'bookmark-outline' as IconName, tone: 'plain' as const, go: () => router.push('/favorites') },
             ]
           : []),
         ask,

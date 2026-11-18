@@ -128,10 +128,22 @@ export interface NumberAnswer {
   big: string | null;
   sub: string;
   link: string;
+  /** La frase como la dice Empre AI en el chat: el dato en negrita. */
+  say: { t: string; bold?: boolean }[];
+}
+
+/** La frase: «Hoy vendiste **$280.000** · 14 ventas.»; sin dato, solo lo que pasa («Hoy no has anotado ventas.»). */
+function sayOf(title: string, big: string | null, sub: string): { t: string; bold?: boolean }[] {
+  return big ? [{ t: `${title} ` }, { t: big, bold: true }, { t: ` · ${sub}.` }] : [{ t: sub }];
 }
 
 /** La respuesta con plantilla: la cifra sale de tus datos y lleva a su detalle. Si no hay datos, lo dice. */
 export function answerFor(q: NumberQuestion, d: NumbersData): NumberAnswer {
+  const a = answerData(q, d);
+  return { ...a, say: sayOf(a.title, a.big, a.sub) };
+}
+
+function answerData(q: NumberQuestion, d: NumbersData): Omit<NumberAnswer, 'say'> {
   const when = PERIOD_WORD[q.period];
   if (q.topic === 'sales') {
     const n = d.sales_count ?? 0;

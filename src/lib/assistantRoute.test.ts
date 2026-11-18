@@ -35,9 +35,11 @@ test('la respuesta sale de tus datos; sin datos lo dice, sin inventar un cero', 
   assert.equal(sales.title, 'Hoy vendiste');
   assert.equal(sales.big, '$280.000');
   assert.equal(sales.sub, '14 ventas');
+  assert.deepEqual(sales.say, [{ t: 'Hoy vendiste ' }, { t: '$280.000', bold: true }, { t: ' · 14 ventas.' }]);
   const none = answerFor({ topic: 'sales', period: 'week' }, { sales_total: 0, sales_count: 0 });
   assert.equal(none.big, null);
   assert.equal(none.sub, 'Esta semana no has anotado ventas.');
+  assert.deepEqual(none.say, [{ t: 'Esta semana no has anotado ventas.' }]);
   const owed = answerFor({ topic: 'owed_to_me', period: 'day' }, { owing: [{ name: 'Don Jorge', balance: 60000 }, { name: 'Ana', balance: 40000 }, { name: 'Luis', balance: 20000 }] });
   assert.equal(owed.big, '$120.000');
   assert.equal(owed.sub, '3 personas · Don Jorge, $60.000, el que más');

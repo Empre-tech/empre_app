@@ -53,10 +53,11 @@ export function proGroups({ agenda }: { agenda: boolean }): ProGroup[] {
     {
       key: 'ai',
       title: 'Empre AI',
-      short: 'Habla con Empre AI: registra, vende y gasta con tu voz',
+      short: 'Habla con Empre AI y Redactar con Empre AI',
       base: null,
       items: [
         { title: 'Habla con Empre AI', sub: 'Dices lo que pasó y entiende si es venta, gasto o inventario; te muestra todo antes de guardar. Con un tope al mes: siempre ves cuánto te queda.' },
+        { title: 'Redactar con Empre AI', sub: 'Títulos de ofertas, publicaciones y la descripción de tu negocio, en 3 opciones; tú eliges. Usa el mismo tope. La descripción al crear tu negocio va gratis.' },
       ],
     },
     {
