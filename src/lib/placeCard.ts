@@ -129,16 +129,23 @@ export function openingFromHours(hours: HourRow[] | undefined, now: Date, isOpen
 
 const SLOT_DAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
+/** «hoy», «mañana» o «el sábado», en hora de Colombia. Antes de hoy o a más de una semana: null. */
+export function dayWhen(at: Date, now: Date = new Date()): string | null {
+  const co = (d: Date) => new Date(d.getTime() - 5 * 3600 * 1000);
+  const dayIndex = (d: Date) => Math.floor(co(d).getTime() / 86400000);
+  const days = dayIndex(at) - dayIndex(now);
+  if (Number.isNaN(days) || days < 0 || days > 6) return null;
+  return days === 0 ? 'hoy' : days === 1 ? 'mañana' : `el ${SLOT_DAYS[co(at).getUTCDay()]}`;
+}
+
 /** «Hora libre hoy a las 4:30 pm», en hora de Colombia. Más allá de una semana, o sin fecha válida, no dice nada. */
 export function nextSlotText(iso: string | undefined, now: Date = new Date()): string | null {
   if (!iso) return null;
   const at = new Date(iso);
   if (Number.isNaN(at.getTime()) || at.getTime() <= now.getTime()) return null;
   const co = (d: Date) => new Date(d.getTime() - 5 * 3600 * 1000);
-  const dayIndex = (d: Date) => Math.floor(co(d).getTime() / 86400000);
-  const days = dayIndex(at) - dayIndex(now);
-  if (days > 6) return null;
-  const when = days === 0 ? 'hoy' : days === 1 ? 'mañana' : `el ${SLOT_DAYS[co(at).getUTCDay()]}`;
+  const when = dayWhen(at, now);
+  if (!when) return null;
   const h = co(at).getUTCHours();
   const m = co(at).getUTCMinutes();
   const clock = `${h % 12 === 0 ? 12 : h % 12}${m > 0 ? `:${String(m).padStart(2, '0')}` : ''} ${h < 12 ? 'am' : 'pm'}`;

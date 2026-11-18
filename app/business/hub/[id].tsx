@@ -24,7 +24,7 @@ import { GoProSheet } from '@/components/pro/GoProSheet';
 import { LOCKED_OPACITY, ProTag } from '@/components/pro/ProTag';
 import { GrowthCard } from '@/components/profile/GrowthCard';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
-import { ActionTile, StatusCap, SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
+import { StatusCap, SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
 import { FEATURES } from '@/config';
 import { ownerDraft } from '@/lib/answers';
 import { catalogCopy } from '@/lib/catalog';
@@ -34,7 +34,7 @@ import { displayIcon } from '@/lib/mapView';
 import { timeLeftLabel, timeLeftMs } from '@/lib/offer';
 import { isProSubscription } from '@/lib/proPlan';
 import { useNow } from '@/lib/useNow';
-import { colors, fonts, softShadow, spacing } from '@/theme';
+import { colors, fonts, softShadow, spacing, typeScale } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 interface HubRow {
@@ -45,6 +45,7 @@ interface HubRow {
   title: string;
   sub: string;
   alert?: boolean;
+  locked?: boolean;
   onPress: () => void;
 }
 
@@ -52,9 +53,9 @@ const startCO = (ymd: string) => `${ymd}T00:00:00-05:00`;
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
 
 /**
- * «Mi negocio», ordenado por lo que el dueño viene a hacer (tablero «Mi negocio», teléfono 2): la portada de cómo lo ven,
- * el día en una frase, «Lo que sigue» (lo que pide respuesta y las citas de hoy), sus
- * cuatro espacios con su dato, lo de todos los días y, al final, lo de vez en cuando. Lo principal cabe en la primera pantalla.
+ * «Mi negocio» administra (lienzo v113, «un rol por lugar»): la portada de cómo lo ven, el día en una frase, «Lo que
+ * sigue» (lo que pide respuesta y las citas de hoy), sus cuatro espacios con un dato que no se repite y lo de vez en
+ * cuando. Vender, ofertar y subir viven en el botón Empre; aquí no se repiten.
  */
 export default function BusinessHubScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -130,10 +131,11 @@ export default function BusinessHubScreen() {
   const photos = go({ pathname: '/business/my-photos/[id]', params: { id: entityId } });
   const agenda = go({ pathname: '/business/agenda/[id]', params: { id: entityId } });
   const finance = go({ pathname: '/business/ledger/[id]', params: { id: entityId } });
-  const sale = go({ pathname: '/business/ledger/sale/[id]', params: { id: entityId } });
   const profile = go({ pathname: '/business/[id]', params: { id: entityId } });
   const requests = inbox.byEntity.get(entityId)?.requests ?? 0;
   const soldToday = sold.data?.current.sales_total ?? 0;
+  const salesToday = sold.data?.current.sales_count ?? 0;
+  const owed = sold.data?.receivable ?? 0;
 
   const appts = (agendaDay.data ?? []).filter((a) => a.kind === 'booking' && (a.status === 'requested' || a.status === 'confirmed'));
   const confirmed = appts.filter((a) => a.status === 'confirmed').length;
@@ -158,22 +160,22 @@ export default function BusinessHubScreen() {
   const nItems = items.data?.length ?? 0;
   const nUnanswered = unansweredQ.data?.data?.length ?? 0;
   const spaces: { key: string; title: string; sub: string; symbol?: EmpreProduct; alert?: boolean; locked?: boolean; onPress: () => void }[] = [
-    ...(FEATURES.ledger ? [{ key: 'finance', title: 'Finanzas', sub: soldToday > 0 ? `Hoy ${formatPesos(soldToday)}` : 'Tu caja y lo que te deben', symbol: 'finance' as const, onPress: finance }] : []),
+    ...(FEATURES.ledger ? [{ key: 'finance', title: 'Finanzas', sub: owed > 0 ? `Te deben ${formatPesos(owed)}` : 'Tu caja y lo que te deben', symbol: 'finance' as const, onPress: finance }] : []),
     { key: 'products', title: 'Inventario', sub: stockAlert ? stockAlert.title : nItems > 0 ? (nItems === 1 ? '1 en tu catálogo' : `${nItems} en tu catálogo`) : `Agrega lo que ${copy.kind === 'service' ? 'ofreces' : 'vendes'}`, alert: Boolean(stockAlert), onPress: products },
     ...(FEATURES.agenda ? [{ key: 'agenda', title: 'Agenda', sub: requests > 0 ? `${requests} por responder` : confirmed > 0 ? (confirmed === 1 ? '1 cita hoy' : `${confirmed} citas hoy`) : 'Sin citas por ahora', symbol: 'agenda' as const, alert: requests > 0, onPress: agenda, ...(base && !requests && !confirmed ? { sub: 'Citas que se apartan solas', locked: true, onPress: () => setGoPro(true) } : {}) }] : []),
     { key: 'offers', title: 'Ofertas', sub: hasRunning ? timeLeftLabel(running) : 'Publica una', symbol: 'offers', onPress: offers },
   ];
   const later: HubRow[] = [
     // Todo lo que pasó en una línea de tiempo, con la meta del mes arriba (tablero «Actividad y meta»).
-    { key: 'activity', icon: 'pulse-outline', title: 'Actividad y meta', sub: 'Lo que pasó cada día y tu meta del mes', onPress: go({ pathname: '/business/activity/[id]', params: { id: entityId } }) },
-    { key: 'profile', icon: 'person-outline', title: 'Perfil público', sub: b.is_verified ? 'Nombre, horario, ubicación y contacto' : 'Aún sin verificar · nombre, horario y contacto', onPress: edit },
-    { key: 'photos', icon: 'images-outline', title: 'Fotos y videos', sub: `${b.photos?.length ?? 0} publicadas · súbelas y edítalas aquí`, onPress: photos },
-    { key: 'teach', icon: 'sparkles-outline', symbol: 'ai', product: 'Empre AI', title: 'Enséñale a Empre AI', sub: nUnanswered ? (nUnanswered === 1 ? '1 pregunta que no supo responder' : `${nUnanswered} preguntas que no supo responder`) : 'Lo que responde por ti en tu chat', alert: nUnanswered > 0, onPress: go({ pathname: '/business/teach/[id]', params: { id: entityId } }) },
+    { key: 'activity', icon: 'pulse-outline', title: 'Actividad y meta', sub: 'Lo que pasó y tu meta del mes', onPress: go({ pathname: '/business/activity/[id]', params: { id: entityId } }) },
+    { key: 'profile', icon: 'person-outline', title: 'Perfil público', sub: b.is_verified ? 'Nombre, horario y contacto' : 'Sin verificar · nombre, horario y contacto', onPress: edit },
+    { key: 'photos', icon: 'images-outline', title: 'Fotos y videos', sub: (b.photos?.length ?? 0) === 1 ? '1 publicada' : `${b.photos?.length ?? 0} publicadas`, onPress: photos },
+    { key: 'teach', icon: 'sparkles-outline', title: 'Enséñale a Empre AI', sub: nUnanswered ? (nUnanswered === 1 ? '1 pregunta que no supo responder' : `${nUnanswered} preguntas que no supo responder`) : 'Lo que responde por ti', alert: nUnanswered > 0, onPress: go({ pathname: '/business/teach/[id]', params: { id: entityId } }) },
     { key: 'reviews', icon: 'star-outline', title: 'Reseñas', sub: b.review_count > 0 ? (b.review_count === 1 ? '1 reseña' : `${b.review_count} reseñas`) : 'Aparecen cuando te visiten', onPress: go({ pathname: '/business/reviews/[id]', params: { id: entityId } }) },
-    ...(FEATURES.agenda ? [{ key: 'agent', icon: 'chatbubble-ellipses-outline' as const, symbol: 'agent' as const, product: 'Empre Agent', title: 'Citas con Agent', sub: 'Lo que resolvió solo y lo que espera tu decisión', onPress: go({ pathname: '/business/agent/[id]', params: { id: entityId, name: b.name } }) }] : []),
-    ...(FEATURES.ledger && FEATURES.tabs ? [{ key: 'tabs', icon: (b.business_profile === 'food' ? 'restaurant-outline' : 'receipt-outline') as IconName, title: b.business_profile === 'food' ? 'Mesas' : 'Cuentas abiertas', sub: b.business_profile === 'food' ? 'Lo que va pidiendo cada mesa, y cobrar al final' : 'Para clientes que piden varias cosas y pagan al final', onPress: go({ pathname: '/business/ledger/tabs/[id]', params: { id: entityId } }) }] : []),
-    { key: 'practice', icon: 'school-outline', title: 'Practicar el canje', sub: 'Con un QR de práctica: no cuenta como venta', onPress: go('/business/practice') },
-    { key: 'sub', icon: 'diamond-outline', title: 'Tu plan', sub: base ? 'Base, gratis · lo que suma Empre Pro' : subscription.isSuccess ? 'Empre Pro · pagos y renovación' : 'Base o Empre Pro', onPress: go({ pathname: '/business/subscription/[id]', params: { id: entityId } }) },
+    ...(FEATURES.agenda ? [{ key: 'agent', icon: 'chatbubble-ellipses-outline' as const, title: 'Citas con Agent', sub: 'Lo que resolvió solo', ...(base ? { locked: true, onPress: () => setGoPro(true) } : { onPress: go({ pathname: '/business/agent/[id]', params: { id: entityId, name: b.name } }) }) }] : []),
+    ...(FEATURES.ledger && FEATURES.tabs ? [{ key: 'tabs', icon: (b.business_profile === 'food' ? 'restaurant-outline' : 'receipt-outline') as IconName, title: b.business_profile === 'food' ? 'Mesas' : 'Cuentas abiertas', sub: b.business_profile === 'food' ? 'Lo que pide cada mesa' : 'Para los que pagan al final', onPress: go({ pathname: '/business/ledger/tabs/[id]', params: { id: entityId } }) }] : []),
+    { key: 'practice', icon: 'school-outline', title: 'Practicar el canje', sub: 'Con un QR que no cuenta como venta', onPress: go('/business/practice') },
+    { key: 'sub', icon: 'diamond-outline', title: 'Tu plan', sub: base ? 'Base · gratis' : subscription.isSuccess ? 'Empre Pro' : 'Base o Empre Pro', onPress: go({ pathname: '/business/subscription/[id]', params: { id: entityId } }) },
   ];
   const renderRows = (list: HubRow[]) => list.map(({ key, ...r }, i) => <SystemRow key={key} first={i === 0} {...r} />);
 
@@ -214,27 +216,14 @@ export default function BusinessHubScreen() {
               Hoy {FEATURES.agenda && confirmed ? <>tienes <Text style={styles.dsAgenda}>{`${confirmed} ${confirmed === 1 ? 'cita' : 'citas'}`}</Text></> : null}
               {FEATURES.agenda && confirmed && requests ? ', ' : ''}
               {requests ? <Text style={styles.dsUnder}>{`${requests} por responder`}</Text> : null}
-              {soldToday > 0 ? <>{(FEATURES.agenda && confirmed) || requests ? ' y llevas ' : 'llevas '}<Text style={styles.dsMoney}>{formatPesos(soldToday)}</Text></> : null}.
+              {soldToday > 0 ? <>{(FEATURES.agenda && confirmed) || requests ? ' y llevas ' : 'llevas '}<Text style={styles.dsMoney}>{formatPesos(soldToday)}</Text>{salesToday > 0 ? ` en ${salesToday} ${salesToday === 1 ? 'venta' : 'ventas'}` : ''}</> : null}.
             </>
           ) : (
-            'Hoy todavía no hay movimiento. Empieza por lo de abajo.'
+            'Hoy todavía no hay ventas. Anótalas con el botón Empre.'
           )}
         </Text>
-        <View style={styles.main}>
-          {FEATURES.ledger && soldToday > 0 ? (
-            <View style={styles.mainTop}>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Hoy vas ${formatPesos(soldToday)}. Abrir Finanzas`} onPress={finance} style={styles.today}>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.label}>Hoy vas</Text>
-                  <Text style={styles.big} numberOfLines={1} adjustsFontSizeToFit>
-                    {formatPesos(soldToday)}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.ink} />
-              </Pressable>
-            </View>
-          ) : null}
-          {steps.length ? (
+        {steps.length ? (
+          <View style={styles.main}>
             <View style={styles.next}>
               <Text style={styles.label}>Lo que sigue</Text>
               {steps.map((st, i) => (
@@ -258,22 +247,8 @@ export default function BusinessHubScreen() {
                 </Pressable>
               ))}
             </View>
-          ) : (
-            <View style={styles.mainFoot}>
-              <View style={styles.footText} accessibilityLiveRegion="polite">
-                <Text style={styles.footHead} numberOfLines={1}>
-                  {soldToday > 0 ? 'Sin citas por ahora' : 'Aún sin ventas hoy'}
-                </Text>
-                <Text style={styles.footSub} numberOfLines={1}>
-                  {soldToday > 0 ? '¿Vendiste algo más?' : 'Toma dos toques registrar la primera'}
-                </Text>
-              </View>
-              <Pressable accessibilityRole="button" onPress={sale} style={styles.btnRed}>
-                <Text style={styles.btnRedText}>Registrar venta</Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
+          </View>
+        ) : null}
 
         {/* Empre AI te deja lista la respuesta (tablero «Mi negocio», teléfono 2): la envías o la cambias */}
         {waiting ? (
@@ -335,16 +310,6 @@ export default function BusinessHubScreen() {
           </Pressable>
         ) : null}
 
-        <View style={{ gap: 8 }}>
-          <Text style={styles.label}>Lo de todos los días</Text>
-          <View style={styles.tiles}>
-            {/* Las tres del tablero «Mi negocio»: canjear y anotar un gasto viven en el botón Empre y en tu perfil */}
-            <ActionTile icon="add-circle-outline" label={copy.kind === 'service' ? 'Nuevo servicio' : 'Nuevo producto'} onPress={go({ pathname: '/business/products/item', params: { entityId, kind: copy.kind === 'service' ? 'service' : 'product' } })} />
-            <ActionTile icon="pricetag-outline" label="Crear una oferta" onPress={offers} />
-            {FEATURES.ledger ? <ActionTile icon="cash-outline" label="Anotar una venta" onPress={sale} /> : null}
-          </View>
-        </View>
-
         <SystemSection title="Lo de vez en cuando">
           <SystemGroup>{renderRows(later)}</SystemGroup>
         </SystemSection>
@@ -389,60 +354,52 @@ function DraftCard({ customer, question, draft, onSend, onOpen }: { customer: st
 const styles = StyleSheet.create({
   draft: { gap: 8, padding: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   draftHead: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  draftWho: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  draftText: { fontSize: 15, lineHeight: 21, fontFamily: fonts.ui.semibold, color: colors.ink },
-  draftBold: { fontFamily: fonts.ui.extrabold },
-  draftQuote: { fontSize: 15, lineHeight: 21, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  draftWho: { ...typeScale.label, color: colors.ink },
+  draftText: { ...typeScale.title, lineHeight: 21, fontFamily: fonts.ui.medium, color: colors.ink },
+  draftBold: { fontFamily: fonts.ui.semibold },
+  draftQuote: { ...typeScale.title, lineHeight: 21, color: colors.ink },
   draftBtns: { flexDirection: 'row', gap: 8, marginTop: 2 },
   draftBtn: { flex: 1, alignItems: 'center' },
   draftEdit: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderColor: colors.nightSoft },
-  draftEditText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  draftEditText: { ...typeScale.title, color: colors.ink },
   switchRow: { flexDirection: 'row', marginBottom: 12 },
   screen: { flex: 1, backgroundColor: colors.bg },
   body: { paddingHorizontal: 20, gap: 16 },
   main: { borderRadius: 20, overflow: 'hidden', backgroundColor: colors.surface, ...softShadow },
-  mainTop: { gap: 10, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.selectedSoft },
-  big: { fontSize: 30, lineHeight: 34, fontFamily: fonts.display.bold, color: colors.finance, fontVariant: ['tabular-nums'] },
-  label: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
+  label: { ...typeScale.label, color: colors.muted },
   // «Lo que sigue»: la hora a la izquierda (roja si es ahora), qué es y, si pide algo, el botón.
   next: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
   nextRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12 },
   nextLine: { borderTopWidth: 1, borderTopColor: colors.selectedSoft },
-  nextHour: { width: 52, fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  nextHour: { ...typeScale.body, width: 52, fontFamily: fonts.ui.semibold, color: colors.ink, fontVariant: ['tabular-nums'] },
   nextHourNow: { color: colors.agenda },
-  nextTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  nextSub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
+  nextTitle: { ...typeScale.title, color: colors.ink },
+  nextSub: { ...typeScale.body, color: colors.muted },
   nextCta: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 18, borderWidth: 1.5, borderColor: colors.nightSoft },
-  nextCtaText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  daySentence: { fontFamily: fonts.display.bold, fontSize: 22, lineHeight: 26, color: colors.ink, marginBottom: 12 },
+  nextCtaText: { ...typeScale.body, fontFamily: fonts.ui.semibold, color: colors.ink },
+  daySentence: { fontSize: 20, lineHeight: 26, fontFamily: fonts.ui.semibold, letterSpacing: -0.2, color: colors.ink },
   dsAgenda: { color: colors.agenda },
   dsUnder: { textDecorationLine: 'underline' },
   dsMoney: { color: colors.finance },
-  mainFoot: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingLeft: 16, paddingRight: 12 },
-  footText: { flex: 1, minWidth: 0, gap: 2 },
-  footHead: { fontSize: 16, lineHeight: 20, fontFamily: fonts.display.bold, color: colors.ink },
-  footSub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   btnRed: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
-  btnRedText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  tiles: { flexDirection: 'row', gap: 8 },
+  btnRedText: { ...typeScale.title, color: colors.ink },
   seen: { borderRadius: 20, overflow: 'hidden', ...softShadow },
   seenCover: { height: 136, justifyContent: 'flex-end' },
   // Un velo bajo el nombre: sobre una foto clara el texto blanco se seguiría leyendo.
   seenBody: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: 'rgba(11, 21, 38, 0.55)' },
-  seenLink: { flexShrink: 0, fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: '#fff', textDecorationLine: 'underline' },
+  seenLink: { ...typeScale.body, flexShrink: 0, fontFamily: fonts.ui.semibold, color: '#fff', textDecorationLine: 'underline' },
   back: { position: 'absolute', top: 10, left: 10, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  today: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8 },
   spaces: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   space: { width: '48.8%', minHeight: 92, justifyContent: 'space-between', gap: 6, padding: 12, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
   spaceBody: { flex: 1, justifyContent: 'space-between', gap: 6 },
   spaceLocked: { backgroundColor: colors.well },
   spaceTag: { position: 'absolute', top: 12, right: 12 },
   goPro: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderRadius: 16, borderWidth: 2, borderColor: colors.brandRef, backgroundColor: colors.surface },
-  goProTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  goProTitle: { ...typeScale.title, color: colors.ink },
   spaceDot: { position: 'absolute', top: 12, right: 12, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.brand },
-  spaceTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  spaceSub: { fontSize: 12.5, lineHeight: 16, fontFamily: fonts.ui.semibold, color: colors.muted },
+  spaceTitle: { ...typeScale.title, color: colors.ink },
+  spaceSub: { ...typeScale.body, color: colors.muted },
   seenAvatar: { width: 44, height: 44, borderRadius: 12, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  seenName: { fontSize: 16, lineHeight: 20, fontFamily: fonts.display.bold, color: '#fff' },
-  seenMeta: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#fff' },
+  seenName: { ...typeScale.name, color: '#fff' },
+  seenMeta: { ...typeScale.body, color: '#fff' },
 });

@@ -91,6 +91,20 @@ export const fonts = {
   },
 } as const;
 
+/**
+ * La escala de letra (plan «un rol por lugar», 2026-11-17): una sola para Perfil, Mi negocio y lo que se sume. Nombres
+ * 17/600, títulos de cuadro 15/600, texto 13/500, etiquetas 12, cifras grandes 28/700. Nada de 11,5, 12,5 ni 800 en
+ * números chicos; la fuente de títulos queda para los títulos grandes.
+ */
+export const typeScale = {
+  name: { fontSize: 17, lineHeight: 22, fontFamily: fonts.ui.semibold },
+  title: { fontSize: 15, lineHeight: 20, fontFamily: fonts.ui.semibold },
+  body: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium },
+  label: { fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.semibold },
+  figure: { fontSize: 28, lineHeight: 34, fontFamily: fonts.ui.extrabold, fontVariant: ['tabular-nums'] as ['tabular-nums'] },
+  figureSmall: { fontSize: 15, lineHeight: 20, fontFamily: fonts.ui.extrabold, fontVariant: ['tabular-nums'] as ['tabular-nums'] },
+} as const;
+
 /** Sombra de las tarjetas sobre fondo blanco (como en la vitrina). */
 export const cardShadow = {
   shadowColor: '#2B2622',

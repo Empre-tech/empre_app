@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmpreSymbol, type EmpreProduct } from '@/components/EmpreSymbol';
 import { AnimatedFill } from '@/components/finance/FinanceMotion';
+import { LOCKED_OPACITY, ProTag } from '@/components/pro/ProTag';
 import { colors, fonts, softShadow } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -66,7 +67,24 @@ export function SystemGroup({ children }: { children: ReactNode }) {
 }
 
 /** Una fila. Lo urgente lleva un punto, no otro color. Sin `onPress` es solo un dato. */
-export function SystemRow({ icon, symbol, tag, product, title, sub, amount, alert, first, onPress }: { icon: IconName; symbol?: EmpreProduct; tag?: string; product?: string; title: string; sub?: string; amount?: string; alert?: boolean; first?: boolean; onPress?: () => void }) {
+export function SystemRow({ icon, symbol, tag, product, title, sub, amount, alert, first, locked, onPress }: { icon: IconName; symbol?: EmpreProduct; tag?: string; product?: string; title: string; sub?: string; amount?: string; alert?: boolean; first?: boolean; locked?: boolean; onPress?: () => void }) {
+  if (locked && onPress) {
+    // De Empre Pro en Base: en gris, con la corona en lugar de la flecha; tocarla abre «Pásate a Empre Pro».
+    return (
+      <Pressable accessibilityRole="button" accessibilityLabel={[title, sub, 'Es de Empre Pro'].filter(Boolean).join('. ')} accessibilityHint="Abre Pásate a Empre Pro" onPress={onPress} style={({ pressed }) => [styles.row, !first && styles.rowLine, pressed && { opacity: 0.85 }]}>
+        <View style={[styles.rowLocked, { opacity: LOCKED_OPACITY }]}>
+          <View style={styles.rowIcon}>
+            <Ionicons name={icon} size={18} color={colors.ink} />
+          </View>
+          <View style={styles.rowText}>
+            <Text style={styles.rowTitle}>{title}</Text>
+            {sub ? <Text style={styles.rowSub}>{sub}</Text> : null}
+          </View>
+        </View>
+        <ProTag />
+      </Pressable>
+    );
+  }
   const body = (
     <>
       <View style={styles.rowIcon}>
@@ -168,6 +186,7 @@ const styles = StyleSheet.create({
   row: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
   rowLine: { borderTopWidth: 1, borderTopColor: colors.selectedSoft },
   rowIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
+  rowLocked: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
   rowText: { flex: 1, minWidth: 0, gap: 1 },
   rowTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 6 },
   rowTag: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.faint },

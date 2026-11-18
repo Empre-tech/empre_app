@@ -236,6 +236,8 @@ export function EmpreButton({
     : entities.length
     ? [
         ...goProItem,
+        // Un rol por lugar (lienzo v113): canjear vive aquí, no en la carta de Perfil.
+        { key: 'scan', title: 'Canjear un QR', icon: 'scan-outline', tone: 'plain', go: () => router.push('/business/scan') },
         { key: 'service', title: 'Subir un servicio', icon: 'camera-outline', tone: 'plain', forBusiness: (id) => router.push({ pathname: '/business/products/item', params: { entityId: id } }) },
         offer,
         ...(FEATURES.agenda
