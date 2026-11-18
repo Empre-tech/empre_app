@@ -286,7 +286,7 @@ export function EmpreButton({
 
       <Modal visible={open} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => (asking ? setAsking(null) : close())}>
         <Animated.View style={[StyleSheet.absoluteFill, { opacity: fade }]}>
-          {/* Velo blanco: lo de atrás se aclara, no se oscurece. */}
+          {/* Velo blanco: lo de atrás se desvanece (no se oscurece) para que el menú se lea solo, sin interferencias. */}
           <Pressable accessibilityRole="button" accessibilityLabel="Cerrar el menú de Empre" onPress={() => close()} style={styles.veil} />
 
           {asking ? (
@@ -415,7 +415,9 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   pressed: { opacity: 0.8 },
-  veil: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(43,38,34,0.06)' },
+  // Velo blanco al 88 % (usuario, 2026-11-17; tablero «Base y Empre Pro»): lo de atrás se desvanece y no compite con
+  // el menú, que se lee solo. Entra con el mismo fundido del menú.
+  veil: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(255,255,255,0.88)' },
   menu: { position: 'absolute', right: SIDE, left: SIDE, alignItems: 'flex-end', gap: 8 },
   itemBody: { flexShrink: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
   // Lo de Pro en Base: sobre arena clara, sin sombra que lo haga parecer activo.
