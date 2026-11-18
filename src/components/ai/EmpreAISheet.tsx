@@ -5,21 +5,20 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/auth/AuthContext';
 import { Chispa } from '@/components/ai/Chispa';
-import { VoiceSheet } from '@/components/ledger/VoiceSheet';
 import { hourIdeas } from '@/lib/askChips';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts } from '@/theme';
 
 /**
- * Empre AI al centro de la barra para quien no tiene negocio (3.66): hablar, escribir o una idea para esta hora. Hablar
- * abre el modo voz en «Buscar» (3.65); escribir, el buscador único.
+ * Buscar con Empre AI para quien no tiene negocio (3.66; tablero «Empre AI · un asistente por trabajo»): hablar, escribir
+ * o una idea para esta hora. Hablar y escribir abren el mismo buscador (con el micrófono en la barra), así que dan los
+ * mismos resultados; aquí no se anota nada de un negocio.
  */
 export function EmpreAISheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const reduce = useReduceMotion();
   const { status } = useAuth();
-  const [voice, setVoice] = useState(false);
   const [hour] = useState(() => new Date().getHours());
   const ideas = hourIdeas(hour);
 
@@ -47,7 +46,7 @@ export function EmpreAISheet({ visible, onClose }: { visible: boolean; onClose: 
               </Pressable>
             </View>
 
-            <Pressable accessibilityRole="button" accessibilityLabel="Hablar con Empre AI" onPress={() => go(() => setVoice(true))} style={({ pressed }) => [styles.talk, pressed && styles.pressed]}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Hablar con Empre AI" onPress={() => go(() => router.push({ pathname: '/ask', params: { voice: '1' } }))} style={({ pressed }) => [styles.talk, pressed && styles.pressed]}>
               <Ionicons name="mic" size={22} color="#FFFFFF" />
               <View style={{ flex: 1 }}>
                 <Text style={styles.talkTitle}>Hablar con Empre AI</Text>
@@ -80,7 +79,6 @@ export function EmpreAISheet({ visible, onClose }: { visible: boolean; onClose: 
           </View>
         </View>
       </Modal>
-      <VoiceSheet entityId="" visible={voice} onClose={() => setVoice(false)} hints={[]} defaultMode="search" />
     </>
   );
 }

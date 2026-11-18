@@ -6,7 +6,9 @@ import { ActivityIndicator, Animated, KeyboardAvoidingView, Modal, Platform, Pre
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { catalogApi } from '@/api/catalog';
 import { ApiError } from '@/api/client';
+import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi, type AdjustReason, type InventoryItem, type VoiceAction, type VoiceResult } from '@/api/ledger';
+import { answerFor, askWhichReading, destinationLabel, MODULE_COPY, numberQuestions, otherJob, serverModule, type AssistantModule, type NumberAnswer, type OtherJob } from '@/lib/assistantRoute';
 import { useEntitySections } from '@/api/sections';
 import { Button } from '@/components/Button';
 import { Chispa } from '@/components/ai/Chispa';
@@ -113,16 +115,24 @@ const ROW_ICON: Record<LiveRow['icon'], keyof typeof Ionicons.glyphMap> = {
   cheap: 'cash-outline',
 };
 
-const MODES: { key: EmpreAIMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { key: 'finance', label: 'Finanzas', icon: 'wallet-outline' },
-  { key: 'inventory', label: 'Inventario', icon: 'cube-outline' },
-  { key: 'search', label: 'Buscar', icon: 'search' },
-];
+/** El ícono del chip de cada módulo (dónde se abrió la hoja). */
+const MODULE_ICON: Record<AssistantModule, keyof typeof Ionicons.glyphMap> = {
+  finance: 'wallet-outline',
+  inventory: 'cube-outline',
+  debts: 'people-outline',
+  tab: 'receipt-outline',
+  none: 'storefront-outline',
+};
 
 /**
  * Empre AI por voz (3.65): la Chispa hace de orbe y su aura crece con el volumen real del micrófono; lo que dices
  * aparece grande con las palabras entendidas marcadas y, debajo, lo que se va armando en vivo (solo con reglas). Nada
  * mueve caja ni inventario sin que el dueño confirme.
+ *
+ * «Habla con Empre AI» por trabajo (tablero «Empre AI · un asistente por trabajo», 2026-11-17): sin pestañas. Un chip
+ * dice dónde se abrió la hoja (`module`), y eso solo desempata lo que tiene dos lecturas y elige los ejemplos. Buscar
+ * otros negocios y redactar textos son de otro trabajo: no se responden aquí, se llevan a su lugar. Las preguntas sobre
+ * tus números se responden con tus datos y una plantilla, sin modelo.
  */
 export function VoiceSheet({
   entityId,
@@ -131,6 +141,7 @@ export function VoiceSheet({
   hints,
   tabId,
   defaultMode = 'finance',
+  module: moduleProp,
   onConfirmed,
 }: {
   entityId: string;
@@ -139,15 +150,23 @@ export function VoiceSheet({
   hints: string[];
   /** Se dicta desde dentro de una cuenta abierta: lo pedido va a esa cuenta. */
   tabId?: string;
-  /** Módulo inicial al abrir Empre AI Live: 'finance', 'inventory' o 'search'. */
+  /** Antes del tablero por trabajo: 'search' es la búsqueda del cliente; 'finance' e 'inventory' equivalen a `module`. */
   defaultMode?: EmpreAIMode;
+  /** Dónde se abrió la hoja del negocio. Sin él: la cuenta si hay `tabId`; si no, lo que diga `defaultMode`. */
+  module?: AssistantModule;
   /** Permite avisar al mostrador cuando se confirma una venta o gasto dictado. */
   onConfirmed?: (actions: VoiceAction[]) => void;
 }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
-  const [mode, setMode] = useState<EmpreAIMode>(defaultMode);
+  const isSearch = !entityId || defaultMode === 'search';
+  const module: AssistantModule = moduleProp ?? (tabId ? 'tab' : defaultMode === 'inventory' ? 'inventory' : 'finance');
+  // Lo que usan las frases de cada fase: la búsqueda del cliente, inventario o la plata.
+  const mode: EmpreAIMode = isSearch ? 'search' : module === 'inventory' ? 'inventory' : 'finance';
+  const [other, setOther] = useState<OtherJob | null>(null);
+  const [numbers, setNumbers] = useState<NumberAnswer[] | null>(null);
+  const [doubt, setDoubt] = useState<{ text: string; qty: number; name: string } | null>(null);
   const [text, setText] = useState('');
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [listening, setListening] = useState(false);
@@ -192,12 +211,10 @@ export function VoiceSheet({
     [text, items.data],
   );
 
-  // Si el usuario menciona palabras claras de inventario («se acabó», «queda poco»), sugerimos visualmente ese contexto.
-  useEffect(() => {
-    if (live.stock.length > 0 && live.lines.length === 0 && !live.expense && mode === 'finance') {
-      setMode('inventory');
-    }
-  }, [live.stock.length, live.lines.length, live.expense, mode]);
+  // El chip: dónde estás. Desde el botón Empre en otra pantalla, el nombre del negocio.
+  const mine = useQuery({ queryKey: ['my-entities'], queryFn: entitiesApi.mine, enabled: visible && !isSearch, staleTime: 60_000 });
+  const businessName = mine.data?.find((e) => e.id === entityId)?.name;
+  const chipLabel = MODULE_COPY[module].label ?? businessName ?? 'Tu negocio';
 
   const listen = async () => {
     if (listening) {
@@ -231,12 +248,14 @@ export function VoiceSheet({
 
   useEffect(() => {
     if (visible) {
-      setMode(defaultMode);
       setText('');
       setError(null);
       setErrorCode(null);
       setResult(null);
       setAnswer(null);
+      setOther(null);
+      setNumbers(null);
+      setDoubt(null);
       setActions([]);
       setDone(false);
       setBusy(false);
@@ -254,13 +273,27 @@ export function VoiceSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, defaultMode]);
 
-  const interpret = async () => {
-    const t = text.trim();
+  // Tus números con plantillas: la cifra sale de lo que anotaste; sin modelo y sin gastar el tope.
+  const answerNumbers = async (qs: ReturnType<typeof numberQuestions>) => {
+    const period = qs.find((q) => q.topic === 'sales' || q.topic === 'expenses')?.period ?? 'day';
+    const needSummary = qs.some((q) => q.topic === 'sales' || q.topic === 'expenses');
+    const needParties = qs.some((q) => q.topic === 'owed_to_me' || q.topic === 'i_owe');
+    const [summary, parties] = await Promise.all([
+      needSummary ? ledgerApi.summary(entityId, period) : Promise.resolve(null),
+      needParties ? ledgerApi.parties(entityId, { owing: '1' }) : Promise.resolve([]),
+    ]);
+    const byBalance = (kind: string) => parties.filter((p) => p.kind === kind && p.balance > 0).sort((a, b) => b.balance - a.balance).map((p) => ({ name: p.name, balance: p.balance }));
+    const data = { sales_total: summary?.sales_total, sales_count: summary?.sales_count, expenses_total: summary?.expenses_total, owing: byBalance('customer'), owed: byBalance('supplier') };
+    setNumbers(qs.map((q) => answerFor(q, data)));
+  };
+
+  const interpret = async (said?: string) => {
+    const t = (said ?? text).trim();
     if (!t || busy) return;
     stopRef.current?.();
     setListening(false);
 
-    if (mode === 'search' || !entityId) {
+    if (isSearch) {
       onClose();
       setTimeout(() => {
         router.push({ pathname: '/ask', params: { q: t } });
@@ -268,13 +301,26 @@ export function VoiceSheet({
       return;
     }
 
+    // Lo de otro trabajo no se responde aquí: se lleva a su lugar, sin gastar el tope.
+    const job = otherJob(t);
+    if (job) {
+      setOther(job);
+      return;
+    }
+
     setBusy(true);
     setError(null);
     try {
+      // «¿Cuánto vendí?» es una pregunta, no una venta: va antes que las reglas de plata e inventario.
+      const qs = numberQuestions(t);
+      if (qs.length > 0) {
+        await answerNumbers(qs);
+        return;
+      }
       if (await handleLocally(t)) return;
-      const r = await ledgerApi.voiceParse(entityId, t, tabId);
+      const r = await ledgerApi.voiceParse(entityId, t, tabId, serverModule(module));
       const priced = await withPriceAsk(t, r.actions);
-      const parsed = mode === 'inventory' ? await keepInInventory(t, priced) : priced;
+      const parsed = module === 'inventory' ? await keepInInventory(t, priced) : priced;
       setResult(r);
       setActions(parsed);
       if (parsed.length === 0) setError(r.message ?? 'No entendí qué registrar. Prueba con otra frase.');
@@ -296,7 +342,12 @@ export function VoiceSheet({
   // Preguntar, sumar, descontar y contar no pasan por el modelo: se resuelven aquí, al instante y sin costo.
   const handleLocally = async (t: string): Promise<boolean> => {
     const intent = isMoneyTalk(t) || isPriceStatement(t) ? null : inventoryIntent(t);
-    if (!intent || (intent.kind !== 'ask' && mode !== 'inventory')) return false;
+    // «30 pollos» desde el botón Empre en otra pantalla: dos lecturas, así que se pregunta antes de gastar el tope.
+    if (intent && intent.kind === 'count' && askWhichReading(module, intent.kind, false)) {
+      setDoubt({ text: t, qty: intent.qty, name: intent.name });
+      return true;
+    }
+    if (!intent || (intent.kind !== 'ask' && module !== 'inventory')) return false;
     let items: InventoryItem[];
     try {
       items = (await qc.fetchQuery({ queryKey: ['ledger', entityId, 'inventory'], queryFn: () => ledgerApi.inventory(entityId), staleTime: 15_000 })).items;
@@ -311,6 +362,33 @@ export function VoiceSheet({
     }
     startLocal(t, [localMove(intent.name, intent.kind, intent.qty, items, intent.kind === 'remove' ? intent.reason : 'otro')]);
     return true;
+  };
+
+  // La respuesta a «¿Vendiste 30 pollos o te llegaron?»: vendidos pasa por el modelo (con «vendí»); llegaron o es lo que
+  // hay se arma aquí, sin costo.
+  const resolveDoubt = async (kind: 'sold' | 'add' | 'count') => {
+    if (!doubt) return;
+    const d = doubt;
+    setDoubt(null);
+    if (kind === 'sold') {
+      void interpret(`vendí ${d.text}`);
+      return;
+    }
+    try {
+      const items = (await qc.fetchQuery({ queryKey: ['ledger', entityId, 'inventory'], queryFn: () => ledgerApi.inventory(entityId), staleTime: 15_000 })).items;
+      startLocal(d.text, [localMove(d.name, kind, d.qty, items, 'otro')]);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+
+  // Volver a la hoja para decir otra cosa.
+  const again = () => {
+    setOther(null);
+    setNumbers(null);
+    setDoubt(null);
+    setAnswer(null);
+    setText('');
   };
 
   const keepInInventory = async (t: string, list: VoiceAction[]): Promise<VoiceAction[]> => {
@@ -411,7 +489,11 @@ export function VoiceSheet({
   const canGo = Boolean(text.trim()) && !busy;
   const goLabel = mode === 'search' ? 'Buscar' : liveIntent?.kind === 'ask' ? 'Preguntar' : mode === 'inventory' ? 'Actualizar' : 'Seguir y revisar';
   const hintLine =
-    mode !== 'search' && text.trim() && rows.length === 0 && !listening && !busy
+    mode !== 'search' && text.trim() && !listening && !busy && otherJob(text)
+      ? 'Eso es de otro lugar: te digo a dónde ir. No gasta tu tope.'
+      : mode !== 'search' && text.trim() && !listening && !busy && numberQuestions(text).length > 0
+        ? 'Vas a preguntar por tus números: sale de lo que anotaste y no gasta tu tope.'
+        : mode !== 'search' && text.trim() && rows.length === 0 && !listening && !busy
       ? liveIntent?.kind === 'ask'
         ? `Vas a preguntar si hay «${liveIntent.name}».`
         : liveIntent?.kind === 'add' && mode === 'inventory'
@@ -504,8 +586,117 @@ export function VoiceSheet({
               )}
               <View style={{ gap: spacing.sm }}>
                 <Button title="Listo" onPress={onClose} />
-                <Button title="Preguntar otra cosa" variant="ghost" onPress={() => { setAnswer(null); setText(''); }} />
+                <Button title="Preguntar otra cosa" variant="ghost" onPress={again} />
               </View>
+            </>
+          ) : other ? (
+            // Lo de otro trabajo (tablero, teléfono 5): no se responde a medias; se lleva a su lugar y no gasta el tope.
+            <>
+              <View style={styles.headRow}>
+                <View style={styles.brandRow}>
+                  <Chispa size={30} animated={false} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.liveBrandText}>Empre AI · eso es de otro lugar</Text>
+                    <Text style={styles.title} accessibilityLiveRegion="polite">
+                      {other.job === 'search' ? 'Eso es para buscar negocios' : 'Eso se hace en Redactar'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <Text style={styles.heard} numberOfLines={3}>
+                Dijiste: «{text.trim()}»
+              </Text>
+              <Text style={styles.cardMeta}>
+                {other.job === 'search'
+                  ? `Aquí anoto y respondo sobre ${businessName ?? 'tu negocio'}. Para ver quién vende algo cerca, usa Buscar con Empre AI.`
+                  : 'Redactar con Empre AI vive dentro de cada texto: el título de una oferta, una publicación o la descripción de tu negocio.'}
+              </Text>
+              <View style={{ gap: spacing.sm }}>
+                {other.job === 'search' ? (
+                  <Button
+                    title={`Buscar «${other.query}»`}
+                    onPress={() => {
+                      onClose();
+                      setTimeout(() => router.push({ pathname: '/ask', params: { q: other.query } }), 80);
+                    }}
+                  />
+                ) : (
+                  <Button
+                    title="Crear una oferta"
+                    onPress={() => {
+                      onClose();
+                      setTimeout(() => router.push({ pathname: '/business/offers/new', params: { entityId } }), 80);
+                    }}
+                  />
+                )}
+                <Text style={styles.freeNote}>No gasta tu tope del mes.</Text>
+                <Button title="Decir otra cosa" variant="ghost" onPress={again} />
+              </View>
+            </>
+          ) : numbers ? (
+            // Tus números (teléfono 4): plantillas con tus datos; cada cifra lleva a su detalle.
+            <>
+              <View style={styles.headRow}>
+                <View style={styles.brandRow}>
+                  <Chispa size={30} animated={false} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.liveBrandText}>Empre AI · tus números</Text>
+                    <Text style={styles.title} accessibilityLiveRegion="polite">
+                      «{text.trim()}»
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <ScrollView style={{ maxHeight: 470 }} contentContainerStyle={{ gap: spacing.sm }}>
+                {numbers.map((n) => (
+                  <Pressable
+                    key={n.topic}
+                    accessibilityRole="link"
+                    accessibilityLabel={`${n.title}: ${n.big ?? n.sub}. ${n.link}`}
+                    onPress={() => {
+                      onClose();
+                      const to = n.topic === 'owed_to_me' || n.topic === 'i_owe' ? '/business/ledger/debts/[id]' : '/business/ledger/[id]';
+                      setTimeout(() => router.push({ pathname: to, params: { id: entityId } }), 80);
+                    }}
+                    style={({ pressed }) => [styles.numberCard, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.cardMeta}>{n.title}</Text>
+                    {n.big ? <Text style={styles.numberBig}>{n.big}</Text> : null}
+                    <Text style={n.big ? styles.cardMeta : styles.numberEmpty}>{n.sub}</Text>
+                    <View style={styles.numberLink}>
+                      <Text style={styles.numberLinkText}>{n.link}</Text>
+                      <Ionicons name="chevron-forward" size={14} color={colors.ink} />
+                    </View>
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <Text style={styles.freeNote}>Sale de lo que anotaste. Preguntar por tus números no gasta tu tope.</Text>
+              <View style={{ gap: spacing.sm }}>
+                <Button title="Listo" onPress={onClose} />
+                <Button title="Preguntar otra cosa" variant="ghost" onPress={again} />
+              </View>
+            </>
+          ) : doubt ? (
+            // Lo dudoso (teléfono 3): desde otra pantalla «30 pollos» tiene dos lecturas; se pregunta antes de gastar.
+            <>
+              <View style={styles.headRow}>
+                <View style={styles.brandRow}>
+                  <Chispa size={30} animated={false} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.liveBrandText}>Empre AI · una pregunta</Text>
+                    <Text style={styles.title} accessibilityLiveRegion="polite">
+                      {`¿Vendiste ${doubt.qty} ${doubt.name} o te llegaron?`}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <Text style={styles.cardMeta}>{`«${doubt.text}» puede ser las dos cosas. Elige y lo dejo listo para revisar.`}</Text>
+              <View style={{ gap: spacing.sm }}>
+                <Button title="Los vendí" onPress={() => void resolveDoubt('sold')} loading={busy} />
+                <Button title="Me llegaron" variant="secondary" onPress={() => void resolveDoubt('add')} />
+                <Button title="Ninguna: es lo que hay ahora" variant="ghost" onPress={() => void resolveDoubt('count')} />
+              </View>
+              {error ? <Text style={styles.error}>{error}</Text> : null}
             </>
           ) : !result || actions.length === 0 ? (
             <>
@@ -521,23 +712,18 @@ export function VoiceSheet({
                 </Pressable>
               </View>
 
-              <View style={styles.modeTrack} accessibilityRole="tablist">
-                {MODES.filter((m) => m.key === 'search' || entityId).map((m) => (
-                  <Pressable
-                    key={m.key}
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected: mode === m.key }}
-                    onPress={() => setMode(m.key)}
-                    style={[styles.modePill, mode === m.key && styles.modePillOn]}
-                  >
-                    <Ionicons name={m.icon} size={15} color={mode === m.key ? colors.ink : colors.muted} />
-                    <Text style={[styles.modePillText, mode === m.key && styles.modePillTextOn]}>{m.label}</Text>
-                  </Pressable>
-                ))}
-              </View>
+              {/* Dónde estás: reemplaza a las pestañas Finanzas / Inventario / Buscar. No se toca para cambiar. */}
+              {isSearch ? null : (
+                <View style={styles.hereChip} accessible accessibilityLabel={`Empre AI de tu negocio. ${chipLabel}`}>
+                  <Ionicons name={MODULE_ICON[module]} size={15} color={colors.ink} />
+                  <Text style={styles.hereChipText} numberOfLines={1}>
+                    {chipLabel}
+                  </Text>
+                </View>
+              )}
 
               {quota ? (
-                <Text style={styles.quota} accessibilityLiveRegion="polite">{`Quedan ${quota.left} de ${quota.limit} este mes`}</Text>
+                <Text style={styles.quota} accessibilityLiveRegion="polite">{`Quedan ${quota.left} de ${quota.limit} este mes · lo simple no gasta`}</Text>
               ) : null}
               <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.stage} keyboardShouldPersistTaps="handled">
                 <View style={[styles.orbArea, copy.big && styles.orbAreaBig]}>
@@ -552,13 +738,7 @@ export function VoiceSheet({
                     ref={inputRef}
                     value={text}
                     onChangeText={setText}
-                    placeholder={
-                      mode === 'finance'
-                        ? 'Ej: Vendí dos empanadas por 6 mil en Nequi…'
-                        : mode === 'inventory'
-                          ? 'Ej: Se acabó la harina y queda poco café…'
-                          : 'Ej: Comida rápida abierta ahora con oferta…'
-                    }
+                    placeholder={isSearch ? 'Ej: Comida rápida abierta ahora con oferta…' : `Ej: ${MODULE_COPY[module].examples[0]}…`}
                     placeholderTextColor={colors.faint}
                     style={styles.stageInput}
                     multiline
@@ -586,7 +766,7 @@ export function VoiceSheet({
 
                 {phase === 'ready' && !keyboardOpen ? (
                   <View style={styles.prompts}>
-                    {QUICK_PROMPTS[mode].map((prompt) => (
+                    {(isSearch ? QUICK_PROMPTS.search : MODULE_COPY[module].examples).map((prompt) => (
                       <Pressable
                         key={prompt}
                         accessibilityRole="button"
@@ -679,16 +859,19 @@ export function VoiceSheet({
               </Text>
               <ScrollView style={{ maxHeight: 470 }} contentContainerStyle={{ gap: spacing.md }} keyboardShouldPersistTaps="handled">
                 {actions.map((a, i) => (
-                  <ActionCard
-                    key={a.client_id}
-                    entityId={entityId}
-                    heard={result.text}
-                    action={a}
-                    problem={actionProblem(a)}
-                    onChange={(p) => patch(i, p)}
-                    onRemove={() => setActions((l) => l.filter((_, k) => k !== i))}
-                    onSwap={(next) => setActions((l) => l.flatMap((x, k) => (k === i ? next : [x])))}
-                  />
+                  // El destino de cada línea (teléfono 2): así se ve qué cambia antes de guardar.
+                  <View key={a.client_id} style={{ gap: 6 }}>
+                    <Text style={styles.destTag}>{a.price_ask ? 'Cambia el precio en tu catálogo' : a.type === 'sale' && a.method === 'credit' ? 'Va a Finance · queda en Cuentas como fiado' : destinationLabel(a.type, a.tab_name)}</Text>
+                    <ActionCard
+                      entityId={entityId}
+                      heard={result.text}
+                      action={a}
+                      problem={actionProblem(a)}
+                      onChange={(p) => patch(i, p)}
+                      onRemove={() => setActions((l) => l.filter((_, k) => k !== i))}
+                      onSwap={(next) => setActions((l) => l.flatMap((x, k) => (k === i ? next : [x])))}
+                    />
+                  </View>
                 ))}
               </ScrollView>
               {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -1249,36 +1432,28 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     ...softShadow,
   },
-  modeTrack: {
+  // Dónde se abrió la hoja: un chip en arena, no un control (tablero «Empre AI · un asistente por trabajo»).
+  hereChip: {
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    padding: 4,
-    borderRadius: 14,
-    backgroundColor: colors.hairline,
-  },
-  modePill: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: 11,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
     gap: 6,
-    paddingHorizontal: 8,
+    paddingLeft: 8,
+    paddingRight: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: colors.sand,
   },
-  modePillOn: {
-    backgroundColor: colors.surface,
-    ...softShadow,
-  },
-  modePillText: {
-    fontSize: 13,
-    fontFamily: fonts.ui.extrabold,
-    color: colors.muted,
-  },
-  modePillTextOn: {
-    color: colors.ink,
-  },
+  hereChipText: { flexShrink: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
+  freeNote: { fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
+  destTag: { fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.semibold, color: colors.muted },
+  numberCard: { gap: 2, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  numberBig: { fontSize: 26, lineHeight: 32, fontFamily: fonts.ui.bold, color: colors.finance, fontVariant: ['tabular-nums'] },
+  numberEmpty: { fontSize: 15, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.ink },
+  // El enlace es parte de la tarjeta, que es lo que se toca (mide más de 44).
+  numberLink: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  numberLinkText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink, textDecorationLine: 'underline' },
   stageInput: {
     minHeight: 84,
     maxHeight: 140,

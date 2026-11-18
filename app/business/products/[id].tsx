@@ -675,7 +675,7 @@ export default function InventoryScreen() {
         }}
       />
       <GoProSheet visible={goPro} onClose={() => setGoPro(false)} businesses={[{ id: entityId, name: business.data?.name ?? '' }]} />
-      <VoiceSheet entityId={entityId} visible={voiceOpen} onClose={() => setVoiceOpen(false)} defaultMode="inventory" hints={(names.data ?? []).map((n) => n.name)} onConfirmed={() => refresh()} />
+      <VoiceSheet entityId={entityId} visible={voiceOpen} onClose={() => setVoiceOpen(false)} module="inventory" hints={(names.data ?? []).map((n) => n.name)} onConfirmed={() => refresh()} />
     </View>
   );
 }

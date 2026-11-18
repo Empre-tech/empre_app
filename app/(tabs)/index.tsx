@@ -239,11 +239,15 @@ export default function HomeScreen() {
           ) : null}
 
           {/* Buscar: abre el buscador del mapa ya escribiendo, no otra pantalla */}
-          <Pressable accessibilityRole="button" accessibilityLabel="Buscar en Empre" onPress={() => router.push({ pathname: '/map', params: { q: '', buscar: '1' } })} style={({ pressed }) => [styles.search, pressed && styles.pressed]}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Buscar en Empre" onPress={() => router.push({ pathname: '/map', params: { q: '', buscar: '1' } })} style={({ pressed }) => [styles.search, styles.searchWithMic, pressed && styles.pressed]}>
             <Ionicons name="search" size={20} color={colors.ink} />
             <Text style={styles.searchText} numberOfLines={1}>
               Busca negocios, cortes, almuerzos…
             </Text>
+            {/* Buscar con Empre AI (tablero «un asistente por trabajo»): el micrófono vive en la barra, como en Ofertas. */}
+            <Pressable accessibilityRole="button" accessibilityLabel="Buscar hablando con Empre AI" onPress={() => router.push({ pathname: '/ask', params: { voice: '1' } })} hitSlop={4} style={styles.searchMic}>
+              <Ionicons name="mic-outline" size={17} color={colors.primaryDark} />
+            </Pressable>
           </Pressable>
 
           {/* Las categorías con lo que hay: cada una abre el mapa ya filtrado */}
@@ -531,6 +535,8 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
   search: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   searchText: { flex: 1, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.muted },
+  searchWithMic: { paddingRight: 14 },
+  searchMic: { width: 36, height: 36, marginRight: -8, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sandSoft },
   catsIn: { gap: 8, paddingHorizontal: 16, paddingVertical: 2 },
   cat: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 5, paddingRight: 14, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   catText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },

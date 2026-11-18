@@ -661,8 +661,8 @@ export const ledgerApi = {
     (await request<{ insights: Insight[] | null }>(`${base(entityId)}/insights`)).insights ?? [],
 
   /** tabId: se dicta desde dentro de una cuenta abierta (lo pedido va a esa cuenta). */
-  voiceParse: (entityId: string, text: string, tabId?: string) =>
-    request<VoiceResult>(`${base(entityId)}/voice/parse`, { method: 'POST', body: { text, tab_id: tabId } }),
+  voiceParse: (entityId: string, text: string, tabId?: string, module?: 'finance' | 'inventory' | 'debts') =>
+    request<VoiceResult>(`${base(entityId)}/voice/parse`, { method: 'POST', body: { text, tab_id: tabId, module } }),
 
   // ---- cuentas abiertas ----
   tabs: async (entityId: string) => (await request<{ items: OpenTab[] | null }>(`${base(entityId)}/tabs`)).items ?? [],

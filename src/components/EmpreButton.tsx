@@ -15,6 +15,7 @@ import { LOCKED_OPACITY, ProTag } from '@/components/pro/ProTag';
 import { FEATURES } from '@/config';
 import { getPhoneFlag, setPhoneFlag } from '@/lib/phoneFlags';
 import { PRO_PRICE_AMOUNT } from '@/lib/proPlan';
+import type { AssistantModule } from '@/lib/assistantRoute';
 import { usePlans } from '@/lib/useProPlan';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts } from '@/theme';
@@ -122,6 +123,7 @@ export function EmpreButton({
   entityId: givenId,
   here,
   onOpen,
+  module = 'none',
 }: {
   /** Desde el borde de abajo de la pantalla hasta el botón (flotando) o hasta donde queda en la barra (en línea). */
   bottom: number;
@@ -133,6 +135,8 @@ export function EmpreButton({
   here?: EmpreHere;
   /** Al abrir el menú (para pedir, solo entonces, lo que el menú muestra: lo usado de Empre AI). */
   onOpen?: () => void;
+  /** Dónde se abre «Habla con Empre AI» desde este botón (en Finance, «En Finance»); por defecto, el negocio. */
+  module?: AssistantModule;
 }) {
   const size = inline ? EMPRE_BUTTON_INLINE : EMPRE_BUTTON;
   const router = useRouter();
@@ -215,7 +219,7 @@ export function EmpreButton({
     forBusiness: (id) => (isBase(id) ? offerPro(id) : id === entityId && here?.onTalk ? here.onTalk() : setVoiceFor(id)),
   };
   // Para quien no tiene negocio sigue abierta mientras no exista un plan para clientes (el Pro de hoy va por negocio).
-  const ask: Item = { key: 'ai', title: 'Habla con Empre AI', sub: 'Pregunta qué hay cerca y abierto', icon: 'sparkles-outline', tone: 'ai', go: () => setAiOpen(true) };
+  const ask: Item = { key: 'ai', title: 'Buscar con Empre AI', sub: 'Pregunta qué hay cerca y abierto', icon: 'sparkles-outline', tone: 'ai', go: () => setAiOpen(true) };
   const goProItem: Item[] = allBase
     ? [{ key: 'pro', title: 'Pásate a Empre Pro', sub: `Empre AI, Finance completo y más · ${PRO_PRICE_AMOUNT} al mes`, icon: 'crown', tone: 'pro', go: () => offerPro(entityId) }]
     : [];
@@ -363,7 +367,7 @@ export function EmpreButton({
       </Modal>
 
       <EmpreAISheet visible={aiOpen} onClose={() => setAiOpen(false)} />
-      {voiceFor ? <VoiceSheet entityId={voiceFor} visible onClose={() => setVoiceFor(null)} hints={[]} defaultMode="finance" /> : null}
+      {voiceFor ? <VoiceSheet entityId={voiceFor} visible onClose={() => setVoiceFor(null)} hints={[]} module={module} /> : null}
       <GoProSheet visible={goPro !== null} onClose={() => setGoPro(null)} businesses={goPro ?? []} />
     </>
   );

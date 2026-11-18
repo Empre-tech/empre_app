@@ -39,5 +39,5 @@ export function GlobalEmpreButton() {
   const key = ROUTES[route];
   const raw = key ? params[key] : undefined;
   const entityId = typeof raw === 'string' && raw ? raw : undefined;
-  return <EmpreButton key={route} bottom={insets.bottom + 16} entityId={entityId} />;
+  return <EmpreButton key={route} bottom={insets.bottom + 16} entityId={entityId} module={route === 'business/ledger/[id]' ? 'finance' : 'none'} />;
 }

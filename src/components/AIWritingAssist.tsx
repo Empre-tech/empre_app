@@ -16,20 +16,20 @@ interface Props {
   variant?: 'light' | 'dark';
   /** Compacto: solo el ícono, sin la palabra "IA" (para espacios chicos). */
   compact?: boolean;
-  /** El texto del botón; por defecto, «Mejorar con IA». */
+  /** El texto del botón; por defecto, «Redactar con Empre AI» (tablero «Empre AI · un asistente por trabajo»). */
   label?: string;
   /** Ideas listas, sin modelo: si el servicio falla, salen estas en vez de un error. */
   fallback?: string[];
 }
 
 /**
- * Botón "Mejorar con IA" reutilizable: abre una hoja con 2-3 opciones de
+ * «Redactar con Empre AI» (antes «Mejorar con IA»), dentro del campo que mejora: abre una hoja con 2-3 opciones de
  * texto generadas (descripción del negocio, caption de una publicación o título de oferta) y,
  * al elegir una, la aplica con `onApply`. El dueño siempre revisa y puede
  * pedir otras opciones o cerrar sin aplicar nada — la IA nunca escribe por
  * su cuenta sin que él lo confirme tocando una opción.
  */
-export function AIWritingAssist({ kind, currentText, businessName, categoryName, onApply, variant = 'light', compact = false, label = 'Mejorar con IA', fallback }: Props) {
+export function AIWritingAssist({ kind, currentText, businessName, categoryName, onApply, variant = 'light', compact = false, label = 'Redactar con Empre AI', fallback }: Props) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +93,7 @@ export function AIWritingAssist({ kind, currentText, businessName, categoryName,
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Mejorar con inteligencia artificial"
+        accessibilityLabel="Redactar con Empre AI"
         onPress={openSheet}
         style={({ pressed }) => [
           styles.trigger,
@@ -116,7 +116,7 @@ export function AIWritingAssist({ kind, currentText, businessName, categoryName,
                 <EmpreSymbol product="ai" size={26} animated={false} />
               </View>
               <Text style={styles.sheetTitle}>
-                {kind === 'post_caption' ? 'Ideas para tu publicación' : kind === 'offer_title' ? 'Ideas para tu oferta' : 'Ideas para tu descripción'}
+                {kind === 'post_caption' ? 'Redactar tu publicación' : kind === 'offer_title' ? 'Redactar tu oferta' : 'Redactar tu descripción'}
               </Text>
             </View>
 

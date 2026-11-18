@@ -121,7 +121,7 @@ export default function BusinessHubScreen() {
   // Base y Empre Pro (tablero, teléfono 7): en Base la Agenda no desaparece, queda en gris con la corona, y abajo de los
   // espacios sale «Pásate a Empre Pro». Mientras no se sabe el plan, nada se muestra cerrado.
   const base = subscription.isSuccess && !isProSubscription(subscription.data?.subscription);
-  const goProLine = FEATURES.agenda ? 'Empre AI con análisis, Finance completo y agenda' : 'Empre AI con análisis y Finance completo';
+  const goProLine = FEATURES.agenda ? 'Empre AI, Finance completo y agenda' : 'Empre AI y Finance completo';
   const nFollowers = followers.data ?? 0;
   const go = (href: Href) => () => router.push(href);
   const edit = go({ pathname: '/business/edit/[id]', params: { id: entityId } });
