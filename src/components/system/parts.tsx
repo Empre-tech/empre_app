@@ -4,6 +4,7 @@ import { type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmpreSymbol, type EmpreProduct } from '@/components/EmpreSymbol';
+import { AnimatedFill } from '@/components/finance/FinanceMotion';
 import { colors, fonts, softShadow } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -144,7 +145,7 @@ export function ShareRow({ label, value, share, color = colors.ink, first }: { l
         <Text style={styles.rowAmount}>{value}</Text>
       </View>
       <View style={styles.track}>
-        <View style={[styles.fill, { width: `${Math.max(0, Math.min(100, share))}%`, backgroundColor: color }]} />
+        <AnimatedFill pct={share} color={color} style={styles.fill} />
       </View>
     </View>
   );

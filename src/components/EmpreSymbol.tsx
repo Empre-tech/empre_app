@@ -18,10 +18,11 @@ export const PRODUCT_META: Record<EmpreProduct, { name: string; tagline: string 
 };
 
 /**
- * Logo oficial de Empre («El Puente Estructural» · Regla de los 3 Colores):
- * - Arco estructural superior (el comercio local) y arco inferior (el vecino/cliente) alineados en el eje izquierdo
- *   para formar una «E» sólida y arquitectónica (sin confundirse con una «S»).
- * - En el centro, el puente en el 3.er color (`colors.brand`) con el nodo de automatización que los conecta.
+ * Logo oficial de Empre (Fusión Identidad de Euler `e•` + El Toldo del Emprendedor bajo la Regla de los 3 Colores):
+ * - El cuerpo exterior traza la «e» continua de Euler (crecimiento exponencial y unión Negocio ↔ Cliente).
+ * - El travesaño interior de la «e» forma las 3 ondas del toldo de un negocio local (y sus 3 motores: Finanzas, Citas, Ofertas),
+ *   de modo que el arco superior parece la carpa de la tienda y el arco inferior su mostrador abierto.
+ * - El exponente elevado (`•`) en el 3.er color (`colors.brand`, `#0D7A5F`) simboliza la potencia tecnológica de Empre.
  */
 export function EmpreSymbol({
   product = 'finder',
@@ -83,31 +84,30 @@ export function EmpreSymbol({
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-            <Circle cx="48" cy="18" r="5" fill={colors.brand} />
+            <Circle cx="49" cy="16" r="5.5" fill={colors.brand} />
           </>
         ) : (
           <>
-            {/* Arco superior estructurado (Comercio Local) */}
+            {/* Silueta continua de la «e» de Euler (techo del negocio arriba + mostrador abierto abajo) */}
             <Path
-              d="M15 25V18C15 14.686 17.686 12 21 12H47"
+              d="M41.5 31C41.5 21.8 35.6 16 27.5 16C19.2 16 14 23.2 14 33C14 42.8 19.8 49.5 29 49.5C35.2 49.5 39.8 46.8 42.5 43"
               fill="none"
               stroke="#FFFFFF"
-              strokeWidth={6.5}
+              strokeWidth={5.8}
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-            {/* Arco inferior estructurado con gancho de encuentro (Cliente) */}
+            {/* El travesaño de la «e» dibujado como las 3 ondas del toldo emprendedor (Finanzas, Citas, Ofertas) */}
             <Path
-              d="M15 39V46C15 49.314 17.686 52 21 52H43C46.314 52 49 49.314 49 46V42"
+              d="M15.5 30.5 C18 35, 22.5 35, 24.5 30.5 C26.5 35, 31 35, 33 30.5 C35 35, 39.5 35, 41.5 30.5"
               fill="none"
               stroke="#FFFFFF"
-              strokeWidth={6.5}
+              strokeWidth={5.2}
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-            {/* Puente central de Empre + Nodo de Automatización en el 3.er color */}
-            <Rect x="15" y="28.5" width="25" height="7" rx="3.5" fill={colors.brand} />
-            <Circle cx="47.5" cy="32" r="4" fill={colors.brand} />
+            {/* Exponente de Euler en el 3.er color (la potencia que impulsa al negocio) */}
+            <Circle cx="49" cy="16" r="5.5" fill={colors.brand} />
           </>
         )}
       </Svg>
@@ -117,7 +117,7 @@ export function EmpreSymbol({
 
 /**
  * Cápsula animada de presentación de módulo (`Empre Vitrina`, `Empre Finance`, `Empre AI`, `Empre Agent`, `Empre Finder`):
- * entra con resorte mostrando el logo monolítico y el nombre del módulo.
+ * entra con resorte mostrando el logo de Empre y el nombre del módulo.
  */
 export function EmpreModuleBadge({ product, subtitle }: { product: EmpreProduct; subtitle?: string }) {
   const reduce = useReduceMotion();

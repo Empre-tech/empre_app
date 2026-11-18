@@ -9,6 +9,7 @@ import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi, type Sale } from '@/api/ledger';
 import { useInboxSummary } from '@/chat/useInboxSummary';
 import { EmptyState } from '@/components/EmptyState';
+import { AnimatedBar, FinanceHeroSkeleton, Stage } from '@/components/finance/FinanceMotion';
 import { EmpreAICard, StatusCap, SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
 import { expenseMovement, MoveRows, saleMovement, type Movement } from '@/components/finance/Moves';
 import { FinanceTop } from '@/components/finance/Top';
@@ -187,6 +188,8 @@ export default function LedgerHome() {
   const goSale = () => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId } });
   const goExpense = () => router.push({ pathname: '/business/ledger/expense/[id]', params: { id: entityId } });
 
+  const initialWait = (summary.isLoading && !sum) || (sales.isLoading && !sales.data);
+
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={[styles.body, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 32 }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
@@ -194,162 +197,184 @@ export default function LedgerHome() {
 
         {outbox.items.some((x) => x.entityId === entityId) ? <OutboxBanner entityId={entityId} /> : null}
 
-        <View style={styles.main}>
-          <View style={styles.mainTop}>
-            {summary.isLoading ? (
-              <ActivityIndicator style={{ flex: 1 }} color={colors.primary} />
-            ) : summary.isError && !sum ? (
-              <EmptyState icon="cloud-offline-outline" title="No pudimos cargar tu día" body="Sin conexión puedes seguir registrando ventas y gastos: se envían solos cuando vuelva la señal." action={{ title: 'Reintentar', onPress: onRefresh }} />
-            ) : (
-              <>
-                <View>
-                  <Text style={styles.label}>{openingHero ? openingHero.label : 'Vendiste hoy'}</Text>
-                  {openingHero && !openingHero.value ? (
-                    <Text style={styles.heroWords} accessibilityLiveRegion="polite">
-                      {openingHero.words}
-                    </Text>
+        {initialWait ? (
+          <FinanceHeroSkeleton bars={12} rows={3} />
+        ) : summary.isError && !sum ? (
+          <EmptyState icon="cloud-offline-outline" title="No pudimos cargar tu día" body="Sin conexión puedes seguir registrando ventas y gastos: se envían solos cuando vuelva la señal." action={{ title: 'Reintentar', onPress: onRefresh }} />
+        ) : (
+          <>
+            <Stage step={0}>
+              <View style={styles.main}>
+                <View style={styles.mainTop}>
+                  <View>
+                    <Text style={styles.label}>{openingHero ? openingHero.label : 'Vendiste hoy'}</Text>
+                    {openingHero && !openingHero.value ? (
+                      <Text style={styles.heroWords} accessibilityLiveRegion="polite">
+                        {openingHero.words}
+                      </Text>
+                    ) : (
+                      <Text style={styles.hero} numberOfLines={1} adjustsFontSizeToFit accessibilityLiveRegion="polite">
+                        {openingHero ? openingHero.value : formatPesos(salesTotal)}
+                      </Text>
+                    )}
+                  </View>
+                  {count === 0 && expensesTotal === 0 ? (
+                    <Text style={styles.invite}>{openingHero?.note ?? 'Registra tu primera venta. Te toma dos toques.'}</Text>
                   ) : (
-                    <Text style={styles.hero} numberOfLines={1} adjustsFontSizeToFit accessibilityLiveRegion="polite">
-                      {openingHero ? openingHero.value : formatPesos(salesTotal)}
-                    </Text>
+                    <View style={styles.minis}>
+                      <Mini label="Te entró" value={formatPesos(entered)} income />
+                      <Mini label="Te fiaron" value={formatPesos(fiado)} />
+                      <Mini label="Gastaste" value={formatPesos(expensesTotal)} />
+                    </View>
                   )}
                 </View>
-                {count === 0 && expensesTotal === 0 ? (
-                  <Text style={styles.invite}>{openingHero?.note ?? 'Registra tu primera venta. Te toma dos toques.'}</Text>
-                ) : (
-                  <View style={styles.minis}>
-                    <Mini label="Te entró" value={formatPesos(entered)} income />
-                    <Mini label="Te fiaron" value={formatPesos(fiado)} />
-                    <Mini label="Gastaste" value={formatPesos(expensesTotal)} />
-                  </View>
-                )}
+                <View style={styles.mainFoot}>
+                  <Text style={styles.count} numberOfLines={2}>
+                    {count === 0 ? 'Aún sin ventas hoy' : count === 1 ? '1 venta' : `${count} ventas`}
+                  </Text>
+                  <Pressable accessibilityRole="button" onPress={goExpense} style={styles.btnOutline}>
+                    <Ionicons name="remove" size={16} color={colors.ink} />
+                    <Text style={styles.btnOutlineText}>Gasto</Text>
+                  </Pressable>
+                  <Pressable accessibilityRole="button" onPress={goSale} style={styles.btnRed}>
+                    <Ionicons name="add" size={18} color="#fff" />
+                    <Text style={styles.btnRedText}>Venta</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </Stage>
+
+            {hasHours ? (
+              <>
+                <Stage step={1}>
+                  <SystemSection title="Tu día por horas">
+                    <View style={styles.card}>
+                      <View style={styles.hours}>
+                        {bars.map((b, i) => {
+                          const on = selHour === b.hour;
+                          const isTop = selHour === null && b.total === topBar && b.total > 0;
+                          const barH = b.total > 0 ? Math.max(10, (b.total / topBar) * 88) : 4;
+                          const barColor = on || isTop ? colors.finance : b.total > 0 ? colors.financeLight : b.isFuture ? colors.selectedSoft : colors.line;
+                          return (
+                            <Pressable
+                              key={b.hour}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected: on, disabled: b.isFuture }}
+                              accessibilityLabel={`${hourLabel(b.hour)}: ${b.isFuture ? 'aún no llega' : b.total > 0 ? formatPesos(b.total) : 'sin ventas'}`}
+                              disabled={b.isFuture}
+                              onPress={() => setSelHour(on ? null : b.hour)}
+                              style={styles.hourSlot}
+                            >
+                              <AnimatedBar height={barH} color={barColor} delay={i * 18} style={styles.hourBar} />
+                              {b.isNow ? <View style={styles.nowLine} /> : null}
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                      <View style={styles.hourLabels}>
+                        {bars.map((b, i) => (
+                          <Text key={b.hour} style={[styles.hourLabel, selHour === b.hour && { color: colors.ink }]} numberOfLines={1}>
+                            {i % 2 === 0 ? String(b.hour === 12 ? 12 : b.hour > 12 ? b.hour - 12 : b.hour) : ''}
+                          </Text>
+                        ))}
+                      </View>
+                      <View style={styles.hourDetail} accessibilityLiveRegion="polite">
+                        <Text style={styles.detailHead}>{selected ? (selected.total > 0 ? `${hourLabel(selected.hour)}: ${formatPesos(selected.total)} en ${selected.count === 1 ? '1 venta' : `${selected.count} ventas`}` : `${hourLabel(selected.hour)}: sin ventas`) : 'Toca una hora para ver qué vendiste'}</Text>
+                        <Text style={styles.detailSub}>{selected ? selectedNames || 'En esta hora no se registró ninguna venta' : 'Abajo se filtran los movimientos de esa hora'}</Text>
+                      </View>
+                      {truncated ? <Text style={styles.detailSub}>Hoy tienes más de {SALES_LIMIT} ventas: las horas cuentan solo las últimas.</Text> : null}
+                    </View>
+                  </SystemSection>
+                </Stage>
+
+                {readings.length > 0 ? (
+                  <Stage step={2}>
+                    <EmpreAICard title="Lo que dice tu día">
+                      <View>
+                        {readings.map((r, i) => (
+                          <SystemRow key={r.kind} first={i === 0} icon={READING_ICON[r.kind]} title={r.title} sub={r.sub} />
+                        ))}
+                        {readings.some((r) => r.kind === 'quiet') ? <SystemRow icon="pricetag-outline" title="Una oferta puede mover estas horas" sub="Prepárala en un minuto; tú decides si la publicas" onPress={() => router.push({ pathname: '/business/offers/new', params: { entityId } })} /> : null}
+                      </View>
+                    </EmpreAICard>
+                  </Stage>
+                ) : null}
               </>
-            )}
-          </View>
-          <View style={styles.mainFoot}>
-            <Text style={styles.count} numberOfLines={2}>
-              {count === 0 ? 'Aún sin ventas hoy' : count === 1 ? '1 venta' : `${count} ventas`}
-            </Text>
-            <Pressable accessibilityRole="button" onPress={goExpense} style={styles.btnOutline}>
-              <Ionicons name="remove" size={16} color={colors.ink} />
-              <Text style={styles.btnOutlineText}>Gasto</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" onPress={goSale} style={styles.btnRed}>
-              <Ionicons name="add" size={18} color="#fff" />
-              <Text style={styles.btnRedText}>Venta</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        {hasHours ? (
-          <>
-            <SystemSection title="Tu día por horas">
-              <View style={styles.card}>
-                <View style={styles.hours}>
-                  {bars.map((b) => {
-                    const on = selHour === b.hour;
-                    const isTop = selHour === null && b.total === topBar && b.total > 0;
-                    return (
-                      <Pressable
-                        key={b.hour}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: on, disabled: b.isFuture }}
-                        accessibilityLabel={`${hourLabel(b.hour)}: ${b.isFuture ? 'aún no llega' : b.total > 0 ? formatPesos(b.total) : 'sin ventas'}`}
-                        disabled={b.isFuture}
-                        onPress={() => setSelHour(on ? null : b.hour)}
-                        style={styles.hourSlot}
-                      >
-                        <View style={[styles.hourBar, { height: b.total > 0 ? Math.max(10, (b.total / topBar) * 88) : 4, backgroundColor: on || isTop ? colors.finance : b.total > 0 ? colors.financeLight : b.isFuture ? colors.selectedSoft : colors.line }]} />
-                        {b.isNow ? <View style={styles.nowLine} /> : null}
-                      </Pressable>
-                    );
-                  })}
-                </View>
-                <View style={styles.hourLabels}>
-                  {bars.map((b, i) => (
-                    <Text key={b.hour} style={[styles.hourLabel, selHour === b.hour && { color: colors.ink }]} numberOfLines={1}>
-                      {i % 2 === 0 ? String(b.hour === 12 ? 12 : b.hour > 12 ? b.hour - 12 : b.hour) : ''}
-                    </Text>
-                  ))}
-                </View>
-                <View style={styles.hourDetail} accessibilityLiveRegion="polite">
-                  <Text style={styles.detailHead}>{selected ? (selected.total > 0 ? `${hourLabel(selected.hour)}: ${formatPesos(selected.total)} en ${selected.count === 1 ? '1 venta' : `${selected.count} ventas`}` : `${hourLabel(selected.hour)}: sin ventas`) : 'Toca una hora para ver qué vendiste'}</Text>
-                  <Text style={styles.detailSub}>{selected ? selectedNames || 'En esta hora no se registró ninguna venta' : 'Abajo se filtran los movimientos de esa hora'}</Text>
-                </View>
-                {truncated ? <Text style={styles.detailSub}>Hoy tienes más de {SALES_LIMIT} ventas: las horas cuentan solo las últimas.</Text> : null}
-              </View>
-            </SystemSection>
-
-            {readings.length > 0 ? (
-              <EmpreAICard title="Lo que dice tu día">
-                <View>
-                  {readings.map((r, i) => (
-                    <SystemRow key={r.kind} first={i === 0} icon={READING_ICON[r.kind]} title={r.title} sub={r.sub} />
-                  ))}
-                  {readings.some((r) => r.kind === 'quiet') ? <SystemRow icon="pricetag-outline" title="Una oferta puede mover estas horas" sub="Prepárala en un minuto; tú decides si la publicas" onPress={() => router.push({ pathname: '/business/offers/new', params: { entityId } })} /> : null}
-                </View>
-              </EmpreAICard>
-            ) : null}
-          </>
-        ) : count === 0 ? (
-          <SystemSection title="Tu día por horas">
-            <View style={styles.card}>
-              <View style={styles.hours} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-                {EXAMPLE_BARS.map((h, i) => (
-                  <View key={i} style={[styles.hourSlot, styles.exampleSlot]}>
-                    <View style={[styles.hourBar, { height: h, backgroundColor: colors.hairline }]} />
+            ) : count === 0 ? (
+              <Stage step={1}>
+                <SystemSection title="Tu día por horas">
+                  <View style={styles.card}>
+                    <View style={styles.hours} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                      {EXAMPLE_BARS.map((h, i) => (
+                        <View key={i} style={[styles.hourSlot, styles.exampleSlot]}>
+                          <View style={[styles.hourBar, { height: h, backgroundColor: colors.hairline }]} />
+                        </View>
+                      ))}
+                      <View style={styles.exampleTag}>
+                        <Text style={styles.exampleText}>Ejemplo</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.invite}>Con tus ventas, aquí verás a qué hora vendes más y qué es lo que más sale.</Text>
                   </View>
-                ))}
-                <View style={styles.exampleTag}>
-                  <Text style={styles.exampleText}>Ejemplo</Text>
-                </View>
-              </View>
-              <Text style={styles.invite}>Con tus ventas, aquí verás a qué hora vendes más y qué es lo que más sale.</Text>
-            </View>
-          </SystemSection>
-        ) : (
-          <Text style={styles.nextStep}>{count === 1 ? 'Con 2 ventas más verás tu día por horas' : count === 2 ? 'Con 1 venta más verás tu día por horas' : 'Cuando vendas en otras horas verás tu día completo'}</Text>
+                </SystemSection>
+              </Stage>
+            ) : (
+              <Stage step={1}>
+                <Text style={styles.nextStep}>{count === 1 ? 'Con 2 ventas más verás tu día por horas' : count === 2 ? 'Con 1 venta más verás tu día por horas' : 'Cuando vendas en otras horas verás tu día completo'}</Text>
+              </Stage>
+            )}
+
+            {urgent.length > 0 ? (
+              <Stage step={2}>
+                <SystemSection title="Lo que no puede esperar">
+                  <SystemGroup>
+                    {urgent.map(({ key, ...u }, i) => (
+                      <SystemRow key={key} first={i === 0} {...u} />
+                    ))}
+                  </SystemGroup>
+                </SystemSection>
+              </Stage>
+            ) : null}
+
+            <Stage step={3}>
+              <SystemGroup>
+                {!setup.done && !hasHistory ? <SystemRow first icon="help-circle-outline" title="Cuéntanos tres cosas" sub="Tu caja, quién te debe y lo que pagas al mes. Son opcionales" onPress={() => router.push({ pathname: '/business/ledger/arranque/[id]', params: { id: entityId } })} /> : null}
+                {w && hasHistory ? <SystemRow first icon="bar-chart-outline" title={leftOf(w.current) >= 0 ? `Estos 7 días te quedaron ${formatPesos(leftOf(w.current))}` : `Estos 7 días salieron ${formatPesos(-leftOf(w.current))} de más`} sub={`Entró ${formatPesos(moneyIn(w.current))} · salió ${formatPesos(moneyOut(w.current))}`} onPress={goPlata} /> : null}
+                {monthlyRow ? <SystemRow first={!w || (!hasHistory && setup.done)} icon="wallet-outline" title={monthlyRow.title} sub={monthlyRow.sub} onPress={goPlata} /> : null}
+                {accountsSub ? <SystemRow icon="people-outline" title="Te deben y debes" sub={accountsSub} onPress={goDebts} /> : null}
+                <SystemRow icon="cube-outline" title="Inventario" sub={stockAlerts.length ? `${stockAlerts.length === 1 ? '1 producto se acaba' : `${stockAlerts.length} productos se acaban`}` : 'Lo que tienes y lo que te queda'} alert={stockAlerts.length > 0} onPress={() => router.push({ pathname: '/business/products/[id]', params: { id: entityId } })} />
+              </SystemGroup>
+            </Stage>
+
+            {movements.length > 0 ? (
+              <Stage step={4}>
+                <SystemSection title={selected ? `Movimientos de ${atHour(selected.hour)}` : 'Movimientos de hoy'}>
+                  <SystemGroup>
+                    {shownMoves.length === 0 ? <Text style={styles.noMoves}>Sin movimientos en esta hora</Text> : null}
+                    <MoveRows entityId={entityId} moves={shownMoves} />
+                  </SystemGroup>
+                </SystemSection>
+              </Stage>
+            ) : null}
+
+            <Stage step={4}>
+              <SystemSection title="Otras formas de vender">
+                <SystemGroup>
+                  {quick ? <SystemRow first icon="flash-outline" title="Modo mostrador" sub="Para cuando hay fila: un toque, una venta" onPress={() => router.push({ pathname: '/business/ledger/quick/[id]', params: { id: entityId } })} /> : null}
+                  {quick && FEATURES.tabs ? <SystemRow icon="restaurant-outline" title="Mesas y cuentas" sub="El cliente va pidiendo y paga al final" onPress={() => router.push({ pathname: '/business/ledger/tabs/[id]', params: { id: entityId } })} /> : null}
+                  <SystemRow first={!quick} icon="person-outline" title="Fiado" sub="Lo paga después; queda en «Te deben»" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId, fiado: '1' } })} />
+                  {parked.length > 0 ? <SystemRow icon="time-outline" title={parked.length === 1 ? '1 venta en espera' : `${parked.length} ventas en espera`} sub="No cuentan en la caja hasta que las cobres" onPress={goSale} /> : null}
+                </SystemGroup>
+              </SystemSection>
+            </Stage>
+
+            <Stage step={5}>
+              <SystemGroup>
+                <SystemRow first icon="cash-outline" title="Cerrar la caja de hoy" sub="Cuenta lo que hay y mira si cuadra" onPress={() => router.push({ pathname: '/business/ledger/cash/[id]', params: { id: entityId } })} />
+              </SystemGroup>
+            </Stage>
+          </>
         )}
-
-        {urgent.length > 0 ? (
-          <SystemSection title="Lo que no puede esperar">
-            <SystemGroup>
-              {urgent.map(({ key, ...u }, i) => (
-                <SystemRow key={key} first={i === 0} {...u} />
-              ))}
-            </SystemGroup>
-          </SystemSection>
-        ) : null}
-
-        <SystemGroup>
-          {!setup.done && !hasHistory ? <SystemRow first icon="help-circle-outline" title="Cuéntanos tres cosas" sub="Tu caja, quién te debe y lo que pagas al mes. Son opcionales" onPress={() => router.push({ pathname: '/business/ledger/arranque/[id]', params: { id: entityId } })} /> : null}
-          {w && hasHistory ? <SystemRow first icon="bar-chart-outline" title={leftOf(w.current) >= 0 ? `Estos 7 días te quedaron ${formatPesos(leftOf(w.current))}` : `Estos 7 días salieron ${formatPesos(-leftOf(w.current))} de más`} sub={`Entró ${formatPesos(moneyIn(w.current))} · salió ${formatPesos(moneyOut(w.current))}`} onPress={goPlata} /> : null}
-          {monthlyRow ? <SystemRow first={!w || (!hasHistory && setup.done)} icon="wallet-outline" title={monthlyRow.title} sub={monthlyRow.sub} onPress={goPlata} /> : null}
-          {accountsSub ? <SystemRow icon="people-outline" title="Te deben y debes" sub={accountsSub} onPress={goDebts} /> : null}
-          <SystemRow icon="cube-outline" title="Inventario" sub={stockAlerts.length ? `${stockAlerts.length === 1 ? '1 producto se acaba' : `${stockAlerts.length} productos se acaban`}` : 'Lo que tienes y lo que te queda'} alert={stockAlerts.length > 0} onPress={() => router.push({ pathname: '/business/products/[id]', params: { id: entityId } })} />
-        </SystemGroup>
-
-        {movements.length > 0 ? (
-          <SystemSection title={selected ? `Movimientos de ${atHour(selected.hour)}` : 'Movimientos de hoy'}>
-            <SystemGroup>
-              {shownMoves.length === 0 ? <Text style={styles.noMoves}>Sin movimientos en esta hora</Text> : null}
-              <MoveRows entityId={entityId} moves={shownMoves} />
-            </SystemGroup>
-          </SystemSection>
-        ) : null}
-
-        <SystemSection title="Otras formas de vender">
-          <SystemGroup>
-            {quick ? <SystemRow first icon="flash-outline" title="Modo mostrador" sub="Para cuando hay fila: un toque, una venta" onPress={() => router.push({ pathname: '/business/ledger/quick/[id]', params: { id: entityId } })} /> : null}
-            {quick && FEATURES.tabs ? <SystemRow icon="restaurant-outline" title="Mesas y cuentas" sub="El cliente va pidiendo y paga al final" onPress={() => router.push({ pathname: '/business/ledger/tabs/[id]', params: { id: entityId } })} /> : null}
-            <SystemRow first={!quick} icon="person-outline" title="Fiado" sub="Lo paga después; queda en «Te deben»" onPress={() => router.push({ pathname: '/business/ledger/sale/[id]', params: { id: entityId, fiado: '1' } })} />
-            {parked.length > 0 ? <SystemRow icon="time-outline" title={parked.length === 1 ? '1 venta en espera' : `${parked.length} ventas en espera`} sub="No cuentan en la caja hasta que las cobres" onPress={goSale} /> : null}
-          </SystemGroup>
-        </SystemSection>
-
-        <SystemGroup>
-          <SystemRow first icon="cash-outline" title="Cerrar la caja de hoy" sub="Cuenta lo que hay y mira si cuadra" onPress={() => router.push({ pathname: '/business/ledger/cash/[id]', params: { id: entityId } })} />
-        </SystemGroup>
       </ScrollView>
       <StatusCap />
 

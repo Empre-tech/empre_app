@@ -6,6 +6,8 @@ import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, St
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ledgerApi } from '@/api/ledger';
 import { Button } from '@/components/Button';
+import { Stage, TabDetailSkeleton } from '@/components/finance/FinanceMotion';
+import { Pop } from '@/components/ledger/Flow';
 import { MethodChips, PartyPicker, type PartyChoice } from '@/components/ledger/parts';
 import { VoiceSheet } from '@/components/ledger/VoiceSheet';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
@@ -64,7 +66,7 @@ export default function TabScreen() {
     return (
       <View style={styles.screen}>
         <SubScreenHeader title="Cuenta" />
-        <Text style={[styles.meta, { padding: spacing.lg }]}>{tabsQ.isLoading ? 'Cargando…' : 'Esta cuenta ya se cerró.'}</Text>
+        {tabsQ.isLoading ? <TabDetailSkeleton /> : <Text style={[styles.meta, { padding: spacing.lg }]}>Esta cuenta ya se cerró.</Text>}
       </View>
     );
   }
@@ -73,34 +75,38 @@ export default function TabScreen() {
     <View style={styles.screen}>
       <SubScreenHeader title={tab.name} />
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl }} keyboardShouldPersistTaps="handled">
-        <View style={styles.card}>
-          <View style={styles.head}>
-            <Text style={styles.meta}>
-              Abierta {openedAgo(tab.opened_at, now)}
-              {tab.pending ? ' · sin enviar' : ''}
-            </Text>
-            <Pressable accessibilityRole="button" onPress={cancel} hitSlop={8}>
-              <Text style={styles.danger}>Cancelar cuenta</Text>
-            </Pressable>
-          </View>
-          {lines.length === 0 ? <Text style={styles.meta}>Todavía no hay nada. Toca lo que pidieron abajo o dícelo al micrófono.</Text> : null}
-          {lines.map((l) => (
-            <View key={l.id} style={styles.lineRow}>
-              <Text style={styles.qty}>{l.qty}×</Text>
-              <Text style={styles.lineName} numberOfLines={1}>
-                {l.name}
+        <Stage step={0}>
+          <View style={styles.card}>
+            <View style={styles.head}>
+              <Text style={styles.meta}>
+                Abierta {openedAgo(tab.opened_at, now)}
+                {tab.pending ? ' · sin enviar' : ''}
               </Text>
-              <Text style={styles.linePrice}>{formatPesos(Math.round(l.qty * l.unit_price))}</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Quitar ${l.name}`} onPress={() => queueTabRemove(entityId, tabId, l.id)} hitSlop={8} style={styles.remove}>
-                <Ionicons name="close-circle-outline" size={22} color={colors.muted} />
+              <Pressable accessibilityRole="button" onPress={cancel} hitSlop={8}>
+                <Text style={styles.danger}>Cancelar cuenta</Text>
               </Pressable>
             </View>
-          ))}
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>{formatPesos(tab.total)}</Text>
+            {lines.length === 0 ? <Text style={styles.meta}>Todavía no hay nada. Toca lo que pidieron abajo o dícelo al micrófono.</Text> : null}
+            {lines.map((l) => (
+              <View key={l.id} style={styles.lineRow}>
+                <Text style={styles.qty}>{l.qty}×</Text>
+                <Text style={styles.lineName} numberOfLines={1}>
+                  {l.name}
+                </Text>
+                <Text style={styles.linePrice}>{formatPesos(Math.round(l.qty * l.unit_price))}</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Quitar ${l.name}`} onPress={() => queueTabRemove(entityId, tabId, l.id)} hitSlop={8} style={styles.remove}>
+                  <Ionicons name="close-circle-outline" size={22} color={colors.muted} />
+                </Pressable>
+              </View>
+            ))}
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Total</Text>
+              <Pop value={tab.total}>
+                <Text style={styles.totalValue}>{formatPesos(tab.total)}</Text>
+              </Pop>
+            </View>
           </View>
-        </View>
+        </Stage>
 
         <View style={styles.row}>
           <View style={styles.search}>

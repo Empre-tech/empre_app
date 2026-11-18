@@ -2,12 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi, type Analytics, type InvLine, type ProductStat } from '@/api/ledger';
 import { EmptyState } from '@/components/EmptyState';
+import { UpdatingBar } from '@/components/explore/LoadingMotion';
 import { HBars } from '@/components/finance/Charts';
+import { FinanceListSkeleton, Stage } from '@/components/finance/FinanceMotion';
 import { StatusCap, SystemHead, SystemTitle } from '@/components/system/parts';
 import { RangeSheet } from '@/components/finance/RangeSheet';
 import { lowMargin, presetRange, rangeFromParams, rangeTitle, rankProducts, todayCO, topMismatch, type DateRange } from '@/lib/finance';
@@ -40,6 +42,7 @@ export default function AnalyticsScreen() {
 
   return (
     <View style={styles.screen}>
+      {q.isFetching && Boolean(a) ? <UpdatingBar /> : null}
       <ScrollView contentContainerStyle={[styles.body, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + spacing.xxl }]} refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => void q.refetch()} />}>
         <View style={styles.top}>
           <SystemHead lead="Análisis de" name={entity.data?.name} />
@@ -51,17 +54,17 @@ export default function AnalyticsScreen() {
         </View>
 
         {q.isLoading ? (
-          <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
+          <FinanceListSkeleton rows={5} withSummary={detail === 'inventory'} />
         ) : q.isError || !a ? (
           <EmptyState icon="cloud-offline-outline" title="No pudimos cargar el análisis" body="Revisa tu conexión e inténtalo de nuevo." action={{ title: 'Reintentar', onPress: () => void q.refetch() }} />
         ) : detail === 'products' ? (
-          <View style={styles.detail}>
+          <Stage step={0} style={styles.detail}>
             <Products a={a} entityId={entityId} />
-          </View>
+          </Stage>
         ) : (
-          <View style={styles.detail}>
+          <Stage step={0} style={styles.detail}>
             <Inventory a={a} entityId={entityId} />
-          </View>
+          </Stage>
         )}
       </ScrollView>
       <StatusCap />

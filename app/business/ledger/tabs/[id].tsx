@@ -2,11 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi } from '@/api/ledger';
 import { Button } from '@/components/Button';
+import { FinanceListSkeleton, Stage } from '@/components/finance/FinanceMotion';
 import { Chip } from '@/components/ledger/parts';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { formatPesos, newClientId } from '@/lib/ledger';
@@ -79,13 +80,13 @@ export default function TabsScreen() {
           ) : null}
         </View>
 
-        {tabsQ.isLoading ? <ActivityIndicator color={colors.primary} /> : null}
+        {tabsQ.isLoading && tabs.length === 0 ? <FinanceListSkeleton rows={3} withSummary={false} /> : null}
         {tabs.length > 0 ? (
-          <>
+          <Stage step={0}>
             <Text style={styles.blockTitle}>
               Abiertas · {tabs.length} · {formatPesos(total)} por cobrar
             </Text>
-            <View style={styles.list}>
+            <View style={[styles.list, { marginTop: spacing.sm }]}>
               {tabs.map((t, i) => {
                 const items = t.lines.filter((l) => !l.removed).reduce((n, l) => n + l.qty, 0);
                 return (
@@ -112,7 +113,7 @@ export default function TabsScreen() {
                 );
               })}
             </View>
-          </>
+          </Stage>
         ) : !tabsQ.isLoading ? (
           <Text style={styles.meta}>{tables ? 'No hay mesas abiertas.' : 'No hay cuentas abiertas.'}</Text>
         ) : null}

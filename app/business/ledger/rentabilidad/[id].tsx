@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ledgerApi, type Analytics, type ItemCost, type ProductStat } from '@/api/ledger';
 import { EmptyState } from '@/components/EmptyState';
+import { AnimatedFill, FinanceHeroSkeleton, Stage } from '@/components/finance/FinanceMotion';
 import { FinanceTop, Mini3 } from '@/components/finance/Top';
 import { EmpreAICard, StatusCap, SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
 import { rentaReadings } from '@/lib/empreAI';
@@ -34,7 +35,7 @@ export default function RentabilidadScreen() {
       <ScrollView contentContainerStyle={[styles.body, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + spacing.xxl }]} refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => void q.refetch()} />}>
         <FinanceTop entityId={entityId} space="rentabilidad" title="Qué te deja plata" />
         {q.isLoading ? (
-          <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
+          <FinanceHeroSkeleton bars={4} rows={4} />
         ) : q.isError || !a ? (
           <EmptyState icon="cloud-offline-outline" title="No pudimos cargar tus números" body="Revisa tu conexión e inténtalo de nuevo." action={{ title: 'Reintentar', onPress: () => void q.refetch() }} />
         ) : a.current.costed_revenue > 0 ? (
@@ -68,72 +69,81 @@ function Full({ a, entityId, items }: { a: Analytics; entityId: string; items: I
 
   return (
     <>
-      <View style={styles.card}>
-        <View>
-          <Text style={styles.label}>Estos 30 días, de cada $100 que vendes te quedan</Text>
-          <Text style={[styles.hero, margin < 0 && { color: colors.warning }]} numberOfLines={1} accessibilityLiveRegion="polite">
-            {margin < 0 ? `−$${-margin}` : `$${margin}`}
-          </Text>
+      <Stage step={0}>
+        <View style={styles.card}>
+          <View>
+            <Text style={styles.label}>Estos 30 días, de cada $100 que vendes te quedan</Text>
+            <Text style={[styles.hero, margin < 0 && { color: colors.warning }]} numberOfLines={1} accessibilityLiveRegion="polite">
+              {margin < 0 ? `−$${-margin}` : `$${margin}`}
+            </Text>
+          </View>
+          <Mini3 items={[['Vendiste', formatPesos(c.costed_revenue)], ['Te costó', formatPesos(c.costed_revenue - c.gross_margin)], ['Te dejó', formatPesos(c.gross_margin)]]} />
+          {a.uncosted_revenue > 0 ? <Text style={styles.note}>Sobre {formatPesos(c.costed_revenue)} de tus {formatPesos(c.sales_total)}: a lo demás le falta el costo.</Text> : null}
         </View>
-        <Mini3 items={[['Vendiste', formatPesos(c.costed_revenue)], ['Te costó', formatPesos(c.costed_revenue - c.gross_margin)], ['Te dejó', formatPesos(c.gross_margin)]]} />
-        {a.uncosted_revenue > 0 ? <Text style={styles.note}>Sobre {formatPesos(c.costed_revenue)} de tus {formatPesos(c.sales_total)}: a lo demás le falta el costo.</Text> : null}
-      </View>
+      </Stage>
 
-      <SystemSection title="Lo que más te deja" link={list.length > 4 ? 'Ver todos' : undefined} onLink={() => goDetail('products')}>
-        <View style={styles.listCard}>
-          {shown.map((p, i) => {
-            const on = i === sel;
-            const v = p.profit ?? 0;
-            return (
-              <Pressable key={p.ref} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setSel(i)} style={[styles.row, on && styles.rowOn, i > 0 && !on && styles.rowLine]}>
-                <View style={styles.rowHead}>
-                  <Text style={styles.rowTitle} numberOfLines={1}>
-                    {p.name}
+      <Stage step={1}>
+        <SystemSection title="Lo que más te deja" link={list.length > 4 ? 'Ver todos' : undefined} onLink={() => goDetail('products')}>
+          <View style={styles.listCard}>
+            {shown.map((p, i) => {
+              const on = i === sel;
+              const v = p.profit ?? 0;
+              return (
+                <Pressable key={p.ref} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setSel(i)} style={[styles.row, on && styles.rowOn, i > 0 && !on && styles.rowLine]}>
+                  <View style={styles.rowHead}>
+                    <Text style={styles.rowTitle} numberOfLines={1}>
+                      {p.name}
+                    </Text>
+                    <Text style={[styles.rowValue, v < 0 && { color: colors.warning }]}>{v < 0 ? `−${formatPesos(-v)}` : formatPesos(v)}</Text>
+                  </View>
+                  <View style={styles.track}>
+                    <AnimatedFill pct={(Math.abs(v) / top) * 100} color={on ? colors.ink : '#8E929A'} delay={i * 35} style={styles.fill} />
+                  </View>
+                  <Text style={styles.note}>
+                    {String(Math.round(p.qty * 10) / 10).replace('.', ',')} vendidos · te deja {Math.round(p.margin_pct ?? 0)} %
                   </Text>
-                  <Text style={[styles.rowValue, v < 0 && { color: colors.warning }]}>{v < 0 ? `−${formatPesos(-v)}` : formatPesos(v)}</Text>
-                </View>
-                <View style={styles.track}>
-                  <View style={[styles.fill, { width: `${(Math.abs(v) / top) * 100}%`, backgroundColor: on ? colors.ink : '#8E929A' }]} />
-                </View>
-                <Text style={styles.note}>
-                  {String(Math.round(p.qty * 10) / 10).replace('.', ',')} vendidos · te deja {Math.round(p.margin_pct ?? 0)} %
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </SystemSection>
+                </Pressable>
+              );
+            })}
+          </View>
+        </SystemSection>
+      </Stage>
 
       {cur ? (
-        <View style={styles.card} accessibilityLiveRegion="polite">
-          <Text style={styles.detailTitle}>
-            {cur.name}: te deja {Math.round(cur.margin_pct ?? 0)} %
-          </Text>
-          <View style={styles.split}>
-            <View style={{ width: `${costShare}%`, backgroundColor: '#CBCED4' }} />
-            <View style={{ flex: 1, backgroundColor: colors.finance }} />
+        <Stage step={2}>
+          <View style={styles.card} accessibilityLiveRegion="polite">
+            <Text style={styles.detailTitle}>
+              {cur.name}: te deja {Math.round(cur.margin_pct ?? 0)} %
+            </Text>
+            <View style={[styles.split, { backgroundColor: colors.finance }]}>
+              <AnimatedFill pct={costShare} color="#CBCED4" style={{ height: '100%' }} />
+            </View>
+            <Mini3 items={[['Lo cobras', formatPesos(price)], ['Te cuesta', formatPesos(cost)], ['Te queda', price - cost < 0 ? `−${formatPesos(cost - price)}` : formatPesos(price - cost)]]} />
           </View>
-          <Mini3 items={[['Lo cobras', formatPesos(price)], ['Te cuesta', formatPesos(cost)], ['Te queda', price - cost < 0 ? `−${formatPesos(cost - price)}` : formatPesos(price - cost)]]} />
-        </View>
+        </Stage>
       ) : null}
 
       {readings.length > 0 ? (
-        <EmpreAICard title="Qué revisar">
-          <View>
-            {readings.map((r, i) => (
-              <SystemRow key={r.kind} first={i === 0} icon={READING_ICON[r.kind]} title={r.title} sub={r.sub} onPress={r.kind === 'cost' ? goCosts : () => goDetail('products')} />
-            ))}
-          </View>
-        </EmpreAICard>
+        <Stage step={3}>
+          <EmpreAICard title="Qué revisar">
+            <View>
+              {readings.map((r, i) => (
+                <SystemRow key={r.kind} first={i === 0} icon={READING_ICON[r.kind]} title={r.title} sub={r.sub} onPress={r.kind === 'cost' ? goCosts : () => goDetail('products')} />
+              ))}
+            </View>
+          </EmpreAICard>
+        </Stage>
       ) : null}
 
       {inv.value_cost > 0 || inv.idle_total > 0 ? (
-        <SystemSection title="Tu mercancía" link="Ver todo" onLink={() => goDetail('inventory')}>
-          <SystemGroup>
-            {inv.value_cost > 0 ? <SystemRow first icon="cube-outline" title={`${formatPesos(inv.value_cost)} en mercancía`} sub={inv.value_price > inv.value_cost ? `Si lo vendes todo, ganarías ${formatPesos(inv.value_price - inv.value_cost)}` : `Con ${inv.valued} de ${inv.products} productos`} onPress={() => goDetail('inventory')} /> : null}
-            {inv.idle_total > 0 ? <SystemRow first={inv.value_cost <= 0} icon="hourglass-outline" title={`${formatPesos(inv.idle_total)} quietos`} sub="No se venden hace más de 4 semanas" onPress={() => goDetail('inventory')} /> : null}
-          </SystemGroup>
-        </SystemSection>
+        <Stage step={4}>
+          <SystemSection title="Tu mercancía" link="Ver todo" onLink={() => goDetail('inventory')}>
+            <SystemGroup>
+              {inv.value_cost > 0 ? <SystemRow first icon="cube-outline" title={`${formatPesos(inv.value_cost)} en mercancía`} sub={inv.value_price > inv.value_cost ? `Si lo vendes todo, ganarías ${formatPesos(inv.value_price - inv.value_cost)}` : `Con ${inv.valued} de ${inv.products} productos`} onPress={() => goDetail('inventory')} /> : null}
+              {inv.idle_total > 0 ? <SystemRow first={inv.value_cost <= 0} icon="hourglass-outline" title={`${formatPesos(inv.idle_total)} quietos`} sub="No se venden hace más de 4 semanas" onPress={() => goDetail('inventory')} /> : null}
+            </SystemGroup>
+          </SystemSection>
+        </Stage>
       ) : null}
     </>
   );
