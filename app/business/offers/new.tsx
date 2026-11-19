@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -302,7 +302,7 @@ export default function NewOfferScreen() {
             ))}
           </View>
         ) : null}
-        <AIWritingAssist kind="offer_title" currentText={[title.trim() || chosenNames.join(' + '), specialValue ? `Precio especial: ${formatPesos(specialValue)}` : '', preview.reference ? `Precio habitual: ${formatPesos(preview.reference)}` : ''].filter(Boolean).join('. ')} onApply={setTitle} label="Más ideas con Empre AI" fallback={offerTitleIdeas(chosenNames.length ? chosenNames : title.trim() ? [title.trim()] : [], specialValue, preview.reference)} />
+        <AIWritingAssist kind="offer_title" currentText={[title.trim() || chosenNames.join(' + '), specialValue ? `Precio especial: ${formatPesos(specialValue)}` : '', preview.reference ? `Precio habitual: ${formatPesos(preview.reference)}` : ''].filter(Boolean).join('. ')} onApply={setTitle} label="Redactar con Empre AI" entityId={entityId} fallback={offerTitleIdeas(chosenNames.length ? chosenNames : title.trim() ? [title.trim()] : [], specialValue, preview.reference)} />
 
         <Regulator label="Cupos" value={slots} unit={slots === 1 ? 'cupo' : 'cupos'} min={1} max={500} onChange={setSlots} />
         {starSlots && starSlots !== slots ? (
@@ -475,8 +475,8 @@ const styles = StyleSheet.create({
   firstOnes: { gap: 4, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.line, backgroundColor: colors.surface },
   firstTitle: { fontSize: 14, fontFamily: fonts.display.bold, color: colors.ink },
   firstText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
-  applied: { padding: spacing.sm, borderRadius: radius.sm, backgroundColor: '#E3F5F3' },
-  appliedText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#0A6E6A' },
+  applied: { padding: spacing.sm, borderRadius: radius.sm, backgroundColor: '#FEF3E9' },
+  appliedText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#A35C13' },
   fold: { borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   foldHead: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, paddingHorizontal: spacing.md },
   foldTitle: { flex: 1, fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },

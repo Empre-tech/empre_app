@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
   },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   brandEyebrow: { fontSize: 11, letterSpacing: 0.8, fontFamily: fonts.ui.extrabold, color: colors.muted },
-  headTitle: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.ink },
+  headTitle: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
   exitBtn: {
     minHeight: 44,
     paddingHorizontal: 16,
@@ -465,9 +465,9 @@ const styles = StyleSheet.create({
     borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.ink,
+    backgroundColor: colors.sand,
   },
-  badgeText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  badgeText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   voice: {
     minHeight: 48,
     flexDirection: 'row',
@@ -488,10 +488,10 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.line,
   },
-  toast: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingLeft: spacing.md, borderRadius: radius.md, backgroundColor: colors.ink },
-  toastText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: '#fff' },
+  toast: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingLeft: spacing.md, borderRadius: radius.md, backgroundColor: colors.sand },
+  toastText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   undo: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md },
-  undoText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#fff', textDecorationLine: 'underline' },
+  undoText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink, textDecorationLine: 'underline' },
   counter: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   counterTitle: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
   exitBody: { fontSize: 15, lineHeight: 22, fontFamily: fonts.ui.extrabold, color: colors.ink },
@@ -503,7 +503,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     padding: spacing.md,
     borderRadius: radius.md,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.well,
     borderWidth: 1,
     borderColor: colors.line,
   },

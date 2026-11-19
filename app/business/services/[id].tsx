@@ -1,4 +1,5 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
+import { loadFacts } from '@/lib/agentPrefsStore';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -9,7 +10,7 @@ import { entitiesApi } from '@/api/endpoints';
 import { CatalogFilters } from '@/components/catalog/CatalogFilters';
 import { CatalogItems } from '@/components/catalog/CatalogItems';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
-import { audienceChips, catalogCopy, catalogCount, catalogGroups, filterCatalog, matchesAudience, publicCatalog, sectionChips, type Audience, type ServiceItem } from '@/lib/catalog';
+import { attrGroups, audienceChips, catalogCopy, catalogCount, catalogGroups, filterCatalog, formatPesos, kindChips, matchesAttrs, matchesAudience, publicCatalog, quickFilters, sectionChips, type Audience, type ItemKind, type ServiceItem } from '@/lib/catalog';
 import { safeIcon } from '@/lib/icons';
 import { displayIcon } from '@/lib/mapView';
 import { colors, fonts, radius, spacing } from '@/theme';
@@ -25,6 +26,12 @@ export default function CatalogScreen() {
   const [query, setQuery] = useState('');
   const [section, setSection] = useState(initialSection ?? '');
   const [audience, setAudience] = useState<Audience | null>(initialAudience ?? null);
+  const [kind, setKind] = useState<ItemKind | null>(null);
+  const [chosen, setChosen] = useState<Record<string, string>>({});
+  // Filtros que salen de sus datos: hasta un precio y de poca duración (solo si parten la lista).
+  const [cheap, setCheap] = useState(false);
+  const mySize = useQuery({ queryKey: ['agent-facts'], queryFn: loadFacts }).data?.find((f) => f.name === 'Talla')?.value ?? null;
+  const [short, setShort] = useState(false);
 
   const business = useQuery({ queryKey: ['entity', id], queryFn: () => entitiesApi.get(id ?? ''), enabled: Boolean(id) });
   const catalog = useQuery({ queryKey: ['catalog', id, 'sections'], queryFn: () => catalogApi.listWithSections(id ?? ''), enabled: Boolean(id), staleTime: 60_000 });
@@ -33,11 +40,42 @@ export default function CatalogScreen() {
   const items = useMemo(() => publicCatalog(catalog.data?.items ?? []), [catalog.data]);
   // El orden de las secciones es el del negocio (las que tienen productos), con «Otros» al final.
   const order = useMemo(() => (catalog.data?.sections ?? []).map((s) => s.name), [catalog.data]);
-  const audiences = useMemo(() => (catalog.data?.audience ? audienceChips(items) : []), [catalog.data, items]);
-  const forAudience = useMemo(() => items.filter((i) => matchesAudience(i.audience, audience)), [items, audience]);
-  // Las secciones siempre se ven (salen de todos los productos); el conteo es el del filtro «Para».
-  const chips = useMemo(() => sectionChips(items, order, forAudience), [items, order, forAudience]);
-  const groups = useMemo(() => catalogGroups(filterCatalog(forAudience, query, section), order), [forAudience, query, section, order]);
+  // Servicios y productos nunca van mezclados: si hay de los dos, se elige; las secciones y los atributos siguen esa elección.
+  const kinds = useMemo(() => kindChips(items), [items]);
+  const byKind = useMemo(() => items.filter((i) => !kind || i.kind === kind), [items, kind]);
+  const audiences = useMemo(() => (catalog.data?.audience ? audienceChips(byKind) : []), [catalog.data, byKind]);
+  const forAudience = useMemo(() => byKind.filter((i) => matchesAudience(i.audience, audience)), [byKind, audience]);
+  // Los atributos (talla, color…) salen de lo que se ve, y filtran juntos.
+  const attrs = useMemo(() => attrGroups(forAudience), [forAudience]);
+  const quick = useMemo(() => quickFilters(byKind), [byKind]);
+  const shown = useMemo(
+    () =>
+      forAudience.filter(
+        (i) =>
+          matchesAttrs(i, chosen) &&
+          (!cheap || quick.maxPrice === null || (typeof i.price === 'number' && i.price <= quick.maxPrice)) &&
+          (!short || quick.maxMin === null || (typeof i.duration_min === 'number' && i.duration_min <= quick.maxMin)),
+      ),
+    [forAudience, chosen, cheap, short, quick],
+  );
+  const sizeGroup = attrs.find((g) => g.name.toLowerCase() === 'talla');
+  const sizeValue = mySize && sizeGroup ? sizeGroup.values.find((v) => v.value.toUpperCase() === mySize.toUpperCase())?.value : undefined;
+  const quickChips = [
+    ...(sizeValue && sizeGroup ? [{ key: 'size', label: `Tu talla ${sizeValue}`, on: chosen[sizeGroup.name] === sizeValue, toggle: () => choose(sizeGroup.name, chosen[sizeGroup.name] === sizeValue ? null : sizeValue) }] : []),
+    ...(quick.maxPrice !== null ? [{ key: 'cheap', label: `Hasta ${formatPesos(quick.maxPrice)}`, on: cheap, toggle: () => setCheap((v) => !v) }] : []),
+    ...(quick.maxMin !== null ? [{ key: 'short', label: `${quick.maxMin} min o menos`, on: short, toggle: () => setShort((v) => !v) }] : []),
+  ];
+  // Las secciones siempre se ven (salen de lo de este tipo); el conteo es el de los demás filtros.
+  const chips = useMemo(() => sectionChips(byKind, order, shown), [byKind, order, shown]);
+  const groups = useMemo(() => catalogGroups(filterCatalog(shown, query, section), order), [shown, query, section, order]);
+  const choose = (name: string, value: string | null) =>
+    setChosen((c) => {
+      const next = { ...c };
+      if (value) next[name] = value;
+      else delete next[name];
+      return next;
+    });
+  const filtering = Boolean(query || section || audience || kind || cheap || short || Object.keys(chosen).length);
 
   // Sin foto, cada producto muestra el ícono de su sección (o el de la categoría del negocio).
   const icons = useMemo(() => new Map((catalog.data?.sections ?? []).map((x) => [x.name, x.icon])), [catalog.data]);
@@ -47,7 +85,7 @@ export default function CatalogScreen() {
 
   return (
     <View style={styles.screen}>
-      <SubScreenHeader title={business.data ? `${copy.noun} · ${business.data.name}` : copy.noun} />
+      <SubScreenHeader title="Catálogo" subtitle={business.data ? `${business.data.name} · ${catalogCount(copy, items.length)}` : undefined} />
       {catalog.isLoading ? (
         <ActivityIndicator style={styles.loading} color={colors.primary} />
       ) : (
@@ -57,10 +95,10 @@ export default function CatalogScreen() {
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder={copy.search}
+              placeholder="Busca en este negocio"
               placeholderTextColor={colors.muted}
               style={styles.searchInput}
-              accessibilityLabel={copy.search}
+              accessibilityLabel="Busca en este negocio"
               returnKeyType="search"
             />
             {query ? (
@@ -71,15 +109,34 @@ export default function CatalogScreen() {
           </View>
           <CatalogFilters
             sections={chips}
-            total={forAudience.length}
+            total={shown.length}
             section={section}
             onSection={setSection}
             audiences={audiences}
             audience={audience}
             onAudience={setAudience}
+            kinds={kinds}
+            kind={kind}
+            onKind={(k) => {
+              setKind(k);
+              setSection('');
+              setChosen({});
+            }}
+            attrs={attrs}
+            chosen={chosen}
+            onChoose={choose}
           />
+          {quickChips.length ? (
+            <View style={styles.quick}>
+              {quickChips.map((c) => (
+                <Pressable key={c.key} accessibilityRole="button" accessibilityState={{ selected: c.on }} onPress={c.toggle} style={[styles.quickChip, c.on && styles.quickChipOn]}>
+                  <Text style={[styles.quickText, c.on && styles.quickTextOn]}>{c.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
           <Text style={styles.count} accessibilityLiveRegion="polite">
-            {query || section || audience ? `${catalogCount(copy, groups.reduce((n, g) => n + g.items.length, 0))} de ${items.length}` : catalogCount(copy, items.length)}
+            {filtering ? `${catalogCount(copy, groups.reduce((n, g) => n + g.items.length, 0))} de ${items.length}` : catalogCount(copy, items.length)}
           </Text>
           {groups.length === 0 ? (
             <View style={styles.empty}>
@@ -90,6 +147,10 @@ export default function CatalogScreen() {
                   setQuery('');
                   setSection('');
                   setAudience(null);
+                  setKind(null);
+                  setChosen({});
+                  setCheap(false);
+                  setShort(false);
                 }}
                 style={styles.emptyBtn}
               >
@@ -122,6 +183,11 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, minHeight: 44, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink },
   clear: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   count: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
+  quick: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  quickChip: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
+  quickChipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
+  quickText: { fontSize: 13.5, fontFamily: fonts.ui.semibold, color: colors.ink },
+  quickTextOn: { color: colors.ink },
   group: { gap: spacing.sm },
   groupTitle: { fontSize: 12, fontFamily: fonts.ui.extrabold, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.muted },
   empty: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl },

@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useEffect, useState } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Cover } from '@/components/Cover';
@@ -135,18 +135,18 @@ export function Showcase({ items, now, onOpen }: { items: MarketItem[]; now: num
 
 const styles = StyleSheet.create({
   card: { borderRadius: 20, overflow: 'hidden', backgroundColor: colors.surface, ...softShadow },
-  stage: { height: 168, backgroundColor: colors.ink },
+  stage: { height: 168, backgroundColor: colors.sand },
   badge: { position: 'absolute', left: 10, top: 10, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.accent },
   badgeText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   text: { position: 'absolute', left: 16, right: 56, bottom: 16, gap: 4 },
   textDots: { bottom: 28 },
-  biz: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#fff' },
-  title: { fontSize: 22, lineHeight: 25, fontFamily: fonts.display.bold, color: '#fff' },
+  biz: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
+  title: { fontSize: 20, lineHeight: 24, fontFamily: fonts.display.bold, color: colors.ink },
   dots: { position: 'absolute', left: 16, bottom: 12, flexDirection: 'row', gap: 6 },
-  dot: { width: 18, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.35)' },
+  dot: { width: 18, height: 4, borderRadius: 2, backgroundColor: 'rgba(43,38,34,0.06)' },
   dotOn: { backgroundColor: '#fff' },
   pause: { position: 'absolute', right: 6, top: 6, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  pauseIn: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.92)' },
+  pauseIn: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(43,38,34,0.06)' },
   foot: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingLeft: 16, paddingRight: 12 },
   footText: { flex: 1, minWidth: 0, gap: 2 },
   priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
@@ -154,6 +154,6 @@ const styles = StyleSheet.create({
   was: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.faint, textDecorationLine: 'line-through' },
   clock: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   clockText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
-  btn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primary },
-  btnText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  btn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  btnText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

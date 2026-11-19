@@ -1,11 +1,4 @@
-import { Nunito_600SemiBold, Nunito_700Bold, Nunito_800ExtraBold, Nunito_900Black } from '@expo-google-fonts/nunito';
-import {
-  Manrope_400Regular,
-  Manrope_500Medium,
-  Manrope_600SemiBold,
-  Manrope_700Bold,
-  Manrope_800ExtraBold,
-} from '@expo-google-fonts/manrope';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from '@expo-google-fonts/inter';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
@@ -23,9 +16,10 @@ import { initUploads } from '@/upload/uploadStore';
 import { NoticeHost } from '@/components/Notice';
 import { flushLedger, initLedgerOutbox } from '@/ledger/ledgerStore';
 import { colors } from '@/theme';
+import { GlobalEmpreButton } from '@/components/GlobalEmpreButton';
 
-// Se mantiene la splash nativa visible hasta que Nunito y Manrope estén
-// listas, así se evita el "parpadeo" de la tipografía del sistema al abrir.
+// Se mantiene la splash nativa visible hasta que Inter esté
+// lista, así se evita el "parpadeo" de la tipografía del sistema al abrir.
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function AppStack() {
@@ -49,6 +43,8 @@ function AppStack() {
       {/* Al mapa se entra abriendo la puerta Explorar del inicio (3.60): un fundido corto, no el deslizamiento lateral. */}
       <Stack.Screen name="map" options={{ animation: 'fade', animationDuration: 180 }} />
       <Stack.Screen name="business/[id]" />
+      {/* El producto se abre como hoja sobre lo que estabas viendo (2026-11-14), no como página entera. */}
+      <Stack.Screen name="business/product" options={{ presentation: 'transparentModal', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="chat/[entityId]" />
     </Stack>
   );
@@ -63,15 +59,11 @@ export default function RootLayout() {
   );
 
   const [fontsLoaded, fontError] = useFonts({
-    Manrope_400Regular,
-    Manrope_500Medium,
-    Manrope_600SemiBold,
-    Manrope_700Bold,
-    Manrope_800ExtraBold,
-    Nunito_600SemiBold,
-    Nunito_700Bold,
-    Nunito_800ExtraBold,
-    Nunito_900Black,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    Inter_800ExtraBold,
   });
 
   // Medición anónima: lee (o crea) el identificador y la preferencia; no bloquea nada.
@@ -108,6 +100,7 @@ export default function RootLayout() {
           <ChatProvider>
             <StatusBar style="dark" />
             <AppStack />
+            <GlobalEmpreButton />
             <UploadCapsule />
             <NoticeHost />
           </ChatProvider>

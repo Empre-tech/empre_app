@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { ledgerApi, type InventoryItem } from '@/api/ledger';
 import { DoneMark, FLOW_SETTLE_MS, FlowHeader, Pop, useFlowBack, useFlowStep } from '@/components/ledger/Flow';
 import { AmountField, Chip, LedgerReceipt, PartyPicker, type PartyChoice } from '@/components/ledger/parts';
@@ -352,7 +352,7 @@ export default function NewExpenseScreen() {
             <Pop value={amount}>
               <Text style={styles.primaryBtnText}>{amount > 0 ? `Seguir · ${formatPesos(amount)}` : 'Seguir'}</Text>
             </Pop>
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
+            <Ionicons name="arrow-forward" size={18} color={colors.ink} />
           </Pressable>
         )}
       </View>
@@ -362,7 +362,7 @@ export default function NewExpenseScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  question: { fontSize: 26, lineHeight: 30, letterSpacing: -0.4, fontFamily: fonts.display.bold, color: colors.ink },
+  question: { fontSize: 22, lineHeight: 26, letterSpacing: -0.4, fontFamily: fonts.display.bold, color: colors.ink },
   sectionTitle: { fontSize: 19, lineHeight: 23, fontFamily: fonts.display.bold, color: colors.ink },
   methods: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   catTile: { width: '48.5%', minHeight: 64, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
@@ -387,12 +387,12 @@ const styles = StyleSheet.create({
   buyHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   buyName: { flex: 1, fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   buyInputs: { flexDirection: 'row', gap: spacing.sm },
-  buyInput: { minHeight: 46, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 16, fontFamily: fonts.ui.bold, color: colors.ink, backgroundColor: colors.bg },
+  buyInput: { minHeight: 46, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 16, fontFamily: fonts.ui.bold, color: colors.ink, backgroundColor: colors.well },
   tiny: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },
   footer: { gap: 8, paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.hairline, backgroundColor: colors.surface },
-  primaryBtn: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.primary },
+  primaryBtn: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
   primaryBtnDisabled: { backgroundColor: colors.hairline },
-  primaryBtnText: { fontSize: 15.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  primaryBtnText: { fontSize: 15.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   primaryBtnTextDisabled: { color: colors.faint },
 });

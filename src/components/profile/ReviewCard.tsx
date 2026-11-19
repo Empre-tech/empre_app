@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Review } from '@/api/types';
@@ -34,7 +34,7 @@ export function ReviewCard({ review, mine = false }: { review: Review; mine?: bo
           </Text>
           <View style={styles.stars} accessible={false}>
             {[1, 2, 3, 4, 5].map((n) => (
-              <Ionicons key={n} name={n <= review.rating ? 'star' : 'star-outline'} size={12} color={colors.accent} />
+              <Ionicons key={n} name={n <= review.rating ? 'star' : 'star-outline'} size={12} color={colors.ink} />
             ))}
           </View>
           <Text style={styles.when}>{when}</Text>
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
   stars: { flexDirection: 'row' },
   when: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   stamp: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: colors.verifiedSoft },
-  stampText: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: '#0A6E6A' },
+  stampText: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: '#D42020' },
   comment: { fontSize: 13, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.ink },
   none: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   more: { minHeight: 44, justifyContent: 'center' },

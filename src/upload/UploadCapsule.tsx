@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -64,7 +64,7 @@ export function UploadCapsule() {
           style={[styles.pill, failed && styles.pillFailed, done && styles.pillDone]}
         >
           {failed ? (
-            <Ionicons name="refresh" size={16} color="#fff" />
+            <Ionicons name="refresh" size={16} color={colors.ink} />
           ) : done ? (
             <Ionicons name="checkmark-circle" size={16} color="#fff" />
           ) : (
@@ -86,10 +86,10 @@ export function UploadCapsule() {
 
 const styles = StyleSheet.create({
   layer: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 1000, elevation: 1000 },
-  pill: { minHeight: 44, maxWidth: 360, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: radius.pill, backgroundColor: colors.ink, overflow: 'hidden', ...shadow },
-  pillFailed: { backgroundColor: '#B3261E' },
-  pillDone: { backgroundColor: '#0A6E6A' },
-  text: { flexShrink: 1, fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  track: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, backgroundColor: 'rgba(255,255,255,0.2)' },
-  fill: { height: 3, backgroundColor: colors.accent },
+  pill: { minHeight: 44, maxWidth: 360, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: radius.pill, backgroundColor: colors.sand, overflow: 'hidden', ...shadow },
+  pillFailed: { backgroundColor: colors.sand },
+  pillDone: { backgroundColor: '#D42020' },
+  text: { flexShrink: 1, fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  track: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, backgroundColor: 'rgba(43,38,34,0.06)' },
+  fill: { height: 3, backgroundColor: colors.brand },
 });

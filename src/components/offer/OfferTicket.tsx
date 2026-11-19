@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line } from 'react-native-svg';
 import type { Offer } from '@/api/types';
@@ -58,7 +58,7 @@ export function OfferTicket({ offer, cta, notchColor = colors.bg, showPrice = tr
   const slotsText = formatSlotsFree(offer.slots_left, offer.total_slots);
 
   const topBg = off ? styles.topOff : hot ? styles.topHot : warn ? styles.topWarn : styles.topCalm;
-  const ringColor = off ? '#8796AB' : hot ? colors.ink : warn ? colors.accentDark : colors.primary;
+  const ringColor = off ? '#8E929A' : hot ? colors.ink : warn ? colors.accentDark : colors.primary;
   const ringTrack = hot ? 'rgba(22, 35, 58, 0.2)' : colors.line;
   const kind = hot ? 'Última llamada' : offerTypeLabel(offer.type);
 
@@ -67,9 +67,7 @@ export function OfferTicket({ offer, cta, notchColor = colors.bg, showPrice = tr
       <View style={styles.clip}>
         {!off ? (
           <View style={styles.brandRibbon} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            <View style={[styles.ribbonSeg, { backgroundColor: '#F03232' }]} />
-            <View style={[styles.ribbonSeg, { backgroundColor: '#14B8B0' }]} />
-            <View style={[styles.ribbonSeg, { backgroundColor: '#FF8A1F' }]} />
+            <View style={[styles.ribbonSeg, { backgroundColor: colors.accent }]} />
           </View>
         ) : null}
 
@@ -177,7 +175,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.accentSoft,
   },
-  kindBadgeHot: { backgroundColor: 'rgba(255,255,255,0.45)' },
+  kindBadgeHot: { backgroundColor: 'rgba(43,38,34,0.06)' },
   kindBadgeOff: { backgroundColor: colors.selectedSoft },
   kind: { fontSize: 12, fontFamily: fonts.ui.extrabold, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.accentInk },
   kindHot: { color: colors.ink },
@@ -194,7 +192,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: colors.verifiedSoft,
   },
-  savingsPillHot: { backgroundColor: 'rgba(255,255,255,0.5)' },
+  savingsPillHot: { backgroundColor: 'rgba(43,38,34,0.06)' },
   savings: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.verified },
   savingsHot: { color: colors.ink },
   clock: { width: 82, alignItems: 'center', gap: 4 },
@@ -203,7 +201,7 @@ const styles = StyleSheet.create({
   ringValue: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
   ringUnit: { fontSize: 12, fontFamily: fonts.ui.bold, letterSpacing: 0.2, color: colors.muted },
   when: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.ink, textAlign: 'center' },
-  whenHot: { color: '#fff', backgroundColor: colors.ink, paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.pill, overflow: 'hidden' },
+  whenHot: { color: colors.ink, backgroundColor: colors.sand, paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.pill, overflow: 'hidden' },
   perforation: { marginHorizontal: spacing.lg, height: 2 },
   notch: { position: 'absolute', top: -9, width: 20, height: 20, borderRadius: 10 },
   notchLeft: { left: -(spacing.lg + 10) },
@@ -212,7 +210,7 @@ const styles = StyleSheet.create({
   slots: { flex: 1, gap: 5 },
   segments: { flexDirection: 'row', gap: 3 },
   segment: { flex: 1, maxWidth: 16, height: 7, borderRadius: 4 },
-  segmentOn: { backgroundColor: colors.ink },
+  segmentOn: { backgroundColor: colors.selectedSoft },
   segmentOff: { backgroundColor: colors.line },
   slotsText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
   cta: { paddingHorizontal: spacing.lg, minHeight: 46 },

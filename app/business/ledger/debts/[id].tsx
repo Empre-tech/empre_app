@@ -1,12 +1,13 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState, useMemo } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi, type PartyBalance, type PartyKind } from '@/api/ledger';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
+import { FinanceListSkeleton, Stage } from '@/components/finance/FinanceMotion';
 import { FinanceTop } from '@/components/finance/Top';
 import { AmountField, Chip, MethodChips } from '@/components/ledger/parts';
 import { EmpreAICard, ShareRow, StatusCap, SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
@@ -97,11 +98,11 @@ export default function CuentasScreen() {
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.body, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 32 }]} refreshControl={<RefreshControl refreshing={customers.isRefetching} onRefresh={reload} />}>
         <FinanceTop entityId={entityId} space="cuentas" title="Quién debe a quién" />
         {loading ? (
-          <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
+          <FinanceListSkeleton rows={4} withSummary />
         ) : failed ? (
           <EmptyState icon="cloud-offline-outline" title="No pudimos cargar tus cuentas" body="Revisa tu conexión e inténtalo de nuevo." action={{ title: 'Reintentar', onPress: reload }} />
         ) : nothing ? (
-          <>
+          <Stage step={0}>
             <EmpreAICard title="Empieza con lo que ya existe">
               <Text style={styles.plain}>Si alguien te debe de antes de usar Empre, anótalo. Así no se te olvida ni se mezcla con lo nuevo.</Text>
             </EmpreAICard>
@@ -109,39 +110,44 @@ export default function CuentasScreen() {
               <SystemRow first icon="add-outline" title="Anotar a alguien que te debe" sub="Un nombre y cuánto" onPress={() => setAdding('customer')} />
               <SystemRow icon="car-outline" title="Anotar a quién le debes" sub="Un proveedor y cuánto" onPress={() => setAdding('supplier')} />
             </SystemGroup>
-          </>
+          </Stage>
         ) : (
           <>
-            <View style={styles.sides}>
-              {(
-                [
-                  ['customer', 'Te deben', owedTotal],
-                  ['supplier', 'Debes', oweTotal],
-                ] as const
-              ).map(([k, label, total]) => {
-                const on = kind === k;
-                return (
-                  <Pressable key={k} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setKind(k)} style={[styles.side, on && styles.sideOn]}>
-                    <Text style={styles.sideLabel}>{label}</Text>
-                    <Text style={styles.sideValue} numberOfLines={1} adjustsFontSizeToFit>
-                      {total > 0 ? formatPesos(total) : 'Nada'}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <Stage step={0}>
+              <View style={styles.sides}>
+                {(
+                  [
+                    ['customer', 'Te deben', owedTotal],
+                    ['supplier', 'Debes', oweTotal],
+                  ] as const
+                ).map(([k, label, total]) => {
+                  const on = kind === k;
+                  return (
+                    <Pressable key={k} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setKind(k)} style={[styles.side, on && styles.sideOn]}>
+                      <Text style={styles.sideLabel}>{label}</Text>
+                      <Text style={styles.sideValue} numberOfLines={1} adjustsFontSizeToFit>
+                        {total > 0 ? formatPesos(total) : 'Nada'}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </Stage>
 
             {readings.length > 0 ? (
-              <EmpreAICard title="Qué cobrar primero">
-                <View>
-                  {readings.map((r, i) => (
-                    <SystemRow key={r.kind} first={i === 0} icon={READING_ICON[r.kind]} title={r.title} sub={r.sub} />
-                  ))}
-                </View>
-              </EmpreAICard>
+              <Stage step={1}>
+                <EmpreAICard title="Qué cobrar primero">
+                  <View>
+                    {readings.map((r, i) => (
+                      <SystemRow key={r.kind} first={i === 0} icon={READING_ICON[r.kind]} title={r.title} sub={r.sub} />
+                    ))}
+                  </View>
+                </EmpreAICard>
+              </Stage>
             ) : null}
 
-            <SystemSection title={isCustomer ? 'Quién te debe' : 'A quién le debes'}>
+            <Stage step={2}>
+              <SystemSection title={isCustomer ? 'Quién te debe' : 'A quién le debes'}>
               <SystemGroup>
                 {rows.length === 0 ? <Text style={styles.none}>{isCustomer ? 'Nadie te debe nada.' : 'No le debes a ningún proveedor.'}</Text> : null}
                 {rows.map((item, index) => {
@@ -179,20 +185,25 @@ export default function CuentasScreen() {
                 })}
               </SystemGroup>
             </SystemSection>
+            </Stage>
 
             {isCustomer && rows.length > 0 ? (
-              <SystemSection title="Cuánto llevan">
-                <SystemGroup>
-                  {aging.map((x, i) => (
-                    <ShareRow key={x.key} first={i === 0} label={x.label} value={x.total > 0 ? formatPesos(x.total) : 'Nadie'} share={(x.total / agingTop) * 100} />
-                  ))}
-                </SystemGroup>
-              </SystemSection>
+              <Stage step={3}>
+                <SystemSection title="Cuánto llevan">
+                  <SystemGroup>
+                    {aging.map((x, i) => (
+                      <ShareRow key={x.key} first={i === 0} label={x.label} value={x.total > 0 ? formatPesos(x.total) : 'Nadie'} share={(x.total / agingTop) * 100} />
+                    ))}
+                  </SystemGroup>
+                </SystemSection>
+              </Stage>
             ) : null}
 
-            <SystemGroup>
-              <SystemRow first icon="add-outline" title={isCustomer ? 'Anotar a alguien que te debe' : 'Anotar a quién le debes'} sub="De antes de usar Empre. Las ventas fiadas llegan solas" onPress={() => setAdding(kind)} />
-            </SystemGroup>
+            <Stage step={4}>
+              <SystemGroup>
+                <SystemRow first icon="add-outline" title={isCustomer ? 'Anotar a alguien que te debe' : 'Anotar a quién le debes'} sub="De antes de usar Empre. Las ventas fiadas llegan solas" onPress={() => setAdding(kind)} />
+              </SystemGroup>
+            </Stage>
           </>
         )}
       </ScrollView>
@@ -344,7 +355,7 @@ const styles = StyleSheet.create({
   partyActions: { flexDirection: 'row', gap: 8 },
   partyBtn: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   partyBtnText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  flash: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink, backgroundColor: colors.verifiedSoft },
+  flash: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink, backgroundColor: colors.financeSoft },
   tabsInline: { flexDirection: 'row', gap: spacing.sm },
   msg: { minHeight: 110, paddingTop: spacing.sm, textAlignVertical: 'top' },
   screen: { flex: 1, backgroundColor: colors.bg },

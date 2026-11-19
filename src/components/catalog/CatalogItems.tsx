@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { categoryColor } from '@/lib/categoryColor';
@@ -129,10 +129,10 @@ const styles = StyleSheet.create({
   consult: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: spacing.sm },
   tile: { width: '48.5%', backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
-  tileImg: { aspectRatio: 4 / 3, backgroundColor: colors.bg },
+  tileImg: { aspectRatio: 4 / 3, backgroundColor: colors.well },
   tileIcon: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  outBadge: { position: 'absolute', left: 8, top: 8, paddingHorizontal: 8, height: 22, borderRadius: 11, backgroundColor: '#FDECEC', justifyContent: 'center' },
-  outBadgeText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#B3261E' },
+  outBadge: { position: 'absolute', left: 8, top: 8, paddingHorizontal: 8, height: 22, borderRadius: 11, backgroundColor: '#EFF0F2', justifyContent: 'center' },
+  outBadgeText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#2B2622' },
   countBadge: { position: 'absolute', right: 8, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, height: 22, borderRadius: 11, backgroundColor: 'rgba(22,35,58,0.72)' },
   countText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#fff' },
   tileText: { padding: spacing.sm, paddingHorizontal: 12, gap: 2 },

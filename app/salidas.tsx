@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -13,19 +13,12 @@ import { Avatar } from '@/components/Avatar';
 import { EmptyState } from '@/components/EmptyState';
 import { SignInPrompt } from '@/components/SignInPrompt';
 import { formatWhen, STATUS_LABEL } from '@/lib/agendaFormat';
-import { effectiveClaimStatus, mergeClaims } from '@/lib/claims';
+import { claimDate, effectiveClaimStatus, mergeClaims, savedIn } from '@/lib/claims';
 import { formatPesos } from '@/lib/ledger';
 import { loadSavedPlans, planHour, planKey, planTag, planTitle } from '@/lib/plans';
 import { useNow } from '@/lib/useNow';
 import { colors, fonts, softShadow } from '@/theme';
 
-const claimDate = (c: OfferClaim) => c.redeemed_at ?? c.claimed_at;
-
-/** Lo que se ahorró en un canje: solo si la oferta trae los dos precios. */
-function savedIn(c: OfferClaim): number {
-  const { reference_price: was, special_price: now } = c.offer ?? {};
-  return was && now && was > now ? was - now : 0;
-}
 
 const dayOf = (iso: string) => new Date(iso).toDateString();
 const mmss = (ms: number) => {
@@ -133,6 +126,10 @@ export default function SalidasScreen() {
         <Text style={styles.title} accessibilityRole="header">
           Mis salidas
         </Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Armar una vuelta por el barrio" onPress={() => router.push('/vuelta')} style={styles.vuelta}>
+          <Ionicons name="walk-outline" size={16} color={colors.ink} />
+          <Text style={styles.vueltaText}>Armar una vuelta</Text>
+        </Pressable>
       </View>
 
       {savedMonth > 0 ? (
@@ -197,7 +194,7 @@ export default function SalidasScreen() {
                   <Text style={styles.stopSub} numberOfLines={1}>
                     {x.sub}
                   </Text>
-                  <Text style={[styles.stopState, x.hot && { color: colors.accentInk }, x.done && { color: colors.verified }]}>{x.state}</Text>
+                  <Text style={[styles.stopState, x.hot && { color: colors.ink }, x.done && { color: colors.verified }]}>{x.state}</Text>
                 </View>
               </Pressable>
             ))}
@@ -227,7 +224,7 @@ export default function SalidasScreen() {
                 style={[styles.ticket, !stackOpen && { position: 'absolute', left: 0, right: 0, top: i * 10, zIndex: 10 - i, transform: [{ scale: 1 - i * 0.03 }] }]}
               >
                 <View style={styles.ticketIcon}>
-                  <Ionicons name="qr-code-outline" size={22} color="#fff" />
+                  <Ionicons name="qr-code-outline" size={22} color={colors.ink} />
                 </View>
                 <View style={styles.ticketText}>
                   <Text style={styles.ticketBiz} numberOfLines={2}>
@@ -257,9 +254,9 @@ export default function SalidasScreen() {
       ) : null}
 
       {laterAppts.length ? (
-        <Section title="Lo que sigue">
+        <Section title="Lo que viene">
           {laterAppts.map((a, i) => (
-            <Row key={a.id} first={i === 0} icon="calendar-outline" title={a.service?.name ?? 'Cita'} sub={[a.entity?.name, formatWhen(a.starts_at)].filter(Boolean).join(' · ')} tag={STATUS_LABEL[a.status]} onPress={() => openAppt(a)} />
+            <Row key={a.id} first={i === 0} agenda icon="calendar-outline" title={a.service?.name ?? 'Cita'} sub={[a.entity?.name, formatWhen(a.starts_at)].filter(Boolean).join(' · ')} tag={STATUS_LABEL[a.status]} onPress={() => openAppt(a)} />
           ))}
         </Section>
       ) : null}
@@ -330,11 +327,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Row({ first, icon, title, sub, tag, onPress }: { first: boolean; icon: keyof typeof Ionicons.glyphMap; title: string; sub: string; tag?: string; onPress: () => void }) {
+function Row({ first, icon, title, sub, tag, agenda, onPress }: { first: boolean; icon: keyof typeof Ionicons.glyphMap; title: string; sub: string; tag?: string; agenda?: boolean; onPress: () => void }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={[title, sub, tag].filter(Boolean).join('. ')} onPress={onPress} style={({ pressed }) => [styles.row, !first && styles.rowLine, pressed && { opacity: 0.85 }]}>
-      <View style={styles.icon}>
-        <Ionicons name={icon} size={20} color={colors.ink} />
+      {/* Las citas llevan el violeta de Agenda (solo en el ícono). */}
+      <View style={[styles.icon, agenda && { backgroundColor: colors.agendaSoft }]}>
+        <Ionicons name={icon} size={20} color={agenda ? colors.agenda : colors.ink} />
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={styles.rowTitle} numberOfLines={1}>
@@ -352,17 +350,19 @@ function Row({ first, icon, title, sub, tag, onPress }: { first: boolean; icon: 
 }
 
 const styles = StyleSheet.create({
+  vuelta: { marginLeft: 'auto', minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1.5, borderColor: colors.line },
+  vueltaText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 20, gap: 22 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
-  title: { fontSize: 26, lineHeight: 31, fontFamily: fonts.display.bold, color: colors.ink },
+  title: { fontSize: 22, lineHeight: 26, fontFamily: fonts.display.bold, color: colors.ink },
   summary: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
   faces: { flexDirection: 'row' },
   face: { borderRadius: 19, borderWidth: 2.5, borderColor: colors.surface, overflow: 'hidden' },
   summaryText: { flex: 1, minWidth: 0, gap: 2 },
   summaryLabel: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
-  summaryValue: { fontSize: 22, lineHeight: 27, fontFamily: fonts.display.bold, color: colors.ink },
+  summaryValue: { fontSize: 20, lineHeight: 24, fontFamily: fonts.display.bold, color: colors.ink },
   summaryIn: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted },
   sectionBox: { gap: 12 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
   railLine: { flex: 1, width: 3, borderRadius: 2, backgroundColor: colors.hairline },
   stopDot: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.line, backgroundColor: colors.surface },
   stopDotDone: { borderColor: colors.verified, backgroundColor: colors.verified },
-  stopDotHot: { borderColor: colors.accent, borderWidth: 3 },
+  stopDotHot: { borderColor: colors.ink, borderWidth: 3 },
   stopBody: { flex: 1, minWidth: 0, gap: 3, paddingTop: 2, paddingBottom: 12 },
   stopTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   stopTitle: { flexShrink: 1, fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
@@ -386,13 +386,13 @@ const styles = StyleSheet.create({
   stopState: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
   stamp: { paddingVertical: 2, paddingHorizontal: 8, borderRadius: 7, borderWidth: 2, borderColor: colors.verified, transform: [{ rotate: '-6deg' }] },
   stampText: { fontSize: 11, letterSpacing: 1.5, fontFamily: fonts.ui.extrabold, color: colors.verified },
-  ticket: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 72, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 20, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, elevation: 3 },
-  ticketIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ink },
+  ticket: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 72, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 20, backgroundColor: colors.night, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, elevation: 3 },
+  ticketIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sand },
   ticketText: { flex: 1, minWidth: 0, gap: 2 },
   ticketBiz: { fontSize: 15, lineHeight: 19, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  ticketOffer: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
-  left: { paddingVertical: 4, paddingHorizontal: 9, borderRadius: 999, backgroundColor: colors.accentSoft },
-  leftText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
+  ticketOffer: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.nightText },
+  left: { paddingVertical: 4, paddingHorizontal: 9, borderRadius: 999, backgroundColor: colors.glowSoft },
+  leftText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.glow },
   none: { padding: 16, borderRadius: 16, overflow: 'hidden', backgroundColor: colors.surface, fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.muted },
   day: { borderRadius: 20, overflow: 'hidden', backgroundColor: colors.surface, ...softShadow },
   dayHead: { paddingVertical: 14, paddingHorizontal: 16, gap: 8 },

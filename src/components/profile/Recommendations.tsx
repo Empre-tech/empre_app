@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -121,9 +121,9 @@ const styles = StyleSheet.create({
   text: { padding: 10, gap: 2 },
   name: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   sub: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.muted },
-  why: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: '#E3F5F3' },
+  why: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: '#FDECEC' },
   whyOffer: { backgroundColor: colors.accent },
-  whyText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#0A6E6A' },
+  whyText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#D42020' },
   whyTextOffer: { color: colors.ink },
   error: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: '#FBE4E4' },
   errorText: { flex: 1, fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#8E2A2A' },

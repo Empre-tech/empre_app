@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -178,7 +178,7 @@ export default function AdminCategoriesScreen() {
           style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]}
           hitSlop={8}
         >
-          <Ionicons name="add" size={16} color="#fff" />
+          <Ionicons name="add" size={16} color={colors.ink} />
           <Text style={styles.addButtonText}>Nueva</Text>
         </Pressable>
       </View>
@@ -472,7 +472,7 @@ const styles = StyleSheet.create({
     height: 34,
     paddingHorizontal: spacing.md,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef,
   },
   addButtonPressed: { backgroundColor: colors.primaryDark },
   addButtonText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.selected },

@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -15,6 +15,7 @@ import { SignInPrompt } from '@/components/SignInPrompt';
 import { useInboxSummary } from '@/chat/useInboxSummary';
 import { formatMessageTime } from '@/lib/format';
 import { requestsLabel } from '@/lib/inbox';
+import { ScreenGlow } from '@/components/ScreenGlow';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 type Tab = 'personal' | 'business';
@@ -62,6 +63,7 @@ export default function ChatsScreen() {
   if (status !== 'signedIn') {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <ScreenGlow />
         <SignInPrompt title="Habla con los negocios" message="Pregunta por horarios, precios o envíos directo con cada negocio." variant="messages" />
       </View>
     );
@@ -87,6 +89,7 @@ export default function ChatsScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
+      <ScreenGlow />
       <Text style={styles.title}>Mensajes</Text>
 
       <View style={styles.tabs}>
@@ -145,7 +148,7 @@ export default function ChatsScreen() {
               onPress={() => router.push({ pathname: '/business/agenda/[id]', params: { id: selectedBusinessId } })}
               style={({ pressed }) => [styles.reqBanner, pressed && { opacity: 0.85 }]}
             >
-              <Ionicons name="calendar-outline" size={20} color={colors.accentInk} />
+              <Ionicons name="calendar-outline" size={20} color={colors.agenda} />
               <Text style={styles.reqBannerText}>
                 {inbox.byEntity.get(selectedBusinessId)?.requests === 1 ? '1 solicitud de cita por revisar' : `${inbox.byEntity.get(selectedBusinessId)?.requests} solicitudes de cita por revisar`}
               </Text>
@@ -226,7 +229,7 @@ function BusinessRow({ business, count, requests, onPress }: { business: EntityO
         </Text>
         {requests > 0 ? (
           <View style={styles.reqPill}>
-            <Ionicons name="calendar-outline" size={12} color={colors.accentInk} />
+            <Ionicons name="calendar-outline" size={12} color={colors.agenda} />
             <Text style={styles.reqPillText}>{requestsLabel(requests)}</Text>
           </View>
         ) : null}
@@ -311,7 +314,7 @@ function ConversationList({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  title: { fontSize: 28, fontFamily: fonts.display.semibold, color: colors.ink, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  title: { fontSize: 24, fontFamily: fonts.display.semibold, color: colors.ink, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   tabs: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
   tab: {
     flexDirection: 'row',
@@ -358,10 +361,10 @@ const styles = StyleSheet.create({
   tabCountOn: { backgroundColor: '#fff' },
   tabCountText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#fff' },
   tabCountTextOn: { color: colors.primaryDark },
-  reqPill: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: colors.accentSoft },
-  reqPillText: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.accentInk },
-  reqBanner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, marginHorizontal: spacing.lg, marginBottom: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.accentSoft },
-  reqBannerText: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.accentInk },
+  reqPill: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: colors.agendaSoft },
+  reqPillText: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.agenda },
+  reqBanner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, marginHorizontal: spacing.lg, marginBottom: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.agendaSoft },
+  reqBannerText: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.agenda },
   reqBannerLink: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   countBadge: {
     minWidth: 22,

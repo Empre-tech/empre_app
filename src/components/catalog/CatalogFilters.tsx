@@ -1,5 +1,5 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import type { Audience } from '@/lib/catalog';
+import type { AttrGroup, Audience, ItemKind } from '@/lib/catalog';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 interface Props {
@@ -14,15 +14,37 @@ interface Props {
   audiences?: { key: Audience; label: string; count: number }[];
   audience?: Audience | null;
   onAudience?: (a: Audience | null) => void;
+  /** Servicios o productos, solo si el negocio tiene los dos (vacío = no se muestra). */
+  kinds?: { key: ItemKind | null; label: string; count: number }[];
+  kind?: ItemKind | null;
+  onKind?: (k: ItemKind | null) => void;
+  /** Los atributos de lo que se ve (talla, color…), cada uno con sus valores. */
+  attrs?: AttrGroup[];
+  chosen?: Record<string, string>;
+  onChoose?: (name: string, value: string | null) => void;
 }
 
 /**
  * Los filtros del catálogo que ve el cliente: las secciones como fichas que se deslizan (con 100 secciones la lista
  * no crece: se filtra) y, en ropa, calzado y deporte, «Para: Todos · Hombre · Mujer · Niños».
  */
-export function CatalogFilters({ sections, total, section, onSection, audiences = [], audience = null, onAudience }: Props) {
+export function CatalogFilters({ sections, total, section, onSection, audiences = [], audience = null, onAudience, kinds = [], kind = null, onKind, attrs = [], chosen = {}, onChoose }: Props) {
   return (
     <View style={{ gap: spacing.sm }}>
+      {kinds.length > 0 && onKind ? (
+        <View style={styles.audRow} accessibilityRole="tablist" accessibilityLabel="Servicios o productos">
+          {kinds.map((k) => {
+            const on = k.key === kind;
+            return (
+              <Pressable key={k.key ?? 'all'} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`${k.label}, ${k.count}`} onPress={() => onKind(k.key)} style={[styles.chip, on && styles.chipOn]}>
+                <Text style={[styles.chipText, on && styles.chipTextOn]}>
+                  {k.label} <Text style={[styles.count, on && styles.chipTextOn]}>{k.count}</Text>
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
       {sections.length > 0 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row} accessibilityRole="tablist">
           {[{ section: '', count: total }, ...sections].map((s) => {
@@ -57,6 +79,30 @@ export function CatalogFilters({ sections, total, section, onSection, audiences 
           })}
         </View>
       ) : null}
+      {onChoose
+        ? attrs.map((g) => (
+            <View key={g.name} style={{ gap: 4 }}>
+              <Text style={styles.audLabel}>{g.name}</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row} accessibilityRole="radiogroup" accessibilityLabel={g.name}>
+                {g.values.map((v) => {
+                  const on = chosen[g.name] === v.value;
+                  return (
+                    <Pressable
+                      key={v.value}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: on }}
+                      accessibilityLabel={`${g.name} ${v.value}${v.available ? '' : ', agotado'}`}
+                      onPress={() => onChoose(g.name, on ? null : v.value)}
+                      style={[styles.chip, on && styles.chipOn, !v.available && !on && styles.chipEmpty]}
+                    >
+                      <Text style={[styles.chipText, on && styles.chipTextOn]}>{v.value}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          ))
+        : null}
     </View>
   );
 }

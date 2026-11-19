@@ -1,16 +1,15 @@
-import { Ionicons } from '@expo/vector-icons';
-import { memo, useEffect, useMemo } from 'react';
+import { Ionicons } from '@/components/Icon';
+import { memo, useEffect } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { DiscoverSection, DiscoverSectionId } from '@/api/types';
 import { SkeletonRows } from '@/components/Skeleton';
 import { scopeText, type SearchScope } from '@/lib/discover';
-import { reelTiles, type ReelTile } from '@/lib/photoStrip';
+import { brandKey } from '@/lib/offerHome';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
-import { DiscoverCard, MiniCard, MiniRow, type CardModel } from './ExploreCards';
+import { MiniRow, type CardModel } from './ExploreCards';
 import { DiscoverSkeleton, FadeIn, UpdatingBar } from './LoadingMotion';
-import { PhotoReel } from './PhotoReel';
 import { ZoneAll, ZoneDiscover } from './ZonePanel';
-import { PEEK_REEL, type FeaturedSheetState } from './useFeaturedSheet';
+import type { FeaturedSheetState } from './useFeaturedSheet';
 
 type Status = 'loading' | 'error' | 'ok';
 
@@ -69,27 +68,12 @@ interface Props {
 function ExploreSheetView(p: Props) {
   const { anchor, height, snapTo, panHandlers } = p.sheet;
 
-  // La tira del compacto: fotos de los destacados (Descubre primero, luego la zona), sin búsqueda.
-  const { data: secData, models: toCard } = p.sections;
-  const reelSource = useMemo(() => {
-    if (p.searching) return [];
-    const fromSections = secData.flatMap((sec) => sec.items.map((it) => toCard(it, sec.id)));
-    return [...fromSections, ...p.zone.items];
-  }, [p.searching, secData, toCard, p.zone.items]);
-  const tiles = useMemo(() => reelTiles(reelSource), [reelSource]);
+  // Compacto (2026-11-14): solo la barra con el total, como Too Good To Go. Sin la tira de fotos de catálogo: lo que vende
+  // cada negocio se ve en su perfil o en Ofertas, no tapa la búsqueda.
   const { setPeekExtra } = p.sheet;
-  const hasReel = tiles.length > 0;
   useEffect(() => {
-    setPeekExtra(hasReel ? PEEK_REEL : 0);
-  }, [hasReel, setPeekExtra]);
-  const openTile = (t: ReelTile) => {
-    const m = reelSource.find((x) => x.id === t.id);
-    if (m) p.onPhoto(m, t.index);
-  };
-  const badge = (id: string) => {
-    const m = reelSource.find((x) => x.id === id);
-    return { color: m?.color.fg ?? colors.primary, letter: m?.name.charAt(0) ?? '' };
-  };
+    setPeekExtra(0);
+  }, [setPeekExtra]);
 
   if (anchor === 'hidden') return null;
   const compact = anchor === 'peek';
@@ -128,7 +112,7 @@ function ExploreSheetView(p: Props) {
               </Pressable>
             ) : (
               <View style={styles.expandedHeadLeft}>
-                <Tabs searching={p.searching} view={p.view} onView={p.onView} count={count} />
+                <Tabs searching={p.searching} view={p.view} onView={p.onView} count={p.searching && p.results.status === 'loading' ? null : count} />
                 {p.header.subtitle ? (
                   <Text style={styles.expandedMeta} numberOfLines={1}>
                     {p.header.subtitle}
@@ -136,7 +120,7 @@ function ExploreSheetView(p: Props) {
                 ) : null}
               </View>
             )}
-            {compact && !p.searching && !hasReel ? (
+            {compact && !p.searching ? (
               <View style={styles.avatars} accessible={false}>
                 {p.avatars.slice(0, 3).map((a, i) => (
                   <View key={a.key} style={[styles.avatar, { backgroundColor: a.color, marginLeft: i === 0 ? 0 : -8 }]}>
@@ -153,7 +137,6 @@ function ExploreSheetView(p: Props) {
       </View>
 
       {p.updating ? <UpdatingBar /> : null}
-      {compact ? <PhotoReel tiles={tiles} badge={badge} onPhoto={openTile} /> : null}
       {compact ? null : (
         <View style={styles.bodyWrap} accessibilityState={{ busy: Boolean(p.updating) }}>
           <Body {...p} />
@@ -165,10 +148,11 @@ function ExploreSheetView(p: Props) {
 
 export const ExploreSheet = memo(ExploreSheetView);
 
-function Tabs({ searching, view, onView, count }: { searching: boolean; view: 'discover' | 'results'; onView: (v: 'discover' | 'results') => void; count: number }) {
+function Tabs({ searching, view, onView, count }: { searching: boolean; view: 'discover' | 'results'; onView: (v: 'discover' | 'results') => void; count: number | null }) {
+  const n = count === null ? '' : ` (${count})`;
   const tabs: ['discover' | 'results', string][] = searching
-    ? [['results', `Resultados (${count})`], ['discover', 'Descubre']]
-    : [['discover', 'Descubre'], ['results', `Todos (${count})`]];
+    ? [['results', `Resultados${n}`], ['discover', 'Descubre']]
+    : [['discover', 'Descubre'], ['results', `Todos${n}`]];
   return (
     <View style={styles.seg} accessibilityRole="tablist">
       {tabs.map(([v, label]) => (
@@ -193,9 +177,8 @@ function Hint({ text, action, onAction, warn }: { text: string; action: string; 
   );
 }
 
+// A cualquier altura del panel la lista se puede bajar (2026-11-14): nada se corta en 3 ni se bloquea a media altura.
 function Body(p: Props) {
-  const anchor = p.sheet.anchor;
-  const mid = anchor === 'medium';
 
   // ---- Descubre ----
   if (p.view === 'discover') {
@@ -227,7 +210,7 @@ function Body(p: Props) {
         <>
           <Hint warn text="No pudimos cargar Descubre. Aquí tienes la lista." action="Reintentar" onAction={p.sections.onRetry} />
           {p.zone.items.map((m) => (
-            <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />
+            <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={(i) => p.onPhoto(m, i)} />
           ))}
         </>
       );
@@ -250,37 +233,28 @@ function Body(p: Props) {
         />
       );
     } else {
-      const shown = mid ? data.slice(0, 1) : data;
       content = (
         <>
-          {shown.map((sec) => (
+          {data.map((sec) => (
             <View key={sec.id}>
               <View style={styles.secHead}>
                 <Text style={styles.secTitle}>{sec.title}</Text>
-                <Pressable accessibilityRole="button" accessibilityLabel={`Ver más: ${sec.title}`} onPress={() => p.onSeeSection(sec.id)} hitSlop={8}>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Ver más: ${sec.title}`} onPress={() => ((sec as { merged?: boolean }).merged ? p.onView('results') : p.onSeeSection(sec.id))} hitSlop={8}>
                   <Text style={styles.link}>Ver más ›</Text>
                 </Pressable>
               </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hscroll} contentContainerStyle={styles.hrow}>
-                {sec.items.map((it) => {
-                  const m = p.sections.models(it, sec.id);
-                  return <DiscoverCard key={`${sec.id}-${m.id}`} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={(i) => p.onPhoto(m, i)} />;
-                })}
-              </ScrollView>
+              {oneBranch(sec.items.map((it) => p.sections.models(it, sec.id))).map((m) => {
+                return <MiniRow key={`${sec.id}-${m.id}`} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={(i) => p.onPhoto(m, i)} />;
+              })}
             </View>
           ))}
-          {mid && data.length > 1 ? (
-            <Pressable accessibilityRole="button" onPress={() => p.sheet.snapTo('full')} style={styles.more}>
-              <Text style={styles.link}>Ver todo Descubre</Text>
-            </Pressable>
-          ) : null}
         </>
       );
     }
     // Lo nuevo entra con un fundido (la llave cambia solo cuando cambian los negocios mostrados).
     const sig = firstLoad ? 'loading' : data.length > 0 ? data.map((sec) => `${sec.id}:${sec.items.map((it) => it.entity_id).join('.')}`).join('|') : `zona:${p.zone.items.map((m) => m.id).join('.')}`;
     return (
-      <ScrollView style={styles.body} scrollEnabled={!mid} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
         {keep}
         <FadeIn key={sig}>{content}</FadeIn>
       </ScrollView>
@@ -321,31 +295,20 @@ function Body(p: Props) {
     }
     // Los cercanos arriba; los lejanos (si hay) van aparte, bajo «Más lejos», y no en el carrusel.
     const nearItems = r.items.filter((m) => !m.far);
+    // El mismo número que el pin del mapa (los 9 primeros).
+    const rankOf = (id: string) => {
+      const i = r.items.findIndex((x) => x.id === id);
+      return i >= 0 && i < 9 ? i + 1 : undefined;
+    };
     const farItems = r.items.filter((m) => m.far);
-    if (mid) {
-      return (
-        <View style={styles.body}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hscroll} contentContainerStyle={styles.hrow}>
-            {nearItems.map((m) => <MiniCard key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
-          </ScrollView>
-          <Pressable accessibilityRole="button" onPress={() => p.sheet.snapTo('full')} style={styles.more}>
-            <Text style={styles.link}>
-              Ver los {nearItems.length}
-              {farItems.length ? ` y ${farItems.length} más lejos` : ''}
-              {r.related.length ? ' y recomendaciones' : ''}
-            </Text>
-          </Pressable>
-        </View>
-      );
-    }
     return (
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
         <Group title="Coinciden con tu búsqueda" count={nearItems.length} />
-        {nearItems.map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
+        {nearItems.map((m) => <MiniRow key={m.id} model={m} rank={rankOf(m.id)} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={(i) => p.onPhoto(m, i)} />)}
         {farItems.length ? (
           <>
             <Group title="Más lejos" count={farItems.length} />
-            {farItems.map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
+            {farItems.map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={(i) => p.onPhoto(m, i)} />)}
           </>
         ) : null}
         {r.related.length ? (
@@ -365,7 +328,7 @@ function Body(p: Props) {
   const loading = filter ? filter.status === 'loading' && list.length === 0 : p.zone.status === 'loading' && list.length === 0;
   if (loading) return <View style={styles.body}>{filterHint}<SkeletonRows count={3} /></View>;
   const extras = filter ? [] : p.zone.extras;
-  const everything = [...list, ...extras];
+  const everything = oneBranch([...list, ...extras]);
   if (everything.length === 0 && filter) {
     return (
       <View style={styles.body}>
@@ -374,19 +337,6 @@ function Body(p: Props) {
           <Text style={styles.stateTitle}>Nada para mostrar aquí</Text>
           <Text style={styles.stateText}>Mueve el mapa o cambia de vista.</Text>
         </View>
-      </View>
-    );
-  }
-  if (mid) {
-    return (
-      <View style={styles.body}>
-        {filterHint}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hscroll} contentContainerStyle={styles.hrow}>
-          {everything.map((m) => <MiniCard key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
-        </ScrollView>
-        <Pressable accessibilityRole="button" onPress={() => p.sheet.snapTo('full')} style={styles.more}>
-          <Text style={styles.link}>Ver los {everything.length}</Text>
-        </Pressable>
       </View>
     );
   }
@@ -413,9 +363,21 @@ function Body(p: Props) {
   return (
     <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
       {filterHint}
-      {list.map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} />)}
+      {list.map((m) => <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={(i) => p.onPhoto(m, i)} />)}
     </ScrollView>
   );
+}
+
+/** Una sola sede por negocio en Descubre y Todos («El Rincón Samario» y su sede de Mamatoco salen una vez). En la
+ * búsqueda no: cada sede es un resultado con su número en el mapa. */
+function oneBranch<T extends { id: string; name: string }>(list: T[]): T[] {
+  const seen = new Set<string>();
+  return list.filter((m) => {
+    const k = brandKey(m.name) || m.id;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 }
 
 function Group({ title, count }: { title: string; count: number }) {
@@ -445,21 +407,21 @@ const styles = StyleSheet.create({
   headRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   headText: { flex: 1, minWidth: 0 },
   expandedHeadLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  expandedMeta: { flexShrink: 1, fontSize: 12, fontFamily: fonts.ui.bold, color: colors.verified },
+  expandedMeta: { flexShrink: 1, fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
   title: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
   subtitle: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   avatars: { flexDirection: 'row' },
   avatar: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 10, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  chevron: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
+  chevron: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.well, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1 },
   bodyWrap: { flex: 1 },
   bodyContent: { paddingBottom: spacing.lg },
   seg: { flexDirection: 'row', gap: 4, padding: 3, borderRadius: radius.pill, backgroundColor: colors.selectedSoft, borderWidth: 1, borderColor: colors.line },
   segItem: { height: 32, paddingHorizontal: 12, borderRadius: radius.pill, justifyContent: 'center' },
-  segOn: { backgroundColor: colors.ink },
+  segOn: { backgroundColor: colors.selectedSoft },
   segText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
-  segTextOn: { color: '#fff' },
+  segTextOn: { color: colors.ink },
   hint: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.lg, marginBottom: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.primarySoft },
   hintWarn: { backgroundColor: '#FBE4E4' },
   hintText: { flex: 1, fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
@@ -467,7 +429,7 @@ const styles = StyleSheet.create({
   hintAction: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.primary, textDecorationLine: 'underline' },
   secHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingTop: spacing.xs + 2, paddingBottom: spacing.sm },
   secTitle: { fontSize: 15.5, fontFamily: fonts.display.bold, color: colors.ink },
-  link: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primary },
+  link: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   hscroll: { flexGrow: 0 },
   hrow: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   more: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
@@ -478,8 +440,8 @@ const styles = StyleSheet.create({
   stateTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
   stateText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
   btnRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.sm },
-  primary: { minHeight: 44, paddingHorizontal: spacing.lg, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  primary: { minHeight: 44, paddingHorizontal: spacing.lg, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, alignItems: 'center', justifyContent: 'center' },
+  primaryText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   secondary: { minHeight: 44, paddingHorizontal: spacing.lg, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   secondaryText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   errBox: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.lg, marginTop: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: '#FBE4E4' },

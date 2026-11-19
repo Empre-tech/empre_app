@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ChatMessageItem } from '@/api/types';
@@ -57,8 +57,8 @@ export function ChatItemCard({ item, mine = false, onPress, onRemove }: Props) {
 
 const styles = StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: 6, paddingRight: spacing.sm, borderRadius: radius.md, minWidth: 220 },
-  cardMine: { backgroundColor: '#fff' },
-  cardTheirs: { backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line },
+  cardMine: { backgroundColor: colors.surface },
+  cardTheirs: { backgroundColor: colors.well, borderWidth: 1, borderColor: colors.line },
   thumb: { width: 56, height: 56, borderRadius: radius.sm },
   noPhoto: { backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1, gap: 1 },

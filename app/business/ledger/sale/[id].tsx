@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -6,6 +6,7 @@ import { Alert, Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressab
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ledgerApi, type InventoryItem, type ItemCost } from '@/api/ledger';
 import { Button } from '@/components/Button';
+import { SkeletonBlock } from '@/components/Skeleton';
 import { DoneMark, FlowHeader, Pop, useFlowBack, useFlowStep } from '@/components/ledger/Flow';
 import { AmountField, Chip, LedgerReceipt, PartyPicker, type PartyChoice } from '@/components/ledger/parts';
 import { PayDeck } from '@/components/ledger/PayDeck';
@@ -117,6 +118,9 @@ export default function NewSaleScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const lastActiveSale = useMemo(() => (recent.data ?? []).find((s) => s.status === 'active'), [recent.data]);
+  // Un punto de carga (2026-11-18): lo que vendes llega antes que su tipo (servicio o producto) y la venta anterior; sin
+  // esperar, la lista salía entera y después se partía en Servicios y Productos. Mientras tanto, su lugar en gris.
+  const loadingWhat = items.isLoading || inv.isLoading || recent.isLoading;
 
   const lines = sellable.filter((i) => (qty[i.id] ?? 0) > 0);
   const linesTotal = lines.reduce((s, i) => s + (i.price ?? 0) * (qty[i.id] ?? 0), 0);
@@ -428,6 +432,18 @@ export default function NewSaleScreen() {
                 {toast}
               </Text>
             ) : null}
+            {loadingWhat ? (
+              <View style={styles.loadingWhat} accessible accessibilityLabel="Cargando lo que vendes">
+                <SkeletonBlock width="60%" height={26} borderRadius={8} />
+                <SkeletonBlock height={52} borderRadius={16} />
+                <View style={styles.tilesGrid}>
+                  {[0, 1, 2, 3].map((i) => (
+                    <SkeletonBlock key={i} width="48.5%" height={104} borderRadius={20} />
+                  ))}
+                </View>
+              </View>
+            ) : (
+            <>
             <Text style={styles.question} accessibilityRole="header">
               {sellable.length > 0 ? '¿Qué vendiste?' : '¿Cuánto fue la venta?'}
             </Text>
@@ -510,6 +526,8 @@ export default function NewSaleScreen() {
             ) : (
               <AmountField key={sellable.length > 0 ? 'c' : 'n'} value={total} onChange={(n) => setManual(n)} autoFocus={!items.isLoading} />
             )}
+            </>
+            )}
           </ScrollView>
         )}
       </Animated.View>
@@ -544,7 +562,7 @@ export default function NewSaleScreen() {
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel={`Seguir a cobrar ${formatPesos(total)}`} onPress={goPay} style={styles.cartBtn}>
             <Text style={styles.primaryBtnText}>Seguir</Text>
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
+            <Ionicons name="arrow-forward" size={18} color={colors.ink} />
           </Pressable>
         </Animated.View>
       )}
@@ -591,7 +609,7 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 16 },
   bodyWithCart: { paddingBottom: 120 },
   section: { gap: 10 },
-  question: { fontSize: 26, lineHeight: 30, letterSpacing: -0.4, fontFamily: fonts.display.bold, color: colors.ink },
+  question: { fontSize: 22, lineHeight: 26, letterSpacing: -0.4, fontFamily: fonts.display.bold, color: colors.ink },
   sectionTitle: { fontSize: 19, lineHeight: 23, fontFamily: fonts.display.bold, color: colors.ink },
   shortcuts: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   shortcut: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.surface, ...softShadow },
@@ -601,6 +619,7 @@ const styles = StyleSheet.create({
   tabPillOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
   tabPillText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   tilesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  loadingWhat: { gap: 16 },
   tileWrap: { width: '48.5%' },
   tile: { flexGrow: 1, minHeight: 104, justifyContent: 'space-between', gap: 4, padding: 14, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
   tileActive: { borderWidth: 2, borderColor: colors.ink, padding: 12, backgroundColor: colors.selectedSoft },
@@ -609,11 +628,11 @@ const styles = StyleSheet.create({
   tilePrice: { fontSize: 16, lineHeight: 20, fontFamily: fonts.display.bold, color: colors.ink },
   tileNote: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
   tileNoteWarn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
-  tileQtyBadge: { position: 'absolute', right: 8, top: 8, minWidth: 26, height: 26, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: colors.ink },
+  tileQtyBadge: { position: 'absolute', right: 8, top: 8, minWidth: 26, height: 26, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: colors.sand },
   tileNoteRoom: { paddingRight: 44 },
   tileMinus: { position: 'absolute', right: 8, bottom: 8, width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.surface },
   tileMinusPressed: { transform: [{ scale: 0.92 }], backgroundColor: colors.selectedSoft },
-  tileQtyBadgeText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.surface },
+  tileQtyBadgeText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   otherBtn: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
   otherBtnText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   bill: { paddingVertical: 4, paddingHorizontal: 14, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
@@ -636,7 +655,7 @@ const styles = StyleSheet.create({
   restValue: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   note: { minHeight: 52, paddingHorizontal: 14, borderRadius: 16, fontSize: 14.5, fontFamily: fonts.ui.medium, color: colors.ink, backgroundColor: colors.surface, ...softShadow },
   hint: { fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
-  toast: { padding: spacing.md, borderRadius: 12, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.bold, color: colors.surface, backgroundColor: colors.ink },
+  toast: { padding: spacing.md, borderRadius: 12, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.bold, color: colors.ink, backgroundColor: colors.sand },
   veil: { flex: 1, backgroundColor: 'rgba(14,35,70,0.38)' },
   sheet: { gap: spacing.sm, paddingHorizontal: 20, paddingTop: 10, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.surface },
   sheetHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line },
@@ -651,18 +670,18 @@ const styles = StyleSheet.create({
   doneBody: { alignItems: 'center', gap: 16, paddingHorizontal: 20, paddingTop: 24, paddingBottom: 24 },
   doneText: { alignItems: 'center', gap: 2 },
   doneTitle: { fontSize: 19, lineHeight: 23, fontFamily: fonts.display.bold, color: colors.ink },
-  doneTotal: { fontSize: 40, lineHeight: 46, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  doneTotal: { fontSize: 40, lineHeight: 46, fontFamily: fonts.display.bold, color: colors.finance, fontVariant: ['tabular-nums'] },
   doneSub: { textAlign: 'center', fontSize: 14.5, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.muted },
   doneReceipt: { alignSelf: 'stretch' },
   footer: { gap: 8, paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.hairline, backgroundColor: colors.surface },
-  primaryBtn: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.primary },
+  primaryBtn: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
   primaryBtnDisabled: { backgroundColor: colors.hairline },
-  primaryBtnText: { fontSize: 15.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  primaryBtnText: { fontSize: 15.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   primaryBtnTextDisabled: { color: colors.faint },
   secondaryBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   secondaryBtnText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   cart: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 12, borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.12, shadowRadius: 18, shadowOffset: { width: 0, height: -6 }, elevation: 8 },
   cartWhat: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   cartTotal: { alignSelf: 'flex-start', fontSize: 22, lineHeight: 26, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
-  cartBtn: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, borderRadius: 16, backgroundColor: colors.primary },
+  cartBtn: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
 });

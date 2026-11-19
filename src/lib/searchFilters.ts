@@ -38,20 +38,28 @@ export function activeCount(f: SearchFilters): number {
   return Number(f.open) + Number(f.walk !== null) + Number(f.offer) + Number(f.delivery) + Number(f.verified) + Number(f.group !== null) + Number(f.sort !== 'near');
 }
 
-export type QuickKey = 'open' | 'walk' | 'offer' | 'delivery' | 'group';
+export type QuickKey = 'open' | 'walk' | 'offer' | 'delivery' | 'group' | 'top';
 
 /** Los filtros rápidos al lado de «Filtros», siempre en este orden. «Tipo» abre la hoja; los demás se encienden. */
-export function quickChips(f: SearchFilters, caps: FilterCaps, groupName?: string): { key: QuickKey; label: string; on: boolean }[] {
+export function quickChips(
+  f: SearchFilters,
+  caps: FilterCaps,
+  groupName?: string,
+  /** Finder (2026-11-14): un solo filtro, sin «Tipo» (se elige buscando) y con «Mejor valorados» en la misma fila. */
+  opts: { group?: boolean; top?: boolean } = {},
+): { key: QuickKey; label: string; on: boolean }[] {
   const out: { key: QuickKey; label: string; on: boolean }[] = [{ key: 'open', label: 'Abierto ahora', on: f.open }];
   if (caps.distance) out.push({ key: 'walk', label: f.walk ? `A ${f.walk} min` : 'Cerca', on: f.walk !== null });
   out.push({ key: 'offer', label: 'Con oferta', on: f.offer }, { key: 'delivery', label: 'Domicilio', on: f.delivery });
-  out.push({ key: 'group', label: f.group && groupName ? groupName : 'Tipo', on: f.group !== null });
+  if (opts.top && caps.rating) out.push({ key: 'top', label: 'Mejor valorados', on: f.sort === 'rating' });
+  if (opts.group !== false) out.push({ key: 'group', label: f.group && groupName ? groupName : 'Tipo', on: f.group !== null });
   return out;
 }
 
 /** Tocar un filtro rápido: lo enciende o lo quita. «Cerca» enciende 10 min. */
 export function toggleQuick(f: SearchFilters, key: Exclude<QuickKey, 'group'>): SearchFilters {
   if (key === 'walk') return { ...f, walk: f.walk ? null : 10 };
+  if (key === 'top') return { ...f, sort: f.sort === 'rating' ? 'near' : 'rating' };
   return { ...f, [key]: !f[key] };
 }
 
@@ -128,6 +136,22 @@ export function resultsTitle(n: number, f: SearchFilters, caps: FilterCaps): str
   const count = n === 0 ? 'Sin lugares' : n === 1 ? '1 lugar' : `${n} lugares`;
   const order = f.sort === 'rating' ? 'mejor valorados primero' : f.sort === 'cheap' ? 'más económicos primero' : caps.distance ? 'más cerca primero' : null;
   return n && order ? `${count} · ${order}` : count;
+}
+
+/**
+ * Lo que dice Empre AI arriba de los resultados (tablero «Empre AI · cuándo responde», teléfono 2): cuántos hay y
+ * cuántos están abiertos, con el dato en negrita. Se escribe palabra por palabra.
+ */
+export function answerLead(n: number, open: number): { t: string; bold?: boolean }[] {
+  if (n === 1) return [{ t: 'Hay ' }, { t: '1 lugar', bold: true }, { t: open ? ' y está abierto ahora.' : ', aunque ahora está cerrado.' }];
+  if (!open) return [{ t: 'Hay ' }, { t: `${n} lugares`, bold: true }, { t: '. Ahora ninguno está abierto.' }];
+  return [{ t: 'Hay ' }, { t: `${n} lugares`, bold: true }, { t: ' y ' }, { t: open === n ? 'todos están abiertos' : `${open} ${open === 1 ? 'está abierto' : 'están abiertos'}`, bold: true }, { t: ' ahora.' }];
+}
+
+/** El orden de los resultados, solo («Más cerca primero»), para la línea bajo la frase. */
+export function orderLabel(f: SearchFilters, caps: FilterCaps): string | null {
+  const o = f.sort === 'rating' ? 'mejor valorados primero' : f.sort === 'cheap' ? 'más económicos primero' : caps.distance ? 'más cerca primero' : null;
+  return o ? o.charAt(0).toUpperCase() + o.slice(1) : null;
 }
 
 /** «Ver 3 lugares» para el botón de la hoja. */

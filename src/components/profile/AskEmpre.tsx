@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -167,7 +167,7 @@ function SheetBody({ data, start, onClose, handlers }: { data: AnswerData; start
               maxLength={200}
             />
             <Pressable accessibilityRole="button" accessibilityLabel="Preguntar" disabled={!text.trim()} onPress={submit} style={({ pressed }) => [styles.send, !text.trim() && styles.sendOff, pressed && styles.pressed]}>
-              <Ionicons name="arrow-forward" size={20} color="#fff" />
+              <Ionicons name="arrow-forward" size={20} color={colors.ink} />
             </Pressable>
           </View>
         </View>
@@ -301,14 +301,14 @@ const styles = StyleSheet.create({
   offerText: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.accentInk },
   offerNote: { fontSize: 11.5, fontFamily: fonts.ui.medium, color: colors.accentInk, marginTop: 2 },
   source: { fontSize: 11, fontFamily: fonts.ui.bold, color: colors.muted, marginTop: 4 },
-  primary: { minHeight: 46, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  primary: { minHeight: 46, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, alignItems: 'center', justifyContent: 'center' },
+  primaryText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   ghost: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   ghostText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   dock: { backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.sm, gap: spacing.sm },
   followRow: { gap: 6 },
   askRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
   input: { flex: 1, minHeight: 44, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, paddingHorizontal: spacing.md, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink, backgroundColor: colors.surface },
-  send: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  send: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, alignItems: 'center', justifyContent: 'center' },
   sendOff: { opacity: 0.45 },
 });

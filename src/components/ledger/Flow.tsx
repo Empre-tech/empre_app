@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, BackHandler, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -156,6 +156,6 @@ const styles = StyleSheet.create({
   kindOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
   kindText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   track: { height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: colors.line },
-  fill: { height: 4, borderRadius: 2, backgroundColor: colors.ink },
-  done: { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ink },
+  fill: { height: 4, borderRadius: 2, backgroundColor: colors.sand },
+  done: { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary },
 });

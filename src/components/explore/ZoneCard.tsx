@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { statusText } from '@/lib/discover';
@@ -179,10 +179,10 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.85 },
   reason: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: 240, height: 26, paddingHorizontal: 10, borderRadius: radius.pill },
   reasonOffer: { backgroundColor: colors.accent },
-  reasonOpen: { backgroundColor: '#E3F5F3' },
+  reasonOpen: { backgroundColor: '#FDECEC' },
   reasonNew: { backgroundColor: colors.primarySoft },
   reasonText: { flexShrink: 1, fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  reasonOpenText: { color: '#0A6E6A' },
+  reasonOpenText: { color: '#D42020' },
   reasonNewText: { color: colors.primaryDark },
   compact: { flexDirection: 'row', alignItems: 'center', minHeight: 76 },
   compactMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 10, paddingLeft: spacing.md },
@@ -200,10 +200,10 @@ const styles = StyleSheet.create({
   score: { color: '#8F4300' },
   noScore: { color: colors.muted },
   sep: { color: colors.muted },
-  open: { color: '#0A6E6A' },
+  open: { color: '#D42020' },
   closed: { color: '#8E2A2A' },
   tagline: { paddingTop: 2, fontSize: 12.5, fontFamily: fonts.ui.medium, fontStyle: 'italic', color: colors.ink },
-  review: { marginTop: 4, paddingLeft: 10, borderLeftWidth: 3, borderLeftColor: colors.accent, gap: 2 },
+  review: { marginTop: 4, paddingLeft: 10, borderLeftWidth: 3, borderLeftColor: colors.ink, gap: 2 },
   quote: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, fontStyle: 'italic', color: colors.ink },
   byline: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   foot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: spacing.md, paddingRight: spacing.sm },

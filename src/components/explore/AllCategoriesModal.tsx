@@ -1,12 +1,9 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Category } from '@/api/types';
-import { categoryColor } from '@/lib/categoryColor';
 import type { CategoryGroup } from '@/lib/categoryGroups';
+import { CategoryArt, artKeyFor } from '@/components/CategoryArt';
 import { colors, fonts, spacing } from '@/theme';
-
-type IconName = keyof typeof Ionicons.glyphMap;
 
 interface Props {
   visible: boolean;
@@ -52,8 +49,8 @@ export function AllCategoriesModal({ visible, groups, selectedId, onSelect, onCl
                       }}
                       style={styles.tile}
                     >
-                      <View style={[styles.disc, { backgroundColor: categoryColor(c.color).fg }, selected && styles.discOn]}>
-                        <Ionicons name={(c.icon || 'storefront-outline') as IconName} size={24} color="#fff" />
+                      <View style={[styles.disc, { overflow: 'hidden' }, selected && styles.discOn]}>
+                        <CategoryArt k={artKeyFor(c.name, c.icon)} size={56} />
                       </View>
                       <Text style={styles.label} numberOfLines={2}>
                         {c.name}

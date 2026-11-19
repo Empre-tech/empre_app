@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -16,7 +16,7 @@ interface Props {
 
 const SHIFT = 18;
 /** Verde oscuro para texto sobre blanco (el verde de estado da 3,3:1). */
-const HERE_INK = '#0A6E6A';
+const HERE_INK = '#D42020';
 
 /**
  * Franja de arriba de Explorar: «Estás en Comuna 4 · Santa Marta» o «Explorando Mamatoco · Santa Marta» con
@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
   lead: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.muted },
   title: { fontSize: 14.5, fontFamily: fonts.display.bold, color: colors.ink },
   city: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  here: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 34, paddingHorizontal: 11, borderRadius: radius.pill, backgroundColor: '#E3F5F3' },
+  here: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 34, paddingHorizontal: 11, borderRadius: radius.pill, backgroundColor: '#FDECEC' },
   hereText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: HERE_INK },
   action: {
     flexDirection: 'row',

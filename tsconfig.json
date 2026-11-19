@@ -3,6 +3,8 @@
   "compilerOptions": {
     "strict": true,
     "noUncheckedIndexedAccess": false,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
     "paths": {
       "@/*": [
         "./src/*"

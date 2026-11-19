@@ -1,8 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { nextSlotText } from './placeCard.ts';
+import { dayWhen, nextSlotText } from './placeCard.ts';
 
 const now = new Date('2026-11-05T14:00:00-05:00'); // jueves
+
+test('dayWhen dice el día como en la agenda, en hora de Colombia', () => {
+  assert.equal(dayWhen(new Date('2026-11-05T21:00:00-05:00'), now), 'hoy');
+  assert.equal(dayWhen(new Date('2026-11-06T08:00:00-05:00'), now), 'mañana');
+  assert.equal(dayWhen(new Date('2026-11-07T10:00:00-05:00'), now), 'el sábado');
+  assert.equal(dayWhen(new Date('2026-11-20T10:00:00-05:00'), now), null);
+  assert.equal(dayWhen(new Date('2026-11-04T10:00:00-05:00'), now), null);
+});
 
 test('nextSlotText dice cuándo en hora de Colombia', () => {
   assert.equal(nextSlotText('2026-11-05T16:30:00-05:00', now), 'Hora libre hoy a las 4:30 pm');

@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Lens, LensKey } from '@/lib/offerLenses';
@@ -26,7 +26,7 @@ export function LensTabs({ lenses, active, onPick }: { lenses: Lens[]; active: L
         const on = l.key === active;
         return (
           <Pressable key={l.key} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => onPick(l.key)} style={({ pressed }) => [styles.tab, on && styles.tabOn, pressed && styles.pressed]}>
-            <Ionicons name={LENS_ICON[l.key]} size={16} color={on ? '#FFFFFF' : colors.ink} />
+            <Ionicons name={LENS_ICON[l.key]} size={16} color={colors.ink} />
             <Text style={[styles.tabText, on && { color: '#FFFFFF' }]}>{l.label}</Text>
           </Pressable>
         );
@@ -60,8 +60,7 @@ export function FilterRow({ cats, catId, onCat, tags, onOpen }: { cats: { id: st
           })}
         </ScrollView>
         <Pressable accessibilityRole="button" accessibilityLabel={tags.length ? `Filtros, ${tags.length} puestos` : 'Filtros'} onPress={onOpen} style={({ pressed }) => [styles.filterBtn, pressed && styles.pressed]}>
-          <Ionicons name="options-outline" size={16} color="#FFFFFF" />
-          <Text style={styles.filterBtnText}>Filtros</Text>
+          <Ionicons name="options-outline" size={20} color={colors.ink} />
           {tags.length ? (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{tags.length}</Text>
@@ -180,7 +179,7 @@ export function FiltersSheet({
 const styles = StyleSheet.create({
   tabs: { gap: 6, paddingHorizontal: 20, paddingVertical: 2 },
   tab: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
-  tabOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  tabOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
   tabText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   pressed: { transform: [{ scale: 0.97 }] },
   filterWrap: { gap: 8 },
@@ -188,9 +187,8 @@ const styles = StyleSheet.create({
   cats: { gap: 6, paddingLeft: 20, paddingRight: 4 },
   cat: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   catOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected, borderWidth: 1.5 },
-  catText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  filterBtn: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.ink },
-  filterBtnText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
+  catText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.ink },
+  filterBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   badge: { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent },
   badgeText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   tags: { gap: 6, paddingHorizontal: 20 },
@@ -209,11 +207,11 @@ const styles = StyleSheet.create({
   opt: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   optOn: { borderColor: colors.selected, backgroundColor: colors.selectedSoft },
   optText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  switchRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.bg },
+  switchRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.well },
   switchText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   track: { width: 46, height: 28, padding: 3, borderRadius: 14, backgroundColor: colors.placeholder, alignItems: 'flex-start' },
-  trackOn: { backgroundColor: colors.ink, alignItems: 'flex-end' },
+  trackOn: { backgroundColor: colors.selectedSoft, alignItems: 'flex-end' },
   knob: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.surface },
-  apply: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.primary },
-  applyText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
+  apply: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  applyText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

@@ -73,3 +73,23 @@ test('ida y vuelta con los filtros del servidor de Pregúntale', () => {
   assert.equal(back.sort, 'near');
   assert.equal(back.delivery, true);
 });
+
+test('Finder: un solo filtro, sin «Tipo» y con «Mejor valorados»', () => {
+  const ALL2 = { rating: true, cheap: true, distance: true };
+  assert.deepEqual(quickChips(NO_FILTERS, ALL2, undefined, { group: false, top: true }).map((c) => c.label), ['Abierto ahora', 'Cerca', 'Con oferta', 'Domicilio', 'Mejor valorados']);
+  assert.equal(quickChips(NO_FILTERS, { ...ALL2, rating: false }, undefined, { group: false, top: true }).some((c) => c.key === 'top'), false, 'sin notas no hay «Mejor valorados»');
+  const top = toggleQuick(NO_FILTERS, 'top');
+  assert.equal(top.sort, 'rating');
+  assert.equal(toggleQuick(top, 'top').sort, 'near');
+});
+
+test('lo que dice Empre AI arriba de los resultados', async () => {
+  const { answerLead, orderLabel, NO_FILTERS } = await import('./searchFilters.ts');
+  const say = (n: number, open: number) => answerLead(n, open).map((p) => p.t).join('');
+  assert.equal(say(3, 2), 'Hay 3 lugares y 2 están abiertos ahora.');
+  assert.equal(say(3, 3), 'Hay 3 lugares y todos están abiertos ahora.');
+  assert.equal(say(4, 0), 'Hay 4 lugares. Ahora ninguno está abierto.');
+  assert.equal(say(1, 1), 'Hay 1 lugar y está abierto ahora.');
+  assert.deepEqual(answerLead(3, 1).filter((p) => p.bold).map((p) => p.t), ['3 lugares', '1 está abierto'], 'los datos van en negrita');
+  assert.equal(orderLabel(NO_FILTERS, { distance: true } as never), 'Más cerca primero');
+});

@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -21,7 +21,7 @@ import {
 import { notifyError } from '@/components/Notice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { catalogApi } from '@/api/catalog';
-import { entitiesApi, paymentsApi, reviewsApi } from '@/api/endpoints';
+import { entitiesApi, reviewsApi } from '@/api/endpoints';
 import { novedadesApi } from '@/api/novedades';
 import type { Photo } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
@@ -33,6 +33,8 @@ import { BookingSheet } from '@/components/agenda/BookingSheet';
 import { AskEmpreCard, AskEmpreSheet } from '@/components/profile/AskEmpre';
 import type { AnswerData, Intent } from '@/lib/answers';
 import { track } from '@/analytics/track';
+import { artKeyFor } from '@/components/CategoryArt';
+import { noteInterest } from '@/lib/interestStore';
 import { FEATURES } from '@/config';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
@@ -40,13 +42,14 @@ import { SkeletonProfile } from '@/components/Skeleton';
 import { useActiveOffers } from '@/components/OfferBanner';
 import { ACTION_BAR_HEIGHT, ActionBar } from '@/components/profile/ActionBar';
 import { AskSheet } from '@/components/profile/AskSheet';
-import { CatalogSection } from '@/components/profile/CatalogSection';
 import { OffersFicha } from '@/components/profile/OffersFicha';
-import { PhotosSection } from '@/components/profile/PhotosSection';
+import { ProfileTabs } from '@/components/profile/ProfileTabs';
+import type { ProfileTabId } from '@/lib/profileTabs';
 import { getPhoneFlag, setPhoneFlag } from '@/lib/phoneFlags';
 import { LatestStrip } from '@/components/profile/LatestStrip';
 import { ProfileHero } from '@/components/profile/ProfileHero';
-import { QuickIndex } from '@/components/profile/QuickIndex';
+import { Protagonist } from '@/components/profile/Protagonist';
+import { businessFamily } from '@/lib/family';
 import { SectionHeader } from '@/components/profile/SectionHeader';
 import { Recommendations } from '@/components/profile/Recommendations';
 import { ReviewsSection } from '@/components/profile/ReviewsSection';
@@ -57,13 +60,13 @@ import { hasLocation } from '@/lib/geo';
 import { formatRelativeTime } from '@/lib/format';
 import { resolveImageUrl } from '@/lib/image';
 import { openingFromHours, statusLine } from '@/lib/placeCard';
-import { catalogCopy, formatPesos, type ServiceItem } from '@/lib/catalog';
+import { catalogCopy, formatPesos, publicCatalog, type ServiceItem } from '@/lib/catalog';
 import { chatItemParam } from '@/lib/chatItem';
-import { blockOrder, coverSource, sections, showQuickIndex, type BlockId, type SectionId } from '@/lib/profileLayout';
+import { blockOrder, coverSource, sections, type BlockId, type SectionId } from '@/lib/profileLayout';
 import { featuredRating } from '@/lib/reviewSnippet';
 import { useNow } from '@/lib/useNow';
 import { itemsFor } from '@/lib/uploadQueue';
-import { removeUpload, retryUpload, useUploads } from '@/upload/uploadStore';
+import { useUploads } from '@/upload/uploadStore';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const PHONE_RE = /^[+\d\s()-]{7,}$/;
@@ -108,15 +111,6 @@ export default function BusinessScreen() {
 
   const isOwner = status === 'signedIn' && user?.id === business?.owner_id;
 
-  // Solo se pide si es el dueño: es la única info de suscripción que le
-  // interesa a alguien que no sea él, y evitamos una llamada de más para
-  // cualquier visitante viendo el perfil del negocio.
-  const subscriptionQuery = useQuery({
-    queryKey: ['subscription', business?.id],
-    queryFn: () => paymentsApi.getSubscription(business!.id),
-    enabled: isOwner && Boolean(business?.id),
-  });
-  const requiresPayment = subscriptionQuery.data?.requires_payment ?? false;
   const followers = useQuery({
     queryKey: ['followers', business?.id],
     queryFn: () => novedadesApi.followers(business!.id),
@@ -129,7 +123,9 @@ export default function BusinessScreen() {
     if (!business?.id || isOwner || trackedProfile.current === business.id) return;
     trackedProfile.current = business.id;
     track('profile_opened', business.id, { origin: src ?? 'direct' });
-  }, [business?.id, isOwner, src]);
+    // Para ti (solo en el teléfono): mirar un negocio dice un poco de lo que te gusta.
+    noteInterest('view', artKeyFor(business.category?.name, business.category?.icon), business.id);
+  }, [business?.id, business?.category?.name, business?.category?.icon, isOwner, src]);
 
   // Las ofertas viven en la ficha del perfil (un boleto a la vez, sin pestaña ni cantidades).
   const activeOffers = useActiveOffers(id);
@@ -140,15 +136,14 @@ export default function BusinessScreen() {
   const nowMs = useNow(60_000);
   const catalog = useQuery({ queryKey: ['catalog', id], queryFn: () => catalogApi.list(id ?? ''), enabled: Boolean(id), staleTime: 60_000 });
   const hasServices = (catalog.data?.length ?? 0) > 0;
-  const [activeSection, setActiveSection] = useState<SectionId>('offers');
+  // La pestaña de lo que ofrece (Servicios, Productos o Fotos); null = la primera que tenga algo.
+  const [offerTab, setOfferTab] = useState<ProfileTabId | null>(null);
   // El índice queda flotando arriba (con su botón atrás) al pasar su lugar en el perfil (3.28).
-  const [indexStuck, setIndexStuck] = useState(false);
-  const indexY = useRef(0);
   // Preguntar por un ítem del catálogo: el mensaje ya escrito según el tipo de negocio (3.27).
   const [asking, setAsking] = useState<ServiceItem | null>(null);
   // «Pregúntale» (fase 1): la hoja de respuestas y, desde ella, la hoja de reservar con el servicio elegido.
   const [askStart, setAskStart] = useState<{ intent: Intent; label: string } | { text: string } | null>(null);
-  const [bookingFor, setBookingFor] = useState<{ serviceId?: string } | null>(null);
+  const [bookingFor, setBookingFor] = useState<{ serviceId?: string; slot?: string } | null>(null);
   // Lo que el dueño le enseñó a Empre AI (3.62, F3): también responde en «Pregúntale».
   const taughtAnswers = useQuery({ queryKey: ['business-answers', id], queryFn: () => answersApi.list(id ?? ''), enabled: Boolean(id), staleTime: 60_000 });
   const bizStatus = useQuery({ queryKey: ['status', id], queryFn: () => statusApi.get(id ?? ''), enabled: Boolean(id), staleTime: 60_000 });
@@ -192,6 +187,7 @@ export default function BusinessScreen() {
     try {
       await (next ? entitiesApi.favorite(business.id) : entitiesApi.unfavorite(business.id));
       track('follow_toggled', business.id, { following: next });
+      if (next) noteInterest('follow', artKeyFor(business.category?.name, business.category?.icon), business.id);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['entity', id] }),
         queryClient.invalidateQueries({ queryKey: ['my-favorites'] }),
@@ -358,6 +354,7 @@ export default function BusinessScreen() {
       return;
     }
     track('contact_started', business.id);
+    noteInterest('contact', artKeyFor(business.category?.name, business.category?.icon), business.id);
     router.push({ pathname: '/chat/[entityId]', params: { entityId: business.id, name: business.name, avatar: business.profile_url } });
   };
 
@@ -368,6 +365,7 @@ export default function BusinessScreen() {
       return;
     }
     track('contact_started', business.id);
+    noteInterest('contact', artKeyFor(business.category?.name, business.category?.icon), business.id);
     // Si pregunta por un producto, la tarjeta viaja con el mensaje.
     const item = about
       ? chatItemParam({
@@ -386,6 +384,7 @@ export default function BusinessScreen() {
 
   const onDirections = () => {
     track('directions_tapped', business.id, { origin: 'profile' });
+    noteInterest('directions', artKeyFor(business.category?.name, business.category?.icon), business.id);
     const { latitude, longitude } = business;
     const url = Platform.select({
       ios: `http://maps.apple.com/?daddr=${latitude},${longitude}`,
@@ -407,6 +406,8 @@ export default function BusinessScreen() {
   const openState: boolean | null = hasHours ? Boolean(business.is_open_now) : null;
   // El catálogo se llama según el negocio (Carta, Servicios, Productos…) y su precio más bajo va en el vistazo.
   const copy = catalogCopy(business.category?.name, business.business_profile);
+  // La familia del negocio decide qué va primero (3.69): horas libres, «Cuéntale qué necesitas» o el estante.
+  const family = businessFamily({ profile: business.business_profile, category: business.category?.name, items: catalog.data ?? [] });
   const askData: AnswerData = {
     name: business.name,
     noun: copy.noun,
@@ -427,6 +428,7 @@ export default function BusinessScreen() {
         return;
       }
       track('booking_started', business.id, { origin: 'ask' });
+      noteInterest('booking', artKeyFor(business.category?.name, business.category?.icon), business.id);
       setBookingFor({ serviceId });
     },
     onMessage: (draft: string) => {
@@ -439,22 +441,16 @@ export default function BusinessScreen() {
     },
     onAsked: (intent: Intent, answered: boolean) => track('question_asked', business.id, { intent, answered }),
   };
+  // Sin índice arriba (2026-11-18): la presentación, las pestañas de lo que ofrece y los detalles bastan. Las
+  // secciones solo sirven para llevar a una (las reseñas desde la portada, las fotos desde «Lo último»).
   const secs = sections({ offers: offerCount, hasServices, photos: photos.length, isOwner, reviews: ratingSummary.count });
-  const showIndex = showQuickIndex(secs);
 
   const goTo = (id: SectionId) => {
+    // «Servicios» y «Fotos» abren su pestaña.
+    if (id === 'photos') setOfferTab('photos');
+    else if (id === 'services') setOfferTab(null);
     const y = bodyY.current + (sectionY.current[id] ?? 0) - (isOwner ? 130 : 70);
     scrollRef.current?.scrollTo({ y: Math.max(0, y), animated: true });
-    setActiveSection(id);
-  };
-  const onScroll = (e: { nativeEvent: { contentOffset: { y: number } } }) => {
-    const raw = e.nativeEvent.contentOffset.y;
-    const stuck = !isOwner && indexY.current > 0 && raw >= indexY.current;
-    if (stuck !== indexStuck) setIndexStuck(stuck);
-    const y = raw + 200;
-    let current: SectionId = secs[0] ?? 'reviews';
-    for (const id of secs) if (sectionY.current[id] !== undefined && bodyY.current + sectionY.current[id] <= y) current = id;
-    if (current !== activeSection) setActiveSection(current);
   };
   const mark = (id: SectionId) => (e: { nativeEvent: { layout: { y: number } } }) => {
     sectionY.current[id] = e.nativeEvent.layout.y;
@@ -554,39 +550,10 @@ export default function BusinessScreen() {
             <OffersFicha entityId={business.id} isOwner={isOwner} preview initialOfferId={offerParam} />
           </View>
         );
-      case 'services':
-        return (
-          <View key={id} onLayout={mark('services')}>
-            <CatalogSection
-              entityId={business.id}
-              isOwner={false}
-              copy={copy}
-              color={business.category?.color}
-              icon={business.category?.icon}
-              onAll={openCatalog}
-            />
-          </View>
-        );
       case 'info':
         return (
           <View key={id} onLayout={mark('info')}>
             {infoBlock}
-          </View>
-        );
-      case 'photos':
-        return (
-          <View key={id} onLayout={mark('photos')}>
-            <PhotosSection
-              photos={photos}
-              color={business.category?.color}
-              isOwner={false}
-              onOpenPhoto={openViewer}
-              onAll={openPhotos}
-              onNew={() => undefined}
-              pending={[]}
-              onRetry={retryUpload}
-              onRemove={removeUpload}
-            />
           </View>
         );
       case 'reviews':
@@ -644,14 +611,34 @@ export default function BusinessScreen() {
     </Pressable>
   ) : null;
 
-  const stickyChild =
-    ownerTabs || showIndex ? (
-      <View style={styles.sticky} onLayout={(e) => (indexY.current = e.nativeEvent.layout.y)}>
-        {ownerTabs}
-        {showIndex ? <QuickIndex sections={secs} active={secs.includes(activeSection) ? activeSection : secs[0]} onGo={goTo} catalogNoun={copy.noun} /> : null}
-      </View>
-    ) : null;
-  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)'));
+  const stickyChild = ownerTabs ? <View style={styles.sticky}>{ownerTabs}</View> : null;
+  // Lo que ofrece, en pestañas como en Instagram (lienzo v115): Servicios, Productos y Fotos (su trayectoria). Reemplaza
+  // al muro y a los apartados de catálogo y fotos. Va de borde a borde, como la cuadrícula.
+  const tabsBlock = (
+    <View
+      style={styles.tabsBlock}
+      onLayout={(e) => {
+        mark('services')(e);
+        mark('photos')(e);
+      }}
+    >
+      <ProfileTabs
+        items={publicCatalog(catalog.data ?? [])}
+        photos={photos}
+        copy={copy}
+        isOwner={isOwner}
+        loading={catalog.isLoading}
+        tab={offerTab}
+        onTab={setOfferTab}
+        onOpenItem={(it) => router.push({ pathname: '/business/product', params: { entityId: business.id, itemId: it.id } })}
+        onOpenPhoto={openViewer}
+        onSearch={() => openCatalog()}
+        onAllPhotos={openPhotos}
+        onAddItem={isOwner ? (kind) => router.push({ pathname: '/business/products/item', params: { entityId: business.id, kind } }) : undefined}
+        onEditItem={isOwner ? (it) => router.push({ pathname: '/business/products/item', params: { entityId: business.id, itemId: it.id } }) : undefined}
+      />
+    </View>
+  );
   const barSpace = isOwner ? 0 : ACTION_BAR_HEIGHT + insets.bottom;
 
   return (
@@ -659,10 +646,8 @@ export default function BusinessScreen() {
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={{ paddingBottom: insets.bottom + barSpace + spacing.xxl }}
-        // Solo las pestañas del dueño se pegan; para quien visita, el índice flota aparte con su botón atrás (3.28).
+        // Solo la barra del dueño («Así te ven los demás») se pega arriba.
         stickyHeaderIndices={isOwner && stickyChild ? [1] : undefined}
-        onScroll={onScroll}
-        scrollEventThrottle={100}
       >
           <ProfileHero
             name={business.name}
@@ -691,7 +676,25 @@ export default function BusinessScreen() {
 
         <View style={styles.bodyList} onLayout={(e) => (bodyY.current = e.nativeEvent.layout.y)}>
             <>
-              {FEATURES.agenda && !isOwner ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
+              {!isOwner ? (
+                <Protagonist
+                  family={family}
+                  entityId={business.id}
+                  items={catalog.data ?? []}
+                  agenda={FEATURES.agenda ? agendaSummary.data : undefined}
+                  onPickSlot={(slot) => {
+                    track('booking_started', business.id, { origin: slot ? 'free_slot' : 'protagonist' });
+                    noteInterest('booking', artKeyFor(business.category?.name, business.category?.icon), business.id);
+                    setBookingFor({ slot });
+                  }}
+                  onAgent={() => router.push({ pathname: '/agent/[id]', params: { id: business.id, name: business.name } })}
+                  onSendProblem={(message, item) => sendAsk(message, item)}
+                  onOpenItem={(item) => router.push({ pathname: '/business/product', params: { entityId: business.id, itemId: item.id } })}
+                />
+              ) : null}
+              {tabsBlock}
+              {/* Con cita, las horas libres ya están arriba: la franja de la agenda sobra. */}
+              {FEATURES.agenda && !isOwner && family !== 'cita' ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
               {blockOrder({ isOwner }).map(block)}
             </>
         </View>
@@ -720,13 +723,7 @@ export default function BusinessScreen() {
           onBook={FEATURES.agenda && agendaSummary.data?.enabled ? () => askHandlers.onSeeSlots() : undefined}
         />
       ) : null}
-      {indexStuck && showIndex ? (
-        <View style={[styles.floatIndex, { paddingTop: insets.top }]}>
-          <QuickIndex sections={secs} active={secs.includes(activeSection) ? activeSection : secs[0]} onGo={goTo} catalogNoun={copy.noun} onBack={goBack} />
-        </View>
-      ) : (
-        back
-      )}
+      {back}
       <AskSheet item={asking?.name ?? null} businessName={business.name} copy={copy} onClose={() => setAsking(null)} onSend={(message) => sendAsk(message, asking)} />
       <AskEmpreSheet data={askData} start={askStart} onClose={() => setAskStart(null)} handlers={askHandlers} />
       {agendaSummary.data?.enabled ? (
@@ -736,6 +733,7 @@ export default function BusinessScreen() {
           entityName={business.name}
           summary={agendaSummary.data}
           initialServiceId={bookingFor?.serviceId}
+          initialSlot={bookingFor?.slot}
           onClose={() => setBookingFor(null)}
           onBooked={(appointment) => {
             setBookingFor(null);
@@ -892,7 +890,7 @@ function StarPicker({ value, onChange }: { value: number; onChange: (rating: num
     <View style={styles.starPicker}>
       {[1, 2, 3, 4, 5].map((n) => (
         <Pressable key={n} accessibilityRole="button" accessibilityLabel={`${n} estrellas`} onPress={() => onChange(n)} hitSlop={6}>
-          <Ionicons name={n <= value ? 'star' : 'star-outline'} size={32} color={colors.accent} />
+          <Ionicons name={n <= value ? 'star' : 'star-outline'} size={32} color={colors.ink} />
         </Pressable>
       ))}
     </View>
@@ -900,8 +898,8 @@ function StarPicker({ value, onChange }: { value: number; onChange: (rating: num
 }
 
 const styles = StyleSheet.create({
-  coach: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.ink },
-  coachText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: '#fff' },
+  coach: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.sand },
+  coachText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.ink },
   coachBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm },
   coachBtnText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: '#fff', textDecorationLine: 'underline' },
   visitGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
@@ -922,7 +920,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: 'rgba(43,38,34,0.06)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -932,10 +930,10 @@ const styles = StyleSheet.create({
   closedNoteText: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.extrabold, color: '#8E2A2A' },
   readMoreHit: { minHeight: 44, justifyContent: 'center' },
   sticky: { backgroundColor: colors.bg },
-  floatIndex: { position: 'absolute', left: 0, right: 0, top: 0, backgroundColor: colors.bg },
   infoSection: { gap: spacing.xs },
   aboutText: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.ink },
   bodyList: { paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.md },
+  tabsBlock: { marginHorizontal: -spacing.md },
   previewBar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, marginHorizontal: spacing.md, marginTop: spacing.md, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line },
   previewText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.bold, color: colors.ink },
   previewLink: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primary },
@@ -945,8 +943,8 @@ const styles = StyleSheet.create({
   ownerTabText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   ownerTabTextOn: { color: colors.selected },
   infoActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
-  infoPrimary: { flex: 1.3, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: radius.md, backgroundColor: colors.primary },
-  infoPrimaryText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  infoPrimary: { flex: 1.3, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  infoPrimaryText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   infoSecondary: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.surface },
   infoSecondaryOn: { backgroundColor: colors.primarySoft },
   infoSecondaryText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primary },
@@ -985,7 +983,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  name: { flexShrink: 1, fontSize: 26, fontFamily: fonts.display.semibold, color: colors.ink },
+  name: { flexShrink: 1, fontSize: 22, fontFamily: fonts.display.semibold, color: colors.ink },
   categoryPill: {
     alignSelf: 'flex-start',
     marginTop: 4,
@@ -1169,7 +1167,7 @@ const styles = StyleSheet.create({
   // Fondo cálido oscuro (tinta de la marca), no negro puro, para que el
   // visor de publicaciones se sienta parte de Empre y no de otra app.
   viewer: { flex: 1, backgroundColor: colors.bg },
-  viewerSlide: { height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ink },
+  viewerSlide: { height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sand },
   viewerImage: { width: '100%', height: '100%' },
   viewerVideoWrap: { width: '100%', height: '100%' },
   muteButton: {
@@ -1205,7 +1203,7 @@ const styles = StyleSheet.create({
   },
   // Área de la foto: contenida (no a pantalla completa) para que debajo quepa
   // el bloque de descripción, como un post de feed en vez de una historia.
-  viewerPhotoArea: { backgroundColor: colors.ink },
+  viewerPhotoArea: { backgroundColor: colors.sand },
   viewerDots: {
     position: 'absolute',
     bottom: spacing.sm,
@@ -1248,7 +1246,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.primary,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.well,
     textAlignVertical: 'top',
   },
   captionSaveButton: { alignSelf: 'flex-start', marginTop: spacing.xs },

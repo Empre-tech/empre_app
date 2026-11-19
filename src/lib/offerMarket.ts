@@ -58,6 +58,19 @@ export interface MarketZone {
   looks: { color?: string; icon?: string }[];
 }
 
+/**
+ * El barrio vecino para cuando hay pocas ofertas (tablero «Ofertas», teléfono 4): el más cercano que no es donde estás
+ * ni el que ya estás viendo. Sin distancia conocida no se adivina cuál queda cerca.
+ */
+export function nearestOtherZone(zones: MarketZone[], exclude: (string | undefined | null)[] = []): MarketZone | null {
+  const skip = new Set(exclude.filter(Boolean));
+  return (
+    zones
+      .filter((z) => !z.here && !skip.has(z.id) && z.distance_meters !== null)
+      .sort((a, b) => (a.distance_meters ?? 0) - (b.distance_meters ?? 0))[0] ?? null
+  );
+}
+
 export interface MarketResponse {
   has_location: boolean;
   /** Ciudad de la vitrina (de la ubicación o, sin ella, la última conocida). Vacía = todas. */
@@ -320,6 +333,40 @@ export function featuredA11y(o: MarketItem, now: number): string {
 // 3.55 · Vitrina Unificada: Catálogo (Servicios/Productos con precio) + Ofertas
 // ---------------------------------------------------------------------------
 
+/** Un producto o servicio del catálogo de un negocio cercano, como tarjeta de la Vitrina. */
+export function catalogMarketItem(b: DiscoveryItem, it: ServiceItem, photo?: string): MarketItem {
+  const activeOffer = b.active_offer;
+  return {
+    id: it.id,
+    entity_id: b.id,
+    title: it.name,
+    type: 'CATALOG',
+    ends_at: activeOffer?.ends_at ?? '',
+    entity_name: b.name,
+    category_name: b.category_name,
+    category_color: b.category_color,
+    category_icon: b.category_icon,
+    photo,
+    distance_meters: b.distance_meters ?? null,
+    kind: 'service',
+    service_id: it.id,
+    service_price: it.price,
+    price_from: it.price_from,
+    duration_min: it.duration_min,
+    bookable: it.bookable,
+    section: it.section,
+    description: it.description,
+    rating: b.avg_rating,
+    open_now: b.is_open_now,
+    open_until: b.closes_at,
+    latitude: b.latitude,
+    longitude: b.longitude,
+    has_entity_offer: Boolean(b.has_active_offer),
+    linked_offer_id: activeOffer?.id,
+    linked_offer_title: activeOffer?.title,
+  };
+}
+
 /**
  * Combina las ofertas vigentes de la vitrina con los servicios/productos reales del catálogo de los negocios cercanos.
  * - Si un servicio del catálogo está incluido en la oferta activa del negocio (`active_offer.items`), o coincide con
@@ -396,35 +443,7 @@ export function mergeCatalogIntoMarket(
 
       seenIds.add(it.id);
       seenServiceIds.add(it.id);
-      out.push({
-        id: it.id,
-        entity_id: b.id,
-        title: it.name,
-        type: 'CATALOG',
-        ends_at: activeOffer?.ends_at ?? '',
-        entity_name: b.name,
-        category_name: b.category_name,
-        category_color: b.category_color,
-        category_icon: b.category_icon,
-        photo: itemPhoto || fallbackPhoto,
-        distance_meters: b.distance_meters ?? null,
-        kind: 'service',
-        service_id: it.id,
-        service_price: it.price,
-        price_from: it.price_from,
-        duration_min: it.duration_min,
-        bookable: it.bookable,
-        section: it.section,
-        description: it.description,
-        rating: b.avg_rating,
-        open_now: b.is_open_now,
-        open_until: b.closes_at,
-        latitude: b.latitude,
-        longitude: b.longitude,
-        has_entity_offer: Boolean(b.has_active_offer),
-        linked_offer_id: activeOffer?.id,
-        linked_offer_title: activeOffer?.title,
-      });
+      out.push(catalogMarketItem(b, it, itemPhoto || fallbackPhoto));
     }
   }
 
@@ -486,4 +505,142 @@ export function filterVitrinaItems(items: MarketItem[], filter: VitrinaFilter): 
     default:
       return items;
   }
+}
+
+/** El tipo de beneficio de una oferta, con la misma regla del servidor (offer_facets.go): 2x1, gratis, %, combo o precio. */
+export function benefitOf(o: Pick<MarketItem, 'title' | 'price' | 'special_price'>): 'multi' | 'free' | 'percent' | 'price' | 'other' {
+  const t = `${o.price ?? ''} ${o.title}`.toLowerCase();
+  if (/\b\d\s*x\s*\d\b/.test(t) || /\b\d\s+por\s+\$/.test(t)) return 'multi';
+  if (t.includes('gratis') || o.special_price === 0) return 'free';
+  if (/\d\s*%/.test(t) || t.includes('descuento')) return 'percent';
+  if (o.special_price !== undefined && o.special_price !== null) return 'price';
+  if (/\$\s?\d/.test(o.price ?? '')) return 'price';
+  return 'other';
+}
+
+export interface OfferSection {
+  key: 'hoy' | 'multi' | 'descuento' | 'precio';
+  title: string;
+  why: string;
+  items: MarketItem[];
+}
+
+/**
+ * La portada de Ofertas por secciones (tablero «Empre Offers», teléfono 1): terminan hoy, 2x1 y gratis, descuentos y
+ * precio especial. Cada oferta sale una sola vez y ninguna foto se repite entre secciones. Una sección con menos de 2
+ * no se muestra: sus ofertas pasan a la siguiente que les sirva.
+ */
+export function offerSections(list: MarketItem[], now: number, max = 8): OfferSection[] {
+  const offers = list.filter((o) => o.kind !== 'service' && Date.parse(o.ends_at) > now);
+  const today = new Date(now).toDateString();
+  const defs: { key: OfferSection['key']; title: string; why: string; test: (o: MarketItem) => boolean }[] = [
+    { key: 'hoy', title: 'Terminan hoy', why: 'Quedan horas: lo de tu puerta primero', test: (o) => new Date(o.ends_at).toDateString() === today },
+    { key: 'multi', title: '2x1 y gratis', why: 'Para ir con alguien', test: (o) => ['multi', 'free'].includes(benefitOf(o)) },
+    { key: 'descuento', title: 'Con descuento', why: 'Lo que baja de precio cerca', test: (o) => benefitOf(o) === 'percent' || savePctOf(o) > 0 },
+    { key: 'precio', title: 'Precio especial', why: 'Un precio solo por ahora', test: (o) => benefitOf(o) === 'price' },
+  ];
+  const usedId = new Set<string>();
+  const usedPhoto = new Set<string>();
+  const out: OfferSection[] = [];
+  for (const d of defs) {
+    const items: MarketItem[] = [];
+    const here = new Set<string>();
+    for (const o of offers) {
+      if (items.length >= max || usedId.has(o.id) || (o.photo && (usedPhoto.has(o.photo) || here.has(o.photo))) || !d.test(o)) continue;
+      items.push(o);
+      if (o.photo) here.add(o.photo);
+    }
+    if (items.length < 2) continue;
+    items.forEach((o) => {
+      usedId.add(o.id);
+      if (o.photo) usedPhoto.add(o.photo);
+    });
+    out.push({ key: d.key, title: d.title, why: d.why, items });
+  }
+  return out;
+}
+
+/** El % que se ahorra (sin depender de offerLenses, para no cruzar módulos). */
+function savePctOf(o: Pick<MarketItem, 'price' | 'normal_price' | 'special_price' | 'reference_price'>): number {
+  const n = (s?: string) => {
+    const d = (s ?? '').replace(/[^\d]/g, '');
+    return d ? Number(d) : null;
+  };
+  const now = o.special_price ?? n(o.price);
+  const was = o.special_price !== undefined && o.special_price !== null ? o.reference_price ?? null : n(o.normal_price);
+  return now !== null && was !== null && was > now ? Math.round((1 - now / was) * 100) : 0;
+}
+
+/**
+ * «Lo que venden cerca» (tablero «Empre Offers», teléfono 2): productos o servicios de los negocios cerca, mezclados por
+ * turnos (nunca dos del mismo negocio seguidos), sin repetir foto y solo con foto: el muro es de imágenes.
+ */
+export function nearbyWall<T extends { id: string; entityId: string; photo?: string }>(byBusiness: T[][], max = 40): T[] {
+  const queues = byBusiness.map((l) => l.filter((x) => Boolean(x.photo)));
+  const out: T[] = [];
+  const photos = new Set<string>();
+  let last = '';
+  while (out.length < max && queues.some((q) => q.length)) {
+    let moved = false;
+    for (const q of queues) {
+      if (!q.length || out.length >= max) continue;
+      const next = q.shift()!;
+      if (photos.has(next.photo!)) continue;
+      if (next.entityId === last && queues.some((o) => o !== q && o.length)) {
+        q.unshift(next);
+        continue;
+      }
+      photos.add(next.photo!);
+      out.push(next);
+      last = next.entityId;
+      moved = true;
+    }
+    if (!moved) break;
+  }
+  return out;
+}
+
+/** Qué tan fuerte es una oferta para el carrusel: gratis y 2x1 primero, luego el % que se ahorra. */
+function strength(o: MarketItem): number {
+  const b = benefitOf(o);
+  return b === 'free' ? 100 : b === 'multi' ? 50 : savePctOf(o);
+}
+
+/**
+ * Las mejores de hoy (carrusel de Ofertas): las vigentes que más ahorran, una por negocio y sin foto repetida.
+ * Con menos de dos no hay carrusel (no se rellena).
+ */
+export function heroPicks(list: MarketItem[], now: number, max = 5): MarketItem[] {
+  const live = list.filter((o) => o.kind !== 'service' && Date.parse(o.ends_at) > now && strength(o) > 0);
+  live.sort((a, b) => strength(b) - strength(a) || Date.parse(a.ends_at) - Date.parse(b.ends_at));
+  const out: MarketItem[] = [];
+  const biz = new Set<string>();
+  const photos = new Set<string>();
+  for (const o of live) {
+    if (out.length >= max || biz.has(o.entity_id) || (o.photo && photos.has(o.photo))) continue;
+    out.push(o);
+    biz.add(o.entity_id);
+    if (o.photo) photos.add(o.photo);
+  }
+  return out.length >= 2 ? out : [];
+}
+
+/** Relámpago: las que terminan hoy, la más próxima primero; sin las que ya salieron arriba. */
+export function endingToday(list: MarketItem[], now: number, skip: Set<string>, max = 6): MarketItem[] {
+  const today = new Date(now).toDateString();
+  const seen = new Set<string>();
+  return list
+    .filter((o) => o.kind !== 'service' && !skip.has(o.id) && Date.parse(o.ends_at) > now && new Date(o.ends_at).toDateString() === today)
+    .sort((a, b) => Date.parse(a.ends_at) - Date.parse(b.ends_at))
+    .filter((o) => (seen.has(o.id) ? false : (seen.add(o.id), true)))
+    .slice(0, max);
+}
+
+/** «2 h 14:37» / «14:37» hasta `endsAt`. */
+export function countdown(endsAt: string, now: number): string {
+  const t = Math.max(0, Math.floor((Date.parse(endsAt) - now) / 1000));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = t % 60;
+  return `${h ? `${h} h ` : ''}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }

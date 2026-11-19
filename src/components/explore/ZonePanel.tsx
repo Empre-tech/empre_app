@@ -1,10 +1,9 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { capFichas, extrasTeaser, groupFeatured, zoneState } from '@/lib/discover';
 import { colors, fonts, radius, spacing } from '@/theme';
-import type { CardModel } from './ExploreCards';
-import { ZoneCard } from './ZoneCard';
+import { MiniRow, type CardModel } from './ExploreCards';
 
 interface Common {
   selectedId: string | null;
@@ -63,7 +62,7 @@ function Fichas({ items, selectedId, onSelect, onOpenProfile, onPhoto }: Common 
         <View key={g.id}>
           {g.title ? <GroupHead title={g.title} note={String(g.items.length)} tone={g.id === 'offer' ? 'offer' : g.id === 'open' ? 'open' : undefined} /> : null}
           {g.items.map((m) => (
-            <ZoneCard key={m.id} model={m} selected={selectedId === m.id} onPress={() => onSelect(m)} onOpenProfile={onOpenProfile} onPhoto={onPhoto ? (i) => onPhoto(m, i) : undefined} />
+            <MiniRow key={m.id} model={m} selected={selectedId === m.id} onPress={() => onSelect(m)} onPhoto={onPhoto ? (i) => onPhoto(m, i) : undefined} />
           ))}
         </View>
       ))}
@@ -177,7 +176,7 @@ export function ZoneAll(p: Props) {
         <>
           <GroupHead title="Más allá de lo que ves" note={String(p.extras.length)} tone="extra" />
           {p.extras.map((m) => (
-            <ZoneCard key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onOpenProfile={p.onOpenProfile} onPhoto={p.onPhoto ? (i) => p.onPhoto?.(m, i) : undefined} />
+            <MiniRow key={m.id} model={m} selected={p.selectedId === m.id} onPress={() => p.onSelect(m)} onPhoto={p.onPhoto ? (i) => p.onPhoto?.(m, i) : undefined} />
           ))}
         </>
       ) : null}
@@ -189,7 +188,7 @@ const styles = StyleSheet.create({
   groupHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: 6 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.muted },
   dotOffer: { backgroundColor: colors.accent },
-  dotOpen: { backgroundColor: '#14B8B0' },
+  dotOpen: { backgroundColor: '#D42020' },
   dotExtra: { backgroundColor: colors.primary },
   groupTitle: { fontSize: 12, fontFamily: fonts.ui.extrabold, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.muted },
   groupNote: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
@@ -210,8 +209,8 @@ const styles = StyleSheet.create({
   btns: { alignSelf: 'stretch', gap: spacing.sm, alignItems: 'center' },
   btn: { minHeight: 44, paddingHorizontal: spacing.lg, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   btnCenter: { alignSelf: 'center', marginBottom: spacing.sm },
-  btnPrimary: { backgroundColor: colors.primary },
+  btnPrimary: { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
   btnSecondary: { borderWidth: 1.5, borderColor: colors.line, backgroundColor: 'transparent' },
   btnText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink, textAlign: 'center' },
-  btnTextPrimary: { color: '#fff' },
+  btnTextPrimary: { color: colors.ink },
 });

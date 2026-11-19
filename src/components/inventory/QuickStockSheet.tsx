@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -14,9 +14,9 @@ import { newClientId } from '@/lib/ledger';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const LEVELS: { level: StockLevel; label: string; color: string; ink: string }[] = [
-  { level: 'ok', label: 'Hay suficiente', color: colors.success, ink: '#0A6E6A' },
-  { level: 'low', label: 'Queda poco', color: colors.accent, ink: colors.accentInk },
-  { level: 'out', label: 'Se acabó', color: colors.danger, ink: '#B3261E' },
+  { level: 'ok', label: 'Hay suficiente', color: colors.finance, ink: '#0B7F3D' },
+  { level: 'low', label: 'Queda poco', color: colors.ink, ink: colors.ink },
+  { level: 'out', label: 'Se acabó', color: colors.danger, ink: '#2B2622' },
 ];
 
 const REASONS: { key: AdjustReason; label: string }[] = [
@@ -88,7 +88,7 @@ function SheetBody({ entityId, item, onClose, onChanged, onOpenDetail }: Props &
   const isSupply = item.kind === 'supply';
   const safeN = Number.isFinite(n) && n >= 0 ? n : 0;
   const lowPoint = 5;
-  const rangeTone = safeN === 0 ? { color: '#F03232', ink: '#B3261E', label: 'Agotado · 0 disponibles' } : safeN <= lowPoint ? { color: '#FF8A1F', ink: colors.accentInk, label: 'Queda poco · punto de reorden' } : { color: '#14B8B0', ink: '#0A6E6A', label: 'En rango óptimo' };
+  const rangeTone = safeN === 0 ? { color: '#2B2622', ink: '#2B2622', label: 'Agotado · 0 disponibles' } : safeN <= lowPoint ? { color: colors.ink, ink: colors.ink, label: 'Queda poco · punto de reorden' } : { color: '#0B7F3D', ink: '#0B7F3D', label: 'En rango óptimo' };
   const rangePct = Math.min(100, Math.round((safeN / (lowPoint * 2.4)) * 100));
 
   return (
@@ -241,13 +241,13 @@ const styles = StyleSheet.create({
   levelText: { fontSize: 16, fontFamily: fonts.ui.extrabold },
   semDots: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   semDotSmall: { width: 7, height: 7, borderRadius: 3.5 },
-  rangeCard: { backgroundColor: colors.bg, borderRadius: 12, padding: 10, gap: 6, borderWidth: 1, borderColor: colors.line },
+  rangeCard: { backgroundColor: colors.well, borderRadius: 12, padding: 10, gap: 6, borderWidth: 1, borderColor: colors.line },
   rangeHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   rangeLabel: { fontSize: 12.5, fontFamily: fonts.ui.extrabold },
   rangeTrack: { height: 8, borderRadius: 4, backgroundColor: colors.line, overflow: 'hidden' },
   rangeFill: { height: '100%', borderRadius: 4 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  stepBtn: { width: 56, height: 56, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
+  stepBtn: { width: 56, height: 56, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.well, alignItems: 'center', justifyContent: 'center' },
   count: { fontSize: 36, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center', minWidth: 120, paddingVertical: 0 },
   linkRow: { minHeight: 44, justifyContent: 'center', alignSelf: 'center' },
   link: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.primary },

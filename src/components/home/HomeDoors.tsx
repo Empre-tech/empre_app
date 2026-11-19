@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View, type View as ViewType } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
@@ -24,16 +24,15 @@ export interface SmallDoor {
   onPress: () => void;
 }
 
-/** El aro de 3 colores del logo alrededor del ícono; cada puerta lo gira distinto. */
+/** El aro del logo bajo la regla de los 3 colores: base neutra + un arco en el 3.er color (brand). */
 function BrandRing({ turn }: { turn: number }) {
   const r = 18;
   const len = 2 * Math.PI * r;
   const seg = (from: number, size: number) => ({ strokeDasharray: `${len * size} ${len}`, strokeDashoffset: -len * from });
   return (
     <Svg width={40} height={40} viewBox="0 0 40 40" style={StyleSheet.absoluteFill} rotation={turn} origin="20, 20">
-      <Circle cx={20} cy={20} r={r} fill={colors.bg} stroke={colors.brand} strokeWidth={2.5} {...seg(0, 0.22)} />
-      <Circle cx={20} cy={20} r={r} fill="none" stroke="#14B8B0" strokeWidth={2.5} {...seg(0.22, 0.3)} />
-      <Circle cx={20} cy={20} r={r} fill="none" stroke={colors.accent} strokeWidth={2.5} {...seg(0.52, 0.48)} />
+      <Circle cx={20} cy={20} r={r} fill={colors.bg} stroke={colors.line} strokeWidth={2} />
+      <Circle cx={20} cy={20} r={r} fill="none" stroke={colors.brand} strokeWidth={2.5} {...seg(0, 0.28)} />
     </Svg>
   );
 }
@@ -58,14 +57,14 @@ function SwingTag() {
   }, [v, reduce]);
   return (
     <Animated.View style={[styles.tag, { transform: [{ rotate: v.interpolate({ inputRange: [0, 1], outputRange: ['-8deg', '8deg'] }) }] }]}>
-      <Ionicons name="pricetag" size={46} color="#FFFFFF" />
+      <Ionicons name="pricetag" size={42} color={colors.brand} />
     </Animated.View>
   );
 }
 
 /**
  * Las puertas del inicio (3.59): Explorar con el mapa (la más grande, porque Empre gira alrededor del mapa), Ofertas en
- * naranja (el color que ya tiene ese trabajo) y una fila de puertas pequeñas al resto de Empre.
+ * negro carbón con el acento en el 3.er color y una fila de puertas pequeñas al resto de Empre.
  */
 export function HomeDoors({
   center,
@@ -152,12 +151,12 @@ const styles = StyleSheet.create({
   footText: { flex: 1, minWidth: 0, gap: 1 },
   doorTitle: { fontSize: 16, lineHeight: 19, fontFamily: fonts.display.bold, color: colors.ink },
   live: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#14B8B0' },
+  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.brand },
   liveText: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.verified },
-  offers: { flex: 1, borderRadius: 20, overflow: 'hidden', backgroundColor: colors.accent, padding: 12, justifyContent: 'flex-end', ...softShadow },
+  offers: { flex: 1, borderRadius: 20, overflow: 'hidden', backgroundColor: colors.sand, padding: 12, justifyContent: 'flex-end', ...softShadow },
   tag: { position: 'absolute', right: 10, top: 10 },
   offersTitle: { fontSize: 18, lineHeight: 21, fontFamily: fonts.display.bold, color: colors.ink },
-  offersSub: { fontSize: 12.5, lineHeight: 16, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  offersSub: { fontSize: 12.5, lineHeight: 16, fontFamily: fonts.ui.extrabold, color: colors.muted },
   smallRow: { flexDirection: 'row', gap: 8 },
   small: { flex: 1, minHeight: 84, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.surface, ...softShadow },
   ring: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },

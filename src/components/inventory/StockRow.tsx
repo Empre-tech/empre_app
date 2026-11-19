@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -10,7 +10,7 @@ import { formatPesos, newClientId } from '@/lib/ledger';
 import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 
 const LEVELS: { level: StockLevel; label: string; color: string }[] = [
-  { level: 'ok', label: 'Hay', color: colors.success },
+  { level: 'ok', label: 'Hay', color: colors.finance },
   { level: 'low', label: 'Queda poco', color: colors.warning },
   { level: 'out', label: 'Se acabó', color: colors.danger },
 ];
@@ -32,7 +32,7 @@ export function StockRow({ entityId, item, onChanged, onError, onEdit, onRetire 
   const usedIn = item.used_in ?? [];
   const missing = missingIngredients(item);
   const blocked = missing.out.length > 0;
-  const dot = blocked ? colors.danger : item.status === 'out' ? colors.danger : item.status === 'low' ? colors.warning : item.status === 'ok' ? colors.success : colors.line;
+  const dot = blocked ? colors.danger : item.status === 'out' ? colors.danger : item.status === 'low' ? colors.warning : item.status === 'ok' ? colors.finance : colors.line;
 
   const level = useMutation({
     mutationFn: (l: StockLevel) => ledgerApi.setLevel(entityId, item.ref, newClientId(), l),
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
     gap: 6,
     padding: 4,
     borderRadius: radius.md,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.well,
     borderWidth: 1,
     borderColor: colors.line,
   },
@@ -255,6 +255,6 @@ const styles = StyleSheet.create({
   exactQty: { fontSize: 28, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
   countBox: { gap: spacing.sm },
   countRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  countInput: { flex: 1, minHeight: 48, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 18, fontFamily: fonts.ui.bold, color: colors.ink, backgroundColor: colors.bg, textAlign: 'center' },
+  countInput: { flex: 1, minHeight: 48, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 18, fontFamily: fonts.ui.bold, color: colors.ink, backgroundColor: colors.well, textAlign: 'center' },
   add: { gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg },
 });

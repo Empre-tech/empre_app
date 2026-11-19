@@ -71,3 +71,17 @@ export function growthPhase(view: Pick<GrowthView, 'complete' | 'total'> | undef
   if (!view.complete) return 'list';
   return celebrated ? 'hidden' : 'celebrate';
 }
+
+/**
+ * La línea de lo que falta en Mi negocio (lienzo v115): «Te faltan 2 para completar tu perfil» y cuáles, los dos
+ * primeros. Completo (o sin datos): null, y el anillo queda cerrado.
+ */
+export function missingLine(view: Pick<GrowthView, 'total' | 'complete' | 'groups'> | undefined): { count: number; title: string; sub: string } | null {
+  if (!view || view.total === 0 || view.complete) return null;
+  const missing = view.groups.flatMap((g) => g.rows).filter((r) => !r.done).map((r) => r.title);
+  const n = missing.length;
+  if (!n) return null;
+  const lower = (s: string) => s.charAt(0).toLocaleLowerCase('es') + s.slice(1);
+  const names = n === 1 ? missing[0] : n === 2 ? `${missing[0]} y ${lower(missing[1])}` : `${missing[0]}, ${lower(missing[1])} y ${n - 2} más`;
+  return { count: n, title: n === 1 ? 'Te falta 1 para completar tu perfil' : `Te faltan ${n} para completar tu perfil`, sub: names };
+}

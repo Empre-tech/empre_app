@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { Image } from 'expo-image';
 import { useState, type Dispatch, type SetStateAction } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -158,13 +158,13 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   meta: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
   row: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
-  tile: { width: TILE, height: TILE, borderRadius: 14, overflow: 'visible', backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line },
+  tile: { width: TILE, height: TILE, borderRadius: 14, overflow: 'visible', backgroundColor: colors.well, borderWidth: 1, borderColor: colors.line },
   cover: { borderWidth: 2, borderColor: colors.primary },
   img: { width: '100%', height: '100%', borderRadius: 12 },
   veil: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: 12, backgroundColor: 'rgba(22,35,58,0.45)', alignItems: 'center', justifyContent: 'center' },
-  badge: { position: 'absolute', left: 6, bottom: 6, paddingHorizontal: 6, height: 20, borderRadius: 6, backgroundColor: colors.ink, justifyContent: 'center' },
-  badgeText: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  remove: { position: 'absolute', right: -6, top: -6, width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#fff', backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  badge: { position: 'absolute', left: 6, bottom: 6, paddingHorizontal: 6, height: 20, borderRadius: 6, backgroundColor: colors.sand, justifyContent: 'center' },
+  badgeText: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  remove: { position: 'absolute', right: -6, top: -6, width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#fff', backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   addTile: { borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#9FB3CC', backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', gap: 2 },
   addText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.primary, textAlign: 'center' },
   backdrop: { flex: 1, backgroundColor: 'rgba(22,35,58,0.45)' },
@@ -172,6 +172,6 @@ const styles = StyleSheet.create({
   grab: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.line, alignSelf: 'center' },
   title: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
   sources: { flexDirection: 'row', gap: spacing.sm },
-  source: { flex: 1, minHeight: 92, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  source: { flex: 1, minHeight: 92, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.well, alignItems: 'center', justifyContent: 'center', gap: 6 },
   sourceText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink, textAlign: 'center' },
 });

@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -97,7 +97,17 @@ export function GrowthCard({ entityId, onGo }: { entityId: string; onGo: (target
         <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={20} color={colors.muted} />
       </Pressable>
       {expanded ? <Text style={styles.sub}>Cada punto cambia algo que tus clientes ven.</Text> : null}
-      {expanded ? view.groups.map((g) => (
+      {expanded ? <GrowthGroups view={view} onGo={onGo} /> : null}
+      {expanded ? <Text style={styles.note}>Nada de esto te sube en el orden: lo que cambia es lo que el cliente ve de ti.</Text> : null}
+    </View>
+  );
+}
+
+/** Los puntos agrupados, cada uno con lo que cambia y su botón. La usan esta tarjeta y la hoja del anillo de Mi negocio. */
+export function GrowthGroups({ view, onGo }: { view: ReturnType<typeof growthView>; onGo: (target: GrowthTarget) => void }) {
+  return (
+    <>
+      {view.groups.map((g) => (
         <View key={g.id} style={styles.group}>
           <Text style={styles.groupTitle}>{g.title}</Text>
           {g.rows.map((r, i) => (
@@ -117,13 +127,12 @@ export function GrowthCard({ entityId, onGo }: { entityId: string; onGo: (target
             </View>
           ))}
         </View>
-      )) : null}
-      {expanded ? <Text style={styles.note}>Nada de esto te sube en el orden: lo que cambia es lo que el cliente ve de ti.</Text> : null}
-    </View>
+      ))}
+    </>
   );
 }
 
-const GREEN = '#14B8B0';
+const GREEN = '#D42020';
 const GREEN_INK = '#1B6B3C';
 
 const styles = StyleSheet.create({
@@ -145,10 +154,10 @@ const styles = StyleSheet.create({
   rowTitle: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   rowTitleDone: { color: colors.muted, textDecorationLine: 'line-through' },
   why: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.semibold, color: colors.muted, marginTop: 2 },
-  go: { minHeight: 40, minWidth: 44, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  goText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  go: { minHeight: 40, minWidth: 44, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, alignItems: 'center', justifyContent: 'center' },
+  goText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   pressed: { transform: [{ scale: 0.97 }] },
   note: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted, marginTop: spacing.sm },
-  done: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: '#E3F5F3' },
+  done: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: '#FDECEC' },
   doneText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.bold, color: GREEN_INK },
 });

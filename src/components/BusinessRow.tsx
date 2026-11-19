@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { EntityMap } from '@/api/types';
 import { formatDistance } from '@/lib/format';
@@ -46,7 +46,7 @@ export function BusinessRow({ entity, distanceKm, onPress, style }: Props) {
         <View style={styles.metaRow}>
           {hasRating ? (
             <View style={styles.rating}>
-              <Ionicons name="star" size={13} color={colors.accent} />
+              <Ionicons name="star" size={13} color={colors.ink} />
               <Text style={styles.ratingText}>{entity.avg_rating.toFixed(1)}</Text>
               <Text style={styles.reviewCount}>· {reviewsLabel}</Text>
             </View>
@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   statusOpen: { backgroundColor: colors.verifiedSoft },
-  statusClosed: { backgroundColor: colors.bg },
+  statusClosed: { backgroundColor: colors.well },
   openDot: { width: 6, height: 6, borderRadius: 3 },
   openDotOpen: { backgroundColor: colors.verified },
   openDotClosed: { backgroundColor: colors.muted },

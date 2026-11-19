@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { ContextChip, FilterId } from '@/lib/context';
@@ -65,7 +65,7 @@ export function ContextRow({ chips, zoneName, onRemoveScope, onRemoveFilter, onC
         return (
           <Pressable key="area" accessibilityRole="button" accessibilityLabel="Buscar en esta zona" onPress={onSearchArea} style={styles.areaHit}>
             <View style={styles.areaPill}>
-              <Ionicons name="refresh" size={14} color="#fff" />
+              <Ionicons name="refresh" size={14} color={colors.ink} />
               <Text style={styles.areaText}>Buscar en esta zona</Text>
             </View>
           </Pressable>
@@ -113,14 +113,14 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 12,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.97)',
+    backgroundColor: 'rgba(43,38,34,0.06)',
     ...shadow,
   },
   chipRemovable: { paddingRight: 2 },
   chipText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   // La ✕ mide 44 × 44 aunque el chip mida 32: los márgenes negativos no agrandan la fila.
   removeHit: { width: 44, height: 44, marginVertical: -6, marginLeft: -4, marginRight: -2, alignItems: 'center', justifyContent: 'center' },
-  removeDot: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
+  removeDot: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.well, alignItems: 'center', justifyContent: 'center' },
   clear: { minHeight: 44, paddingHorizontal: 6, justifyContent: 'center', marginVertical: -6 },
   clearText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark, textDecorationLine: 'underline' },
   areaHit: { minHeight: 44, justifyContent: 'center', marginVertical: -6, paddingHorizontal: 2 },
@@ -131,8 +131,8 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 14,
     borderRadius: radius.pill,
-    backgroundColor: colors.ink,
+    backgroundColor: colors.sand,
     ...shadow,
   },
-  areaText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  areaText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

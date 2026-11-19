@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -6,6 +6,8 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollVie
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi, type Appointment, type AppointmentService } from '@/api/agenda';
 import { ApiError } from '@/api/client';
+import { NO_PREFS, usable } from '@/lib/agentMemory';
+import { loadAgentPrefs } from '@/lib/agentPrefsStore';
 import { useAuth } from '@/auth/AuthContext';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { clockShort, dayKey, formatDay, nextDays } from '@/lib/agendaFormat';
@@ -49,10 +51,14 @@ export default function AgentBookingScreen() {
   const summary = useQuery({ queryKey: ['agenda-summary', id], queryFn: () => agendaApi.summary(id), enabled: Boolean(id), staleTime: 20_000 });
   const mine = useQuery({ queryKey: ['appointments'], queryFn: agendaApi.mine, staleTime: 60_000 });
   const services = useMemo(() => summary.data?.services.filter((s) => s.active) ?? [], [summary.data]);
+  // «Lo de siempre» respeta lo que pausaste u olvidaste en «Lo que Agent sabe de ti».
+  const prefs = useQuery({ queryKey: ['agent-prefs'], queryFn: loadAgentPrefs }).data ?? NO_PREFS;
   const usual = useMemo(() => {
-    const last = [...(mine.data ?? [])].filter((a) => a.entity_id === id && a.status === 'completed' && a.service_id).sort((a, b) => b.starts_at.localeCompare(a.starts_at))[0];
+    const last = usable(mine.data ?? [], prefs)
+      .filter((a) => a.entity_id === id && a.service_id)
+      .sort((a, b) => b.starts_at.localeCompare(a.starts_at))[0];
     return last ? services.find((s) => s.id === last.service_id) ?? null : null;
-  }, [mine.data, services, id]);
+  }, [mine.data, services, id, prefs]);
 
   const say = (you: string | null, agent: string, next: Step) => {
     setMsgs((m) => (you ? [...m, { id: ++seq.current, from: 'you', text: you }] : m));
@@ -198,7 +204,7 @@ export default function AgentBookingScreen() {
           <Text style={styles.headTitle} numberOfLines={1} accessibilityRole="header">
             Pedir cita · {biz}
           </Text>
-          <Text style={styles.headSub}>Empre Agent responde por el negocio</Text>
+          <Text style={styles.headSub}>Hace cosas por ti · tú confirmas</Text>
         </View>
       </View>
 
@@ -242,6 +248,7 @@ export default function AgentBookingScreen() {
 
       {step !== 'done' && step !== 'none' ? (
         <View style={[styles.footContainer, { paddingBottom: insets.bottom + 12 }]}>
+          {step === 'confirm' ? <Text style={styles.promise}>Agent no reserva ni paga nada sin tu toque</Text> : null}
           {replies.length ? (
             <View style={styles.footReplies}>
               {replies.map((r, i) => {
@@ -258,7 +265,7 @@ export default function AgentBookingScreen() {
             <TextInput
               value={draft}
               onChangeText={setDraft}
-              placeholder="Escribe o toca una opción…"
+              placeholder="Pídele algo a Agent"
               placeholderTextColor={colors.muted}
               accessibilityLabel="Mensaje para Empre Agent"
               onSubmitEditing={sendFreeText}
@@ -272,7 +279,7 @@ export default function AgentBookingScreen() {
               onPress={sendFreeText}
               style={[styles.sendBtn, (!draft.trim() || typing) && { opacity: 0.45 }]}
             >
-              <Ionicons name="arrow-up" size={18} color="#fff" />
+              <Ionicons name="arrow-up" size={18} color={colors.ink} />
             </Pressable>
           </View>
         </View>
@@ -282,9 +289,10 @@ export default function AgentBookingScreen() {
 }
 
 const styles = StyleSheet.create({
+  promise: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
   screen: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingBottom: 10, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.hairline },
-  back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
+  back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.well },
   headText: { flex: 1, minWidth: 0 },
   headTitle: { fontSize: 15.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   headSub: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.verified },
@@ -292,9 +300,9 @@ const styles = StyleSheet.create({
   msgsIn: { paddingVertical: 12, paddingHorizontal: 16, gap: 8 },
   bub: { maxWidth: '80%', paddingVertical: 9, paddingHorizontal: 12 },
   bubAgent: { alignSelf: 'flex-start', backgroundColor: colors.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, borderBottomRightRadius: 16, borderBottomLeftRadius: 4 },
-  bubYou: { alignSelf: 'flex-end', backgroundColor: colors.ink, borderTopLeftRadius: 16, borderTopRightRadius: 16, borderBottomLeftRadius: 16, borderBottomRightRadius: 4 },
+  bubYou: { alignSelf: 'flex-end', backgroundColor: colors.sand, borderTopLeftRadius: 16, borderTopRightRadius: 16, borderBottomLeftRadius: 16, borderBottomRightRadius: 4 },
   bubText: { fontSize: 14.5, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.ink },
-  bubTextYou: { color: '#fff' },
+  bubTextYou: { color: colors.ink },
   dots: { fontSize: 14.5, letterSpacing: 2, color: colors.placeholder },
   card: { marginTop: 4, padding: 14, gap: 10, borderRadius: 20, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -308,9 +316,9 @@ const styles = StyleSheet.create({
   footContainer: { gap: 8, paddingTop: 10, paddingHorizontal: 16, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.hairline },
   footReplies: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   reply: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 999, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
-  replyMain: { backgroundColor: colors.primary, borderColor: colors.primary },
+  replyMain: { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
   replyText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  replyTextMain: { color: '#fff' },
+  replyTextMain: { color: colors.ink },
   composeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   composeInput: {
     flex: 1,
@@ -319,7 +327,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.line,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.well,
     fontSize: 14,
     fontFamily: fonts.ui.medium,
     color: colors.ink,
@@ -328,7 +336,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.ink,
+    backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -8,7 +8,6 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   Animated,
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,13 +17,11 @@ import {
 import MapView, { Circle, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { categoriesApi, entitiesApi } from '@/api/endpoints';
-import { claimsApi, discoverApi, discoveryApi } from '@/api/offers';
+import { claimsApi, discoverApi, discoveryApi, offersApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
 import type { DiscoverItem, DiscoveryItem, DiscoverSectionId } from '@/api/types';
-import { BusinessSheet } from '@/components/explore/BusinessSheet';
+import { BusinessTag } from '@/components/explore/BusinessTag';
 import { type CardModel } from '@/components/explore/ExploreCards';
-import { AllCategoriesModal } from '@/components/explore/AllCategoriesModal';
-import { GroupRow } from '@/components/explore/GroupRow';
 import { ExploreSheet } from '@/components/explore/ExploreSheet';
 import { type WithDistance } from '@/components/explore/FeaturedCard';
 import { PinMarker } from '@/components/explore/PinMarker';
@@ -33,24 +30,29 @@ import { useMapLevel, useMapMarkers } from '@/components/explore/useMapMarkers';
 import { useRevealedMarkers } from '@/components/explore/useRevealedMarkers';
 import { useZoneName, useZones } from '@/components/explore/useZoneName';
 import { track } from '@/analytics/track';
+import { artKeyFor, artKeyMatch } from '@/components/CategoryArt';
+import { noteInterest } from '@/lib/interestStore';
+import { addRecent, loadRecents, saveRecents } from '@/lib/searchRecents';
+import { ART_LABEL } from '@/lib/offerHome';
+import { learnPlaceSuffixes, splitZone } from '@/lib/businessName';
+import { openStatus } from '@/lib/openStatus';
+import { oneListWhenFew } from '@/lib/fewBusinesses';
 import { ContextRow } from '@/components/explore/ContextRow';
 import { FinderWelcome } from '@/components/explore/FinderWelcome';
-import { LoadingChip } from '@/components/explore/LoadingChip';
 import { LocationStrip } from '@/components/explore/LocationStrip';
 import { PlaceSheet } from '@/components/explore/PlaceSheet';
 import { PhotoViewer, type ViewerTarget } from '@/components/explore/PhotoViewer';
 import { YouDot, YOU_DOT } from '@/components/explore/MapReferences';
-import { ActionTile } from '@/components/system/parts';
 import { hourIdeas } from '@/lib/askChips';
 import { ExploreGuide, type GuideRect } from '@/components/explore/ExploreGuide';
 import { StackMarker } from '@/components/explore/StackMarker';
 import { SearchBar } from '@/components/explore/SearchBar';
-import { FilterRow, FiltersSheet } from '@/components/search/SearchFilters';
+import { FilterRow } from '@/components/search/SearchFilters';
 import { activeCount, applyFilters, NO_FILTERS as NO_SEARCH, walkMeters, type FilterCaps, type SearchFilters, type WalkMin } from '@/lib/searchFilters';
 import { useFeaturedSheet } from '@/components/explore/useFeaturedSheet';
 import { DEFAULT_REGION } from '@/config';
 import { categoryColor } from '@/lib/categoryColor';
-import { buildGroups, categoryFilter, groupIdOf, type GroupId } from '@/lib/categoryGroups';
+import { buildGroups, categoryFilter, type GroupId } from '@/lib/categoryGroups';
 import { focusCenterLat } from '@/lib/placeCard';
 import { stripText } from '@/lib/locationStrip';
 import { photoTotal } from '@/lib/photoStrip';
@@ -75,7 +77,7 @@ import { sameIds } from '@/lib/pinsCache';
 import { loadPinsCache, savePinsCache } from '@/lib/pinsCacheStore';
 import { isBubbleLevel } from '@/lib/mapLevels';
 import { NEAR_ME_M, zoneAt } from '@/lib/zoneName';
-import { cameraTargets, emphasize, isFarResult } from '@/lib/proximity';
+import { emphasize, isFarResult, searchFrame } from '@/lib/proximity';
 import { MAP_STYLE } from '@/lib/mapStyle';
 import { colors, fonts, radius, shadow, spacing } from '@/theme';
 
@@ -99,11 +101,13 @@ export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
 
-  const [categoryId, setCategoryId] = useState<string | undefined>();
+  // Desde las categorías del inicio se llega con el filtro puesto (?cat=ids separados por coma&catName=Comida), desde
+  // «Buscar» con el campo abierto (?buscar=1) y desde «Ver todos» de Abierto ahora con ese filtro (?abierto=1).
+  const fromHome = useLocalSearchParams<{ cat?: string; catName?: string; buscar?: string; abierto?: string }>();
+  const [categoryId, setCategoryId] = useState<string | undefined>(() => (typeof fromHome.cat === 'string' && fromHome.cat ? fromHome.cat : undefined));
   // El grupo elegido (filtra por todas sus categorías) y, dentro, opcionalmente una categoría.
   const [groupId, setGroupId] = useState<GroupId | undefined>();
   const [subcategoryId, setSubcategoryId] = useState<string | undefined>();
-  const [allCatsOpen, setAllCatsOpen] = useState(false);
   // Alto medido de la ficha del negocio elegido (0 = aún no medido).
   const [sheetH, setSheetH] = useState(0);
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
@@ -189,10 +193,9 @@ export default function MapScreen() {
   const [search, setSearch] = useState(() => (typeof entry.q === 'string' ? entry.q.slice(0, 80) : ''));
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [radiusKm, setRadiusKm] = useState<number | null>(null);
-  const [openNow, setOpenNow] = useState(false);
+  const [openNow, setOpenNow] = useState(() => fromHome.abierto === '1');
   // Un solo buscador (3.66): lo que la fila de filtros suma a «abierto», distancia y tipo.
   const [extra, setExtra] = useState<Pick<SearchFilters, 'offer' | 'delivery' | 'verified' | 'sort'>>({ offer: false, delivery: false, verified: false, sort: 'near' });
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
   // Distingue "sin permiso" de "tardó/falló obteniendo el GPS", para poder mostrar
@@ -213,11 +216,17 @@ export default function MapScreen() {
   // (p. ej. al alternar entre mapa y lista); solo centramos la primera vez.
   const didCenterRef = useRef(false);
 
-  // No golpeamos el backend en cada tecla: esperamos una pausa corta.
+  // Buscar con calma (2026-11-14): no en cada letra. Se busca cuando dejas de escribir (0,8 s) y hay al menos 3 letras, o
+  // al tocar «Buscar» en el teclado. Así el mapa no salta con «Co», «Cor», «Cort»… mientras escribes.
   useEffect(() => {
-    const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    const q = search.trim();
+    const timeout = setTimeout(() => setDebouncedSearch(q.length >= 3 || q.length === 0 ? q : ''), q.length === 0 ? 0 : 800);
     return () => clearTimeout(timeout);
   }, [search]);
+  const submitSearch = () => {
+    setDebouncedSearch(search.trim());
+    closeSearch();
+  };
 
   const requestLocation = async () => {
     setLocating(true);
@@ -238,6 +247,12 @@ export default function MapScreen() {
       ]);
       const coords = { latitude: position.coords.latitude, longitude: position.coords.longitude };
       setUserCoords(coords);
+      // Si el mapa todavía esperaba dónde arrancar, arranca en la persona (antes lo hacía un efecto al llegar userCoords).
+      setStartupRegion((r) => {
+        if (r) return r;
+        didCenterRef.current = true;
+        return { ...coords, latitudeDelta: 0.03, longitudeDelta: 0.03 };
+      });
       return coords;
     } catch (error) {
       setLocationError(
@@ -302,12 +317,6 @@ export default function MapScreen() {
   // Con permiso concedido pero sin posición en caché, el mapa espera (loading)
   // al fix fresco: en cuanto llega, arranca centrado en el usuario (nunca la
   // vista del país completo).
-  useEffect(() => {
-    if (startupRegion === null && userCoords) {
-      setStartupRegion({ ...userCoords, latitudeDelta: 0.03, longitudeDelta: 0.03 });
-      didCenterRef.current = true;
-    }
-  }, [startupRegion, userCoords]);
 
   // Pide la ubicación del usuario (permite centrar el mapa y ordenar/filtrar por distancia).
   // Esto PIDE el permiso si todavía no se ha concedido, y en cualquier caso
@@ -412,6 +421,8 @@ export default function MapScreen() {
   );
   const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 5 * 60_000 });
   const groups = useMemo(() => buildGroups(categories.data ?? []), [categories.data]);
+  // Color de cada categoría para teñir en claro las burbujas de zona con lo que más hay en ellas.
+  const catColors = useMemo(() => new Map((categories.data ?? []).map((c) => [c.id, c.color ?? null] as const)), [categories.data]);
   // Lo que se manda como filtro: la categoría, o todas las del grupo elegido.
   const catFilter = categoryFilter(groupId, categoryId, groups);
   const searching = debouncedSearch.length > 0;
@@ -453,6 +464,23 @@ export default function MapScreen() {
     // parpadear ni mostrar el spinner en cada movimiento.
     placeholderData: keepPreviousData,
   });
+
+  // Buscar entiende lo que escribes (2026-11-14): «corte de pelo» o «barberia» no son nombres de negocios. Si el texto no
+  // encuentra nada pero dice un tipo de negocio, se busca por ese tipo (todas sus categorías).
+  const typeArt = searching ? artKeyMatch(debouncedSearch) : null;
+  const typeIds = useMemo(
+    () => (typeArt ? (categories.data ?? []).filter((c) => artKeyFor(c.name, c.icon) === typeArt).map((c) => c.id).join(',') : ''),
+    [typeArt, categories.data],
+  );
+  const textEmpty = searching && entities.isSuccess && !entities.isPlaceholderData && (entities.data?.items.length ?? 0) === 0;
+  const byType = useQuery({
+    queryKey: ['discovery-type', typeIds, scope ? `${scope.min_lat},${scope.min_lng},${scope.max_lat},${scope.max_lng}` : 'ciudad', refKey],
+    queryFn: () => discoveryApi.discover({ ...(scope ?? {}), lat: reference?.latitude, long: reference?.longitude, category: typeIds, limit: 50 }),
+    enabled: textEmpty && typeIds.length > 0,
+    staleTime: 60_000,
+  });
+  const usingType = textEmpty && (byType.data?.items.length ?? 0) > 0;
+  const searchData = usingType ? byType.data : entities.data;
 
   // Niveles 1 y 2 del mapa (F10): sin búsqueda ni filtros que el servidor no conozca, los negocios
   // llegan agrupados en casillas con su conteo en vez de uno por uno. Con «abiertos ahora» o un radio
@@ -497,7 +525,7 @@ export default function MapScreen() {
   }, [claimsQuery.data, now]);
 
   const fetched = useMemo<WithDistance[]>(() => {
-    const withDistance = (entities.data?.items ?? []).map((entity) => ({
+    const withDistance = (searchData?.items ?? []).map((entity) => ({
       ...entity,
       distanceKm: entity.distance_meters > 0 ? entity.distance_meters / 1000 : null,
     }));
@@ -516,7 +544,7 @@ export default function MapScreen() {
       verified: e.is_verified,
       rating: e.review_count > 0 ? e.avg_rating : null,
     }));
-  }, [entities.data, reference, radiusKm, openNow, extra]);
+  }, [searchData, reference, radiusKm, openNow, extra]);
 
   // Pines acumulados (sin búsqueda): cada respuesta SUMA negocios a los que ya estaban y solo se
   // quitan los que quedaron muy lejos; así una consulta nunca hace desaparecer un pin que se ve.
@@ -587,7 +615,7 @@ export default function MapScreen() {
   const mapLoading = !searching && startupRegion !== null && markers.length === 0 && (entities.isFetching || cellsQuery.isFetching);
   // El mapa está «listo» para la bienvenida cuando ya se dibujó y llegaron los negocios (o se sabe que no hay).
   const welcomeReady = mapReady && (markers.length > 0 || (!entities.isFetching && !cellsQuery.isFetching));
-  const endWelcome = useCallback(() => setWelcome(false), []);
+  const endWelcome = useCallback(() => setWelcome(false), [setWelcome]);
 
   // En qué zona está la persona (o qué zona mira el mapa): nombre del encabezado del panel.
   const viewPoint = useMemo(() => ({ latitude: region.latitude, longitude: region.longitude }), [region.latitude, region.longitude]);
@@ -595,7 +623,38 @@ export default function MapScreen() {
   const strip = useMemo(() => stripText(zoneName, { hasUser: userCoords !== null, denied: locationDenied }), [zoneName, userCoords, locationDenied]);
 
   // Resultados de búsqueda: mientras llega una consulta nueva se muestra «Buscando…», no la anterior.
-  const resultsStatus: 'loading' | 'error' | 'ok' = entities.isError ? 'error' : entities.isLoading || entities.isPlaceholderData ? 'loading' : 'ok';
+  // El panel de buscar (2026-11-14), como TikTok: tus recientes, lo que busca la gente y lo de esta hora.
+  const [recents, setRecents] = useState<string[]>([]);
+  useEffect(() => {
+    if (!searchOpen) return;
+    let alive = true;
+    void loadRecents().then((r) => {
+      if (alive) setRecents(r);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [searchOpen]);
+  const trending = useQuery({
+    queryKey: ['map-trending', refKey],
+    queryFn: () => offersApi.market(reference ? { lat: reference.latitude, long: reference.longitude } : {}),
+    enabled: searchOpen,
+    staleTime: 10 * 60_000,
+  });
+  const trendTerms = (trending.data?.searched.terms ?? []).slice(0, 8);
+  const dropRecent = (t: string) => {
+    const next = recents.filter((x) => x !== t);
+    setRecents(next);
+    saveRecents(next);
+  };
+  const clearRecents = () => {
+    setRecents([]);
+    saveRecents([]);
+  };
+
+  // Los 9 primeros resultados llevan su número en el mapa y en la lista (el mismo orden).
+  const rankById = useMemo(() => new Map(searching ? items.slice(0, 9).map((e, i) => [e.id, i + 1] as const) : []), [searching, items]);
+  const resultsStatus: 'loading' | 'error' | 'ok' = entities.isError ? 'error' : entities.isLoading || entities.isPlaceholderData || (textEmpty && typeIds.length > 0 && byType.isLoading) ? 'loading' : 'ok';
   // «También podría interesarte»: misma categoría que el primer resultado, otras subcategorías.
   const topCategory = searching && resultsStatus === 'ok' ? items[0]?.category_id : undefined;
   const relatedQuery = useQuery({
@@ -620,8 +679,9 @@ export default function MapScreen() {
     if (fittedRef.current === key) return;
     fittedRef.current = key;
     if (sheet.getAnchor() === 'peek') sheet.snapTo('medium');
-    // La cámara encuadra los más cercanos (a menos de 1,5 km), no todos: los lejanos no deben alejar el mapa.
-    const coords = (plan ? cameraTargets(plan) : []).filter(hasLocation).map((e) => ({ latitude: e.latitude, longitude: e.longitude }));
+    // La cámara encuadra TODOS los resultados de tu ciudad y a ti (2026-11-14), nunca más cerca que un barrio: buscar
+    // «helado» muestra todas las heladerías, no hace zoom a la más cercana.
+    const coords = searchFrame(items.filter(hasLocation).map((e) => ({ latitude: e.latitude, longitude: e.longitude })), userCoords ?? null);
     // Si ninguno cabe cerca, el mapa se queda en la zona de la persona.
     if (coords.length === 0 && searchScope !== 'zone' && userCoords) {
       mapRef.current?.animateToRegion({ ...userCoords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 500);
@@ -633,7 +693,7 @@ export default function MapScreen() {
         animated: true,
       });
     }
-  }, [searching, resultsStatus, debouncedSearch, catFilter, searchScope, plan, sheet, userCoords, topH]);
+  }, [searching, resultsStatus, debouncedSearch, catFilter, searchScope, items, sheet, userCoords, topH]);
 
   // Medición (anónima): una búsqueda cuenta una vez por consulta y alcance, cuando llegan los resultados.
   const trackedSearch = useRef('');
@@ -647,6 +707,10 @@ export default function MapScreen() {
     if (trackedSearch.current === key) return;
     trackedSearch.current = key;
     track('search_submitted', undefined, { query: debouncedSearch, results: items.length, scope: searchScope });
+    // Para ti: lo que buscas es la señal más clara de lo que te interesa (solo se guarda el tipo, en el teléfono).
+    noteInterest('search', artKeyMatch(debouncedSearch));
+    // Recientes (solo en el teléfono): lo que buscaste sale primero la próxima vez.
+    void loadRecents().then((r) => addRecent(r, debouncedSearch));
     if (items.length === 0) track('search_no_results', undefined, { query: debouncedSearch, scope: searchScope });
   }, [searching, resultsStatus, debouncedSearch, searchScope, items.length]);
 
@@ -722,10 +786,6 @@ export default function MapScreen() {
     );
   };
 
-  const directionsTo = (latitude: number, longitude: number) => {
-    void Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`);
-  };
-
   const clearAllFilters = () => {
     setGroupId(undefined);
     setCategoryId(undefined);
@@ -752,12 +812,15 @@ export default function MapScreen() {
 
   // Sobre el mapa, lo justo (3.67): la fila de filtros aparece al buscar o con algún filtro puesto; si no, basta el
   // botón de filtros de la barra. Mientras sale la bienvenida, nada.
-  const showFilterRow = !welcome && (searching || activeCount(searchFilters) > 0);
+  // Un solo filtro (2026-11-14): la fila va siempre bajo el buscador; no hay otra hoja ni botón de filtros.
+  const showFilterRow = !welcome;
   const activeFilterCount = activeCount(searchFilters) + (subcategoryId ? 1 : 0) + (categoryId && !groupId ? 1 : 0);
   const selectedCategory = (categories.data ?? []).find((c) => c.id === categoryId) ?? null;
   const selectedGroup = groups.find((g) => g.id === groupId) ?? null;
   const selectedSubcategory = (selectedCategory?.subcategories ?? []).find((s) => s.id === subcategoryId) ?? null;
-  const selectedCategoryName = selectedSubcategory ? null : selectedCategory?.name ?? null;
+  // Varias categorías juntas (las de un dibujo del inicio) no tienen un nombre propio: se usa el de la pastilla.
+  const homeCatName = categoryId && categoryId === fromHome.cat && typeof fromHome.catName === 'string' ? fromHome.catName : null;
+  const selectedCategoryName = selectedSubcategory ? null : selectedCategory?.name ?? homeCatName;
 
   // Fila de contexto (F12): zona, alcance y filtros activos, cada uno con su ✕.
   const contextFilters: { id: FilterId; label: string }[] = [];
@@ -798,11 +861,6 @@ export default function MapScreen() {
     setCategoryId(undefined);
     setSubcategoryId(undefined);
   };
-  const chooseCategory = (id: string | undefined) => {
-    setCategoryId(id);
-    setSubcategoryId(undefined);
-    setGroupId(id ? groupIdOf(id, groups) : undefined);
-  };
 
   // La reseña verificada más reciente de los destacados que se ven (y los adicionales): una sola consulta, hasta 12.
   const extraEntities = useMemo(() => (searching ? [] : pickExtras(known, listBox, EXTRAS_MAX)), [searching, known, listBox]);
@@ -821,19 +879,29 @@ export default function MapScreen() {
     staleTime: 10 * 60_000,
   });
   const snippets = useMemo(() => ({ ...snippetStore.data, ...(snippetsQuery.data ?? {}) }), [snippetStore.data, snippetsQuery.data]);
-  // La ficha del negocio elegido: su reseña viene de los destacados ya cargados o, si no está entre ellos, de una consulta.
-  const selectedSnippetQuery = useQuery({
-    queryKey: ['review-snippet', selectedId],
-    queryFn: () => discoveryApi.reviewSnippets([selectedId ?? '']),
-    enabled: selectedId !== null && !snippets?.[selectedId],
-    staleTime: 10 * 60_000,
-  });
-  const selectedSnippet = selectedId ? (snippets?.[selectedId] ?? selectedSnippetQuery.data?.[selectedId]) : undefined;
-  const selectedReview = selectedSnippet ? snippetLines(selectedSnippet, now) : undefined;
+
+  // Los nombres sin el barrio, como en Inicio («Helados del Mar Mamatoco» → «Helados del Mar»); dos sedes que quedarían
+  // iguales en lo que se ve se dejan completas.
+  const placeNames = useMemo(() => [...zones.map((z) => z.name), ...learnPlaceSuffixes(items.map((e) => e.name))], [zones, items]);
+  const repeatedBases = useMemo(() => {
+    const count = new Map<string, number>();
+    for (const e of items) {
+      const k = splitZone(e.name, placeNames).base.toLowerCase();
+      count.set(k, (count.get(k) ?? 0) + 1);
+    }
+    return new Set([...count].filter(([, n]) => n > 1).map(([k]) => k));
+  }, [items, placeNames]);
+  const shownName = useCallback(
+    (name: string) => {
+      const base = splitZone(name, placeNames).base;
+      return repeatedBases.has(base.toLowerCase()) ? name : base;
+    },
+    [placeNames, repeatedBases],
+  );
 
   const toModel = useCallback((e: WithDistance, line?: string): CardModel => ({
     id: e.id,
-    name: e.name,
+    name: shownName(e.name),
     latitude: e.latitude,
     longitude: e.longitude,
     image: e.profile_url,
@@ -843,6 +911,7 @@ export default function MapScreen() {
     distance: onFootOrDistance(e.distanceKm),
     sub: e.subcategory || e.category_name,
     line,
+    status: openStatus(e.has_hours ? e.is_open_now : null, e.closes_at, now),
     pill: e.has_active_offer && e.active_offer ? reasonPill({ kind: 'offer', ends_at: e.active_offer.ends_at }, now) : null,
     mine: qrByEntity.has(e.id),
     rating: e.avg_rating,
@@ -851,10 +920,10 @@ export default function MapScreen() {
     review: snippets?.[e.id] ? snippetLines(snippets[e.id], now) : undefined,
     photos: e.photos,
     photosCount: e.photos_count,
-  }), [now, qrByEntity, snippets]);
+  }), [now, qrByEntity, snippets, shownName]);
   const discoverModel = useCallback((it: DiscoverItem, sectionId: DiscoverSectionId): CardModel => ({
     id: it.entity_id,
-    name: it.name,
+    name: shownName(it.name),
     latitude: it.latitude,
     longitude: it.longitude,
     image: it.profile_url,
@@ -865,12 +934,13 @@ export default function MapScreen() {
     // La distancia se calcula aquí (Descubre se guarda por área, no por tu posición).
     distance: onFootOrDistance(reference ? distanceKm(reference, it) : it.distance_meters > 0 ? it.distance_meters / 1000 : null),
     sub: it.subcategory || it.category_name,
-    line: sectionId === 'open' ? openLine(it.closes_at) : it.tagline || undefined,
+    line: sectionId === 'open' ? openLine(it.closes_at, now) : it.tagline || undefined,
+    status: openStatus(it.is_open_now, it.closes_at, now),
     pill: reasonPill(it.reason, now),
     mine: qrByEntity.has(it.entity_id),
     photos: it.photos,
     photosCount: it.photos_count,
-  }), [now, qrByEntity, reference]);
+  }), [now, qrByEntity, reference, shownName]);
   const zoneModels = useMemo(() => (searching ? [] : items.map((e) => toModel(e))), [searching, items, toModel]);
   // Adicionales: los pines acumulados que están cerca pero fuera de la zona que se ve, con el nombre de su zona.
   const extraModels = useMemo(() => extraEntities.map((e) => ({ ...toModel(e), zoneLabel: zoneAt(zones, e)?.zone.name ?? null })), [extraEntities, zones, toModel]);
@@ -885,24 +955,23 @@ export default function MapScreen() {
       500,
     );
   const headerCategory = selectedCategory?.name ?? selectedGroup?.name;
-  const headerZoneStatus: 'loading' | 'error' | 'ok' = entities.isError ? 'error' : entities.isLoading ? 'loading' : 'ok';
-  const header = useMemo(
-    () =>
-      sheetHeader({
-        searching,
-        query: debouncedSearch,
-        status: resultsStatus,
-        results: items.length,
-        scope: searchScope,
-        zoneCount: items.length,
-        categoryName: headerCategory,
-        view,
-        extraCount: extraModels.length,
-        openCount: searching ? 0 : items.filter((e) => e.has_hours && e.is_open_now).length,
-        zoneStatus: headerZoneStatus,
-      }),
-    [searching, debouncedSearch, resultsStatus, items, searchScope, headerCategory, view, extraModels.length, headerZoneStatus],
-  );
+  // Mientras el mapa trae negocios, abajo dice «Buscando…» (no «0 destacados») y corre la línea fina del panel.
+  const headerZoneStatus: 'loading' | 'error' | 'ok' = entities.isError ? 'error' : entities.isLoading || mapLoading ? 'loading' : 'ok';
+  // El encabezado del panel: un cálculo barato, sin useMemo.
+  const header = sheetHeader({
+    searching,
+    query: debouncedSearch,
+    status: resultsStatus,
+    results: items.length,
+    scope: searchScope,
+    zoneCount: items.length,
+    categoryName: headerCategory,
+    view,
+    extraCount: extraModels.length,
+    openCount: items.filter((e) => e.has_hours && e.is_open_now).length,
+    zoneStatus: headerZoneStatus,
+    typeLabel: usingType && typeArt ? ART_LABEL[typeArt] : undefined,
+  });
   // Visor de fotos de un destacado, encima del mapa (3.22).
   const [viewer, setViewer] = useState<ViewerTarget | null>(null);
   const openPhoto = (m: CardModel, index: number) => {
@@ -914,12 +983,14 @@ export default function MapScreen() {
     const coords = userCoords ?? (await requestLocation());
     if (coords) mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 500);
   };
-  const sections = useMemo(() => sectionsInView(sectionsQuery.data ?? [], listBox), [sectionsQuery.data, listBox]);
+  // Con pocos negocios a la vista, Descubre es una sola lista donde cada uno sale una vez (como Inicio).
+  const sections = useMemo(() => oneListWhenFew(sectionsInView(sectionsQuery.data ?? [], listBox), items.length), [sectionsQuery.data, listBox, items.length]);
   // Llega algo nuevo con lo anterior todavía a la vista: barra fina arriba del panel y lo anterior atenuado (3.26).
   const updating =
-    !searching &&
+    mapLoading ||
+    (!searching &&
     ((sectionsQuery.isFetching && !sectionsQuery.isLoading && (sectionsQuery.data?.length ?? 0) > 0) ||
-      (entities.isFetching && !entities.isLoading && (entities.data?.items?.length ?? 0) > 0));
+      (entities.isFetching && !entities.isLoading && (entities.data?.items?.length ?? 0) > 0)));
   const avatars = useMemo(
     () => (sections[0]?.items ?? []).slice(0, 3).map((it) => ({ key: it.entity_id, color: categoryColor(it.category_color).fg, letter: it.name.charAt(0) })),
     [sections],
@@ -1160,20 +1231,21 @@ export default function MapScreen() {
                   center={reference}
                   radius={radiusKm * 1000}
                   strokeWidth={1.5}
-                  strokeColor={colors.ink}
-                  fillColor="rgba(14,35,70,0.06)"
+                  strokeColor={colors.brand}
+                  fillColor="rgba(240,50,50,0.06)"
                 />
               ) : null}
               {/* Sin círculo ni nombre de la zona (3.30): la franja de arriba ya dice dónde estás. */}
-              {revealed.map((m) =>
+              {/* Mientras llega una búsqueda nueva no se muestran los pines de la anterior (no salen 18 de otra cosa). */}
+              {(searching && resultsStatus === 'loading' ? [] : revealed).map((m) =>
                 m.kind === 'bubble' ? (
                   <BubbleMarker
-                    key={m.key}
+                    key={`${m.key}-${catColors.get(m.categoryId ?? '') ?? ''}`}
                     latitude={m.latitude}
                     longitude={m.longitude}
                     count={m.count}
                     hasOffer={m.hasOffer}
-                    color={colors.ink}
+                    color={catColors.get(m.categoryId ?? '')}
                     label={m.label}
                     onPress={() => onBubblePress(m.latitude, m.longitude)}
                   />
@@ -1186,6 +1258,7 @@ export default function MapScreen() {
                     mine={m.mine}
                     emphasis={m.emphasis}
                     distanceLabel={m.distanceLabel}
+                    rank={rankById.get(m.entity.id)}
                     dimmed={selectedId !== null && !m.selected}
                     onPress={() => selectBusiness(m.entity.id, m.coordinate)}
                   />
@@ -1245,30 +1318,15 @@ export default function MapScreen() {
             </Animated.View>
           ) : null}
 
+          {/* Tocar un negocio: una etiqueta (nombre, a pie, abierto hasta); tocarla entra al perfil. Sin botones de más. */}
           {selectedEntity ? (
-            <BusinessSheet
+            <BusinessTag
               entity={selectedEntity}
-              isMine={myEntityIds.has(selectedEntity.id)}
               qrOfferId={qrByEntity.get(selectedEntity.id) ?? null}
               onClose={() => setSelectedId(null)}
-              onDirections={() => {
-                track('directions_tapped', selectedEntity.id, { origin: 'map' });
-                directionsTo(selectedEntity.latitude, selectedEntity.longitude);
-              }}
-              onMessage={() => {
-                if (authStatus !== 'signedIn') {
-                  router.push('/(auth)/login');
-                  return;
-                }
-                track('contact_started', selectedEntity.id);
-                router.push({ pathname: '/chat/[entityId]', params: { entityId: selectedEntity.id, name: selectedEntity.name, avatar: selectedEntity.profile_url } });
-              }}
               onProfile={(offerId) =>
                 router.push({ pathname: '/business/[id]', params: offerId ? { id: selectedEntity.id, offer: offerId } : { id: selectedEntity.id } })
               }
-              onScan={() => router.push('/business/scan')}
-              onPublishOffer={() => router.push({ pathname: '/business/offers', params: { entityId: selectedEntity.id } })}
-              review={selectedReview}
               onHeight={onSheetHeight}
             />
           ) : null}
@@ -1283,87 +1341,70 @@ export default function MapScreen() {
           ) : null}
         </View>
 
-        {searchOpen ? (
-          <View style={[styles.searchPanel, { paddingTop: insets.top + spacing.sm + 112 }]}>
-            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelBody}>
-              {debouncedSearch ? null : (
-                <View style={styles.panelGroup}>
-                  <Text style={styles.panelLabel}>Para esta hora · {hourIdeas(new Date().getHours())[0].name.toLowerCase()}</Text>
-                  <View style={styles.panelTiles}>
-                    {hourIdeas(new Date().getHours()).map((q) => (
-                      <ActionTile
-                        key={q.label}
-                        icon={q.icon}
-                        label={q.label}
-                        onPress={() => {
-                          setSearch(q.ask);
-                          closeSearch();
-                        }}
-                      />
+        {/* Buscar (2026-11-14), como TikTok: una capa translúcida (el mapa se ve detrás, es un filtro) con tus recientes, lo
+            que busca la gente y lo de esta hora. Tocar cualquiera busca; al escribir, la capa se va y quedan los resultados. */}
+        {searchOpen && !debouncedSearch ? (
+          <View style={[styles.veil, { top: insets.top + spacing.sm + 112 }]}>
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.veilBody}>
+              {recents.length ? (
+                <View style={styles.veilGroup}>
+                  <View style={styles.veilHead}>
+                    <Text style={styles.veilTitle}>Recientes</Text>
+                    <Pressable accessibilityRole="button" onPress={clearRecents} hitSlop={8} style={styles.veilLinkHit}>
+                      <Text style={styles.veilLink}>Borrar todo</Text>
+                    </Pressable>
+                  </View>
+                  {recents.map((t) => (
+                    <View key={t} style={styles.recentRow}>
+                      <Pressable accessibilityRole="button" accessibilityLabel={`Buscar ${t}`} onPress={() => { setSearch(t); closeSearch(); }} style={styles.recentHit}>
+                        <Ionicons name="time-outline" size={18} color={colors.muted} />
+                        <Text style={styles.recentText} numberOfLines={1}>
+                          {t}
+                        </Text>
+                      </Pressable>
+                      <Pressable accessibilityRole="button" accessibilityLabel={`Quitar ${t} de recientes`} onPress={() => dropRecent(t)} hitSlop={6} style={styles.recentX}>
+                        <Ionicons name="close" size={16} color={colors.muted} />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              {trendTerms.length ? (
+                <View style={styles.veilGroup}>
+                  <Text style={styles.veilTitle}>Lo que busca la gente</Text>
+                  <View style={styles.trendGrid}>
+                    {trendTerms.map((t, i) => (
+                      <Pressable key={t.term} accessibilityRole="button" accessibilityLabel={`${i + 1}. ${t.label || t.term}`} onPress={() => { setSearch(t.label || t.term); closeSearch(); }} style={styles.trendItem}>
+                        <Text style={[styles.trendNum, i < 3 && styles.trendTop]}>{i + 1}</Text>
+                        <Text style={styles.trendText} numberOfLines={1}>
+                          {t.label || t.term}
+                        </Text>
+                      </Pressable>
                     ))}
                   </View>
                 </View>
-              )}
+              ) : null}
+              <View style={styles.veilGroup}>
+                <Text style={styles.veilTitle}>Para esta hora · {hourIdeas(new Date().getHours())[0].name.toLowerCase()}</Text>
+                <View style={styles.hourRow}>
+                  {hourIdeas(new Date().getHours()).map((q) => (
+                    <Pressable key={q.label} accessibilityRole="button" onPress={() => { setSearch(q.ask); closeSearch(); }} style={styles.hourChip}>
+                      <Ionicons name={q.icon} size={16} color={colors.ink} />
+                      <Text style={styles.hourText}>{q.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
               {userCoords ? null : (
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={locationDenied || locating}
-                  onPress={() => void requestLocation()}
-                  style={styles.panelSwitch}
-                >
+                <Pressable accessibilityRole="button" disabled={locationDenied || locating} onPress={() => void requestLocation()} style={styles.panelSwitch}>
                   <Text style={[styles.panelSwitchText, { flex: 1 }]}>{locating ? 'Buscando tu ubicación…' : locationDenied ? 'Activa tu ubicación en los ajustes del celular para filtrar por cercanía' : locationError ?? 'Usar mi ubicación para ver lo cercano'}</Text>
                   {locating ? <ActivityIndicator size="small" color={colors.primary} /> : locationDenied ? null : <Ionicons name="navigate" size={18} color={colors.ink} />}
                 </Pressable>
               )}
-              <View style={styles.panelGroup}>
-                <Text style={styles.panelLabel}>Qué tipo de negocio</Text>
-                <GroupRow
-                  groups={groups}
-                  groupId={groupId}
-                  categoryId={categoryId}
-                  onGroup={chooseGroup}
-                  onCategory={(id) => {
-                    setCategoryId(id);
-                    setSubcategoryId(undefined);
-                  }}
-                  onSeeAll={() => setAllCatsOpen(true)}
-                />
-                {(selectedCategory?.subcategories ?? []).length > 0 ? (
-                  <View style={styles.panelSubs}>
-                    {(selectedCategory?.subcategories ?? []).map((sub) => {
-                      const on = subcategoryId === sub.id;
-                      return (
-                        <Pressable key={sub.id} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setSubcategoryId(on ? undefined : sub.id)} style={[styles.panelSub, on && styles.walkChoiceOn]}>
-                          <Text style={styles.walkChoiceText}>{sub.name}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                ) : null}
-              </View>
             </ScrollView>
-            <View style={[styles.panelFoot, { paddingBottom: insets.bottom + 16 }]}>
-              {activeFilterCount > 0 ? (
-                <Pressable accessibilityRole="button" onPress={clearAllFilters} style={styles.panelClear}>
-                  <Text style={styles.panelClearText}>Quitar filtros</Text>
-                </Pressable>
-              ) : null}
-              <Pressable accessibilityRole="button" onPress={closeSearch} style={styles.panelGo}>
-                <Text style={styles.panelGoText}>Ver en el mapa</Text>
-              </Pressable>
-            </View>
           </View>
         ) : null}
 
-        <FiltersSheet
-          visible={filtersOpen}
-          value={searchFilters}
-          onChange={changeFilters}
-          onClose={() => setFiltersOpen(false)}
-          caps={filterCaps}
-          groups={groups.map((g) => ({ id: g.id, name: g.name }))}
-          resultCount={fetched.length}
-        />
 
         {/* Arriba, dónde estás (o qué zona mira el mapa); debajo, el buscador con el filtro y las categorías. Flotan sobre el
             mapa: mientras el dedo lo mueve, la franja se atenúa y el resto se desvanece. */}
@@ -1383,16 +1424,16 @@ export default function MapScreen() {
             )}
           </View>
           <Animated.View style={[styles.topRows, { opacity: topFade }]} pointerEvents={mapMoving ? 'none' : 'box-none'}>
-          <SearchBar value={search} onChangeText={setSearch} onOpenFilters={() => setFiltersOpen(true)} filterCount={activeFilterCount} compact hideFilters={showFilterRow} onFocusChange={(f) => f && setSearchOpen(true)} />
+          <SearchBar value={search} onChangeText={setSearch} onOpenFilters={() => undefined} filterCount={activeFilterCount} compact hideFilters autoFocus={fromHome.buscar === '1'} onFocusChange={setSearchOpen} onSubmit={submitSearch} />
 
           {tall || selectedEntity || searchOpen || !showFilterRow ? null : (
             <View style={styles.filterBleed}>
-              <FilterRow value={searchFilters} onChange={changeFilters} caps={filterCaps} groupName={selectedGroup?.name} onOpenSheet={() => setFiltersOpen(true)} tone="map" />
+              <FilterRow value={searchFilters} onChange={changeFilters} caps={filterCaps} groupName={selectedGroup?.name} single tone="map" />
             </View>
           )}
           {tall || selectedEntity || searchOpen ? null : searching ? (
             <ContextRow
-              chips={contextRow}
+              chips={contextRow.filter((c) => !(c.kind === 'scope' && !c.removable))}
               zoneName={null}
               onRemoveScope={removeScope}
               onRemoveFilter={removeFilter}
@@ -1409,7 +1450,6 @@ export default function MapScreen() {
               {selectedSubcategory ? <ActiveChip icon="pricetag-outline" label={selectedSubcategory.name} onRemove={() => setSubcategoryId(undefined)} /> : null}
             </View>
           ) : null}
-          {mapLoading && !tall && !selectedEntity && !welcome ? <LoadingChip /> : null}
           </Animated.View>
         </View>
 
@@ -1432,13 +1472,6 @@ export default function MapScreen() {
         }}
       />
 
-      <AllCategoriesModal
-        visible={allCatsOpen}
-        groups={groups}
-        selectedId={categoryId}
-        onSelect={chooseCategory}
-        onClose={() => setAllCatsOpen(false)}
-      />
     </View>
   );
 }
@@ -1468,7 +1501,26 @@ function ActiveChip({
 const styles = StyleSheet.create({
   filterBleed: { marginHorizontal: -spacing.md },
   whereRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  searchPanel: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: 5, backgroundColor: colors.bg },
+  // La capa de buscar: translúcida, el mapa se ve detrás (es un filtro, no otra página).
+  veil: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 5, backgroundColor: 'rgba(254,250,242,0.9)' },
+  veilBody: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 32, gap: 22 },
+  veilGroup: { gap: 6 },
+  veilHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  veilTitle: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
+  veilLinkHit: { minHeight: 44, justifyContent: 'center' },
+  veilLink: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
+  recentRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
+  recentHit: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  recentText: { flex: 1, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink },
+  recentX: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  trendGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  trendItem: { width: '50%', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10, paddingRight: 8 },
+  trendNum: { width: 18, fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.muted, fontVariant: ['tabular-nums'] },
+  trendTop: { color: colors.primaryDark },
+  trendText: { flex: 1, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink },
+  hourRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  hourChip: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  hourText: { fontSize: 13.5, fontFamily: fonts.ui.semibold, color: colors.ink },
   panelBody: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 20, gap: 20 },
   panelGroup: { gap: 8 },
   panelLabel: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
@@ -1480,7 +1532,7 @@ const styles = StyleSheet.create({
   panelSwitch: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.surface },
   panelSwitchText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   switchTrack: { width: 46, height: 28, padding: 3, borderRadius: 14, backgroundColor: colors.placeholder },
-  switchTrackOn: { backgroundColor: colors.ink },
+  switchTrackOn: { backgroundColor: colors.selectedSoft },
   switchKnob: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.surface },
   switchKnobOn: { alignSelf: 'flex-end' },
   panelFoot: { paddingTop: 10, paddingHorizontal: 20, borderTopWidth: 1, borderTopColor: colors.hairline, backgroundColor: colors.surface },
@@ -1488,8 +1540,8 @@ const styles = StyleSheet.create({
   panelSub: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.surface },
   panelClear: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   panelClearText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink, textDecorationLine: 'underline' },
-  panelGo: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.primary },
-  panelGoText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  panelGo: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  panelGoText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
   screen: { flex: 1, backgroundColor: colors.bg },
   // Buscador y chips flotan sobre el mapa: el mapa ocupa toda la pantalla.
@@ -1497,7 +1549,7 @@ const styles = StyleSheet.create({
   topBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 6, gap: 6, paddingHorizontal: spacing.md },
   topRows: { gap: 6 },
   content: { flex: 1, position: 'relative' },
-  mapWrap: { flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#EEF2F7' },
+  mapWrap: { flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#EFF0F2' },
   map: { flex: 1 },
   mapStartupLoading: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
   activeChips: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
@@ -1510,7 +1562,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     height: 36,
     borderRadius: radius.pill,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.well,
     borderWidth: 1,
     borderColor: colors.primary,
     maxWidth: 140,

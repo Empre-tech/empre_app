@@ -27,6 +27,8 @@ export interface AnswerService {
   price_from: boolean;
   duration_min?: number | null;
   bookable?: boolean;
+  /** El negocio lo marcó agotado por ahora. */
+  sold_out?: boolean;
 }
 
 export interface AnswerOffer {
@@ -63,7 +65,7 @@ export interface AnswerData {
 }
 
 export type Block =
-  | { kind: 'text'; title: string; body?: string }
+  | { kind: 'text'; title: string; body?: string; /** Se dice tal cual, sin partir en «dato en negrita». */ plain?: boolean }
   | { kind: 'services'; title: string; items: AnswerService[]; more: number }
   | { kind: 'offer'; title: string; conditions?: string; endsAt: string; appliesTo?: string }
   | { kind: 'choose'; title: string; options: { id: string; label: string }[] }
@@ -211,10 +213,43 @@ const WORDS: [Intent, RegExp][] = [
   ['offers', /\b(oferta\w*|promo\w*|descuento\w*|rebaja\w*)\b/],
   ['price', /\b(cuesta|cuestan|vale|valen|precio\w*|cobran|tarifa\w*)\b/],
   ['delivery', /\b(domicilio\w*|envio\w*|envian|llevan|delivery)\b/],
-  ['availability', /\b(disponib\w*|cupo\w*|espacio\w*|mesa\w*|hay campo|atienden hoy|tienen hoy)\b/],
+  ['availability', /\b(disponib\w*|cupo\w*|espacio\w*|mesa\w*|hay campo|atienden hoy|tienen hoy|(tienen|tiene|hay|habra) hora( libre)?)\b/],
   ['hours', /\b(horario\w*|abren|abre|cierran|cierra|hasta que hora|a que hora|abierto\w*)\b/],
   ['services', /\b(servicio\w*|que tienen|que hacen|carta|menu|producto\w*|catalogo|que venden|ofrecen)\b/],
 ];
+
+const STOCK = /\b(tienen|tiene|hay|queda\w*|disponib\w*|venden|vende|manejan|maneja|consigo|consigue|traen)\b/;
+const NOT_STOCK = /\b(cuesta|cuestan|vale|valen|precio\w*|cobran|tarifa\w*|dura\w*|demora\w*|tarda\w*|reserv\w*|agend\w*|cita|turno|oferta\w*|promo\w*|descuento\w*)\b/;
+
+/**
+ * Pide un compromiso del negocio (2026-11-14): apartar, guardar, separar, rebajar, encargar o confirmar algo a su nombre.
+ * Eso nunca lo responde Empre AI: el mensaje le llega al dueño y Empre AI no aparece.
+ */
+export function asksCommitment(text: string): boolean {
+  const t = ` ${plain(text)} `;
+  return (
+    /\b(me|nos)\s+(lo|la|los|las|le|les)?\s*(apart|guard|separ|dej|rebaj|fi[ao]n?\b)\w*/.test(t) ||
+    /\b(apartame|apartenme|guardame|guardenme|separame|separenme|reservame|reservenme|dejamelo|dejamela)\b/.test(t) ||
+    /\b(quiero|quisiera|queria|voy a|vamos a)\s+(pedir|encargar|ordenar|apartar|separar)\b/.test(t) ||
+    /\b(a nombre de|a mi nombre)\b/.test(t) ||
+    /\b(me|nos)\s+(hace[ns]?|da[ns]?|deja[ns]?|pueden hacer|puedes hacer|harian?)\s+(un |una |algun |alguna )?(descuento|rebaja|precio especial)\b/.test(t) ||
+    /\b(si|cuando)\s+(llevo|compro|llevamos|compramos)\b.*\b(descuento|rebaja)\b/.test(t)
+  );
+}
+
+/** Dónde lo leyó Empre AI cuando respondió con la ficha del negocio (nivel 3): la intención guardada → la fuente. */
+const FICHA_SOURCE: Record<string, (noun: string) => string> = {
+  ficha_perfil: () => 'Según su perfil',
+  ficha_carta: (noun) => `Según su ${noun.toLocaleLowerCase('es')}`,
+  ficha_resenas: () => 'Según sus reseñas',
+};
+
+export const isFichaIntent = (intent: string | undefined): boolean => Boolean(intent && intent in FICHA_SOURCE);
+
+/** La respuesta que escribió Empre AI leyendo la ficha publicada: se dice tal cual, con de dónde salió. */
+export function fichaAnswer(text: string, intent: string, noun: string): Answer {
+  return { intent: 'custom', unanswered: false, source: (FICHA_SOURCE[intent] ?? FICHA_SOURCE.ficha_perfil)(noun), blocks: [{ kind: 'text', title: text, plain: true }], actions: [] };
+}
 
 /** Servicios del catálogo que el texto nombra (todas las palabras largas del nombre aparecen en el texto). */
 export function mentionedServices(text: string, services: AnswerService[]): AnswerService[] {
@@ -253,6 +288,9 @@ export function matchTaught(text: string, taught: TaughtAnswer[] = []): TaughtAn
 export function detectIntent(text: string, services: AnswerService[], taught?: TaughtAnswer[]): { intent: Intent; services: AnswerService[]; taughtId?: string } {
   const t = ` ${plain(text)} `;
   const named = mentionedServices(text, services);
+  // «¿Tienen bloqueador solar disponible?»: si nombra algo de su catálogo y pregunta si lo tienen (sin hablar de precio,
+  // duración, citas u ofertas), se responde con el catálogo, no con los cupos de la agenda (2026-11-14).
+  if (named.length && STOCK.test(t) && !NOT_STOCK.test(t)) return { intent: 'services', services: named };
   const hit = WORDS.find(([, re]) => re.test(t));
   if (hit) return { intent: hit[0], services: named };
   const own = matchTaught(text, taught);
@@ -308,6 +346,18 @@ function baseAnswer(d: AnswerData, intent: Intent, opts: { serviceId?: string; t
 
   switch (intent) {
     case 'services': {
+      // «¿Lo tienen?» de algo que nombró: sí está en su catálogo, con su precio; si lo marcaron agotado, se dice.
+      if (svc) {
+        const noun = d.noun.toLocaleLowerCase('es');
+        const price = priceLabel(svc);
+        return {
+          intent,
+          unanswered: false,
+          source: `Según su ${noun}`,
+          blocks: [{ kind: 'text', title: `Sí, ${svc.name} está en su ${noun}${price ? `: ${price}` : ''}`, body: svc.sold_out ? 'Lo marcaron agotado por ahora.' : 'Para confirmar que lo tienen hoy, pregúntale.' }],
+          actions: [{ kind: 'message', label: 'Preguntar si lo tienen hoy', draft: draftFor(d, `¿tienen ${svc.name.toLocaleLowerCase('es')} hoy?`) }],
+        };
+      }
       if (!d.services.length) return missing(d, intent, `su ${d.noun.toLocaleLowerCase('es')}`, question);
       const top = d.services.slice(0, 5);
       return {
@@ -403,10 +453,58 @@ function baseAnswer(d: AnswerData, intent: Intent, opts: { serviceId?: string; t
     }
     case 'delivery': {
       if (d.serviceMode === '') return missing(d, intent, 'si hace domicilios', question);
-      const text = d.serviceMode === 'delivery' ? 'Atiende a domicilio' : d.serviceMode === 'both' ? 'Atiende en el local y a domicilio' : 'Atiende solo en el local';
+      // Primero el sí o el no (es lo que preguntaron), después cómo atiende.
+      const text = d.serviceMode === 'delivery' ? 'Sí, hace domicilios' : d.serviceMode === 'both' ? 'Sí, hace domicilios y también atiende en el local' : 'No hace domicilios: atiende solo en el local';
       return { intent, unanswered: false, source: 'Según su perfil', blocks: [{ kind: 'text', title: text }], actions: d.serviceMode === 'in_place' ? [] : [{ kind: 'message', label: `Pedir a ${d.name}`, draft: draftFor(d, question) }] };
     }
     default:
       return missing(d, 'unknown', 'esa información', question);
+  }
+}
+
+const lower = (s: string) => s.charAt(0).toLocaleLowerCase('es') + s.slice(1);
+const upper = (s: string) => s.charAt(0).toLocaleUpperCase('es') + s.slice(1);
+
+/**
+ * La respuesta que Empre AI le deja lista al DUEÑO para la pregunta de un cliente (tablero «Mi negocio», teléfono 2,
+ * 2026-11-15): en primera persona y solo con lo que el negocio publicó; él la envía tal cual o la cambia. Si no se sabe
+ * con lo publicado, o el cliente pide un compromiso (apartar, rebajar…), devuelve null: esa la escribe él.
+ */
+export function ownerDraft(d: AnswerData, question: string, opts: { weekday: number; now: number }): string | null {
+  if (asksCommitment(question)) return null;
+  const f = detectIntent(question, d.services, d.taught);
+  const svc = f.services.length === 1 ? f.services[0] : undefined;
+  const price = svc ? priceLabel(svc) : null;
+  const today = dayHours(d.hours, opts.weekday);
+  switch (f.intent) {
+    case 'custom':
+      return d.taught?.find((t) => t.id === f.taughtId)?.answer ?? null;
+    case 'services':
+      if (svc) return svc.sold_out ? `Por ahora se nos acabó ${lower(svc.name)}. Te aviso cuando vuelva.` : `Sí, tenemos ${lower(svc.name)}${price ? `: ${lower(price)}` : ''}. ¿Te lo aparto?`;
+      if (!d.services.length) return null;
+      return `Tenemos ${d.services.slice(0, 3).map((s) => lower(s.name)).join(', ')}${d.services.length > 3 ? ' y más' : ''}. ¿Qué buscas?`;
+    case 'price':
+      if (!svc || !price) return null;
+      return `${upper(svc.name)} ${svc.price_from ? 'va' : 'cuesta'} ${lower(price)}.`;
+    case 'duration':
+      return svc?.duration_min ? `${upper(svc.name)} dura unos ${svc.duration_min} minutos.` : null;
+    case 'hours':
+      if (!today) return null;
+      return today === 'cerrado' ? 'Hoy no abrimos.' : `Hoy atendemos ${today}.`;
+    case 'availability':
+    case 'book':
+      if (d.isOpenNow) return 'Sí, ahora estamos atendiendo. ¿A qué hora te queda bien?';
+      if (today && today !== 'cerrado') return `Hoy atendemos ${today}. ¿A qué hora te queda bien?`;
+      return null;
+    case 'delivery':
+      if (d.serviceMode === 'in_place') return 'No hacemos domicilios, pero te esperamos en el local.';
+      if (d.serviceMode === 'delivery' || d.serviceMode === 'both') return 'Sí, hacemos domicilios. ¿A qué dirección?';
+      return null;
+    case 'offers': {
+      const o = offersFor(d, opts.now, svc)[0];
+      return o ? `Sí, ahora tenemos ${lower(o.title)}.` : null;
+    }
+    default:
+      return null;
   }
 }

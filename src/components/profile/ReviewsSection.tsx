@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Review, ReviewSummary } from '@/api/types';
 import { ReviewCard } from '@/components/profile/ReviewCard';
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
   section: { gap: spacing.xs },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: spacing.md, gap: spacing.sm },
   score: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  avg: { fontSize: 34, fontFamily: fonts.display.bold, color: colors.ink },
+  avg: { fontSize: 30, fontFamily: fonts.display.bold, color: colors.ink },
   scoreText: { gap: 2 },
   stars: { flexDirection: 'row', gap: 2 },
   scoreSub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },

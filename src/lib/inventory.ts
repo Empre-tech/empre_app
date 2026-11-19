@@ -183,6 +183,17 @@ export const PAGE_SIZE = 30;
 
 export type PillTone = 'ok' | 'low' | 'out' | 'neutral' | 'muted' | 'service';
 
+/**
+ * La unidad junto a una cantidad, corta y en plural cuando toca: «18 und», «1 rollo», «4 rollos», «2 porciones», «2,5 kg».
+ * Las abreviaturas (kg, g, L, ml, lb) no cambian.
+ */
+export function unitFor(unit: string | null | undefined, qty: number): string {
+  if (!unit || unit === 'unidad' || unit === 'unidades') return 'und';
+  if (qty === 1 || unit.length <= 3 || /s$/i.test(unit) || /[^a-záéíóúñ]/i.test(unit)) return unit;
+  if (/ón$/i.test(unit)) return `${unit.slice(0, -2)}ones`;
+  return /[aeiouáéíóú]$/i.test(unit) ? `${unit}s` : `${unit}es`;
+}
+
 /** La pastilla de la lista: en una palabra, cómo está cada cosa. */
 export function stockPill(i: InvLike & { is_service?: boolean }): { label: string; tone: PillTone } {
   if (i.is_service) return { label: 'Servicio', tone: 'service' };
@@ -194,9 +205,8 @@ export function stockPill(i: InvLike & { is_service?: boolean }): { label: strin
   }
   if (i.status === 'unknown') return { label: 'Sin contar', tone: 'muted' };
   if (i.status === 'out') return { label: 'Agotado', tone: 'out' };
-  const unit = !i.unit || i.unit === 'unidad' ? 'und' : i.unit;
   if (i.status === 'low') return { label: `Quedan ${fmtQty(i.qty)}`, tone: 'low' };
-  return { label: `${fmtQty(i.qty)} ${unit}`, tone: 'neutral' };
+  return { label: `${fmtQty(i.qty)} ${unitFor(i.unit, i.qty)}`, tone: 'neutral' };
 }
 
 /**

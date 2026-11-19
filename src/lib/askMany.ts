@@ -7,7 +7,7 @@
 import type { Intent } from './answers';
 import type { MarketItem } from './offerMarket';
 
-export type ManyIntent = 'price' | 'open' | 'offers' | 'duration';
+export type ManyIntent = 'best' | 'price' | 'open' | 'offers' | 'duration';
 
 /** El negocio de la ficha y hasta 3 más: lo que cabe en una pantalla sin desplazarse. */
 export const MANY_MAX = 4;
@@ -23,6 +23,8 @@ export interface ManyRow {
   minutes: number | null;
   offer: string | null;
   openUntil: string | null;
+  /** Nota de las reseñas del negocio; null si no tiene. */
+  rating: number | null;
 }
 
 export interface ManyLine {
@@ -117,7 +119,16 @@ export function toRow(it: MarketItem): ManyRow {
     minutes: it.duration_min && it.duration_min > 0 ? it.duration_min : null,
     offer: it.linked_offer_title?.trim() || null,
     openUntil: it.open_until?.trim() || null,
+    rating: it.rating && it.rating > 0 ? it.rating : null,
   };
+}
+
+/**
+ * «¿Cuál es mejor?», «¿cuál me recomiendas?», «¿dónde está más barato?»: comparar a los negocios con lo que ya se sabe
+ * de cada uno. Se reconoce por las palabras, sin gastar en el servidor.
+ */
+export function bestIntentOf(text: string): ManyIntent | null {
+  return /\b(mejor|recomien|conviene|convien|elij|escoj|vale la pena|cual voy|donde voy|mas barat|mas economic|mas cerca|compar)/.test(plain(text)) ? 'best' : null;
 }
 
 /** De una intención del motor de reglas a una que se puede responder para varios; null si no aplica. */
@@ -140,6 +151,7 @@ export function manyIntentOf(intent: Intent | string): ManyIntent | null {
 }
 
 export const MANY_LABEL: Record<ManyIntent, { ask: string; short: string }> = {
+  best: { ask: '¿Cuál me conviene?', short: 'Cuál conviene' },
   price: { ask: '¿Cuánto cuesta en cada uno?', short: 'Precio en cada uno' },
   open: { ask: '¿Quién atiende ahora?', short: 'Quién atiende ahora' },
   offers: { ask: '¿Alguno tiene oferta?', short: 'Si alguno tiene oferta' },
@@ -149,6 +161,7 @@ export const MANY_LABEL: Record<ManyIntent, { ask: string; short: string }> = {
 /** Las preguntas que vale la pena sugerir: solo las que al menos un negocio puede responder con lo publicado. */
 export function manySuggestions(rows: ManyRow[]): ManyIntent[] {
   const out: ManyIntent[] = [];
+  if (rows.length > 1) out.push('best');
   if (rows.some((r) => r.price)) out.push('price');
   if (rows.some((r) => r.open !== null)) out.push('open');
   out.push('offers');
@@ -167,6 +180,8 @@ function lineFor(intent: ManyIntent, r: ManyRow): ManyLine {
       return { row: r, main: r.open === null ? null : r.open ? 'Abierto' : 'Cerrado', sub: tail([r.price, r.dist]), known: r.open !== null };
     case 'offers':
       return { row: r, main: r.price, sub: tail([r.price ? 'precio normal' : null, r.dist]), known: true };
+    case 'best':
+      return { row: r, main: r.price, sub: tail([r.rating ? `★ ${r.rating.toFixed(1).replace('.', ',')}` : null, r.dist, r.open === true ? 'abierto' : r.open === false ? 'cerrado' : null, r.offer ? 'con oferta' : null]), known: true };
   }
 }
 
@@ -174,6 +189,7 @@ const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
 /** La respuesta para todos: frase corta, la mejor opción ahora, los demás y a quiénes falta preguntarles. */
 export function answerMany(intent: ManyIntent, input: ManyRow[], product: string): ManyAnswer {
+  if (intent === 'best') return answerBest(input, product);
   const rows = orderRows(input);
   const n = rows.length;
   let lines = rows.map((r) => lineFor(intent, r));
@@ -245,6 +261,55 @@ export function answerMany(intent: ManyIntent, input: ManyRow[], product: string
   return { intent, summary: s, top, topTag, rest, missing };
 }
 
+/**
+ * ¿Cuál conviene? Cada negocio gana puntos por lo que se sabe: el precio más bajo, el más cerca, la mejor nota, si
+ * atiende ahora y si tiene oferta. Se dice quién gana en qué (hechos, no opiniones) y cuál junta más; si nadie publicó
+ * nada con qué comparar, se ofrece preguntarles.
+ */
+function answerBest(input: ManyRow[], product: string): ManyAnswer {
+  const rows = orderRows(input);
+  const lines = rows.map((r) => lineFor('best', r));
+  const priced = rows.filter((r) => r.priceNum !== null && r.priceNum > 0);
+  const located = rows.filter((r) => r.item.distance_meters != null && r.item.distance_meters >= 0);
+  const rated = rows.filter((r) => r.rating !== null);
+  const cheap = priced.length > 1 ? priced.reduce((a, b) => (b.priceNum! < a.priceNum! ? b : a)) : null;
+  const near = located.length > 1 ? located.reduce((a, b) => (b.item.distance_meters! < a.item.distance_meters! ? b : a)) : null;
+  const best = rated.length > 1 ? rated.reduce((a, b) => (b.rating! > a.rating! ? b : a)) : null;
+  const why = new Map<string, string[]>();
+  const add = (r: ManyRow | null, w: string) => {
+    if (!r) return;
+    why.set(r.entityId, [...(why.get(r.entityId) ?? []), w]);
+  };
+  add(cheap, 'el más barato');
+  add(near, 'el más cerca');
+  add(best, 'el mejor reseñado');
+  if (rows.some((r) => r.open === false)) rows.filter((r) => r.open === true).forEach((r) => add(r, 'abierto ahora'));
+  rows.filter((r) => r.offer).forEach((r) => add(r, 'con oferta'));
+  if (!why.size) {
+    return { intent: 'best', summary: { lead: `Con lo que publicaron no hay con qué comparar ${product}. `, bold: 'Se lo puedo preguntar a los dueños', tail: ' por chat.' }, top: null, topTag: '', rest: lines, missing: rows };
+  }
+  const topRow = rows.reduce((a, b) => ((why.get(b.entityId)?.length ?? 0) > (why.get(a.entityId)?.length ?? 0) ? b : a));
+  const top = lines.find((l) => l.row === topRow) ?? null;
+  const facts = [
+    cheap ? `Más barato: ${cheap.name} (${cheap.price})` : null,
+    near ? `Más cerca: ${near.name}${near.dist ? ` (${near.dist})` : ''}` : null,
+    best ? `Mejor reseñado: ${best.name} (★ ${best.rating!.toFixed(1).replace('.', ',')})` : null,
+  ].filter(Boolean);
+  const reasons = why.get(topRow.entityId) ?? [];
+  return {
+    intent: 'best',
+    summary: {
+      lead: `${facts.length ? `${facts.join('. ')}. ` : ''}${reasons.length > 1 ? 'El que junta más: ' : 'Por lo publicado, '}`,
+      bold: topRow.name,
+      tail: reasons.length ? ` (${reasons.join(', ')}).` : '.',
+    },
+    top,
+    topTag: reasons.length > 1 ? 'JUNTA MÁS A FAVOR' : 'A FAVOR',
+    rest: lines.filter((l) => l !== top),
+    missing: [],
+  };
+}
+
 /** Lo que no está en lo publicado: nadie lo adivina; se ofrece preguntarles a todos. */
 export function unknownMany(rows: ManyRow[]): ManyAnswer {
   return {
@@ -276,4 +341,103 @@ export function askDraft(intent: ManyIntent | 'unknown', product: string, text?:
       return `Hola, ${body} (sobre ${product})`;
     }
   }
+}
+
+/** Parecidos: las palabras del nombre más corto están en el otro y empiezan igual («Mojarra frita» ~ «Mojarra frita con patacón»). */
+export function similarItem(a: string, b: string): boolean {
+  const ra = roots(a);
+  const rb = roots(b);
+  if (!ra.length || !rb.length || ra[0] !== rb[0]) return false;
+  const [short, long] = ra.length <= rb.length ? [ra, rb] : [rb, ra];
+  return short.every((r) => long.includes(r));
+}
+
+export interface DecisionPoint {
+  key: 'price' | 'near' | 'rated' | 'open' | 'only';
+  /** El dato en una frase: «$4.000 más que en», con el nombre aparte para resaltarlo. */
+  text: string;
+  bold?: string;
+  /** La otra opción, para verla en la misma hoja. */
+  target?: MarketItem;
+}
+
+const priceOf = (it: MarketItem) => it.special_price ?? it.service_price ?? null;
+
+/**
+ * Puntos para decidir (hoja rápida de Ofertas): cómo queda este producto frente al mismo en otros negocios cerca.
+ * Solo hechos que la Vitrina ya tiene (precio, distancia, reseñas, si abre); no favorece a nadie: si otro está más
+ * barato, más cerca o mejor reseñado, lo dice, y si este gana, también.
+ */
+export function decisionPoints(item: MarketItem, pool: MarketItem[], max = 4): { peers: number; points: DecisionPoint[] } {
+  const best = new Map<string, MarketItem>();
+  for (const it of pool) {
+    if (it.entity_id === item.entity_id || it.kind === 'offer' || !similarItem(item.title, it.title)) continue;
+    const prev = best.get(it.entity_id);
+    if (!prev || (priceOf(it) ?? Infinity) < (priceOf(prev) ?? Infinity)) best.set(it.entity_id, it);
+  }
+  const peers = [...best.values()];
+  if (!peers.length) return { peers: 0, points: item.kind === 'offer' ? [] : [{ key: 'only', text: 'Cerca, solo este negocio lo tiene publicado' }] };
+  const points: DecisionPoint[] = [];
+  const mine = priceOf(item);
+  const priced = peers.filter((p) => (priceOf(p) ?? 0) > 0).sort((a, b) => priceOf(a)! - priceOf(b)!);
+  if (mine && priced.length) {
+    const low = priced[0];
+    const diff = mine - priceOf(low)!;
+    if (diff > 0) points.push({ key: 'price', text: `${pesos(diff)} más que en`, bold: low.entity_name, target: low });
+    else points.push({ key: 'price', text: `Es el precio más bajo de los ${peers.length + 1} cerca` });
+  }
+  const dist = (it: MarketItem) => it.distance_meters ?? Infinity;
+  const nearer = [...peers].sort((a, b) => dist(a) - dist(b))[0];
+  if (dist(nearer) + 100 < dist(item)) points.push({ key: 'near', text: `Más cerca, a ${distLabel(nearer.distance_meters) ?? '—'}:`, bold: nearer.entity_name, target: nearer });
+  else if (dist(item) < Infinity) points.push({ key: 'near', text: 'Es el que tienes más cerca' });
+  const rated = [...peers].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))[0];
+  if ((rated.rating ?? 0) >= (item.rating ?? 0) + 0.3) points.push({ key: 'rated', text: `Mejor reseñado (★ ${(rated.rating ?? 0).toFixed(1).replace('.', ',')}):`, bold: rated.entity_name, target: rated });
+  if (item.open_now === false) {
+    const open = peers.find((p) => p.open_now);
+    if (open) points.push({ key: 'open', text: 'Este está cerrado; abierto ahora:', bold: open.entity_name, target: open });
+  }
+  return { peers: peers.length, points: points.slice(0, max) };
+}
+
+export interface BestPrice {
+  item: MarketItem;
+  /** Cuántos negocios cerca lo tienen (con este). */
+  count: number;
+  min: number;
+  max: number;
+  /** Dónde quedan los otros precios en la franja, de 0 a 1. */
+  others: number[];
+}
+
+/**
+ * Mejor precio cerca: el mismo producto o servicio en varios negocios del catálogo cargado; sale el más barato de
+ * cada grupo, con la franja de los demás precios. Solo con dos negocios o más (si no, no hay con qué comparar).
+ */
+export function bestPrices(pool: MarketItem[], max = 6): BestPrice[] {
+  const priced = pool.filter((it) => it.kind !== 'offer' && (priceOf(it) ?? 0) > 0);
+  const used = new Set<string>();
+  const out: BestPrice[] = [];
+  for (const it of priced) {
+    if (used.has(it.id)) continue;
+    const perBiz = new Map<string, MarketItem>();
+    for (const o of priced) {
+      if (used.has(o.id) || !similarItem(it.title, o.title)) continue;
+      const prev = perBiz.get(o.entity_id);
+      if (!prev || priceOf(o)! < priceOf(prev)!) perBiz.set(o.entity_id, o);
+    }
+    const group = [...perBiz.values()];
+    group.forEach((g) => used.add(g.id));
+    used.add(it.id);
+    if (group.length < 2) continue;
+    group.sort((a, b) => priceOf(a)! - priceOf(b)!);
+    const lo = priceOf(group[0])!;
+    const hi = priceOf(group[group.length - 1])!;
+    if (hi <= lo) continue;
+    out.push({ item: group[0], count: group.length, min: lo, max: hi, others: group.slice(1).map((g) => (priceOf(g)! - lo) / (hi - lo)) });
+  }
+  const photos = new Set<string>();
+  return out
+    .sort((a, b) => b.count - a.count || (b.max - b.min) / b.max - (a.max - a.min) / a.max)
+    .filter((b) => (b.item.photo ? (photos.has(b.item.photo) ? false : (photos.add(b.item.photo), true)) : true))
+    .slice(0, max);
 }

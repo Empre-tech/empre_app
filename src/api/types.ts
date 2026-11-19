@@ -44,6 +44,8 @@ export interface BusinessHour {
 export interface Category {
   id: string;
   name: string;
+  /** La categoría madre; vacía en las principales (Comida, Belleza…). */
+  parent_id?: string | null;
   /** Nombre de ícono de Ionicons (ej. "restaurant-outline"), usado en el mapa. */
   icon: string;
   /** Color de marca (hex) para teñir el portal/glifo en el mapa. */
@@ -183,6 +185,8 @@ export interface ChatMessage {
   ai_answer_id?: string;
   /** En una pregunta del cliente: Empre AI no supo responderla (el dueño la ve para enseñarle). */
   ai_unanswered?: boolean;
+  /** En una respuesta de Empre AI: la pregunta del cliente que responde (3.71). Se dibuja justo debajo de ella. */
+  reply_to_id?: string;
   appointment_id?: string;
   /** El producto o servicio por el que se pregunta (tarjeta arriba del texto). */
   item_id?: string;
@@ -220,6 +224,8 @@ export interface Conversation {
   other_party: ConversationParty;
   /** Cuántos mensajes del otro lado están sin leer en esta conversación. */
   unread_count: number;
+  /** De qué tipo es el último mensaje («text», «ai_answer»…). Un servidor viejo no lo manda. */
+  kind?: string;
 }
 
 /** Campos editables de un negocio (POST /api/entities y PUT /api/entities/:id). */
@@ -336,6 +342,8 @@ export interface AITextRequest {
   current_text?: string;
   business_name?: string;
   category_name?: string;
+  /** El negocio para el que se redacta: es de Pro y cuenta en el tope del mes. Sin él, solo al crear el negocio. */
+  entity_id?: string;
 }
 
 export interface AITextResponse {
@@ -353,14 +361,10 @@ export interface SubscriptionRecord {
   current_period_end?: string;
 }
 
-/** Gratis hasta que el negocio reciba mensajes de `trial_threshold` clientes
- * distintos; `requires_payment` se vuelve true en ese punto si todavía no
- * tiene un plan activo. */
+/** El plan del negocio (Base y Empre Pro): Pro si la suscripción está activa y sin vencer; si no, Base, que es gratis
+ * y nunca oculta el negocio. Ya no hay prueba gratis ni pago para seguir a la vista. */
 export interface Subscription {
   subscription: SubscriptionRecord;
-  distinct_customers: number;
-  trial_threshold: number;
-  requires_payment: boolean;
 }
 
 export interface SubscriptionCheckout {

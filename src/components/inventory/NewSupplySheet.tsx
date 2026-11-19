@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -179,17 +179,17 @@ const styles = StyleSheet.create({
   meta: { fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
   label: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   input: { minHeight: 50, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.lg, paddingHorizontal: spacing.md, fontSize: 16, fontFamily: fonts.ui.semibold, color: colors.ink },
-  warn: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.accentInk },
-  seg: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: '#EEF2F7' },
+  warn: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
+  seg: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: '#EFF0F2' },
   segBtn: { flex: 1, minHeight: 52, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   segOn: { backgroundColor: colors.surface },
-  segText: { fontSize: 14, fontFamily: fonts.ui.bold, color: '#4C5C74' },
+  segText: { fontSize: 14, fontFamily: fonts.ui.bold, color: '#5B606B' },
   segTextOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
-  segHint: { fontSize: 11, fontFamily: fonts.ui.bold, color: '#4C5C74' },
+  segHint: { fontSize: 11, fontFamily: fonts.ui.bold, color: '#5B606B' },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  stepBtn: { width: 52, height: 52, borderRadius: 14, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
-  count: { fontSize: 30, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center', minWidth: 120, paddingVertical: 0 },
+  stepBtn: { width: 52, height: 52, borderRadius: 14, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.well, alignItems: 'center', justifyContent: 'center' },
+  count: { fontSize: 26, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center', minWidth: 120, paddingVertical: 0 },
   actions: { flexDirection: 'row', gap: spacing.sm },
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },
 });

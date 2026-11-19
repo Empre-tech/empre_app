@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -128,16 +128,16 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill },
   chipText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold },
-  up: { backgroundColor: '#E3F5F3' },
-  upText: { color: '#0A6E6A' },
+  up: { backgroundColor: '#E8F5EC' },
+  upText: { color: '#0B7F3D' },
   down: { backgroundColor: '#FBE4E4' },
   downText: { color: '#8E2A2A' },
-  same: { backgroundColor: colors.bg },
+  same: { backgroundColor: colors.well },
   sameText: { color: colors.muted },
-  idea: { padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
-  ideaText: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.bold, color: colors.primaryDark },
-  primary: { minHeight: 52, borderRadius: radius.lg, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  idea: { padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.financeSoft },
+  ideaText: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.bold, color: colors.finance },
+  primary: { minHeight: 52, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, alignItems: 'center', justifyContent: 'center' },
+  primaryText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   state: { alignItems: 'center', gap: spacing.sm, padding: spacing.xl },
   stateTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
   btn: { minHeight: 44, paddingHorizontal: spacing.lg, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },

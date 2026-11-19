@@ -1,11 +1,11 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { notifyError } from '@/components/Notice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { agendaApi, type Appointment, type AppointmentService } from '@/api/agenda';
+import { agendaApi, type Appointment, type AppointmentService, type WaitlistEntry } from '@/api/agenda';
 import { entitiesApi } from '@/api/endpoints';
 import { Button } from '@/components/Button';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
@@ -67,6 +67,8 @@ export default function BusinessAgendaScreen() {
   const pending = items.filter((a) => a.status === 'requested').sort((a, b) => Date.parse(a.expires_at ?? a.starts_at) - Date.parse(b.expires_at ?? b.starts_at));
   const today = items.filter((a) => a.status !== 'requested' && dayKey(new Date(a.starts_at)) === day);
   const confirmedToday = today.filter((a) => a.status === 'confirmed').length;
+  // Lista de espera del día (tablero «Agenda del negocio», teléfono 3): si alguien cancela, la hora se ofrece en orden.
+  const waitlist = useQuery({ queryKey: ['agenda', id, 'waitlist', day], queryFn: () => agendaApi.businessWaitlist(id, day), enabled: Boolean(id) && settings.data?.enabled === true, staleTime: 30_000 });
   const slots = useQuery({ queryKey: ['agenda', id, 'slots', day], queryFn: () => agendaApi.availability(id, day), enabled: Boolean(id) && settings.data?.enabled === true, staleTime: 30_000 });
   const askedToday = pending.filter((a) => dayKey(new Date(a.starts_at)) === day);
   // Una hora pedida no se ofrece como libre: se respeta a quien la pidió.
@@ -187,7 +189,7 @@ export default function BusinessAgendaScreen() {
                   <Text style={[styles.dayWeek, active && styles.onText]}>{weekdayShort(d)}</Text>
                   <Text style={[styles.dayNum, active && styles.onText]}>{dayNumber(d)}</Text>
                   <View style={styles.dayDots}>
-                    {marks.appts ? <View style={[styles.dayDot, { backgroundColor: active ? '#fff' : colors.ink }]} /> : null}
+                    {marks.appts ? <View style={[styles.dayDot, { backgroundColor: colors.primaryDark }]} /> : null}
                     {marks.reqs ? <View style={[styles.dayDot, { backgroundColor: colors.warning }]} /> : null}
                   </View>
                 </Pressable>
@@ -254,7 +256,7 @@ export default function BusinessAgendaScreen() {
                       </Pressable>
                     ) : (
                       <View style={styles.apptRow}>
-                        <View style={[styles.apptBar, { backgroundColor: r.a.status === 'completed' ? '#14B8B0' : colors.line }]} />
+                        <View style={[styles.apptBar, { backgroundColor: r.a.status === 'completed' ? colors.agendaLight : r.a.status === 'confirmed' ? colors.agenda : r.a.status === 'requested' ? colors.ink : colors.line }]} />
                         <Pressable accessibilityRole="button" style={styles.apptMain} onPress={() => router.push({ pathname: '/appointment/[id]', params: { id: r.a.id } })}>
                           <Text style={styles.apptTime} numberOfLines={1}>
                             {r.a.customer?.name ?? r.a.customer_note ?? 'Cliente'}
@@ -285,6 +287,28 @@ export default function BusinessAgendaScreen() {
                 </View>
               ))
             )}
+            {(waitlist.data ?? []).length ? (
+              <View style={styles.wait}>
+                <Text style={styles.dayTitle}>Lista de espera</Text>
+                <Text style={styles.waitLead}>Si alguien cancela, Empre le avisa a la lista en orden, con 10 minutos para cada uno.</Text>
+                {(waitlist.data ?? []).map((w, i) => {
+                  const st = waitText(w, i);
+                  return (
+                    <View key={w.id} style={styles.waitRow} accessible accessibilityLabel={`${w.name || 'Cliente'}: ${st.d}`}>
+                      <View style={[styles.waitAv, st.on && styles.waitAvOn]}>
+                        <Text style={[styles.waitIni, st.on && styles.waitIniOn]}>{(w.name || 'C').trim().charAt(0).toUpperCase()}</Text>
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.waitName} numberOfLines={1}>
+                          {w.name || 'Cliente'}
+                        </Text>
+                        <Text style={[styles.waitSub, st.on && styles.waitSubOn]}>{st.d}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
           </ScrollView>
 
           <Modal visible={reqsOpen} transparent animationType="slide" onRequestClose={() => setReqsOpen(false)}>
@@ -520,19 +544,34 @@ function SlotActionSheet({
   );
 }
 
+/** En qué va cada persona de la lista de espera, en una frase; la que tomó o tiene la hora se marca. */
+function waitText(w: WaitlistEntry, i: number): { d: string; on: boolean } {
+  const at = w.offered_slot ? clockShort(w.offered_slot) : '';
+  switch (w.status) {
+    case 'booked':
+      return { d: `Tomó la hora de las ${at}`, on: true };
+    case 'offered':
+      return { d: `Avisada · tiene 10 minutos para tomar las ${at}`, on: true };
+    case 'passed':
+      return { d: 'Avisada · no respondió a tiempo', on: false };
+    default:
+      return { d: i === 0 ? 'Primera en la fila' : `En la fila · ${i + 1}.ª`, on: false };
+  }
+}
+
 const styles = StyleSheet.create({
   dayDots: { flexDirection: 'row', gap: 3, height: 6, marginTop: 3 },
   dayDot: { width: 6, height: 6, borderRadius: 3 },
-  pendingBar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.accentSoft },
+  pendingBar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 16, backgroundColor: colors.agendaSoft },
   pendingCount: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.warning },
   pendingCountText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  pendingTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
+  pendingTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.agenda },
   lineRow: { flexDirection: 'row', gap: spacing.sm },
   lineTime: { width: 66, paddingTop: 12, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   freeRow: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line },
   freeText: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.faint },
-  askedRow: { minHeight: 48, justifyContent: 'center', gap: 1, paddingVertical: 6, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.warning, backgroundColor: colors.accentSoft },
-  askedTitle: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
+  askedRow: { minHeight: 48, justifyContent: 'center', gap: 1, paddingVertical: 6, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.warning, backgroundColor: colors.agendaSoft },
+  askedTitle: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.agenda },
   apptHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
   apptActions: { alignItems: 'center', gap: 6 },
   altBtn: { minHeight: 36, justifyContent: 'center' },
@@ -551,7 +590,7 @@ const styles = StyleSheet.create({
   daysBar: { flexGrow: 0 },
   daysRow: { flexDirection: 'row', gap: 8, paddingTop: 6, paddingHorizontal: 16, paddingBottom: 10 },
   dayChip: { width: 52, minHeight: 70, gap: 2, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  dayChipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  dayChipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
   dayWeek: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.ink },
   dayNum: { fontSize: 18, fontFamily: fonts.ui.extrabold, color: colors.ink },
 
@@ -562,13 +601,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.md,
     borderWidth: 1.5,
-    borderColor: colors.accent,
+    borderColor: colors.agendaLight,
     padding: spacing.md,
     gap: spacing.md,
   },
   reqWhen: { fontSize: 20, fontFamily: fonts.ui.extrabold, color: colors.ink },
   reqMeta: { fontSize: 13.5, fontFamily: fonts.ui.medium, color: colors.muted },
-  reqExpiry: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.accentInk, marginTop: 2 },
+  reqExpiry: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.agenda, marginTop: 2 },
   reqActions: { flexDirection: 'row', gap: spacing.sm },
   freeDay: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line },
   freeDayText: { flex: 1, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted },
@@ -579,9 +618,19 @@ const styles = StyleSheet.create({
   askedSub: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
   dayHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, paddingTop: 4 },
   dayTitle: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  wait: { marginTop: spacing.lg, gap: spacing.sm },
+  waitLead: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
+  waitRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  waitAv: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
+  waitAvOn: { backgroundColor: colors.brand },
+  waitIni: { fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
+  waitIniOn: { color: colors.surface },
+  waitName: { fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
+  waitSub: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
+  waitSubOn: { color: colors.primaryDark },
   dayCount: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.faint },
-  pendingSub: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.accentInk },
-  pendingSee: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
+  pendingSub: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.agenda },
+  pendingSee: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.agenda },
   apptTime: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   apptStatus: { fontSize: 12.5, fontFamily: fonts.ui.extrabold },
   outOfHours: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.warning },
@@ -609,7 +658,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1.5,
     borderColor: colors.line,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.well,
     fontSize: 15,
     fontFamily: fonts.ui.semibold,
     color: colors.ink,

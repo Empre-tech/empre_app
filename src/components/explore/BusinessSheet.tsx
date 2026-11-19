@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   quote: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, fontStyle: 'italic', color: colors.muted },
   strip: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 9 },
   bolt: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
-  boltHot: { backgroundColor: colors.ink },
+  boltHot: { backgroundColor: colors.sand },
   boltMine: { backgroundColor: colors.success },
   boltHour: { backgroundColor: colors.surface },
   stripText: { flex: 1, minWidth: 0, gap: 3 },
@@ -270,12 +270,12 @@ const styles = StyleSheet.create({
   bar: { height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: 'rgba(154,79,0,0.18)' },
   barHot: { backgroundColor: 'rgba(14,35,70,0.18)' },
   barFill: { height: 4, borderRadius: 2, backgroundColor: colors.accent },
-  barFillHot: { backgroundColor: colors.ink },
+  barFillHot: { backgroundColor: colors.sand },
   pressed: { opacity: 0.85 },
   actions: { flexDirection: 'row', gap: spacing.sm, paddingTop: 4 },
   soft: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   softText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   // La acción principal, completa, debajo de las capas.
   band: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, backgroundColor: colors.primary },
-  bandText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  bandText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

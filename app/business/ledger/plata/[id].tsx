@@ -2,12 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi } from '@/api/agenda';
 import { ledgerApi, type Analytics } from '@/api/ledger';
 import { EmptyState } from '@/components/EmptyState';
+import { UpdatingBar } from '@/components/explore/LoadingMotion';
 import { HeatGrid } from '@/components/finance/Charts';
+import { AnimatedBar, FinanceHeroSkeleton, Stage } from '@/components/finance/FinanceMotion';
 import { MethodDeck } from '@/components/finance/MethodDeck';
 import { expenseMovement, MoveRows, saleMovement, timeOf } from '@/components/finance/Moves';
 import { RangeSheet } from '@/components/finance/RangeSheet';
@@ -50,10 +52,11 @@ export default function PlataScreen() {
 
   return (
     <View style={styles.screen}>
+      {q.isFetching && Boolean(a) ? <UpdatingBar /> : null}
       <ScrollView contentContainerStyle={[styles.body, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + spacing.xxl }]} refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => void q.refetch()} />}>
         <FinanceTop entityId={entityId} space="plata" title="Lo que entra y sale" />
         {q.isLoading ? (
-          <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
+          <FinanceHeroSkeleton bars={7} rows={3} />
         ) : q.isError || !a ? (
           <EmptyState icon="cloud-offline-outline" title="No pudimos cargar tu plata" body="Revisa tu conexión e inténtalo de nuevo." action={{ title: 'Reintentar', onPress: () => void q.refetch() }} />
         ) : hasAny ? (
@@ -104,63 +107,69 @@ function Full({ a, entityId, range, entered, out, onRange }: { a: Analytics; ent
   return (
     <>
       <TodayDeck entityId={entityId} />
-      <View style={styles.main}>
-        <View style={styles.mainTop}>
-          <View style={styles.heroRow}>
-            <View style={{ flex: 1, minWidth: 0 }} accessibilityLiveRegion="polite">
-              <Text style={styles.label} numberOfLines={1}>
-                {left >= 0 ? `${name} te quedaron` : `${name} salió más de lo que entró`}
-              </Text>
-              <Text style={[styles.hero, left < 0 && { color: colors.warning }]} numberOfLines={1} adjustsFontSizeToFit>
-                {formatPesos(Math.abs(left))}
-              </Text>
+      <Stage step={1}>
+        <View style={styles.main}>
+          <View style={styles.mainTop}>
+            <View style={styles.heroRow}>
+              <View style={{ flex: 1, minWidth: 0 }} accessibilityLiveRegion="polite">
+                <Text style={styles.label} numberOfLines={1}>
+                  {left >= 0 ? `${name} te quedaron` : `${name} salió más de lo que entró`}
+                </Text>
+                <Text style={[styles.hero, left < 0 && { color: colors.warning }]} numberOfLines={1} adjustsFontSizeToFit>
+                  {formatPesos(Math.abs(left))}
+                </Text>
+              </View>
+              <Pressable accessibilityRole="button" accessibilityLabel="Cambiar las fechas" onPress={onRange} style={styles.rangeBtn}>
+                <Ionicons name="calendar-outline" size={18} color={colors.ink} />
+              </Pressable>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Cambiar las fechas" onPress={onRange} style={styles.rangeBtn}>
-              <Ionicons name="calendar-outline" size={18} color={colors.ink} />
-            </Pressable>
+            <View style={styles.bars}>
+              {series.map((p, i) => {
+                const on = sel === i;
+                const dim = sel !== null && !on;
+                const vIn = pointIn(p);
+                const vOut = pointOut(p);
+                return (
+                  <Pressable key={p.start} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`${dayLong(p.start)}: entró ${formatPesos(vIn)}, salió ${formatPesos(vOut)}`} onPress={() => setSel(on ? null : i)} style={[styles.barSlot, on && styles.barSlotOn]}>
+                    <View style={styles.barPair}>
+                      <AnimatedBar height={vIn > 0 ? Math.max(4, (vIn / top) * BAR_MAX) : 2} color={dim ? colors.placeholder : colors.ink} delay={i * 22} style={styles.bar} />
+                      <AnimatedBar height={vOut > 0 ? Math.max(4, (vOut / top) * BAR_MAX) : 2} color={dim ? colors.hairline : '#8E929A'} delay={i * 22 + 30} style={styles.bar} />
+                    </View>
+                    <Text style={styles.barLabel} numberOfLines={1}>
+                      {i % every === 0 ? bucketLabel(a.bucket, p.start, series.length) : ''}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Text style={styles.label}>{sel === null ? 'Toca una barra para ver qué pasó' : 'Toca otra vez para ver todo'}</Text>
           </View>
-          <View style={styles.bars}>
-            {series.map((p, i) => {
-              const on = sel === i;
-              const dim = sel !== null && !on;
-              const vIn = pointIn(p);
-              const vOut = pointOut(p);
-              return (
-                <Pressable key={p.start} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`${dayLong(p.start)}: entró ${formatPesos(vIn)}, salió ${formatPesos(vOut)}`} onPress={() => setSel(on ? null : i)} style={[styles.barSlot, on && styles.barSlotOn]}>
-                  <View style={styles.barPair}>
-                    <View style={[styles.bar, { height: vIn > 0 ? Math.max(4, (vIn / top) * BAR_MAX) : 2, backgroundColor: dim ? colors.placeholder : colors.ink }]} />
-                    <View style={[styles.bar, { height: vOut > 0 ? Math.max(4, (vOut / top) * BAR_MAX) : 2, backgroundColor: dim ? colors.hairline : '#8796AB' }]} />
-                  </View>
-                  <Text style={styles.barLabel} numberOfLines={1}>
-                    {i % every === 0 ? bucketLabel(a.bucket, p.start, series.length) : ''}
-                  </Text>
-                </Pressable>
-              );
-            })}
+          <View style={styles.legend}>
+            <Legend color={colors.ink} label="Entró" value={formatPesos(shownIn)} />
+            <Legend color="#8E929A" label="Salió" value={formatPesos(shownOut)} />
           </View>
-          <Text style={styles.label}>{sel === null ? 'Toca una barra para ver qué pasó' : 'Toca otra vez para ver todo'}</Text>
         </View>
-        <View style={styles.legend}>
-          <Legend color={colors.ink} label="Entró" value={formatPesos(shownIn)} />
-          <Legend color="#8796AB" label="Salió" value={formatPesos(shownOut)} />
-        </View>
-      </View>
+      </Stage>
 
       {readings.length > 0 ? (
-        <EmpreAICard title="Lo que dice tu plata">
-          <View>
-            {readings.map((r, i) => (
-              <SystemRow key={r.kind} first={i === 0} icon={READING_ICON[r.kind]} title={r.title} sub={r.sub} />
-            ))}
-          </View>
-        </EmpreAICard>
+        <Stage step={2}>
+          <EmpreAICard title="Lo que dice tu plata">
+            <View>
+              {readings.map((r, i) => (
+                <SystemRow key={r.kind} first={i === 0} icon={READING_ICON[r.kind]} title={r.title} sub={r.sub} />
+              ))}
+            </View>
+          </EmpreAICard>
+        </Stage>
       ) : null}
 
-      <SystemSection title={point ? 'Lo que pasó' : 'Últimas ventas y gastos'}>
-        <SystemGroup>
-          {moves.length > 0 ? <MoveRows entityId={entityId} moves={moves} when={(m) => (point && a.bucket === 'day' ? timeOf(m.at) : dayLong(m.at.slice(0, 10)))} /> : <Text style={styles.noMoves}>{sales.isLoading || expenses.isLoading ? 'Cargando…' : 'Sin ventas ni gastos aquí. Los abonos están en Cuentas.'}</Text>}
-        </SystemGroup>
-      </SystemSection>
+      <Stage step={3}>
+        <SystemSection title={point ? 'Lo que pasó' : 'Últimas ventas y gastos'}>
+          <SystemGroup>
+            {moves.length > 0 ? <MoveRows entityId={entityId} moves={moves} when={(m) => (point && a.bucket === 'day' ? timeOf(m.at) : dayLong(m.at.slice(0, 10)))} /> : <Text style={styles.noMoves}>{sales.isLoading || expenses.isLoading ? 'Actualizando movimientos…' : 'Sin ventas ni gastos aquí. Los abonos están en Cuentas.'}</Text>}
+          </SystemGroup>
+        </SystemSection>
+      </Stage>
 
       {entries.length > 0 ? (
         <SystemSection title="De dónde entró">
@@ -213,15 +222,17 @@ function TodayDeck({ entityId }: { entityId: string }) {
   const cards = useMemo(() => buildDeck(entries), [entries]);
   if (cards.length === 0) return null;
   return (
-    <View style={{ gap: 10 }}>
-      <View style={styles.deckHead}>
-        <Text style={styles.deckTitle} accessibilityRole="header">
-          Hoy, por cómo te pagaron
-        </Text>
-        <Text style={styles.label}>Entró {formatPesos(deckEntered(cards))}</Text>
+    <Stage step={0}>
+      <View style={{ gap: 10 }}>
+        <View style={styles.deckHead}>
+          <Text style={styles.deckTitle} accessibilityRole="header">
+            Hoy, por cómo te pagaron
+          </Text>
+          <Text style={styles.label}>Entró {formatPesos(deckEntered(cards))}</Text>
+        </View>
+        <MethodDeck cards={cards} mode="plata" timeOf={timeOf} />
       </View>
-      <MethodDeck cards={cards} mode="plata" timeOf={timeOf} />
-    </View>
+    </Stage>
   );
 }
 
@@ -289,7 +300,7 @@ const styles = StyleSheet.create({
   mainTop: { gap: 10, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.selectedSoft },
   heroRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   label: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  hero: { fontSize: 34, lineHeight: 38, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
+  hero: { fontSize: 34, lineHeight: 38, fontFamily: fonts.display.bold, color: colors.finance, fontVariant: ['tabular-nums'] },
   rangeBtn: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
   bars: { flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
   barSlot: { flex: 1, minWidth: 0, minHeight: 98, justifyContent: 'flex-end', alignItems: 'center', gap: 4, paddingVertical: 4, borderRadius: 8 },

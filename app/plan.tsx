@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -16,7 +16,7 @@ import { arrivalTimes, lateStops, loadSavedPlans, metersBetween, planHour, planK
 import { useCoords } from '@/lib/useCoords';
 import { colors, fonts } from '@/theme';
 
-const stopRing = (on: boolean) => (on ? { borderColor: colors.brand, padding: 3 } : { borderColor: colors.accent, padding: 0 });
+const stopRing = (on: boolean) => (on ? { borderColor: colors.brand, padding: 3 } : { borderColor: colors.ink, padding: 0 });
 
 /** El plan (tablero «Plan con las cuatro mejoras»): el recorrido en el mapa, sus paradas con hora y oferta, y qué hacer si una oferta termina antes de llegar. */
 export default function PlanScreen() {
@@ -204,7 +204,7 @@ export default function PlanScreen() {
                     {late[i] ? (
                       <View style={styles.warn} accessibilityLiveRegion="polite">
                         <View style={styles.warnTop}>
-                          <Ionicons name="time-outline" size={18} color={colors.accentInk} />
+                          <Ionicons name="time-outline" size={18} color={colors.agenda} />
                           <Text style={styles.warnTitle}>
                             Su oferta termina a las {planHour(s.ends_at)}. Llegarías a las {planHour(times[i])}.
                           </Text>
@@ -257,7 +257,7 @@ export default function PlanScreen() {
           <Text style={styles.saveText}>{isSaved ? 'Guardado' : 'Guardar'}</Text>
         </Pressable>
         <Pressable accessibilityRole="button" disabled={located.length === 0} onPress={() => void Linking.openURL(routeUrl(stops))} style={[styles.routeBtn, located.length === 0 && { opacity: 0.5 }]}>
-          <Ionicons name="map-outline" size={18} color="#fff" />
+          <Ionicons name="map-outline" size={18} color={colors.ink} />
           <Text style={styles.routeText}>Ver la ruta</Text>
         </Pressable>
       </View>
@@ -301,25 +301,25 @@ const styles = StyleSheet.create({
   map: { backgroundColor: colors.selectedSoft },
   mapZone: { position: 'absolute', right: 12, bottom: 36, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 999, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
   mapZoneText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.muted },
-  pinOut: { padding: 2, borderRadius: 999, borderWidth: 3, borderColor: colors.accent, backgroundColor: colors.surface },
+  pinOut: { padding: 2, borderRadius: 999, borderWidth: 3, borderColor: colors.ink, backgroundColor: colors.surface },
   pinOutOn: { padding: 3, borderColor: colors.brand },
   pin: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  pinOn: { width: 40, height: 40, borderRadius: 20, borderWidth: 3, borderColor: colors.accent },
+  pinOn: { width: 40, height: 40, borderRadius: 20, borderWidth: 3, borderColor: colors.glow },
   pinText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   sheet: { marginTop: -26, paddingTop: 22, paddingHorizontal: 20, gap: 18, borderTopLeftRadius: 28, borderTopRightRadius: 28, backgroundColor: colors.bg },
   head: { gap: 8 },
   eyebrow: { fontSize: 12, letterSpacing: 1.2, fontFamily: fonts.ui.extrabold, color: colors.faint },
-  title: { fontSize: 28, lineHeight: 30, letterSpacing: -0.28, fontFamily: fonts.display.bold, color: colors.ink },
+  title: { fontSize: 24, lineHeight: 28, letterSpacing: -0.28, fontFamily: fonts.display.bold, color: colors.ink },
   meta: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.muted },
   saving: { alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.accent },
   savingText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   list: { gap: 14 },
   dash: { position: 'absolute', left: 17, top: 30, bottom: 30, borderLeftWidth: 2, borderStyle: 'dashed', borderLeftColor: colors.line },
   stop: { flexDirection: 'row', gap: 12 },
-  numOut: { width: 36, height: 36, marginTop: 14, borderRadius: 18, borderWidth: 2.5, borderColor: colors.accent, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  numOut: { width: 36, height: 36, marginTop: 14, borderRadius: 18, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   numOutOn: { borderColor: colors.brand },
   num: { flex: 1, alignSelf: 'stretch', borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  numOn: { borderWidth: 2.5, borderColor: colors.accent },
+  numOn: { borderWidth: 2.5, borderColor: colors.brand },
   numText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   stopBody: { flex: 1, minWidth: 0, gap: 6 },
   when: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.faint },
@@ -340,10 +340,10 @@ const styles = StyleSheet.create({
   pct: { paddingVertical: 3, paddingHorizontal: 8, borderRadius: 999, backgroundColor: colors.accent },
   pctText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.ink },
   see: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
-  warn: { gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.accentSoft },
+  warn: { gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.agendaSoft },
   warnTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  warnTitle: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.extrabold, color: colors.accentInk },
-  warnText: { flex: 1, fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.accentInk },
+  warnTitle: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.extrabold, color: colors.agenda },
+  warnText: { flex: 1, fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.agenda },
   warnBtn: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.surface },
   warnBtnText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   inTime: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 999, backgroundColor: colors.verifiedSoft },
@@ -353,31 +353,31 @@ const styles = StyleSheet.create({
   float: { position: 'absolute', width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
   floatLeft: { left: 14 },
   floatRight: { right: 14 },
-  toast: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 14, paddingRight: 12, borderRadius: 14, backgroundColor: colors.ink },
-  toastText: { flex: 1, paddingVertical: 10, fontSize: 13.5, fontFamily: fonts.ui.bold, color: '#fff' },
+  toast: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 14, paddingRight: 12, borderRadius: 14, backgroundColor: colors.sand },
+  toastText: { flex: 1, paddingVertical: 10, fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.ink },
   toastLink: { minHeight: 44, justifyContent: 'center' },
-  toastLinkText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  toastLinkText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   bar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: 10, paddingTop: 12, paddingHorizontal: 16, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.hairline },
   saveBtn: { minHeight: 54, minWidth: 120, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   saveBtnOn: { borderColor: colors.ink, backgroundColor: colors.selectedSoft },
   saveText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  routeBtn: { flex: 1, minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, backgroundColor: colors.primary },
-  routeText: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  routeBtn: { flex: 1, minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  routeText: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: colors.ink },
   veil: { flex: 1, backgroundColor: 'rgba(14,35,70,0.38)' },
   shareSheet: { gap: 12, paddingTop: 10, paddingHorizontal: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.surface },
   grab: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line },
   shareHead: { gap: 4 },
   shareTitle: { fontSize: 21, fontFamily: fonts.display.bold, color: colors.ink },
   shareSub: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.muted },
-  preview: { padding: 14, gap: 10, borderRadius: 16, backgroundColor: colors.bg },
+  preview: { padding: 14, gap: 10, borderRadius: 16, backgroundColor: colors.well },
   eyebrowSm: { fontSize: 11, letterSpacing: 1.1, fontFamily: fonts.ui.extrabold, color: colors.faint },
   previewTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   previewRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  previewNum: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.accent, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  previewNum: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   previewNumText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.ink },
   previewText: { flex: 1, fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.ink },
   previewBiz: { fontFamily: fonts.ui.extrabold },
   previewTime: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.faint },
-  sendBtn: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.primary },
-  sendText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  sendBtn: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  sendText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

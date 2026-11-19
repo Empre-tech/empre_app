@@ -1,25 +1,24 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/auth/AuthContext';
 import { Chispa } from '@/components/ai/Chispa';
-import { VoiceSheet } from '@/components/ledger/VoiceSheet';
 import { hourIdeas } from '@/lib/askChips';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts } from '@/theme';
 
 /**
- * Empre AI al centro de la barra para quien no tiene negocio (3.66): hablar, escribir o una idea para esta hora. Hablar
- * abre el modo voz en «Buscar» (3.65); escribir, el buscador único.
+ * Buscar con Empre AI para quien no tiene negocio (3.66; tablero «Empre AI · un asistente por trabajo»): hablar, escribir
+ * o una idea para esta hora. Hablar y escribir abren el mismo buscador (con el micrófono en la barra), así que dan los
+ * mismos resultados; aquí no se anota nada de un negocio.
  */
 export function EmpreAISheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const reduce = useReduceMotion();
   const { status } = useAuth();
-  const [voice, setVoice] = useState(false);
   const [hour] = useState(() => new Date().getHours());
   const ideas = hourIdeas(hour);
 
@@ -47,7 +46,7 @@ export function EmpreAISheet({ visible, onClose }: { visible: boolean; onClose: 
               </Pressable>
             </View>
 
-            <Pressable accessibilityRole="button" accessibilityLabel="Hablar con Empre AI" onPress={() => go(() => setVoice(true))} style={({ pressed }) => [styles.talk, pressed && styles.pressed]}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Hablar con Empre AI" onPress={() => go(() => router.push({ pathname: '/ask', params: { voice: '1' } }))} style={({ pressed }) => [styles.talk, pressed && styles.pressed]}>
               <Ionicons name="mic" size={22} color="#FFFFFF" />
               <View style={{ flex: 1 }}>
                 <Text style={styles.talkTitle}>Hablar con Empre AI</Text>
@@ -80,7 +79,6 @@ export function EmpreAISheet({ visible, onClose }: { visible: boolean; onClose: 
           </View>
         </View>
       </Modal>
-      <VoiceSheet entityId="" visible={voice} onClose={() => setVoice(false)} hints={[]} defaultMode="search" />
     </>
   );
 }
@@ -92,9 +90,9 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
   sub: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
   close: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  talk: { minHeight: 60, borderRadius: 18, paddingHorizontal: 16, backgroundColor: colors.ink, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  talk: { minHeight: 60, borderRadius: 18, paddingHorizontal: 16, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', gap: 12 },
   talkTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
-  talkSub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: '#C7D2E0' },
+  talkSub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: '#CBCED4' },
   write: { minHeight: 56, borderRadius: 18, paddingHorizontal: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 12 },
   writeText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   label: { marginTop: 4, fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },

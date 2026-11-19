@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { StyleSheet, Text, View } from 'react-native';
 import type { ReviewSummary } from '@/api/types';
 import { ratingBars, verifiedLabel } from '@/lib/profile';
@@ -54,16 +54,16 @@ export function VerifiedStamp() {
 const styles = StyleSheet.create({
   card: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.lg, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   score: { alignItems: 'center', minWidth: 72 },
-  average: { fontSize: 34, fontFamily: fonts.display.bold, color: colors.ink },
+  average: { fontSize: 30, fontFamily: fonts.display.bold, color: colors.ink },
   count: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
   bars: { flex: 1, minWidth: 140, gap: 4 },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   barLabel: { width: 10, fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.muted },
   track: { flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.line, overflow: 'hidden' },
-  fill: { height: 6, borderRadius: 3, backgroundColor: colors.accent },
+  fill: { height: 6, borderRadius: 3, backgroundColor: colors.sand },
   barCount: { width: 22, textAlign: 'right', fontSize: 11.5, fontFamily: fonts.ui.medium, color: colors.muted },
   verified: { flexDirection: 'row', alignItems: 'center', gap: 6, width: '100%' },
-  verifiedText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#0A6E6A' },
+  verifiedText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#D42020' },
   stamp: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: colors.verifiedSoft },
-  stampText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#0A6E6A' },
+  stampText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: '#D42020' },
 });

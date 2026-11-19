@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -230,15 +230,15 @@ const styles = StyleSheet.create({
   nodataText: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
   meter: { height: 8, borderRadius: 4, backgroundColor: colors.line, overflow: 'hidden', marginTop: 4 },
   meterFill: { height: 8, backgroundColor: colors.success },
-  ins: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg + 2, backgroundColor: colors.ink },
-  insTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: '#fff' },
+  ins: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg + 2, backgroundColor: colors.sand },
+  insTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink },
   kpis: { flexDirection: 'row', gap: spacing.sm },
-  kpi: { flex: 1, padding: spacing.sm, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,0.12)' },
-  kpiValue: { fontSize: 18, fontFamily: fonts.display.bold, color: '#fff' },
-  kpiLabel: { fontSize: 10.5, fontFamily: fonts.ui.bold, color: '#D5DEEA' },
-  insight: { flexDirection: 'row', gap: spacing.sm, padding: spacing.sm, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,0.1)' },
-  insightText: { flex: 1, fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.bold, color: '#fff' },
-  insNote: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: '#D5DEEA' },
+  kpi: { flex: 1, padding: spacing.sm, borderRadius: radius.md, backgroundColor: 'rgba(43,38,34,0.06)' },
+  kpiValue: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
+  kpiLabel: { fontSize: 10.5, fontFamily: fonts.ui.bold, color: '#E4E6EA' },
+  insight: { flexDirection: 'row', gap: spacing.sm, padding: spacing.sm, borderRadius: radius.md, backgroundColor: 'rgba(43,38,34,0.06)' },
+  insightText: { flex: 1, fontSize: 12.5, lineHeight: 18, fontFamily: fonts.ui.bold, color: colors.ink },
+  insNote: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: '#E4E6EA' },
   bestRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   bestRank: { width: 22, fontSize: 18, fontFamily: fonts.display.bold, color: colors.primary },
   bestText: { flex: 1, minWidth: 0 },
@@ -250,10 +250,10 @@ const styles = StyleSheet.create({
   kind: { fontSize: 10.5, fontFamily: fonts.ui.extrabold, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.muted },
   cardTitle: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
   cardMeta: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
-  statusOff: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: colors.bg },
+  statusOff: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: colors.well },
   statusText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.muted },
   results: { flexDirection: 'row', gap: spacing.sm },
-  result: { flex: 1, alignItems: 'center', paddingVertical: 6, borderRadius: radius.md, backgroundColor: colors.bg },
+  result: { flex: 1, alignItems: 'center', paddingVertical: 6, borderRadius: radius.md, backgroundColor: colors.well },
   resultValue: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
   resultLabel: { fontSize: 10.5, fontFamily: fonts.ui.bold, color: colors.muted },
   btn: { minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },

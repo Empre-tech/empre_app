@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { StyleSheet, Text, View } from 'react-native';
 import { Chispa, type ChispaMood } from '@/components/ai/Chispa';
 import { Avatar } from '@/components/Avatar';
@@ -46,7 +46,7 @@ export function ChatVoices({ avatar, businessName, online, ownerSub, mood = 'rep
       <View style={styles.voice}>
         <View>
           <Avatar uri={avatar} name={businessName} size={26} />
-          <View style={[styles.dot, { backgroundColor: online ? '#14B8B0' : '#C7D2E0' }]} />
+          <View style={[styles.dot, { backgroundColor: online ? '#D42020' : '#CBCED4' }]} />
         </View>
         <View style={styles.texts}>
           <Text style={styles.name}>El dueño</Text>
@@ -72,13 +72,13 @@ export function HandoffLine() {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingBottom: 10, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.hairline },
-  voice: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, backgroundColor: colors.bg },
+  voice: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, backgroundColor: colors.well },
   texts: { flex: 1, minWidth: 0 },
   name: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   sub: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.muted },
   dot: { position: 'absolute', right: -2, bottom: -2, width: 11, height: 11, borderRadius: 6, borderWidth: 2, borderColor: colors.bg },
-  ownerMark: { position: 'absolute', right: -3, bottom: -3, width: 13, height: 13, borderRadius: 7, alignItems: 'center', justifyContent: 'center', backgroundColor: '#14B8B0', borderWidth: 2, borderColor: colors.bg },
+  ownerMark: { position: 'absolute', right: -3, bottom: -3, width: 13, height: 13, borderRadius: 7, alignItems: 'center', justifyContent: 'center', backgroundColor: '#D42020', borderWidth: 2, borderColor: colors.bg },
   handoff: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 8 },
-  handoffLine: { flex: 1, height: 1, backgroundColor: '#CFE9EC' },
+  handoffLine: { flex: 1, height: 1, backgroundColor: '#FDECEC' },
   handoffText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.verified },
 });

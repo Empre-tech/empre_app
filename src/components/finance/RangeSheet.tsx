@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -110,7 +110,7 @@ function RangeBody({ visible, value, onApply, onClose }: Props) {
                   onPress={() => setDraft((c) => pickDay(c, d))}
                   style={[styles.day, edge && styles.dayOn]}
                 >
-                  <Text style={[styles.dayText, edge && { color: colors.selected }, off && { color: '#D5DEEA' }, d === today && !edge && { color: colors.primary }]}>{Number(d.slice(8))}</Text>
+                  <Text style={[styles.dayText, edge && { color: colors.selected }, off && { color: '#E4E6EA' }, d === today && !edge && { color: colors.primary }]}>{Number(d.slice(8))}</Text>
                 </Pressable>
               </View>
             );
@@ -146,12 +146,12 @@ const styles = StyleSheet.create({
   grab: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.line, alignSelf: 'center' },
   title: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
   monthRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  nav: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
+  nav: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.well, alignItems: 'center', justifyContent: 'center' },
   month: { flex: 1, textAlign: 'center', fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   wd: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.muted, paddingBottom: 4 },
   cell: { width: `${100 / 7}%`, height: 42, alignItems: 'center', justifyContent: 'center' },
-  band: { backgroundColor: colors.primarySoft },
+  band: { backgroundColor: colors.financeSoft },
   bandStart: { borderTopLeftRadius: 21, borderBottomLeftRadius: 21 },
   bandEnd: { borderTopRightRadius: 21, borderBottomRightRadius: 21 },
   day: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
@@ -159,9 +159,9 @@ const styles = StyleSheet.create({
   dayText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
   hint: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
   label: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
-  seg: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: '#EEF2F7' },
+  seg: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: '#EFF0F2' },
   segBtn: { flex: 1, minHeight: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   segOn: { backgroundColor: colors.surface },
-  segText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#4C5C74', textAlign: 'center' },
+  segText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#5B606B', textAlign: 'center' },
   segTextOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

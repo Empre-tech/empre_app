@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -326,11 +326,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: colors.accentSoft,
+    backgroundColor: colors.agendaSoft,
     borderRadius: radius.sm,
     padding: spacing.md,
   },
-  expiryText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.accentInk, flex: 1 },
+  expiryText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.agenda, flex: 1 },
   warn: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.warning },
   actions: { flexDirection: 'row', gap: spacing.md },
   question: { fontSize: 16, fontFamily: fonts.ui.bold, color: colors.ink, marginBottom: spacing.xs },

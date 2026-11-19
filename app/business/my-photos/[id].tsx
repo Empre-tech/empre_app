@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams } from 'expo-router';
@@ -163,7 +163,7 @@ function PhotoEditor({ photo, entityId, businessName, categoryName, onClose, onC
         </View>
         <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: insets.bottom + spacing.xl }} keyboardShouldPersistTaps="handled">
           {isVideo(photo) ? (
-            <View style={[styles.preview, { width: width - spacing.lg * 2, height: 160, backgroundColor: colors.ink }]}>
+            <View style={[styles.preview, { width: width - spacing.lg * 2, height: 160, backgroundColor: colors.night }]}>
               <Ionicons name="play" size={36} color="#fff" />
             </View>
           ) : (
@@ -171,7 +171,7 @@ function PhotoEditor({ photo, entityId, businessName, categoryName, onClose, onC
           )}
           <View style={styles.captionHead}>
             <Text style={styles.label}>Descripción</Text>
-            <AIWritingAssist kind="post_caption" currentText={caption} businessName={businessName} categoryName={categoryName} onApply={setCaption} />
+            <AIWritingAssist kind="post_caption" currentText={caption} businessName={businessName} categoryName={categoryName} onApply={setCaption} entityId={entityId} />
           </View>
           <TextInput value={caption} onChangeText={setCaption} placeholder="Agrega una descripción…" placeholderTextColor={colors.muted} style={styles.input} maxLength={200} multiline />
           <Button title={saving ? 'Guardando…' : 'Guardar descripción'} onPress={() => void save()} disabled={!dirty || saving || deleting} />
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl },
   emptyTitle: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
   editorBar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.sm, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.line },
-  close: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
+  close: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.well, alignItems: 'center', justifyContent: 'center' },
   editorTitle: { fontSize: 17, fontFamily: fonts.display.bold, color: colors.ink },
   preview: { borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   captionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

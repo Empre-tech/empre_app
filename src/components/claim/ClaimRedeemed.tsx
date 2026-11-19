@@ -122,8 +122,8 @@ const styles = StyleSheet.create({
   savedSub: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.faint },
   link: { minHeight: 44, justifyContent: 'center' },
   linkText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
-  confirm: { minHeight: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.primary },
-  confirmText: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  confirm: { minHeight: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  confirmText: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: colors.ink },
   thanks: { paddingVertical: 13, paddingHorizontal: 16, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.verifiedSoft, fontSize: 14.5, fontFamily: fonts.ui.bold, color: colors.verified, textAlign: 'center' },
   message: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger, textAlign: 'center' },
 });

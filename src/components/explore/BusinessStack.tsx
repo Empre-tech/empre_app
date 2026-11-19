@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { Image } from 'expo-image';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { categoryColor } from '@/lib/categoryColor';
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 3,
     overflow: 'hidden',
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
   },
   back: { left: 0, top: 14, opacity: 0.8, transform: [{ scale: 0.88 }] },
   middle: { left: 10, top: 8, opacity: 0.92, transform: [{ scale: 0.94 }] },

@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -110,7 +110,7 @@ export default function TeachScreen() {
             {draft.intent === '' ? (
               <>
                 <Text style={styles.label}>La pregunta</Text>
-                <TextInput value={draft.question} onChangeText={(q) => setDraft({ ...draft, question: q.slice(0, 200) })} placeholder="¿Atienden niños?" placeholderTextColor={colors.placeholder} style={styles.input} accessibilityLabel="La pregunta" />
+                <TextInput value={draft.question} onChangeText={(q) => setDraft({ ...draft, question: q.slice(0, 200) })} placeholder="¿Atienden niños?" placeholderTextColor={colors.faint} style={styles.input} accessibilityLabel="La pregunta" />
               </>
             ) : (
               <Text style={styles.hint}>Se suma a lo que Empre AI ya responde sobre {topicLabel(draft.intent).toLowerCase()} con lo que publicaste; si no habías publicado nada, responde con esto.</Text>
@@ -120,7 +120,7 @@ export default function TeachScreen() {
               value={draft.answer}
               onChangeText={(a) => setDraft({ ...draft, answer: a.slice(0, MAX) })}
               placeholder="Sí, desde los 3 años. Los sábados hay más fila."
-              placeholderTextColor={colors.placeholder}
+              placeholderTextColor={colors.faint}
               style={[styles.input, styles.multi]}
               multiline
               accessibilityLabel="Tu respuesta"
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   switchTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   switchSub: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.semibold, color: colors.muted },
   track: { width: 46, height: 28, padding: 3, borderRadius: 14, backgroundColor: colors.placeholder, alignItems: 'flex-start' },
-  trackOn: { backgroundColor: colors.ink, alignItems: 'flex-end' },
+  trackOn: { backgroundColor: colors.selectedSoft, alignItems: 'flex-end' },
   knob: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.surface },
   editor: { gap: 8, padding: 16, borderRadius: 20, backgroundColor: colors.surface },
   editorTitle: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
   topic: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   topicOn: { borderColor: colors.selected, backgroundColor: colors.selectedSoft },
   topicText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  input: { minHeight: 48, paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
+  input: { minHeight: 48, paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.well, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
   multi: { minHeight: 96, textAlignVertical: 'top' },
   count: { alignSelf: 'flex-end', fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.faint },
   editorActions: { gap: 8, marginTop: 4 },

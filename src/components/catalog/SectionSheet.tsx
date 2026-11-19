@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -192,17 +192,17 @@ const styles = StyleSheet.create({
   grab: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.line, alignSelf: 'center' },
   title: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
   meta: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
-  search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.bg },
+  search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.well },
   searchInput: { flex: 1, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
   label: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.muted, letterSpacing: 0.5, textTransform: 'uppercase', marginTop: spacing.xs },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 50, borderBottomWidth: 1, borderBottomColor: '#EEF2F7' },
-  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#D5DEEA', alignItems: 'center', justifyContent: 'center' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 50, borderBottomWidth: 1, borderBottomColor: '#EFF0F2' },
+  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#E4E6EA', alignItems: 'center', justifyContent: 'center' },
   radioOn: { borderColor: colors.primary },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
   name: { flex: 1, fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
   notice: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start', padding: spacing.md, borderRadius: radius.md, backgroundColor: '#E7F6EE' },
   noticeText: { flex: 1, fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.semibold, color: colors.ink },
-  askBox: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.bg, marginTop: spacing.xs },
+  askBox: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.well, marginTop: spacing.xs },
   askTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   askRow: { flexDirection: 'row', gap: spacing.sm },
   askBtn: { minHeight: 46, borderRadius: radius.md, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.md },

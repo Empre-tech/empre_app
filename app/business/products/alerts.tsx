@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -159,7 +159,7 @@ export default function AlertsScreen() {
   );
 }
 
-const TONE = { out: { dot: colors.danger, fg: '#B3261E' }, low: { dot: colors.accent, fg: colors.accentInk }, muted: { dot: '#D5DEEA', fg: '#4C5C74' } };
+const TONE = { out: { dot: colors.danger, fg: '#2B2622' }, low: { dot: colors.ink, fg: colors.ink }, muted: { dot: '#E4E6EA', fg: '#5B606B' } };
 
 function GroupHead({ title, tone }: { title: string; tone: keyof typeof TONE }) {
   return (
@@ -214,8 +214,8 @@ function Group({
                 <View style={styles.users}>
                   <Text style={styles.usersLabel}>{tone === 'out' ? 'Afecta a' : 'Lo usan'}</Text>
                   {users.slice(0, 6).map((u) => (
-                    <View key={u.ref} style={[styles.chip, { backgroundColor: tone === 'out' ? '#FDECEC' : colors.accentSoft }]}>
-                      <Text style={[styles.chipText, { color: tone === 'out' ? '#B3261E' : colors.accentInk }]}>{u.name}</Text>
+                    <View key={u.ref} style={[styles.chip, { backgroundColor: tone === 'out' ? '#EFF0F2' : colors.selectedSoft }]}>
+                      <Text style={[styles.chipText, { color: tone === 'out' ? '#2B2622' : colors.ink }]}>{u.name}</Text>
                     </View>
                   ))}
                   {users.length > 6 ? <Text style={styles.usersLabel}>y {users.length - 6} más</Text> : null}
@@ -242,17 +242,17 @@ const styles = StyleSheet.create({
   usersLabel: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.muted },
   chip: { minHeight: 26, paddingHorizontal: 10, borderRadius: radius.pill, justifyContent: 'center' },
   chipText: { fontSize: 12, fontFamily: fonts.ui.extrabold },
-  tabs: { flexDirection: 'row', padding: 4, borderRadius: 12, backgroundColor: '#EEF2F7' },
+  tabs: { flexDirection: 'row', padding: 4, borderRadius: 12, backgroundColor: '#EFF0F2' },
   tab: { flex: 1, minHeight: 42, borderRadius: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   tabOn: { backgroundColor: colors.surface },
-  tabText: { fontSize: 14, fontFamily: fonts.ui.bold, color: '#4C5C74' },
+  tabText: { fontSize: 14, fontFamily: fonts.ui.bold, color: '#5B606B' },
   tabTextOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
   badge: { minWidth: 22, height: 22, paddingHorizontal: 6, borderRadius: 11, backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  line: { borderTopWidth: 1, borderTopColor: '#EEF2F7' },
+  line: { borderTopWidth: 1, borderTopColor: '#EFF0F2' },
   name: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   btn: { minHeight: 40, paddingHorizontal: 14, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
-  btnPrimary: { backgroundColor: colors.primary },
+  btnPrimary: { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
   btnSoft: { backgroundColor: colors.primarySoft },
   btnText: { fontSize: 13, fontFamily: fonts.ui.extrabold },
   share: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, minHeight: 52, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.primarySoft },

@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { DiscoveryItem } from '@/api/types';
@@ -41,7 +41,7 @@ export function FeaturedCard({ entity, onPress }: { entity: WithDistance; onPres
           </Text>
           {hasRating ? (
             <View style={styles.rating}>
-              <Ionicons name="star" size={12} color={colors.accent} />
+              <Ionicons name="star" size={12} color={colors.ink} />
               <Text style={styles.ratingText}>{entity.avg_rating.toFixed(1)}</Text>
             </View>
           ) : null}
@@ -76,7 +76,7 @@ export function FeaturedCard({ entity, onPress }: { entity: WithDistance; onPres
           </Text>
           {hasRating ? (
             <View style={styles.rating}>
-              <Ionicons name="star" size={12} color={colors.accent} />
+              <Ionicons name="star" size={12} color={colors.ink} />
               <Text style={styles.ratingText}>{entity.avg_rating.toFixed(1)}</Text>
             </View>
           ) : null}

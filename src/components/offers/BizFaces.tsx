@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
@@ -9,12 +9,12 @@ import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, softShadow } from '@/theme';
 
 /** «Negocios ofreciendo hoy» (3.61): aro naranja si tiene oferta, en tinta si solo publica catálogo. */
-export function BizFaces({ faces, onOpen }: { faces: BizFace[]; onOpen: (f: BizFace) => void }) {
+export function BizFaces({ faces, onOpen, title = 'Negocios ofreciendo hoy' }: { faces: BizFace[]; onOpen: (f: BizFace) => void; title?: string }) {
   if (!faces.length) return null;
   return (
     <View style={styles.sec}>
       <Text style={styles.title} accessibilityRole="header">
-        Negocios ofreciendo hoy
+        {title}
       </Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
         {faces.map((f) => (
@@ -110,7 +110,7 @@ export function BizVitrinaSheet({
             </ScrollView>
             <Pressable accessibilityRole="button" onPress={() => onBusiness(face.id)} style={styles.go}>
               <Text style={styles.goText}>Ver el negocio</Text>
-              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+              <Ionicons name="arrow-forward" size={16} color={colors.ink} />
             </Pressable>
           </Pressable>
         ) : null}
@@ -142,6 +142,6 @@ const styles = StyleSheet.create({
   svc: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottomWidth: 1, borderBottomColor: colors.selectedSoft },
   svcName: { flex: 1, fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
   svcPrice: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  go: { minHeight: 52, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.ink },
-  goText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#FFFFFF' },
+  go: { minHeight: 52, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  goText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

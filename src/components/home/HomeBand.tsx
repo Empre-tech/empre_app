@@ -9,11 +9,11 @@ export function dayPart(hour: number): DayPart {
   return hour < 11 ? 'mañana' : hour < 15 ? 'mediodía' : hour < 19 ? 'tarde' : 'noche';
 }
 
-/** El tema de la franja de arriba (3.59): el color sale de la hora, no de la interfaz. */
+/** El tema de la franja de arriba (3.59): limpio bajo la regla de los 3 colores (Alabastro / Blanco de día, Negro Carbón de noche). */
 export const BAND: Record<DayPart, { bg: string; hello: string; ink: string; sub: string; chipBg: string; chipLine: string; astro: string | null }> = {
-  'mañana': { bg: '#FFF0DC', hello: 'Buenos días', ink: colors.ink, sub: colors.muted, chipBg: 'rgba(255,255,255,0.8)', chipLine: colors.hairline, astro: '#FFB21A' },
-  'mediodía': { bg: '#DDF2F0', hello: 'Buen mediodía', ink: colors.ink, sub: colors.muted, chipBg: 'rgba(255,255,255,0.8)', chipLine: colors.hairline, astro: '#FFB21A' },
-  'tarde': { bg: '#FFE1CB', hello: 'Buenas tardes', ink: colors.ink, sub: colors.muted, chipBg: 'rgba(255,255,255,0.8)', chipLine: colors.hairline, astro: colors.accent },
+  'mañana': { bg: colors.surface, hello: 'Buenos días', ink: colors.ink, sub: colors.muted, chipBg: colors.well, chipLine: colors.line, astro: colors.brand },
+  'mediodía': { bg: colors.surface, hello: 'Buen mediodía', ink: colors.ink, sub: colors.muted, chipBg: colors.well, chipLine: colors.line, astro: colors.brand },
+  'tarde': { bg: colors.surface, hello: 'Buenas tardes', ink: colors.ink, sub: colors.muted, chipBg: colors.well, chipLine: colors.line, astro: colors.brand },
   'noche': { bg: colors.ink, hello: 'Buenas noches', ink: '#FFFFFF', sub: 'rgba(255,255,255,0.8)', chipBg: 'rgba(255,255,255,0.1)', chipLine: 'rgba(255,255,255,0.28)', astro: null },
 };
 
@@ -84,9 +84,9 @@ const styles = StyleSheet.create({
   band: { overflow: 'hidden', paddingHorizontal: 20, paddingBottom: 18, gap: 14, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
   sky: { position: 'absolute', top: 0, right: 0, width: 220, height: 140 },
   sunWrap: { position: 'absolute', right: 74, width: 56, height: 56, alignItems: 'center', justifyContent: 'center' },
-  halo: { position: 'absolute', width: 56, height: 56, borderRadius: 28, opacity: 0.18 },
-  sun: { width: 36, height: 36, borderRadius: 18, opacity: 0.95 },
-  moon: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFE9B8' },
-  moonCut: { position: 'absolute', left: 18, top: 8, width: 28, height: 28, borderRadius: 14, backgroundColor: colors.ink },
+  halo: { position: 'absolute', width: 56, height: 56, borderRadius: 28, opacity: 0.12 },
+  sun: { width: 32, height: 32, borderRadius: 16, opacity: 0.22 },
+  moon: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFFFFF' },
+  moonCut: { position: 'absolute', left: 18, top: 8, width: 28, height: 28, borderRadius: 14, backgroundColor: colors.sand },
   star: { position: 'absolute', width: 3, height: 3, borderRadius: 2, backgroundColor: '#FFFFFF' },
 });

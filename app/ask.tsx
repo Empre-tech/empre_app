@@ -1,4 +1,5 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
+import { RememberSize } from '@/components/ai/RememberSize';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -11,6 +12,8 @@ import { categoriesApi } from '@/api/endpoints';
 import { discoveryApi } from '@/api/offers';
 import type { DiscoveryItem } from '@/api/types';
 import { Chispa } from '@/components/ai/Chispa';
+import { Avatar } from '@/components/Avatar';
+import { TypeIn } from '@/components/chat/EmpreVoice';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { FilterRow, FiltersSheet } from '@/components/search/SearchFilters';
 import { BusinessCardModal } from '@/components/explore/BusinessCardModal';
@@ -19,7 +22,7 @@ import { speechAvailable, startDictation } from '@/ledger/speech';
 import { areaAround, familyFor, noneTitle, pickAlternatives } from '@/lib/askAlternatives';
 import { hourIdeas, howFar, suggestionAction } from '@/lib/askChips';
 import { buildGroups, groupIdOf } from '@/lib/categoryGroups';
-import { activeCount, applyFilters, fromAsk, NO_FILTERS as NO_SEARCH, resultsTitle, toAsk, type FilterCaps, type SearchFilters } from '@/lib/searchFilters';
+import { activeCount, answerLead, applyFilters, fromAsk, NO_FILTERS as NO_SEARCH, orderLabel, toAsk, type FilterCaps, type SearchFilters } from '@/lib/searchFilters';
 import { hourCO } from '@/lib/finance';
 import { isRecommendAsk, pickRecommendations, recommendLead } from '@/lib/recommend';
 import { formatPesos } from '@/lib/catalog';
@@ -65,6 +68,8 @@ export default function AskScreen() {
   const [card, setCard] = useState<AskPlace | null>(null);
   const [recents, setRecents] = useState<string[]>([]);
   const [listening, setListening] = useState(false);
+  // Lo dicho por voz se muestra con lo entendido antes de buscar (tablero «Para el cliente», teléfono 2): «Buscar así» o «Corregir».
+  const [heard, setHeard] = useState(false);
   const stopRef = useRef<(() => void) | null>(null);
   const seq = useRef(0);
   const started = useRef(false);
@@ -157,8 +162,7 @@ export default function AskScreen() {
           setText(t);
           if (isFinal && t.trim()) {
             setListening(false);
-            const parsed = liveParse(t);
-            void run(t, parsed.searchFilters);
+            setHeard(true);
           }
         },
         onEnd: () => setListening(false),
@@ -172,9 +176,13 @@ export default function AskScreen() {
   useEffect(() => {
     void loadRecents().then((saved) => setRecents((now) => (now.length ? now : saved)));
     if (started.current) return;
-    started.current = true;
-    if (typeof params.q === 'string' && params.q.trim()) void run(params.q, NO_FILTERS);
-    else if (params.voice === '1' && speechAvailable()) void listen();
+    // La búsqueda que llega por parámetro arranca después de pintar (no dentro del efecto: evita renders en cascada).
+    const t = setTimeout(() => {
+      started.current = true;
+      if (typeof params.q === 'string' && params.q.trim()) void run(params.q, NO_FILTERS);
+      else if (params.voice === '1' && speechAvailable()) void listen();
+    }, 0);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -234,7 +242,10 @@ export default function AskScreen() {
   const ideas = isNone || rec ? hourIdeas(hourCO(new Date().toISOString())) : [];
   const onMap = (rec ? recs.map((r) => placeFrom(r.place)) : biz.length ? (biz as AskPlace[]) : [...alts.offers, ...alts.rest]).filter((b) => b.latitude && b.longitude);
   const region = regionFor(onMap, coords);
-  const count = resultsTitle(biz.length, searchFilters, caps);
+  // Empre AI dice cuántos hay y cuántos están abiertos; el orden va aparte, en una línea suave.
+  const lead = answerLead(biz.length, biz.filter((b) => b.has_hours && b.is_open_now).length);
+  const order = orderLabel(searchFilters, caps);
+  const nextSuggestions = (answer?.suggestions ?? []).filter((x) => { const k = suggestionAction(x).kind; return k !== 'map' && k !== 'filter'; }).slice(0, 2);
 
   if (showResults) {
     return (
@@ -249,7 +260,7 @@ export default function AskScreen() {
                     <View style={styles.pin}>
                       <Ionicons name={displayIcon(b.category_icon) as keyof typeof Ionicons.glyphMap} size={18} color={colors.ink} />
                     </View>
-                    <View style={[styles.pinDot, { backgroundColor: b.is_open_now ? '#14B8B0' : colors.placeholder }]} />
+                    <View style={[styles.pinDot, { backgroundColor: b.is_open_now ? '#D42020' : colors.placeholder }]} />
                   </View>
                 </Marker>
               ))}
@@ -272,14 +283,12 @@ export default function AskScreen() {
           {rec ? (
             <View style={styles.group} accessibilityLiveRegion="polite">
               <View style={styles.recHead}>
-                <Chispa size={32} mood={recQuery.isLoading ? 'pensando' : 'responde'} />
-                <Text style={styles.recName}>Empre AI</Text>
+                <Chispa size={20} mood={recQuery.isLoading ? 'pensando' : 'responde'} animated={recQuery.isLoading} />
+                <Text style={styles.recName}>{recQuery.isLoading ? 'Mirando qué hay cerca de ti…' : 'Empre AI'}</Text>
               </View>
-              {recQuery.isLoading ? (
-                <Text style={styles.hint}>Mirando qué hay cerca de ti…</Text>
-              ) : (
+              {recQuery.isLoading ? null : (
                 <>
-                  <Text style={styles.recLead}>{recommendLead(recs)}</Text>
+                  <TypeIn parts={[{ t: recommendLead(recs) }]} play style={[styles.recLead, styles.aiIndent]} />
                   {recs.map((r, i) => {
                     const b = placeFrom(r.place);
                     return (
@@ -302,7 +311,7 @@ export default function AskScreen() {
                       </Pressable>
                     );
                   })}
-                  <Text style={styles.note}>Elegidos por estar abiertos, cerca y con oferta. Nadie paga por salir aquí.</Text>
+                  <SourceLine names={recs.map((r) => ({ name: r.place.name, uri: r.place.profile_url }))} extra="abiertos, cerca y con oferta" />
                   <Text style={styles.altHead}>¿Algo en especial?</Text>
                   <View style={styles.chips}>
                     {ideas.map((idea) => (
@@ -319,20 +328,11 @@ export default function AskScreen() {
           <View style={styles.filterBleed}>
             <FilterRow value={searchFilters} onChange={changeFilters} caps={caps} groupName={groups.find((g) => g.id === searchFilters.group)?.name} onOpenSheet={() => setSheetOpen(true)} />
           </View>
-          <View style={styles.group}>
-            <View style={styles.chips}>
-              {answer?.suggestions.filter((x) => { const k = suggestionAction(x).kind; return k !== 'map' && k !== 'filter'; }).map((x) => (
-                <Pressable key={x} accessibilityRole="button" onPress={() => onSuggestion(x, answer)} style={styles.chipAdd}>
-                  <Text style={styles.chipAddText}>{x}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
           {loading ? (
-            <View style={styles.loading} accessibilityLiveRegion="polite">
-              <ActivityIndicator color={colors.primary} />
-              <Text style={styles.hint}>Buscando cerca de ti…</Text>
+            // Mientras busca: la Chispa gira y una línea dice qué hace (como en el chat)
+            <View style={styles.recHead} accessibilityLiveRegion="polite">
+              <Chispa size={20} mood="pensando" animated />
+              <Text style={styles.recName}>Buscando cerca de ti…</Text>
             </View>
           ) : error ? (
             <View style={styles.group} accessibilityLiveRegion="polite">
@@ -348,9 +348,15 @@ export default function AskScreen() {
               ) : null}
               {biz.length ? (
                 <>
-                  <Text style={styles.count} accessibilityLiveRegion="polite">
-                    {count}
-                  </Text>
+                  {/* Empre AI: la frase con el dato en negrita y, debajo, el orden */}
+                  <View style={styles.aiSays} accessibilityLiveRegion="polite">
+                    <View style={styles.recHead}>
+                      <Chispa size={20} mood="responde" />
+                      <Text style={styles.recName}>Empre AI</Text>
+                    </View>
+                    <TypeIn parts={lead} play style={[styles.recLead, styles.aiIndent]} boldStyle={styles.leadBold} />
+                    {order ? <Text style={[styles.orderText, styles.aiIndent]}>{order}</Text> : null}
+                  </View>
                   {biz.map((b, i) => {
                     const photo = b.profile_url ? resolveImageUrl(b.profile_url) : null;
                     return (
@@ -383,7 +389,16 @@ export default function AskScreen() {
                       </Pressable>
                     );
                   })}
-                  <Text style={styles.note}>Ordenado por lo que pediste, si está abierto y cercanía. Nadie paga por salir arriba.</Text>
+                  <SourceLine names={biz.map((b) => ({ name: b.name, uri: b.profile_url }))} />
+                  {nextSuggestions.length && answer ? (
+                    <View style={styles.chips}>
+                      {nextSuggestions.map((x) => (
+                        <Pressable key={x} accessibilityRole="button" onPress={() => onSuggestion(x, answer)} hitSlop={4} style={({ pressed }) => [styles.nextChip, pressed && styles.pressed]}>
+                          <Text style={styles.nextText}>{x}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : null}
                 </>
               ) : (
                 <>
@@ -462,7 +477,7 @@ export default function AskScreen() {
               setEditing(true);
             }}
             placeholder={listening ? 'Te escucho…' : '¿Qué necesitas?'}
-            placeholderTextColor={colors.placeholder}
+            placeholderTextColor={colors.faint}
             style={styles.input}
             returnKeyType="search"
             onSubmitEditing={() => void run(text, NO_FILTERS)}
@@ -483,7 +498,8 @@ export default function AskScreen() {
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 20 }]} keyboardShouldPersistTaps="handled">
-        {listening || hasLiveFilters ? (
+        {question ? <RememberSize text={question} /> : null}
+        {listening || hasLiveFilters || heard ? (
           <View style={styles.liveCard} accessibilityLiveRegion="polite">
             <View style={styles.liveCardHead}>
               <Text style={styles.liveBrand}>EMPRE AI LIVE · BÚSQUEDA</Text>
@@ -498,6 +514,30 @@ export default function AskScreen() {
                   ))
                 : 'Habla con naturalidad: «comida rápida abierta ahora con oferta»…'}
             </Text>
+            {heard && !listening && text.trim() ? (
+              <View style={styles.heardRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setHeard(false);
+                    void run(text, liveParse(text).searchFilters);
+                  }}
+                  style={styles.heardGo}
+                >
+                  <Text style={styles.heardGoText}>Buscar así</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setHeard(false);
+                    setEditing(true);
+                  }}
+                  style={styles.heardFix}
+                >
+                  <Text style={styles.heardFixText}>Corregir</Text>
+                </Pressable>
+              </View>
+            ) : null}
             {hasLiveFilters ? (
               <View style={styles.chips}>
                 {live.searchFilters.open_now ? (
@@ -592,6 +632,26 @@ export default function AskScreen() {
 }
 
 /** Lo que escribiste, en negrita dentro del nombre. */
+/** De dónde salió (tablero «Cada cifra con su porqué»): las caras de los negocios que leyó y cuántos. Nadie paga por salir. */
+function SourceLine({ names, extra }: { names: { name: string; uri?: string | null }[]; extra?: string }) {
+  if (!names.length) return null;
+  const who = names.length === 1 ? names[0].name : `${names.length} negocios`;
+  return (
+    <View style={styles.srcRow} accessible accessibilityLabel={`De lo publicado por ${who}. Nadie paga por salir arriba.`}>
+      <View style={{ flexDirection: 'row' }}>
+        {names.slice(0, 3).map((n, i) => (
+          <View key={`${n.name}-${i}`} style={[styles.srcFace, i > 0 && { marginLeft: -6 }]}>
+            <Avatar uri={n.uri ?? undefined} name={n.name} size={18} />
+          </View>
+        ))}
+      </View>
+      <Text style={styles.srcText} numberOfLines={2}>
+        {`De lo publicado por ${who}${extra ? ` · ${extra}` : ''} · nadie paga por salir arriba`}
+      </Text>
+    </View>
+  );
+}
+
 function Hit({ text, typed }: { text: string; typed: string }) {
   const at = plain(text).indexOf(typed);
   if (at < 0 || !typed) return <>{text}</>;
@@ -640,19 +700,24 @@ function ResultRow({ b, tone, onOpen }: { b: AskPlace; tone: number; onOpen: () 
 }
 
 const styles = StyleSheet.create({
+  heardRow: { flexDirection: 'row', gap: 8 },
+  heardGo: { flex: 1, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  heardGoText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
+  heardFix: { flex: 1, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.line },
+  heardFixText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
   altGroup: { gap: 8 },
   altHead: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   ideas: { flexDirection: 'row', gap: 8 },
-  idea: { flex: 1, minWidth: 0, minHeight: 84, alignItems: 'center', justifyContent: 'center', gap: 6, padding: 8, borderRadius: 16, backgroundColor: colors.bg },
+  idea: { flex: 1, minWidth: 0, minHeight: 84, alignItems: 'center', justifyContent: 'center', gap: 6, padding: 8, borderRadius: 16, backgroundColor: colors.well },
   ideaText: { fontSize: 12.5, textAlign: 'center', fontFamily: fonts.ui.extrabold, color: colors.ink },
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  openDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#14B8B0' },
+  openDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#D42020' },
   screen: { flex: 1, backgroundColor: colors.bg },
   pressed: { opacity: 0.8 },
   // Escribiendo
   header: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingBottom: 10, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.hairline },
   back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  searchBox: { flex: 1, minWidth: 0, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 16, paddingRight: 8, borderRadius: 24, backgroundColor: colors.bg, borderWidth: 2, borderColor: colors.ink },
+  searchBox: { flex: 1, minWidth: 0, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 16, paddingRight: 8, borderRadius: 24, backgroundColor: colors.well, borderWidth: 2, borderColor: colors.ink },
   input: { flex: 1, minWidth: 0, minHeight: 48, fontSize: 16, fontFamily: fonts.ui.bold, color: colors.ink, padding: 0 },
   clearBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.line },
   micBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
@@ -696,11 +761,20 @@ const styles = StyleSheet.create({
   pin: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   pinDot: { position: 'absolute', right: 0, bottom: 0, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: colors.surface },
   sheet: { flex: 1, marginTop: -20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 30, shadowOffset: { width: 0, height: -10 }, elevation: 8 },
-  sheetIn: { paddingTop: 14, paddingHorizontal: 14, gap: 12 },
+  sheetIn: { paddingTop: 14, paddingHorizontal: 16, gap: 12 },
   filterBleed: { marginHorizontal: -14 },
-  recHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  recName: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  recHead: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  recName: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   recLead: { fontSize: 15.5, lineHeight: 22, fontFamily: fonts.ui.semibold, color: colors.ink },
+  leadBold: { fontFamily: fonts.ui.extrabold },
+  aiSays: { gap: 4 },
+  aiIndent: { marginLeft: 27 },
+  orderText: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
+  srcRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
+  srcFace: { borderRadius: 11, borderWidth: 1.5, borderColor: colors.bg },
+  srcText: { flex: 1, fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.semibold, color: colors.muted },
+  nextChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  nextText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   recRow: { minHeight: 72, padding: 12, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.hairline, flexDirection: 'row', alignItems: 'center', gap: 12 },
   recIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   recWhy: { marginTop: 2, fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.verified },
@@ -709,8 +783,8 @@ const styles = StyleSheet.create({
   chipOnText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   chipAdd: { minHeight: 34, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 999, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.line, backgroundColor: colors.surface },
   chipAddText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
-  retry: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.primary },
-  retryText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  retry: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  retryText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   loading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md },
   relaxed: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.accentSoft, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.bold, color: colors.accentInk },
   count: { marginTop: 2, fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
@@ -724,6 +798,6 @@ const styles = StyleSheet.create({
   why: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
   statusText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold },
   note: { fontSize: 12, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.faint },
-  none: { gap: spacing.sm, padding: 14, borderRadius: 16, backgroundColor: colors.bg },
+  none: { gap: spacing.sm, padding: 14, borderRadius: 16, backgroundColor: colors.well },
   noneTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

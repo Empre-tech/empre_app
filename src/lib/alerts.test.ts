@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { alertsLine, firstTab, inventoryAlerts, shoppingList, splitAlerts, type AlertSource } from './alerts.ts';
+import { alertsLine, countsLine, firstTab, inventoryAlerts, shoppingList, splitAlerts, type AlertSource } from './alerts.ts';
 
 const mk = (o: Partial<AlertSource> & { name: string }): AlertSource => ({
   ref: o.name,
@@ -48,6 +48,8 @@ test('la frase por tipo, sin nombrar productos', () => {
   assert.equal(alertsLine(a), '2 se acabaron · 2 se acaban pronto · 2 platos en riesgo');
   assert.equal(alertsLine(inventoryAlerts([items[0], items[3]]), 'producto', 'productos'), '1 se acabó · 1 se acaba pronto');
   assert.equal(alertsLine(inventoryAlerts([])), '');
+  assert.equal(countsLine({ out: 7, soon: 11, risk: 0 }, 'producto', 'productos'), '7 se acabaron · 11 se acaban pronto');
+  assert.equal(countsLine({ out: 0, soon: 0, risk: 1 }), '1 plato en riesgo');
 });
 
 test('la lista de compras para WhatsApp', () => {

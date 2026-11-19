@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useRef, useState } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { removedAnnouncement } from '@/lib/context';
@@ -16,13 +16,17 @@ interface Props {
   onFocusChange?: (focused: boolean) => void;
   /** Sin el botón de filtros: los filtros viven en el panel de búsqueda. */
   hideFilters?: boolean;
+  /** Se abre escribiendo: al llegar desde «Buscar» del inicio. */
+  autoFocus?: boolean;
+  /** «Buscar» en el teclado: busca ya, sin esperar. */
+  onSubmit?: () => void;
 }
 
 /**
  * Buscador de Explorar en doble nivel (pregunta principal + contexto debajo cuando está en reposo)
  * o versión compacta de 1 línea sobre el mapa, con el botón de Filtros dentro a la derecha.
  */
-export function SearchBar({ value, onChangeText, onOpenFilters, filterCount, compact, onFocusChange, hideFilters }: Props) {
+export function SearchBar({ value, onChangeText, onOpenFilters, filterCount, compact, onFocusChange, hideFilters, autoFocus, onSubmit }: Props) {
   const active = filterCount > 0;
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
@@ -49,6 +53,7 @@ export function SearchBar({ value, onChangeText, onOpenFilters, filterCount, com
         ) : null}
         <TextInput
           ref={inputRef}
+          autoFocus={autoFocus}
           value={value}
           onChangeText={onChangeText}
           onFocus={() => {
@@ -63,6 +68,7 @@ export function SearchBar({ value, onChangeText, onOpenFilters, filterCount, com
           placeholderTextColor={colors.muted}
           style={[styles.input, showTwoLevel && styles.inputTransparent]}
           returnKeyType="search"
+          onSubmitEditing={onSubmit}
           autoCorrect={false}
           accessibilityLabel="Buscar negocios, ofertas o barrios"
         />
@@ -153,7 +159,7 @@ const styles = StyleSheet.create({
     opacity: 0.02,
   },
   clearHit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: -6 },
-  clearDot: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
+  clearDot: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.well, alignItems: 'center', justifyContent: 'center' },
   filterButton: {
     width: 40,
     height: 40,

@@ -233,3 +233,10 @@ test('monthlyGap no cuenta lo que salió de más', () => {
   assert.deepEqual(monthlyGap(900, -50), { covered: false, missing: 900 });
   assert.deepEqual(monthlyGap(900, 950), { covered: true, missing: 0 });
 });
+
+test('weekOf va de lunes a domingo', async () => {
+  const { weekOf } = await import('./finance.ts');
+  assert.deepEqual(weekOf('2026-11-18'), { from: '2026-11-16', to: '2026-11-22' }); // miércoles
+  assert.deepEqual(weekOf('2026-11-16'), { from: '2026-11-16', to: '2026-11-22' }); // lunes
+  assert.deepEqual(weekOf('2026-11-22'), { from: '2026-11-16', to: '2026-11-22' }); // domingo
+});

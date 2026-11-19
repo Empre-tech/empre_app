@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useState } from 'react';
@@ -145,6 +145,7 @@ export function PostComposerSheet({ visible, onClose, entityId, businessName, ca
                       categoryName={categoryName}
                       onApply={setCaption}
                       compact
+                      entityId={entityId}
                     />
                   </View>
                   <TextInput
@@ -163,7 +164,7 @@ export function PostComposerSheet({ visible, onClose, entityId, businessName, ca
                   {error ? <Text style={styles.error}>{error}</Text> : null}
 
                   <Pressable accessibilityRole="button" onPress={publish} style={styles.publishButton}>
-                    <Ionicons name="paper-plane" size={16} color="#fff" />
+                    <Ionicons name="paper-plane" size={16} color={colors.ink} />
                     <Text style={styles.publishButtonText}>Publicar</Text>
                   </Pressable>
               </>
@@ -215,17 +216,17 @@ const styles = StyleSheet.create({
     height: 46,
     paddingHorizontal: spacing.xl,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pickButtonText: { fontSize: 14, fontFamily: fonts.ui.bold, color: '#fff' },
+  pickButtonText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
   composeBlock: { gap: spacing.md },
   previewWrap: {
     alignSelf: 'center',
     borderRadius: radius.lg,
     overflow: 'hidden',
-    backgroundColor: colors.ink,
+    backgroundColor: colors.sand,
   },
   previewMedia: { width: '100%', height: '100%' },
   changeButton: {
@@ -257,12 +258,12 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 32,
     borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderColor: colors.line,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  progressText: { fontSize: 15, fontFamily: fonts.ui.bold, color: '#fff' },
-  progressLabel: { fontSize: 13, fontFamily: fonts.ui.semibold, color: '#fff' },
+  progressText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
+  progressLabel: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   captionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   captionLabel: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   captionInput: {
@@ -275,7 +276,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.ui.medium,
     color: colors.ink,
     textAlignVertical: 'top',
-    backgroundColor: colors.bg,
+    backgroundColor: colors.well,
   },
   captionCounter: { fontSize: 11, fontFamily: fonts.ui.medium, color: colors.muted, alignSelf: 'flex-end' },
   error: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.danger, textAlign: 'center' },
@@ -286,7 +287,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     height: 50,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef,
   },
-  publishButtonText: { fontSize: 15, fontFamily: fonts.ui.bold, color: '#fff' },
+  publishButtonText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
 });

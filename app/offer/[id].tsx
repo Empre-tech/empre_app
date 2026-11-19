@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -7,12 +7,15 @@ import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Share, Sty
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { track } from '@/analytics/track';
+import { artKeyFor } from '@/components/CategoryArt';
+import { noteInterest } from '@/lib/interestStore';
 import { entitiesApi } from '@/api/endpoints';
 import { claimsApi, offersApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
 import { Avatar } from '@/components/Avatar';
 import { EmptyState } from '@/components/EmptyState';
 import { formatPesos } from '@/lib/catalog';
+import { chatItemParam } from '@/lib/chatItem';
 import { effectiveClaimStatus } from '@/lib/claims';
 import { offerIndications } from '@/lib/discover';
 import { resolveImageUrl } from '@/lib/image';
@@ -44,6 +47,21 @@ export default function OfferScreen() {
 
   const offer = (offers.data ?? []).find((o) => o.id === id);
   const biz = entity.data;
+  // Escribir desde la oferta: el chat abre con el mensaje ya escrito y la tarjeta de lo que incluye (3.68).
+  const openChat = () => {
+    if (!entityId) return;
+    const it = offer?.items?.find((x) => x.service_item_id);
+    const card = it?.service_item_id ? chatItemParam({ id: it.service_item_id, name: it.name, price: it.price ?? null, price_from: false }) : undefined;
+    router.push({
+      pathname: '/chat/[entityId]',
+      params: {
+        entityId,
+        ...(biz ? { name: biz.name, avatar: biz.profile_url ?? '' } : {}),
+        ...(offer ? { draft: `Hola, vi la oferta «${offer.title}» y quiero preguntar por ella.` } : {}),
+        ...(card ? { item: card } : {}),
+      },
+    });
+  };
   const claim = (claims.data ?? []).find((c) => c.offer_id === id && effectiveClaimStatus(c, now) !== 'EXPIRADO' && c.status !== 'CANCELADO');
 
   const counted = useRef(false);
@@ -53,6 +71,14 @@ export default function OfferScreen() {
       track('offer_viewed', entityId, { offer_id: offer.id });
     }
   }, [offer, entityId]);
+
+  // Para ti (solo en el teléfono): abrir una oferta dice un poco de lo que te gusta. Espera a saber el tipo de negocio.
+  const noted = useRef(false);
+  useEffect(() => {
+    if (noted.current || !offer || !entityId || !biz?.category?.name) return;
+    noted.current = true;
+    noteInterest('offer', artKeyFor(biz.category.name, biz.category.icon), entityId);
+  }, [offer, entityId, biz?.category?.name, biz?.category?.icon]);
 
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/offers'));
   const openBiz = () => router.push({ pathname: '/business/[id]', params: { id: entityId! } });
@@ -219,7 +245,7 @@ export default function OfferScreen() {
         <Ionicons name="share-outline" size={19} color={colors.ink} />
       </Pressable>
       <View style={[styles.bar, { paddingBottom: insets.bottom + 16 }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Escribirle a ${biz?.name ?? 'el negocio'}`} onPress={() => router.push({ pathname: '/chat/[entityId]', params: { entityId: entityId! } })} style={styles.barBtn}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Escribirle a ${biz?.name ?? 'el negocio'}`} onPress={openChat} style={styles.barBtn}>
           <Ionicons name="chatbubble-outline" size={20} color={colors.ink} />
         </Pressable>
         {phone ? (
@@ -237,7 +263,7 @@ export default function OfferScreen() {
           style={styles.cta}
         >
           <Text style={styles.ctaText}>{redeemed ? 'Ver el negocio' : live ? 'Ver mi QR' : 'Reclamar oferta'}</Text>
-          <Ionicons name="arrow-forward" size={18} color="#fff" />
+          <Ionicons name="arrow-forward" size={18} color={colors.ink} />
         </Pressable>
       </View>
     </View>
@@ -258,7 +284,7 @@ const styles = StyleSheet.create({
   bizLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   bizName: { flexShrink: 1, fontSize: 18, lineHeight: 22, fontFamily: fonts.display.bold, color: colors.ink },
   bizSub: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.muted },
-  title: { fontSize: 28, lineHeight: 31, letterSpacing: -0.28, fontFamily: fonts.display.bold, color: colors.ink },
+  title: { fontSize: 24, lineHeight: 28, letterSpacing: -0.28, fontFamily: fonts.display.bold, color: colors.ink },
   priceBlock: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   priceSide: { flex: 1, minWidth: 0, gap: 6 },
   priceRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 10 },
@@ -279,13 +305,13 @@ const styles = StyleSheet.create({
   rowFaint: { flexShrink: 1, fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.faint, textAlign: 'right' },
   rowLabel: { fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.muted },
   rowValue: { flex: 1, fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.bold, color: colors.ink, textAlign: 'right' },
-  where: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 16, backgroundColor: colors.bg },
+  where: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 16, backgroundColor: colors.well },
   whereMap: { width: 64, height: 64, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
   whereText: { flex: 1, minWidth: 0, gap: 2 },
   whereAddress: { fontSize: 14.5, lineHeight: 20, fontFamily: fonts.ui.extrabold, color: colors.ink },
   whereLink: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   bar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: 10, paddingTop: 12, paddingHorizontal: 16, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.hairline },
   barBtn: { width: 52, height: 52, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  cta: { flex: 1, minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, backgroundColor: colors.primary },
-  ctaText: { fontSize: 16.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  cta: { flex: 1, minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  ctaText: { fontSize: 16.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

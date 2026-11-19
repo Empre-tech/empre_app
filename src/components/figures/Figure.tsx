@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { memo } from 'react';
 import { View, type StyleProp, type ViewStyle } from 'react-native';
 import { SvgXml } from 'react-native-svg';
@@ -31,7 +31,7 @@ export const Figure = memo(function Figure({ name, figure, size = 48, fallbackIc
 /** Fondo claro del mosaico de esa figura (o el gris suave si no tiene). */
 export function figureBg(name?: string | null, figure?: FigureKey | null): string {
   const key = figure ?? figureFor(name);
-  return key ? FIGURE_BG[key] : '#EEF2F7';
+  return key ? FIGURE_BG[key] : '#EFF0F2';
 }
 
 /** Mosaico: la figura sobre su fondo claro, redondeado como en la vitrina. */

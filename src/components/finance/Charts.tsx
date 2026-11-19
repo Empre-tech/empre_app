@@ -1,13 +1,16 @@
 import { type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { AnimatedFill } from '@/components/finance/FinanceMotion';
 import { FRANJAS, heatLevel, WEEK_INITIALS } from '@/lib/finance';
 import { formatPesos } from '@/lib/ledger';
 import { colors, fonts, radius, spacing } from '@/theme';
 
-export const SALES_COLOR = colors.brand;
-export const EXPENSE_COLOR = '#8796AB';
-const HEAT = [colors.selectedSoft, '#B6C1D1', '#5B6B82', colors.selected];
-const TONE = { good: colors.verified, bad: colors.warning, warn: colors.accentInk, flat: colors.muted } as const;
+// Plata (Finance) lleva su índigo en cifras y gráficos; el verde queda para «ahora».
+export const SALES_COLOR = colors.finance;
+export const EXPENSE_COLOR = '#8E929A';
+// Cuándo vendes más: de gris (nada) a verde (lo que más entra).
+const HEAT = [colors.selectedSoft, '#C6E0C9', colors.financeLight, colors.finance];
+const TONE = { good: colors.finance, bad: colors.ink, warn: colors.ink, flat: colors.muted } as const;
 
 /** «▲ 12 %» con su color. */
 export function Delta({ d, worseIsWarn = false }: { d: { text: string; tone: 'good' | 'bad' | 'flat' } | null; worseIsWarn?: boolean }) {
@@ -22,9 +25,13 @@ export function Sparkline({ values, height = 56 }: { values: number[]; height?: 
   return (
     <View style={[styles.spark, { height }]} accessibilityRole="image" accessibilityLabel="Ventas de cada día del periodo">
       {values.map((v, i) => (
-        <View
+        <AnimatedFill
           key={i}
-          style={{ flex: 1, height: `${Math.max(3, (v / max) * 100)}%`, borderTopLeftRadius: 3, borderTopRightRadius: 3, backgroundColor: i === values.length - 1 ? SALES_COLOR : colors.line }}
+          axis="height"
+          pct={Math.max(3, (v / max) * 100)}
+          color={i === values.length - 1 ? SALES_COLOR : colors.line}
+          delay={i * 22}
+          style={{ flex: 1, borderTopLeftRadius: 3, borderTopRightRadius: 3 }}
         />
       ))}
     </View>
@@ -73,7 +80,7 @@ export function HBars({ rows, color = EXPENSE_COLOR }: { rows: { label: string; 
   const max = Math.max(1, ...rows.map((r) => r.value));
   return (
     <View style={{ gap: spacing.sm }}>
-      {rows.map((r) => (
+      {rows.map((r, i) => (
         <View key={r.label} style={{ gap: 4 }}>
           <View style={styles.legendRow}>
             <Text style={[styles.rowLabel, { flex: 1 }]} numberOfLines={1}>
@@ -83,7 +90,7 @@ export function HBars({ rows, color = EXPENSE_COLOR }: { rows: { label: string; 
             {r.extra}
           </View>
           <View style={styles.track}>
-            <View style={[styles.fill, { width: `${(r.value / max) * 100}%`, backgroundColor: color }]} />
+            <AnimatedFill pct={(r.value / max) * 100} color={color} delay={i * 35} style={styles.fill} />
           </View>
         </View>
       ))}

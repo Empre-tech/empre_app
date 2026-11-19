@@ -1,6 +1,6 @@
 import { BusinessCardModal } from '@/components/explore/BusinessCardModal';
 import type { WithDistance } from '@/components/explore/FeaturedCard';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -131,7 +131,7 @@ function FavoriteRow({ entity, onPress }: { entity: EntityMap; onPress: () => vo
         disabled={removing}
         hitSlop={8}
       >
-        <Ionicons name="heart" size={22} color={removing ? colors.line : colors.accent} />
+        <Ionicons name="heart" size={22} color={removing ? colors.line : colors.ink} />
       </Pressable>
     </Pressable>
   );

@@ -297,12 +297,26 @@ export const chatApi = {
    * el backend tenga que consultarlo en cada sondeo.
    */
   /** Guarda que Empre AI respondió `intent` (3.62, F2); el dueño lo ve en su hilo. Solo el cliente de la conversación. */
-  aiAnswer: (entityId: string, intent: string, serviceId?: string, answerId?: string) =>
-    request<ChatMessage>(`/api/chat/ai-answer/${entityId}`, { method: 'POST', body: { intent, ...(serviceId ? { service_id: serviceId } : {}), ...(answerId ? { answer_id: answerId } : {}) } }),
+  aiAnswer: (entityId: string, intent: string, serviceId?: string, answerId?: string, replyTo?: string) =>
+    request<ChatMessage>(`/api/chat/ai-answer/${entityId}`, {
+      method: 'POST',
+      body: { intent, ...(serviceId ? { service_id: serviceId } : {}), ...(answerId ? { answer_id: answerId } : {}), ...(replyTo ? { reply_to: replyTo } : {}) },
+    }),
 
   /** Empre AI no supo responder esta pregunta del cliente: el dueño la ve para enseñarle (3.62, F3). */
   /** F4: el servidor clasifica una pregunta que las reglas no entendieron (solo la intención, nunca una respuesta). */
   classify: (entityId: string, text: string) => request<{ intent: string; answer_id?: string }>(`/api/chat/classify/${entityId}`, { method: 'POST', body: { text } }),
+
+  /**
+   * Nivel 3 (2026-11-14): Empre AI lee la ficha publicada del negocio. Si está, el servidor guarda la respuesta atada a
+   * la pregunta y se la muestra al dueño; si no, `known: false` y Empre AI no aparece.
+   */
+  aiFicha: (entityId: string, text: string, replyTo?: string) =>
+    request<{ known: boolean; message?: ChatMessage }>(`/api/chat/ai-ficha/${entityId}`, { method: 'POST', body: { text, ...(replyTo ? { reply_to: replyTo } : {}) } }),
+
+  /** Lo mismo para «Pregúntales a los N»: una sola lectura de varias fichas; no guarda nada. */
+  fichaMany: (entityIds: string[], text: string) =>
+    request<{ answers?: { entity_id: string; known: boolean; text?: string; source?: string }[] }>(`/api/chat/ficha`, { method: 'POST', body: { entity_ids: entityIds, text } }),
 
   aiUnknown: (entityId: string, messageId: string) => request<void>(`/api/chat/ai-unknown/${entityId}`, { method: 'POST', body: { message_id: messageId } }),
 

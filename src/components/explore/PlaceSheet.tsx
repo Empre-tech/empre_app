@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { Image } from 'expo-image';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { categoryColor } from '@/lib/categoryColor';
@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
     minHeight: 56,
     padding: spacing.sm,
     borderRadius: radius.md,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.well,
     borderWidth: 1,
     borderColor: colors.line,
   },

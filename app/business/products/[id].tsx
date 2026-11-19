@@ -1,238 +1,314 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Ionicons } from '@/components/Icon';
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { catalogApi } from '@/api/catalog';
 import { entitiesApi } from '@/api/endpoints';
-import { ledgerApi, type InventoryItem, type SetupChoice } from '@/api/ledger';
-import { useAudienceEnabled, useEntitySections } from '@/api/sections';
+import { ledgerApi, type InventoryItem, type InventorySort, type InventoryState, type InventoryTab, type InventoryTabCounts, type SetupChoice } from '@/api/ledger';
+import { useEntitySections } from '@/api/sections';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { QuickStockSheet } from '@/components/inventory/QuickStockSheet';
-import { SectionDeck } from '@/components/inventory/SectionDeck';
 import { NewSupplySheet } from '@/components/inventory/NewSupplySheet';
+import { EmpreButton, EMPRE_BUTTON_INLINE, type EmpreHere } from '@/components/EmpreButton';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import { Chip } from '@/components/ledger/parts';
 import { VoiceSheet } from '@/components/ledger/VoiceSheet';
+import { GoProSheet } from '@/components/pro/GoProSheet';
+import { LOCKED_OPACITY, ProTag } from '@/components/pro/ProTag';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { FEATURES } from '@/config';
-import { audienceChips, catalogCopy, freshnessNote, listTitle, matchesAudience, priceText, withoutPhoto, type Audience, type ItemKind, type ServiceItem } from '@/lib/catalog';
-import {
-  COLLAPSE_OVER,
-  groupInventory,
-  stockState,
-  withStock,
-  bestSellers,
-  canRankBySales,
-  fmtQty,
-  type StockState,
-  missingIngredients,
-  nestVariants,
-  normalize,
-  PAGE_SIZE,
-  recommendationText,
-  sectionize,
-  splitTabs,
-  stockPill,
-  variantPill,
-  type PillTone,
-} from '@/lib/inventory';
+import { catalogCopy, priceNote, priceText, type ItemKind, type ServiceItem } from '@/lib/catalog';
+import { fmtQty, missingIngredients, recommendationText, stockPill, unitFor, variantPill, type PillTone } from '@/lib/inventory';
 import { addDays, todayCO } from '@/lib/finance';
+import { FEW_BUSINESSES } from '@/lib/fewBusinesses';
 import { formatPesos } from '@/lib/ledger';
 import { getPhoneFlag, setPhoneFlag } from '@/lib/phoneFlags';
+import { countDraftKey, countedAgo, readDraft, staleSection, type CountDraft } from '@/lib/inventoryCount';
 import { stockNews } from '@/lib/stockNews';
-import { alertsLine, inventoryAlerts } from '@/lib/alerts';
-import { blocksByGroup, filterByStatus, groupSummary, searchSupplies, type SupplyFilter } from '@/lib/supplies';
+import { countsLine } from '@/lib/alerts';
 import { safeIcon, type IconName } from '@/lib/icons';
-import { deckAlert, deckCountText, wantsSectionDeck } from '@/lib/sectionDeck';
 import { mediaUrl } from '@/lib/image';
 import { useNow } from '@/lib/useNow';
+import { useEntityPlan } from '@/lib/useProPlan';
 import { colors, fonts, radius, spacing } from '@/theme';
 
-type Filter = 'all' | 'urgent' | 'service' | 'product' | 'nophoto' | StockState;
-const STOCK_TITLE: Record<StockState, string> = { ok: 'Hay', low: 'Queda poco', out: 'Agotado' };
+type Row = InventoryItem & { children: InventoryItem[] };
+// La lista con el índice (tablero «Inventario», v102): cada sección es un título plegable; la abierta trae, antes de sus
+// filas, la línea de contar y, al final, «Ver más» si quedan. Las filas de mentira se marcan con `pseudo`.
+type Pseudo = { pseudo: 'count' | 'loading' | 'more' };
+type ListItem = Row | Pseudo;
+type ListSection = { title: string; count: number; alert: boolean; open: boolean; data: ListItem[] };
+const isPseudo = (i: ListItem): i is Pseudo => 'pseudo' in i;
+
+const TABS: { key: InventoryTab; label: string; one: string; many: string; counts: 'products' | 'services' | 'supplies' }[] = [
+  { key: 'product', label: 'Productos', one: 'producto', many: 'productos', counts: 'products' },
+  { key: 'service', label: 'Servicios', one: 'servicio', many: 'servicios', counts: 'services' },
+  { key: 'supply', label: 'Insumos', one: 'insumo', many: 'insumos', counts: 'supplies' },
+];
+const SORTS: { key: InventorySort; label: string }[] = [
+  { key: 'az', label: 'A–Z' },
+  { key: 'stock', label: 'Menos existencias' },
+  { key: 'sales', label: 'Más vendidos' },
+];
+const STATE_LABEL: Record<InventoryState, string> = { low: 'Se acaban', out: 'Agotados', nophoto: 'Sin foto' };
+const PAGE = 50;
+// Con más de 8 secciones el índice se alarga: el filtro también las lista; con más de 20, con su buscador.
+const SECTIONS_IN_FILTER = 8;
+const SECTION_SEARCH = 20;
+const pageKey = (entityId: string, tab: InventoryTab, q: string, section?: string, state?: InventoryState, sort?: InventorySort) =>
+  ['ledger', entityId, 'inventory', 'page', tab, q, section ?? '', state ?? '', sort ?? ''] as const;
+const unitShort = (u?: string) => (!u || u === 'unidad' ? 'und' : u);
 
 /**
- * Lo que vendes y tus insumos. Lo que vendes arranca por tus secciones (una fila por sección con cuántos tiene y si algo
- * se acaba); al tocar una entras solo a sus productos, con las otras secciones como fichas para saltar y, en ropa,
- * «Para: Hombre · Mujer · Niños». El buscador busca en todo. Cada fila dice en una pastilla cómo está (hay, queda poco,
- * 12 und…); tocar la pastilla la ajusta en un toque y tocar la fila abre la ficha, donde vive todo lo demás.
+ * Inventario (tablero «Inventario», 2026-11-16): productos, servicios e insumos como un catálogo, cada uno en su
+ * pestaña con su número. Una barra: buscar y un solo filtro (cómo están, sección y orden), que se resuelven en el
+ * servidor por páginas de 50; la lista dibuja solo lo que se ve y las variantes van plegadas dentro de su producto.
+ * Con pocos (menos de 8) no hay barra: todo se ve de una vez. Empre AI va en su propia entrada (es de pago, nunca dentro
+ * del buscador ni del filtro). Abajo, crear lo de la pestaña: producto, servicio o insumo.
  */
-export default function ProductsScreen() {
+export default function InventoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const entityId = id ?? '';
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const now = useNow(60_000);
+  const ledgerOn = Boolean(entityId) && FEATURES.ledger;
 
   const business = useQuery({ queryKey: ['entity', entityId], queryFn: () => entitiesApi.get(entityId), enabled: Boolean(entityId) });
   const copy = catalogCopy(business.data?.category?.name, business.data?.business_profile);
-  const catalog = useQuery({ queryKey: ['catalog', entityId], queryFn: () => catalogApi.list(entityId), enabled: Boolean(entityId) });
-  const invKey = ['ledger', entityId, 'inventory'];
-  const inv = useQuery({ queryKey: invKey, queryFn: () => ledgerApi.inventory(entityId), enabled: Boolean(entityId) && FEATURES.ledger, staleTime: 0 });
-  const { refetch: refetchInv } = inv;
-  const { refetch: refetchCatalog } = catalog;
-  useFocusEffect(
-    useCallback(() => {
-      void refetchCatalog();
-      if (FEATURES.ledger) void refetchInv();
-    }, [refetchCatalog, refetchInv]),
-  );
+  // Sin el módulo de administración la pantalla es solo el catálogo (nombre y precio); con él, no se baja entero.
+  const catalog = useQuery({ queryKey: ['catalog', entityId], queryFn: () => catalogApi.list(entityId), enabled: Boolean(entityId) && !FEATURES.ledger });
+  // Lo de arriba (avisos, empezar a llevar inventario, revisar qué es cada cosa, la nota de precios) llega ya contado:
+  // la pantalla no baja todas las filas ni el catálogo entero, solo la página que se ve.
+  const summary = useQuery({ queryKey: ['ledger', entityId, 'inventory', 'summary'], queryFn: () => ledgerApi.inventorySummary(entityId), enabled: ledgerOn });
+  const counts = useQuery({ queryKey: ['ledger', entityId, 'inventory', 'counts'], queryFn: () => ledgerApi.inventoryCounts(entityId), enabled: ledgerOn });
 
-  const [tab, setTab] = useState<'sell' | 'supplies'>('sell');
-  const [filter, setFilter] = useState<Filter>('all');
+  const [pickedTab, setPickedTab] = useState<InventoryTab | null>(null);
+  // Sin elegir, arranca donde está lo del negocio: una peluquería en Servicios, una tienda en Productos.
+  const tab: InventoryTab = pickedTab ?? (copy.kind === 'service' ? 'service' : 'product');
   const [search, setSearch] = useState('');
-  const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
-  const [shown, setShown] = useState<Record<string, number>>({});
+  const [q, setQ] = useState('');
+  const [state, setState] = useState<InventoryState | undefined>();
+  // La sección abierta, una a la vez. Sin tocar: la primera; null: todas plegadas.
+  const [openPick, setOpenPick] = useState<string | null | undefined>(undefined);
+  const [sort, setSort] = useState<InventorySort | undefined>();
+  // La sección elegida en el filtro (solo cuando son muchas): la lista sale corrida, solo con esa.
+  const [filterSection, setFilterSection] = useState<string | undefined>();
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [sheet, setSheet] = useState<InventoryItem | null>(null);
   const [newSupply, setNewSupply] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
-  // Insumos: null = automático («Atención» si algo se acaba; si no, todos).
-  const [supFilter, setSupFilter] = useState<SupplyFilter | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // La sección abierta en «Lo que vendes» (null = la lista de secciones) y el filtro «Para».
-  const [openSection, setOpenSection] = useState<string | null>(null);
-  const [aud, setAud] = useState<Audience | null>(null);
-  const [bySales, setBySales] = useState(false);
-  // Con muchas secciones, cada una es un mazo y solo una va abierta. Al abrir, la lista la lleva arriba.
-  const [deckOpen, setDeckOpen] = useState<string | null>(null);
-  const scrollRef = useRef<ScrollView>(null);
-  const pickDeck = (key: string) => setDeckOpen((o) => (o === key ? null : key));
-  const revealDeck = (node: View) => {
-    const list = scrollRef.current;
-    if (!list) return;
-    node.measureLayout(
-      list.getInnerViewNode(),
-      (_x, y) => list.scrollTo({ y: Math.max(0, y - 8), animated: true }),
-      () => undefined,
-    );
-  };
+  // Los nombres (para que Empre AI entienda lo que dictas y para no repetir un insumo) solo al abrir esas hojas.
+  const names = useQuery({ queryKey: ['ledger', entityId, 'inventory', 'names'], queryFn: () => ledgerApi.inventoryNames(entityId), enabled: ledgerOn && (voiceOpen || newSupply), staleTime: 60_000 });
 
-  const items = useMemo(() => catalog.data ?? [], [catalog.data]);
-  const tabs = useMemo(() => splitTabs(inv.data?.items ?? []), [inv.data]);
-  const unchecked = items.filter((i) => i.kind_checked === false);
+  // Buscar espera a que dejes de escribir (y se resuelve en el servidor).
+  useEffect(() => {
+    const t = setTimeout(() => setQ(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
 
-  const refresh = () => {
-    void qc.invalidateQueries({ queryKey: ['catalog', entityId] });
-    void qc.invalidateQueries({ queryKey: ['ledger', entityId] });
+  const meta = TABS.find((t) => t.key === tab) ?? TABS[0];
+  const tc: InventoryTabCounts | undefined = counts.data?.[meta.counts];
+  const tabTotal = tc?.total;
+  // Pocos: sin barra ni filtro, todo de una vez y cada uno una vez (como Inicio con pocos negocios).
+  const few = tc ? tc.total < FEW_BUSINESSES && !q && !state : false;
+  // Con tu orden y sin buscar ni filtrar, la lista es el índice: las secciones se pliegan y solo se pide la abierta.
+  // Buscando, filtrando u ordenando, la lista sale corrida, de todas las secciones.
+  const grouped = Boolean(tc && tc.sections.length > 0) && !few && !sort && !q && !state && !filterSection;
+  const openSection = openPick === undefined ? tc?.sections[0]?.name : (openPick ?? undefined);
+  const section = grouped ? openSection : filterSection;
+  const pages = useInfiniteQuery({
+    queryKey: pageKey(entityId, tab, q, section, state, sort),
+    queryFn: ({ pageParam }) => ledgerApi.inventoryPage(entityId, { tab, q, section, state, sort, cursor: pageParam, limit: PAGE }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.next_cursor || undefined,
+    // Espera los conteos (dicen si hay algo y qué secciones hay). Una pestaña en 0 no pide nada (su vacío se ve al
+    // instante) y, con todas las secciones plegadas, tampoco.
+    enabled: ledgerOn && Boolean(counts.data) && (tabTotal ?? 0) > 0 && (!grouped || Boolean(openSection)),
+    // Mientras llega otra búsqueda u otro filtro de la misma pestaña y la misma sección se queda lo de antes; al cambiar
+    // de pestaña o de sección no, para no mostrar filas bajo otro título.
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[4] === tab && prevQuery?.queryKey[6] === (section ?? '') ? keepPreviousData(prev) : undefined),
+  });
+
+  // Las otras pestañas se piden de una vez, en paralelo, para que cambiar de pestaña no espere.
+  useEffect(() => {
+    if (!ledgerOn || !counts.data) return;
+    for (const t of TABS) {
+      const c = counts.data[t.counts];
+      if (c.total === 0) continue;
+      // Lo que se ve al entrar a esa pestaña: su primera sección abierta (o todo, si son pocos).
+      const sec = c.total >= FEW_BUSINESSES ? c.sections[0]?.name : undefined;
+      void qc.prefetchInfiniteQuery({
+        queryKey: pageKey(entityId, t.key, '', sec),
+        queryFn: ({ pageParam }) => ledgerApi.inventoryPage(entityId, { tab: t.key, section: sec, cursor: pageParam, limit: PAGE }),
+        initialPageParam: undefined as string | undefined,
+        staleTime: 30_000,
+      });
+    }
+  }, [ledgerOn, counts.data, qc, entityId]);
+
+  // Al entrar o al cambiar algo, se pide otra vez solo lo de esta pantalla. Lo demás del negocio (Finance, Mi negocio,
+  // el catálogo) solo se marca viejo: se pide cuando vuelvas a esa pantalla, no ahora y no todo de una vez.
+  const refresh = useCallback(() => {
+    void qc.invalidateQueries({ queryKey: ['ledger', entityId, 'inventory'] });
+    void qc.invalidateQueries({ queryKey: ['ledger', entityId, 'sales', 'stock-news'] });
     void qc.invalidateQueries({ queryKey: ['sections', entityId] });
-  };
+    void qc.invalidateQueries({ queryKey: ['ledger', entityId], refetchType: 'none' });
+    // Sin el módulo de administración, el catálogo es lo de esta pantalla: ese sí se pide.
+    void qc.invalidateQueries({ queryKey: ['catalog', entityId], refetchType: FEATURES.ledger ? 'none' : 'active' });
+  }, [qc, entityId]);
+  // Al abrir, las consultas ya se piden solas; volver a pedir al enfocar solo cuando regresas a la pantalla (si no, cada
+  // cosa se pedía dos veces).
+  const focusedOnce = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!focusedOnce.current) {
+        focusedOnce.current = true;
+        return;
+      }
+      refresh();
+    }, [refresh]),
+  );
+  // El conteo a medias que guardó el teléfono (se lee cada vez que vuelves, por si lo dejaste o lo guardaste).
+  const [countDraft, setCountDraft] = useState<CountDraft | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      void getPhoneFlag(countDraftKey(entityId)).then((raw) => setCountDraft(readDraft(raw)));
+    }, [entityId]),
+  );
+  const openCount = (sec: string, t: InventoryTab = tab) => router.push({ pathname: '/business/products/count', params: { entityId, tab: t, section: sec } });
+  // El botón Empre: lo usado de Empre AI se pide solo al abrir su menú (es de pago; el número sale de datos reales).
+  // Base y Empre Pro: contar por sección es de Pro; en Base se ve en gris con la corona y abre «Pásate a Empre Pro».
+  const plan = useEntityPlan(entityId, ledgerOn);
+  const [goPro, setGoPro] = useState(false);
+  const startCount = (sec: string, t: InventoryTab = tab) => (plan.base ? setGoPro(true) : openCount(sec, t));
+
   const setup = useMutation({
     mutationFn: (choice: SetupChoice) => ledgerApi.setupInventory(entityId, choice),
-    onSuccess: (data) => {
-      qc.setQueryData(invKey, data);
-      refresh();
-    },
+    onSuccess: () => refresh(),
     onError: () => setError('No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.'),
   });
 
-  const q = normalize(search);
-  // Las variantes van dentro de su producto; el producto toma su estado.
-  const nested = useMemo(() => nestVariants(tabs.sell), [tabs.sell]);
-  const sellBase = useMemo(() => {
-    let list = nested;
-    if (filter === 'service') list = list.filter((i) => i.is_service);
-    if (filter === 'product') list = list.filter((i) => !i.is_service);
-    return q ? list.filter((i) => normalize(i.name).includes(q) || i.children.some((c) => normalize(c.name).includes(q))) : list;
-  }, [nested, filter, q]);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const groups = useMemo(() => groupInventory(sellBase), [sellBase]);
-  const urgentRefs = useMemo(() => new Set(groups.urgent.map((i) => i.ref)), [groups]);
-  // Con búsqueda, lo urgente va aparte arriba; sin búsqueda, cada cosa en su sección (el aviso lleva a lo urgente).
-  const sellSections = useEntitySections(entityId, 'sell');
-  const sectionOrder = useMemo(() => (sellSections.data ?? []).map((s) => s.name), [sellSections.data]);
-  const blocks = useMemo(
-    () => (filter === 'urgent' ? [] : sectionize(q ? sellBase.filter((i) => !urgentRefs.has(i.ref)) : sellBase, sectionOrder)),
-    [filter, sellBase, urgentRefs, q, sectionOrder],
-  );
-  const attention = useMemo(() => filterByStatus(tabs.supplies, 'attention').length, [tabs.supplies]);
-  const supFilterNow: SupplyFilter = supFilter ?? (attention > 0 && tabs.supplies.length > COLLAPSE_OVER ? 'attention' : 'all');
-  const supplyList = useMemo(() => filterByStatus(q ? searchSupplies(tabs.supplies, search) : tabs.supplies, q ? 'all' : supFilterNow), [tabs.supplies, q, search, supFilterNow]);
-  const supplyBlocks = useMemo(() => blocksByGroup(supplyList), [supplyList]);
-  const outCount = useMemo(() => filterByStatus(tabs.supplies, 'out').length, [tabs.supplies]);
-  const urgentCount = useMemo(() => groupInventory(nested).urgent.length, [nested]);
-  const alerts = useMemo(() => inventoryAlerts(inv.data?.items ?? []), [inv.data]);
-
-  const semCounts = useMemo(() => {
-    const source = tab === 'sell' ? nested.filter((i) => !i.is_service && (i.mode === 'light' || i.mode === 'exact')) : tabs.supplies.filter((i) => i.mode === 'light' || i.mode === 'exact');
-    let ok = 0;
-    let low = 0;
-    let out = 0;
-    for (const i of source) {
-      const s = stockState(i);
-      if (s === 'out') out += 1;
-      else if (s === 'low') low += 1;
-      else if (s === 'ok') ok += 1;
+  // Las filas de las páginas, cada producto con sus variantes plegadas.
+  const rows: Row[] = useMemo(() => {
+    const all = pages.data?.pages ?? [];
+    const kids = new Map<string, InventoryItem[]>();
+    for (const p of all) for (const v of p.variants) if (v.parent_id) kids.set(v.parent_id, [...(kids.get(v.parent_id) ?? []), v]);
+    return all.flatMap((p) => p.items).map((it) => ({ ...it, children: kids.get(it.ref) ?? [] }));
+  }, [pages.data]);
+  const total = pages.data?.pages[0]?.total ?? 0;
+  // La lista: con el índice, cada sección con su número y su punto; solo la abierta trae filas. Si no, una sola corrida.
+  const sections: ListSection[] = useMemo(() => {
+    if (grouped && tc) {
+      return tc.sections.map((sc) => {
+        const open = sc.name === openSection;
+        const data: ListItem[] = [];
+        if (open) {
+          if (tab !== 'service') data.push({ pseudo: 'count' });
+          if (rows.length) data.push(...rows);
+          else if (pages.isFetching) data.push({ pseudo: 'loading' });
+          if (pages.hasNextPage) data.push({ pseudo: 'more' });
+        }
+        return { title: sc.name, count: sc.count, alert: (sc.low ?? 0) + (sc.out ?? 0) > 0, open, data };
+      });
     }
-    return { ok, low, out, total: ok + low + out };
-  }, [tab, nested, tabs.supplies]);
-
-  // Hay, Poco y Agotado: cada uno muestra solo lo suyo, en toda la lista. Tocarlo otra vez lo quita.
-  const stockOn: StockState | null = filter === 'ok' || filter === 'low' || filter === 'out' ? filter : null;
-  const stockRows = useMemo(() => (stockOn ? withStock(sellBase, stockOn) : []), [sellBase, stockOn]);
-  const pickStock = (s: StockState) => {
-    if (tab === 'sell') setFilter(filter === s ? 'all' : s);
-    else setSupFilter(supFilterNow === s ? 'all' : s);
+    return rows.length ? [{ title: '', count: 0, alert: false, open: true, data: rows }] : [];
+  }, [grouped, tc, openSection, tab, rows, pages.isFetching, pages.hasNextPage]);
+  const listRef = useRef<SectionList<ListItem, ListSection>>(null);
+  // Tocar una sección la abre y cierra la que estaba abierta (y la deja arriba); tocar la abierta la pliega.
+  const toggleSection = (name: string) => {
+    const opening = name !== openSection;
+    setOpenPick(opening ? name : null);
+    const idx = tc?.sections.findIndex((x) => x.name === name) ?? -1;
+    if (opening && idx >= 0) {
+      requestAnimationFrame(() => {
+        try {
+          listRef.current?.scrollToLocation({ sectionIndex: idx, itemIndex: 0, viewOffset: 0, animated: true });
+        } catch {
+          // Si aún no se midió, se queda donde está.
+        }
+      });
+    }
   };
-  const stockIs = (s: StockState) => (tab === 'sell' ? filter === s : supFilterNow === s);
+  // Sin títulos de sección (pocos, buscando u ordenando) la sección va en cada fila, salvo que todas compartan la misma:
+  // lo que comparten todas no se repite debajo de cada una.
+  const mixedSections = useMemo(() => new Set(rows.map((r) => r.section || '')).size > 1, [rows]);
+  // «Sin asignar» (un insumo que ningún producto usa) solo dice algo si otros sí están asignados.
+  const someAssigned = useMemo(() => rows.some((r) => (r.used_in ?? []).length > 0), [rows]);
 
-  // Navegar por secciones (sin búsqueda ni los filtros de existencias).
-  const audOn = useAudienceEnabled(entityId);
-  const audienceOf = useMemo(() => new Map(items.map((i) => [i.id, i.audience ?? []])), [items]);
-  const sectionBlocks = useMemo(() => sectionize(sellBase, sectionOrder), [sellBase, sectionOrder]);
-  const browsing = q === '' && filter !== 'urgent' && filter !== 'nophoto' && !stockOn;
-  // Fotos e íconos: la portada de cada producto y el ícono de cada sección (lo que se ve sin foto).
-  const coverOf = useMemo(() => new Map(items.map((i) => [i.id, i.photos?.[0]])), [items]);
+  // Lo del conteo: la sección elegida, si el conteo a medias es de ella y la que más tiempo lleva sin contarse.
+  const sectionRow = openSection ? tc?.sections.find((x) => x.name === openSection) : undefined;
+  const draftLeft = countDraft && Object.keys(countDraft.entries).length > 0 ? { done: countDraft.rows.filter((r) => countDraft.entries[r.ref]).length, total: countDraft.rows.length } : null;
+  const draftHere = Boolean(draftLeft && countDraft && countDraft.section === openSection && countDraft.tab === tab);
+  const stale = tc ? staleSection(tc.sections, now) : null;
+
+  // Lo de Inventario en el botón Empre (tablero v103, teléfono 15): contar la sección que más tiempo lleva sin contarse
+  // (o la abierta). Lo que llegó o se acabó se dice en «Habla con Empre AI» (una sola entrada, tablero «Base y Empre
+  // Pro»), que aquí abre en modo inventario. En Servicios no hay existencias: el menú de siempre.
+  const countTarget = stale?.name ?? openSection ?? tc?.sections[0]?.name;
+  const countTargetRow = countTarget ? tc?.sections.find((x) => x.name === countTarget) : undefined;
+  const here: EmpreHere | undefined =
+    tab === 'service' || !tc || tc.total === 0
+      ? undefined
+      : {
+          label: 'En Inventario',
+          items: [
+            ...(countTarget
+              ? [
+                  {
+                    key: 'count',
+                    title: 'Contar una sección',
+                    sub: stale ? `${stale.name} no se cuenta hace ${stale.days} días` : `${countTarget} · ${countedAgo(countTargetRow?.counted_at, now) ?? 'nunca contada'}`,
+                    icon: 'list-outline' as const,
+                    tone: 'plain' as const,
+                    locked: plan.base,
+                    onPress: () => openCount(countTarget),
+                  },
+                ]
+              : []),
+          ],
+          onTalk: () => setVoiceOpen(true),
+        };
+  // La barra de abajo mide lo que el botón «Nuevo …» (el botón Empre queda centrado en ella).
+  const createBarHeight = 52;
+
+  const sellSections = useEntitySections(entityId, 'sell');
   const sellIcons = useMemo(() => new Map((sellSections.data ?? []).map((s) => [s.name, s.icon])), [sellSections.data]);
   const supplySections = useEntitySections(entityId, 'supply');
   const supplyIcons = useMemo(() => new Map((supplySections.data ?? []).map((s) => [s.name, s.icon])), [supplySections.data]);
-  const noPhoto = useMemo(() => new Set(withoutPhoto(items).map((i) => i.id)), [items]);
-  const noPhotoRows = useMemo(() => nested.filter((i) => noPhoto.has(i.item_id ?? i.ref)), [nested, noPhoto]);
-  const current = openSection && sectionBlocks.some((b) => b.title === openSection) ? openSection : null;
-  const currentItems = useMemo(() => (current ? sectionBlocks.find((b) => b.title === current)?.items ?? [] : []), [current, sectionBlocks]);
-  const audChips = useMemo(
-    () => (audOn && current ? audienceChips(currentItems.map((i) => ({ audience: audienceOf.get(i.item_id ?? i.ref) }))) : []),
-    [audOn, current, currentItems, audienceOf],
-  );
-  // «Más vendidos primero» aparece cuando ya hay ventas que comparar; sin ellas, el orden no diría nada.
-  const canSort = useMemo(() => canRankBySales(nested), [nested]);
-  const salesOn = bySales && canSort && browsing;
-  const salesRows = useMemo(() => (salesOn && !current ? bestSellers(sellBase) : []), [salesOn, current, sellBase]);
-  const shownItems = useMemo(() => {
-    const list = currentItems.filter((i) => matchesAudience(audienceOf.get(i.item_id ?? i.ref), aud));
-    return salesOn ? bestSellers(list) : list;
-  }, [currentItems, audienceOf, aud, salesOn]);
-  const openOne = (title: string | null) => {
-    setOpenSection(title);
-    setAud(null);
-  };
-  // El botón atrás del teléfono vuelve de una sección a la lista de secciones.
-  useEffect(() => {
-    if (!browsing || !current || tab !== 'sell') return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      setOpenSection(null);
-      return true;
-    });
-    return () => sub.remove();
-  }, [browsing, current, tab]);
+
+  const items = useMemo(() => catalog.data ?? [], [catalog.data]);
+  const sum = summary.data;
+  const alerts = sum?.alerts ?? { out: 0, soon: 0, risk: 0, total: 0 };
 
   // Aviso cuando una venta en Empre Finance cambia tus existencias; se cierra hasta la siguiente venta.
   const today = todayCO();
   const salesToday = useQuery({
     queryKey: ['ledger', entityId, 'sales', 'stock-news', today],
     queryFn: () => ledgerApi.sales(entityId, { from: `${today}T00:00:00-05:00`, to: `${addDays(today, 1)}T00:00:00-05:00`, limit: 100 }),
-    enabled: Boolean(entityId) && FEATURES.ledger,
+    enabled: ledgerOn,
     staleTime: 30_000,
   });
   const [seenSale, setSeenSale] = useState<string | null>(null);
   useEffect(() => {
     void getPhoneFlag(`stock-news-${entityId}`).then(setSeenSale);
   }, [entityId]);
-  const tracked = useMemo(() => (inv.data?.items ?? []).filter((i) => !i.is_service && (i.mode === 'light' || i.mode === 'exact')).map((i) => ({ ids: [i.ref, i.item_id].filter((x): x is string => Boolean(x)), name: i.name, qty: i.qty })), [inv.data]);
+  // Solo las filas de lo vendido hoy (no todo el inventario): con ellas se arma el aviso.
+  const soldIds = useMemo(() => [...new Set((salesToday.data ?? []).flatMap((s) => (s.lines ?? []).map((l) => l.item_id).filter((x): x is string => Boolean(x))))].sort(), [salesToday.data]);
+  const soldRows = useQuery({
+    queryKey: ['ledger', entityId, 'inventory', 'items', soldIds.join(',')],
+    queryFn: () => ledgerApi.inventoryItems(entityId, soldIds),
+    enabled: ledgerOn && soldIds.length > 0,
+    staleTime: 30_000,
+  });
+  const tracked = useMemo(() => (soldRows.data ?? []).filter((i) => !i.is_service && (i.mode === 'light' || i.mode === 'exact')).map((i) => ({ ids: [i.ref, i.item_id].filter((x): x is string => Boolean(x)), name: i.name, qty: i.qty })), [soldRows.data]);
   const news = useMemo(() => stockNews(salesToday.data ?? [], tracked, seenSale), [salesToday.data, tracked, seenSale]);
   const dismissNews = () => {
     if (!news) return;
@@ -240,491 +316,354 @@ export default function ProductsScreen() {
     void setPhoneFlag(`stock-news-${entityId}`, news.id);
   };
 
-  const defaultOpen = sellBase.length <= COLLAPSE_OVER || q !== '';
-  const isOpen = (key: string) => openMap[key] ?? defaultOpen;
-  const toggle = (key: string) => setOpenMap((m) => ({ ...m, [key]: !(m[key] ?? defaultOpen) }));
-  const more = (key: string) => setShown((m) => ({ ...m, [key]: (m[key] ?? PAGE_SIZE) + PAGE_SIZE }));
-
-  const openDetail = (itemId?: string) => {
-    if (itemId) return router.push({ pathname: '/business/products/item', params: { entityId, itemId } });
-    // Agregar desde una sección: el producto nuevo ya nace en ella.
-    const sec = current ? (sellSections.data ?? []).find((s) => s.name === current) : undefined;
-    router.push({ pathname: '/business/products/item', params: sec ? { entityId, sectionId: sec.id, sectionName: sec.name } : { entityId } });
+  const openDetail = (itemId: string) => router.push({ pathname: '/business/products/item', params: { entityId, itemId } });
+  // Crear lo de la pestaña; con una sección elegida en el filtro, nace en ella.
+  const create = () => {
+    if (tab === 'supply') return setNewSupply(true);
+    const sec = section ? (sellSections.data ?? []).find((s) => s.name === section) : undefined;
+    router.push({ pathname: '/business/products/item', params: { entityId, kind: tab, ...(sec ? { sectionId: sec.id, sectionName: sec.name } : {}) } });
   };
+  const pickTab = (t: InventoryTab) => {
+    setPickedTab(t);
+    setState(undefined);
+    setOpenPick(undefined);
+    setFilterSection(undefined);
+    setSort(undefined);
+    setSearch('');
+    setQ('');
+  };
+  // Un solo lugar para elegir: el filtro (cómo están y el orden). Sin nada elegido dice «Filtrar»; si no, lo elegido.
+  const activeFilters = [state, sort, filterSection].filter(Boolean).length;
+  const filterLabel = [filterSection, state ? STATE_LABEL[state] : null, sort ? SORTS.find((x) => x.key === sort)?.label : null].filter(Boolean).join(' · ') || 'Filtrar';
+  // Con un filtro o una búsqueda, cuántos salieron (y de cuántas secciones, cuando ya llegaron todos).
+  const flatSecs = new Set(rows.map((r) => (tab === 'supply' ? r.group || r.section : r.section) || '')).size;
+  const flatLine = state ? `${total} ${STATE_LABEL[state].toLowerCase()}${!pages.hasNextPage && flatSecs > 1 ? ` · en ${flatSecs} secciones` : ''}` : `${total} ${total === 1 ? 'resultado' : 'resultados'}`;
 
-  const title = listTitle(items, copy);
-  const loading = catalog.isLoading || (FEATURES.ledger && inv.isLoading);
-  if (loading) {
+  if (!FEATURES.ledger) {
     return (
       <View style={styles.screen}>
-        <SubScreenHeader title={title} />
-        <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
-      </View>
-    );
-  }
-  if (catalog.isError || (FEATURES.ledger && inv.isError)) {
-    return (
-      <View style={styles.screen}>
-        <SubScreenHeader title={title} />
-        <EmptyState
-          icon="cloud-offline-outline"
-          title="No pudimos cargar tu lista"
-          body="Revisa tu conexión e inténtalo de nuevo."
-          action={{ title: 'Reintentar', onPress: () => { void catalog.refetch(); void inv.refetch(); } }}
-        />
+        <SubScreenHeader title="Inventario" />
+        <PlainList items={items} onOpen={(it) => openDetail(it.id)} />
       </View>
     );
   }
 
-  const unset = inv.data?.unset ?? 0;
-  const note = freshnessNote(items, now);
-  const rowOf = (i: InventoryItem & { children: InventoryItem[] }, n: number) => {
-    const open = expanded[i.ref] ?? q !== '';
-    return (
-      <View key={i.ref}>
-        <ItemRow
-          item={i}
-          first={n === 0}
-          cover={coverOf.get(i.item_id ?? i.ref)}
-          icon={safeIcon(sellIcons.get(i.section ?? ''), 'pricetag-outline')}
-          group={i.children.length > 0 ? { pill: variantPill(i), open } : undefined}
-          showSold={salesOn}
-          onOpen={() => openDetail(i.item_id ?? i.ref)}
-          onPill={() => (i.children.length > 0 ? setExpanded((m) => ({ ...m, [i.ref]: !open })) : setSheet(i))}
-        />
-        {i.children.length > 0 && open
-          ? i.children.map((c) => <ItemRow key={c.ref} item={c} first={false} child onOpen={() => openDetail(c.item_id ?? c.ref)} onPill={() => setSheet(c)} />)
-          : null}
-      </View>
-    );
-  };
-  const sellDeck = browsing && !current && !salesOn && wantsSectionDeck(nested.length, sectionBlocks.length);
-  const supplyDeck = !q && wantsSectionDeck(supplyList.length, supplyBlocks.length);
-  const moreBtn = (len: number, key: string) =>
-    len > (shown[key] ?? PAGE_SIZE) ? (
-      <View style={styles.deckMore}>
-        <Button title={`Ver más (${len - (shown[key] ?? PAGE_SIZE)})`} variant="secondary" onPress={() => more(key)} />
-      </View>
-    ) : undefined;
-  const rowsOf = (list: (InventoryItem & { children: InventoryItem[] })[], key: string) => (
-    <>
-      <View style={styles.card}>
-        {list.slice(0, shown[key] ?? PAGE_SIZE).map((i, n) => {
-          const open = expanded[i.ref] ?? q !== '';
-          return (
-            <View key={i.ref}>
-              <ItemRow
-                item={i}
-                first={n === 0}
-                cover={coverOf.get(i.item_id ?? i.ref)}
-                icon={safeIcon(sellIcons.get(i.section ?? ''), 'pricetag-outline')}
-                group={i.children.length > 0 ? { pill: variantPill(i), open } : undefined}
-                showSold={salesOn}
-                onOpen={() => openDetail(i.item_id ?? i.ref)}
-                onPill={() => (i.children.length > 0 ? setExpanded((m) => ({ ...m, [i.ref]: !open })) : setSheet(i))}
-              />
-              {i.children.length > 0 && open
-                ? i.children.map((c) => (
-                    <ItemRow key={c.ref} item={c} first={false} child onOpen={() => openDetail(c.item_id ?? c.ref)} onPill={() => setSheet(c)} />
-                  ))
-                : null}
-            </View>
-          );
-        })}
-      </View>
-      {list.length > (shown[key] ?? PAGE_SIZE) ? (
-        <Button title={`Ver más (${list.length - (shown[key] ?? PAGE_SIZE)})`} variant="secondary" onPress={() => more(key)} />
+  const note = sum ? priceNote(sum.prices, now) : null;
+
+  const header = (
+    <View style={styles.listHead}>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {/* Contar (tablero «Inventario», teléfonos 9 y 12): seguir el conteo a medias, contar la sección elegida o la que
+          más tiempo lleva sin contarse. */}
+      {draftLeft && countDraft && !draftHere ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Seguir contando ${countDraft.section}: vas en ${draftLeft.done} de ${draftLeft.total}`}
+          onPress={() => openCount(countDraft.section, countDraft.tab)}
+          style={({ pressed }) => [styles.resume, pressed && { backgroundColor: colors.well }]}
+        >
+          <View style={{ flex: 1, gap: 1 }}>
+            <Text style={styles.aiTitle}>{`Seguir contando ${countDraft.section}`}</Text>
+            <Text style={styles.aiSub}>{`Vas en ${draftLeft.done} de ${draftLeft.total}`}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+        </Pressable>
       ) : null}
-    </>
+      {!q && !state && tab !== 'service' && !plan.base && stale && stale.name !== openSection ? (
+        <View style={styles.countCard}>
+          <View style={{ flex: 1, gap: 1 }}>
+            <Text style={styles.aiTitle}>{`${stale.name} no se cuenta hace ${stale.days} días`}</Text>
+            <Text style={styles.aiSub}>Contar seguido evita sorpresas al cerrar el mes</Text>
+          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Contar ${stale.name}`} onPress={() => startCount(stale.name)} style={styles.countBtn}>
+            <Text style={styles.countBtnText}>Contar</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      {news ? (
+        <View style={styles.news} accessibilityLiveRegion="polite">
+          <EmpreSymbol product="finance" size={32} />
+          <Pressable accessibilityRole="link" onPress={() => router.push({ pathname: '/business/ledger/[id]', params: { id: entityId } })} style={{ flex: 1, minWidth: 0, gap: 1 }}>
+            <Text style={styles.newsTitle}>Empre Finance actualizó tu inventario</Text>
+            <Text style={styles.newsText}>{news.text}</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Cerrar el aviso" onPress={dismissNews} style={styles.newsClose}>
+            <Ionicons name="close" size={18} color={colors.ink} />
+          </Pressable>
+        </View>
+      ) : null}
+      {/* Buscando, primero lo que pediste (los avisos son de todo el negocio). */}
+      {alerts.total > 0 && !q && tab !== 'service' ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Tienes ${alerts.total} cosas por revisar: ${countsLine(alerts)}. Ver los avisos`}
+          onPress={() => router.push({ pathname: '/business/products/alerts', params: { entityId } })}
+          style={({ pressed }) => [styles.alertCard, pressed && { opacity: 0.9 }]}
+        >
+          <View style={styles.alertHead}>
+            <View style={styles.alertIcon}>
+              <Ionicons name="warning-outline" size={18} color={colors.ink} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.alertTitle}>{alerts.total === 1 ? 'Tienes 1 cosa por revisar' : `Tienes ${alerts.total} cosas por revisar`}</Text>
+              <Text style={styles.alertLine}>{copy.kind === 'food' ? countsLine(alerts) : countsLine(alerts, 'producto', 'productos')}</Text>
+            </View>
+          </View>
+          <View style={styles.alertFoot}>
+            <Text style={styles.alertLink}>{alerts.total === 1 ? 'Ver el aviso' : `Ver los ${alerts.total} avisos`}</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.primaryDark} />
+          </View>
+        </Pressable>
+      ) : null}
+      {tab !== 'supply' && sum && sum.unchecked_total > 0 ? <KindReview entityId={entityId} items={sum.unchecked} total={sum.unchecked_total} onChanged={refresh} /> : null}
+      {/* Empezar a llevar inventario: solo si todavía no se cuenta nada (con 55 contados y 6 sin decidir, esos 6 dicen
+          «Sin control» en su fila y se ajustan ahí). */}
+      {tab === 'product' && sum && sum.unset > 0 && sum.tracked === 0 ? (
+        <View style={styles.setup}>
+          <Text style={styles.setupTitle}>¿Quieres saber cuándo se acaba algo?</Text>
+          <Text style={styles.meta}>{recommendationText(sum.kind, sum.category)}</Text>
+          <View style={styles.row}>
+            <Button title="Sí, empezar" loading={setup.isPending} onPress={() => setup.mutate('recommended')} style={{ flex: 1 }} />
+            <Button title="Más simple" variant="secondary" disabled={setup.isPending} onPress={() => setup.mutate('simple')} style={{ flex: 1 }} />
+          </View>
+          <Pressable accessibilityRole="button" onPress={() => setup.mutate('none')} style={styles.linkRow}>
+            <Text style={styles.link}>No quiero llevar inventario</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      {!grouped && !few && (q || state) && rows.length > 0 ? <Text style={styles.meta}>{flatLine}</Text> : null}
+      {few && rows.length > 0 ? (
+        <Text style={styles.meta}>
+          {tab === 'supply'
+            ? `Lo que gastas para atender o preparar; tus clientes no lo ven. Con menos de ${FEW_BUSINESSES}, todo se ve de una vez.`
+            : `Con menos de ${FEW_BUSINESSES} no hace falta buscar ni filtrar: todo se ve de una vez.`}
+        </Text>
+      ) : null}
+    </View>
+  );
+
+  const footer = (
+    <View style={{ gap: spacing.sm, paddingTop: spacing.md }}>
+      {!grouped && pages.isFetchingNextPage ? <Text style={styles.loadingMore}>{`Cargando los siguientes ${PAGE}…`}</Text> : null}
+      {tab !== 'supply' && (tc?.total ?? 0) > 0 && !q && !state && !sort && (grouped || !pages.hasNextPage) ? (
+        <>
+          {note ? <Text style={styles.meta}>{note}</Text> : null}
+          <Pressable accessibilityRole="button" onPress={() => void catalogApi.confirm(entityId).then(refresh, () => setError('No pudimos confirmar los precios'))} style={styles.confirm}>
+            <Ionicons name="checkmark-circle-outline" size={20} color={colors.ink} />
+            <Text style={styles.confirmText}>Mis precios siguen vigentes</Text>
+          </Pressable>
+        </>
+      ) : null}
+    </View>
+  );
+
+  // Nunca «Aún no tienes…» con un 0 viejo: mientras llegan los conteos o la página, se espera.
+  const empty = pages.isFetching || !counts.data || (counts.isFetching && tabTotal === 0) ? (
+    <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.ink} />
+  ) : pages.isError ? (
+    <EmptyState icon="cloud-offline-outline" title="No pudimos cargar tu inventario" body="Revisa tu conexión e inténtalo de nuevo." action={{ title: 'Reintentar', onPress: refresh }} />
+  ) : q || state || filterSection ? (
+    <Text style={[styles.meta, { paddingVertical: spacing.lg }]}>Nada por aquí con esta búsqueda o este filtro.</Text>
+  ) : tab === 'supply' ? (
+    <EmptyState
+      icon="cube-outline"
+      title="Aún no tienes insumos"
+      body="Lo que gastas para atender o preparar: ingredientes, vasos, bolsas. Agrégalos con «Nuevo insumo» y te avisamos cuando se acaben. Si no usas, puede quedar vacío."
+    />
+  ) : (
+    <EmptyState icon="cube-outline" title={`Aún no tienes ${meta.many}`} body={`Agrega el primero con «Nuevo ${meta.one}»: queda en tu perfil y, si lo cuentas, en tu inventario.`} />
   );
 
   return (
     <View style={styles.screen}>
-      <SubScreenHeader title={title} />
+      <SubScreenHeader title="Inventario" />
       <View style={styles.top}>
-        {FEATURES.ledger ? (
-          <View style={styles.segment} accessibilityRole="tablist">
-            {(
-              [
-                ['sell', 'Lo que vendes'],
-                ['supplies', `Insumos${tabs.supplies.length ? ` · ${tabs.supplies.length}` : ''}`],
-              ] as const
-            ).map(([k, label]) => (
-              <Pressable key={k} accessibilityRole="tab" accessibilityState={{ selected: tab === k }} onPress={() => setTab(k)} style={[styles.segBtn, tab === k && styles.segOn]}>
-                <Text style={[styles.segText, tab === k && styles.segTextOn]}>{label}</Text>
+        <View style={styles.tabs} accessibilityRole="tablist">
+          {TABS.map((t) => {
+            const n = counts.data?.[t.counts].total;
+            const on = tab === t.key;
+            return (
+              <Pressable key={t.key} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={n != null ? `${t.label}, ${n}` : t.label} onPress={() => pickTab(t.key)} style={[styles.tab, on && styles.tabOn]}>
+                <Text style={styles.tabText}>{t.label}</Text>
+                {n != null ? <Text style={styles.tabCount}>{n}</Text> : null}
               </Pressable>
-            ))}
-          </View>
-        ) : null}
-        {FEATURES.ledger && semCounts.total > 0 ? (
-          <View style={styles.semRow} accessibilityLabel={`Inventario: ${semCounts.ok} con existencias, ${semCounts.low} quedan poco, ${semCounts.out} agotados`}>
-            <SemChip label="Hay" n={semCounts.ok} dot="#14B8B0" on={stockIs('ok')} onPress={() => pickStock('ok')} />
-            <SemChip label="Poco" n={semCounts.low} dot={colors.accent} on={stockIs('low')} onPress={() => pickStock('low')} />
-            <SemChip label="Agotado" n={semCounts.out} dot={colors.brand} on={stockIs('out')} onPress={() => pickStock('out')} />
-          </View>
-        ) : null}
-        {FEATURES.ledger ? (
-          <View style={styles.search}>
-            <Ionicons name="search" size={18} color={colors.muted} />
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder={tab === 'sell' ? 'Buscar o dictar existencias con Empre AI' : 'Buscar o dictar un insumo'}
-              placeholderTextColor={colors.muted}
-              style={styles.searchInput}
-              accessibilityLabel="Buscar"
-            />
+            );
+          })}
+        </View>
+        {tc && !few ? (
+          <View style={styles.bar}>
+            <View style={styles.search}>
+              <Ionicons name="search" size={18} color={colors.muted} />
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder={`Buscar en ${tc.total} ${tc.total === 1 ? meta.one : meta.many}`}
+                placeholderTextColor={colors.muted}
+                style={styles.searchInput}
+                accessibilityLabel={`Buscar ${meta.many}`}
+                returnKeyType="search"
+              />
+              {search ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Borrar la búsqueda" onPress={() => setSearch('')} style={styles.clear}>
+                  <Ionicons name="close-circle" size={18} color={colors.muted} />
+                </Pressable>
+              ) : null}
+            </View>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Hablar con Empre AI para actualizar inventario"
-              onPress={() => setVoiceOpen(true)}
-              style={styles.aiVoiceBtn}
+              accessibilityLabel={activeFilters ? `Filtro: ${filterLabel}. Cambiar` : 'Filtrar'}
+              onPress={() => setFilterOpen(true)}
+              style={[styles.filterPill, activeFilters > 0 && styles.filterOn]}
             >
-              <Ionicons name="mic-outline" size={18} color="#fff" />
-              <Text style={styles.aiVoiceBtnText}>IA</Text>
+              {activeFilters ? null : <Ionicons name="options-outline" size={16} color={colors.ink} />}
+              <Text style={styles.filterText} numberOfLines={1}>
+                {filterLabel}
+              </Text>
+              {activeFilters ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Quitar el filtro"
+                  hitSlop={10}
+                  onPress={() => {
+                    setState(undefined);
+                    setSort(undefined);
+                    setFilterSection(undefined);
+                  }}
+                >
+                  <Ionicons name="close" size={16} color={colors.ink} />
+                </Pressable>
+              ) : null}
             </Pressable>
           </View>
-        ) : (tab === 'sell' ? tabs.sell.length : tabs.supplies.length) > 6 ? (
-          <View style={styles.search}>
-            <Ionicons name="search" size={18} color={colors.muted} />
-            <TextInput value={search} onChangeText={setSearch} placeholder={tab === 'sell' ? 'Buscar' : 'Buscar un insumo'} placeholderTextColor={colors.muted} style={styles.searchInput} accessibilityLabel="Buscar" />
-          </View>
-        ) : null}
-        {tab === 'supplies' && tabs.supplies.length > 6 && !q ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
-            {attention > 0 ? <Chip label={`Atención · ${attention}`} selected={supFilterNow === 'attention'} onPress={() => setSupFilter('attention')} /> : null}
-            {outCount > 0 ? <Chip label={`Se acabó · ${outCount}`} selected={supFilterNow === 'out'} onPress={() => setSupFilter('out')} /> : null}
-            {attention - outCount > 0 ? <Chip label={`Queda poco · ${attention - outCount}`} selected={supFilterNow === 'low'} onPress={() => setSupFilter('low')} /> : null}
-            <Chip label={`Todos · ${tabs.supplies.length}`} selected={supFilterNow === 'all'} onPress={() => setSupFilter('all')} />
-          </ScrollView>
-        ) : null}
-        {tab === 'sell' && !q && (sectionBlocks.length > 1 || urgentCount > 0) ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }} accessibilityLabel="Filtrar por sección">
-            <Chip label={`Todas ${nested.length}`} selected={!current && filter === 'all'} onPress={() => { setFilter('all'); openOne(null); }} />
-            {urgentCount > 0 ? <Chip label={`Se acaban ${urgentCount}`} selected={filter === 'urgent'} onPress={() => setFilter('urgent')} /> : null}
-            {sectionBlocks.map((b) => (
-              <Chip key={b.title} label={`${b.title} ${b.items.length}`} selected={filter === 'all' && b.title === current} onPress={() => { setFilter('all'); openOne(b.title); }} />
-            ))}
-          </ScrollView>
         ) : null}
       </View>
 
-      <ScrollView ref={scrollRef} contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: insets.bottom + 120 }} keyboardShouldPersistTaps="handled">
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        {news ? (
-          <View style={styles.news} accessibilityLiveRegion="polite">
-            <EmpreSymbol product="finance" size={32} />
-            <Pressable accessibilityRole="link" onPress={() => router.push({ pathname: '/business/ledger/[id]', params: { id: entityId } })} style={{ flex: 1, minWidth: 0, gap: 1 }}>
-              <Text style={styles.newsTitle}>Empre Finance actualizó tu inventario</Text>
-              <Text style={styles.newsText}>{news.text}</Text>
+      <SectionList<ListItem, ListSection>
+        ref={listRef}
+        // Otra pestaña, búsqueda o filtro es otra lista: arranca desde arriba.
+        key={`${tab}|${q}|${state ?? ''}|${sort ?? ''}`}
+        sections={sections}
+        keyExtractor={(r) => (isPseudo(r) ? r.pseudo : r.ref)}
+        onScrollToIndexFailed={() => {}}
+        stickySectionHeadersEnabled
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.xl }}
+        ListHeaderComponent={header}
+        ListFooterComponent={footer}
+        ListEmptyComponent={empty}
+        initialNumToRender={14}
+        windowSize={9}
+        onEndReachedThreshold={0.5}
+        onEndReached={() => {
+          // Con el índice, la sección abierta pide más con «Ver más» (el final de la lista son las otras secciones).
+          if (!grouped && pages.hasNextPage && !pages.isFetchingNextPage) void pages.fetchNextPage();
+        }}
+        renderSectionHeader={({ section: s }) =>
+          s.title ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: s.open }}
+              accessibilityLabel={`${s.title}, ${s.count}${s.alert ? ', algo se acaba' : ''}. ${s.open ? 'Plegar' : 'Abrir'}`}
+              onPress={() => toggleSection(s.title)}
+              style={({ pressed }) => [styles.accHead, s.open && styles.accOpen, pressed && !s.open && { backgroundColor: colors.well }]}
+            >
+              <Ionicons name={s.open ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.ink} />
+              <Text style={styles.accName} numberOfLines={1}>
+                {s.title}
+              </Text>
+              {s.alert ? <View style={styles.accDot} /> : null}
+              <Text style={styles.accCount}>{s.count}</Text>
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Cerrar el aviso" onPress={dismissNews} style={styles.newsClose}>
-              <Ionicons name="close" size={18} color={colors.ink} />
-            </Pressable>
-          </View>
-        ) : null}
-
-        {alerts.total > 0 && !q ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Tienes ${alerts.total} cosas por revisar: ${alertsLine(alerts)}. Ver los avisos`}
-            onPress={() => router.push({ pathname: '/business/products/alerts', params: { entityId } })}
-            style={({ pressed }) => [styles.alertCard, pressed && { opacity: 0.9 }]}
-          >
-            <View style={styles.alertHead}>
-              <View style={styles.alertIcon}>
-                <Ionicons name="warning-outline" size={18} color={colors.accentInk} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.alertTitle}>{alerts.total === 1 ? 'Tienes 1 cosa por revisar' : `Tienes ${alerts.total} cosas por revisar`}</Text>
-                <Text style={styles.alertLine}>{copy.kind === 'food' ? alertsLine(alerts) : alertsLine(alerts, 'producto', 'productos')}</Text>
-              </View>
-            </View>
-            <View style={styles.alertFoot}>
-              <Text style={styles.alertLink}>{alerts.total === 1 ? 'Ver el aviso' : `Ver los ${alerts.total} avisos`}</Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-            </View>
-          </Pressable>
-        ) : null}
-
-        {tab === 'sell' ? (
-          <>
-            {unchecked.length > 0 ? <KindReview entityId={entityId} items={unchecked} onChanged={refresh} /> : null}
-
-            {unset > 0 && inv.data ? (
-              <View style={styles.setup}>
-                <Text style={styles.setupTitle}>¿Quieres saber cuándo se acaba algo?</Text>
-                <Text style={styles.meta}>{recommendationText(inv.data.kind, inv.data.category)}</Text>
-                <View style={styles.row}>
-                  <Button title="Sí, empezar" loading={setup.isPending} onPress={() => setup.mutate('recommended')} style={{ flex: 1 }} />
-                  <Button title="Más simple" variant="secondary" disabled={setup.isPending} onPress={() => setup.mutate('simple')} style={{ flex: 1 }} />
+          ) : null
+        }
+        renderItem={({ item, index, section: s }) => {
+          if (isPseudo(item)) {
+            if (item.pseudo === 'count') {
+              const ago = countedAgo(sectionRow?.counted_at, now);
+              return (
+                <View style={styles.countLine}>
+                  <Text style={styles.meta}>{ago ? ago[0].toUpperCase() + ago.slice(1) : 'Nunca contada'}</Text>
+                  {plan.base && !draftHere ? (
+                    <Pressable accessibilityRole="button" accessibilityLabel={`Contar ${s.title}. Es de Empre Pro`} accessibilityHint="Abre Pásate a Empre Pro" onPress={() => setGoPro(true)} style={[styles.countBtn, styles.countBtnLocked]}>
+                      <View style={[styles.countBtnBody, { opacity: LOCKED_OPACITY }]}>
+                        <Ionicons name="checkmark" size={16} color={colors.ink} />
+                        <Text style={styles.countBtnText}>Contar</Text>
+                      </View>
+                      <ProTag />
+                    </Pressable>
+                  ) : (
+                    <Pressable accessibilityRole="button" accessibilityLabel={draftHere ? `Seguir contando ${s.title}` : `Contar ${s.title}`} onPress={() => startCount(s.title)} style={styles.countBtn}>
+                      <Ionicons name="checkmark" size={16} color={colors.ink} />
+                      <Text style={styles.countBtnText}>{draftHere ? 'Seguir' : 'Contar'}</Text>
+                    </Pressable>
+                  )}
                 </View>
-                <Pressable accessibilityRole="button" onPress={() => setup.mutate('none')} style={styles.linkRow}>
-                  <Text style={styles.link}>No quiero llevar inventario</Text>
-                </Pressable>
-              </View>
-            ) : null}
-
-            {stockOn ? (
-              <View style={{ gap: spacing.sm }}>
-                <Text style={styles.blockTitle}>{STOCK_TITLE[stockOn]} · {stockRows.length}</Text>
-                {stockRows.length > 0 ? rowsOf(stockRows, `stock:${stockOn}`) : <Text style={styles.meta}>Nada por aquí con este filtro.</Text>}
-              </View>
-            ) : null}
-
-            {groups.urgent.length > 0 && !stockOn && (filter === 'urgent' || q !== '') ? (
-              <View style={{ gap: spacing.sm }}>
-                <Text style={[styles.blockTitle, { color: '#B3261E' }]}>Se acaba o ya se acabó · {groups.urgent.length}</Text>
-                {rowsOf(groups.urgent, 'urgent')}
-              </View>
-            ) : null}
-
-            {browsing && !current && noPhotoRows.length > 0 ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${noPhotoRows.length} sin foto. Ver cuáles`}
-                onPress={() => setFilter('nophoto')}
-                style={({ pressed }) => [styles.photoNudge, pressed && { opacity: 0.85 }]}
-              >
-                <Ionicons name="camera-outline" size={18} color={colors.ink} />
-                <Text style={styles.photoNudgeText}>
-                  {noPhotoRows.length === 1 ? '1 producto sin foto' : `${noPhotoRows.length} productos sin foto`}
-                </Text>
-                <Text style={styles.link}>Agregar fotos</Text>
+              );
+            }
+            if (item.pseudo === 'loading') return <ActivityIndicator style={{ marginVertical: spacing.md }} color={colors.ink} />;
+            const left = Math.max(0, s.count - rows.length);
+            return (
+              <Pressable accessibilityRole="button" onPress={() => void pages.fetchNextPage()} disabled={pages.isFetchingNextPage} style={styles.moreBtn}>
+                {pages.isFetchingNextPage ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.moreText}>{`Ver ${Math.min(PAGE, left || PAGE)} más de ${s.title}`}</Text>}
               </Pressable>
-            ) : null}
-
-            {browsing && canSort ? (
-              <View style={styles.audRow}>
-                <Chip label="Más vendidos primero" selected={bySales} onPress={() => setBySales(!bySales)} />
-              </View>
-            ) : null}
-
-            {filter === 'nophoto' ? (
-              <View style={{ gap: spacing.sm }}>
-                <Pressable accessibilityRole="button" accessibilityLabel="Ver toda la lista" onPress={() => setFilter('all')} style={styles.backRow}>
-                  <Ionicons name="chevron-back" size={18} color={colors.ink} />
-                  <Text style={styles.link}>Toda la lista</Text>
-                </Pressable>
-                <Text style={styles.blockTitle}>Sin foto · {noPhotoRows.length}</Text>
-                <Text style={styles.meta}>Toca uno para agregarle fotos. Con foto, tu producto se ve mejor en tu perfil.</Text>
-                {noPhotoRows.length > 0 ? rowsOf(noPhotoRows, 'nophoto') : <Text style={styles.meta}>¡Todos tus productos tienen foto!</Text>}
-              </View>
-            ) : null}
-
-            {salesOn && !current ? (
-              <View style={{ gap: spacing.sm }}>
-                <Text style={styles.blockTitle}>Más vendidos · 4 semanas</Text>
-                {rowsOf(salesRows, 'sales')}
-              </View>
-            ) : null}
-
-            {sellDeck
-              ? sectionBlocks.map((b) => {
-                  const key = `deck:${b.title}`;
-                  const states = b.items.map((i) => stockState(i));
-                  return (
-                    <SectionDeck
-                      key={b.title}
-                      title={b.title}
-                      countText={deckCountText(b.items.length, copy.one, copy.plural)}
-                      alert={deckAlert(states.filter((s) => s === 'out').length, states.filter((s) => s === 'low').length)}
-                      faces={b.items.slice(0, 3).reverse().map((i) => ({ cover: coverOf.get(i.item_id ?? i.ref), letter: i.name.slice(0, 1).toUpperCase() }))}
-                      open={deckOpen === key}
-                      onToggle={() => pickDeck(key)}
-                      onReveal={revealDeck}
-                      rows={b.items.slice(0, shown[key] ?? PAGE_SIZE).map((i) => rowOf(i, 1))}
-                      footer={moreBtn(b.items.length, key)}
-                    />
-                  );
-                })
-              : null}
-
-            {browsing && !current && !salesOn && !sellDeck
-              ? sectionBlocks.map((b) => (
-                  <View key={b.title} style={{ gap: spacing.sm }}>
-                    <Text style={styles.blockTitle}>
-                      {b.title} · {b.items.length}
-                    </Text>
-                    {rowsOf(b.items, `all:${b.title}`)}
-                  </View>
-                ))
-              : null}
-
-            {browsing && current ? (
-              <View style={{ gap: spacing.sm }}>
-                {audChips.length > 0 ? (
-                  <View style={styles.audRow}>
-                    <Text style={styles.audLabel}>Para</Text>
-                    <Chip label="Todos" selected={aud === null} onPress={() => setAud(null)} />
-                    {audChips.map((a) => (
-                      <Chip key={a.key} label={`${a.label} ${a.count}`} selected={aud === a.key} onPress={() => setAud(aud === a.key ? null : a.key)} />
-                    ))}
-                  </View>
-                ) : null}
-                {shownItems.length > 0 ? rowsOf(shownItems, `s:${current}:${aud ?? ''}`) : <Text style={styles.meta}>Nada por aquí con este filtro.</Text>}
-              </View>
-            ) : null}
-
-            {!browsing && filter !== 'urgent' && filter !== 'nophoto' && !stockOn
-              ? blocks.map((b) => {
-                  const list = b.items;
-                  return (
-                    <View key={b.title} style={{ gap: spacing.sm }}>
-                      <Pressable accessibilityRole="button" accessibilityState={{ expanded: isOpen(b.title) }} onPress={() => toggle(b.title)} style={styles.blockHead}>
-                        <Text style={styles.blockTitle}>
-                          {b.title} · {list.length}
-                        </Text>
-                        <Ionicons name={isOpen(b.title) ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
-                      </Pressable>
-                      {isOpen(b.title) ? rowsOf(list, b.title) : null}
-                    </View>
-                  );
-                })
-              : null}
-
-            {tabs.sell.length === 0 && items.length === 0 ? (
-              <EmptyState icon="cube-outline" title={`Aún no tienes ${copy.plural}`} body="Agrega el primero: queda en tu perfil y, si lo cuentas, en tu inventario." action={{ title: 'Agregar', onPress: () => openDetail() }} />
-            ) : null}
-            {!FEATURES.ledger ? <PlainList items={items} onOpen={(it) => openDetail(it.id)} /> : null}
-
-            {items.length > 0 ? (
-              <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
-                {note ? <Text style={styles.meta}>{note}</Text> : null}
-                <Pressable accessibilityRole="button" onPress={() => void catalogApi.confirm(entityId).then(refresh, () => setError('No pudimos confirmar los precios'))} style={styles.confirm}>
-                  <Ionicons name="checkmark-circle-outline" size={20} color={colors.ink} />
-                  <Text style={styles.confirmText}>Mis precios siguen vigentes</Text>
-                </Pressable>
-              </View>
-            ) : null}
-          </>
-        ) : (
-          <>
-            <Text style={styles.meta}>Lo que gastas para atender o preparar y no vendes solo. Tus clientes no lo ven.</Text>
-            {supplyBlocks.length > 0 ? (
-              <>
-                {supFilterNow !== 'all' && !q ? (
-                  <Text style={styles.meta}>
-                    {supFilterNow === 'attention' ? `Mostrando ${supplyList.length} que necesitan atención, por grupo.` : `Mostrando ${supplyList.length}, por grupo.`}
-                  </Text>
-                ) : null}
-                {supplyDeck
-                  ? supplyBlocks.map((b) => {
-                      const key = `sdeck:${b.title}`;
-                      return (
-                        <SectionDeck
-                          key={b.title}
-                          title={b.title}
-                          countText={deckCountText(b.items.length, 'insumo', 'insumos')}
-                          alert={deckAlert(b.items.filter((i) => i.status === 'out').length, b.items.filter((i) => i.status === 'low').length)}
-                          faces={b.items.slice(0, 3).reverse().map((i) => ({ letter: i.name.slice(0, 1).toUpperCase() }))}
-                          open={deckOpen === key}
-                          onToggle={() => pickDeck(key)}
-                          onReveal={revealDeck}
-                          rows={b.items.slice(0, shown[key] ?? PAGE_SIZE).map((i) => (
-                            <ItemRow
-                              key={i.ref}
-                              item={i}
-                              first={false}
-                              icon={safeIcon(i.kind === 'supply' ? supplyIcons.get(i.group ?? '') : sellIcons.get(i.section ?? ''), 'cube-outline')}
-                              cover={i.kind === 'product' ? coverOf.get(i.item_id ?? i.ref) : undefined}
-                              supplyView
-                              onOpen={() => (i.kind === 'supply' ? setSheet(i) : openDetail(i.item_id ?? i.ref))}
-                              onPill={() => setSheet(i)}
-                            />
-                          ))}
-                          footer={moreBtn(b.items.length, key)}
-                        />
-                      );
-                    })
-                  : null}
-                {!supplyDeck && supplyBlocks.map((b) => {
-                  // Un solo grupo, búsqueda o filtro corto: todo abierto. Muchos insumos: los grupos arrancan plegados.
-                  const key = `g:${b.title}`;
-                  const open = openMap[key] ?? (supplyBlocks.length === 1 || q !== '' || supplyList.length <= COLLAPSE_OVER);
-                  const sum = groupSummary(b.items);
-                  return (
-                    <View key={b.title} style={{ gap: spacing.sm }}>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityState={{ expanded: open }}
-                        onPress={() => setOpenMap((m) => ({ ...m, [key]: !open }))}
-                        style={styles.blockHead}
-                      >
-                        <Text style={styles.blockTitle}>
-                          {b.title} · {b.items.length}
-                        </Text>
-                        <View style={styles.row}>
-                          {sum.tone !== 'muted' ? <Text style={[styles.groupSum, { color: sum.tone === 'out' ? '#B3261E' : colors.accentInk }]}>{sum.text}</Text> : null}
-                          <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
-                        </View>
-                      </Pressable>
-                      {open ? (
-                        <>
-                          <View style={styles.card}>
-                            {b.items.slice(0, shown[key] ?? PAGE_SIZE).map((i, n) => (
-                              <ItemRow
-                                key={i.ref}
-                                item={i}
-                                first={n === 0}
-                                icon={safeIcon(i.kind === 'supply' ? supplyIcons.get(i.group ?? '') : sellIcons.get(i.section ?? ''), 'cube-outline')}
-                                cover={i.kind === 'product' ? coverOf.get(i.item_id ?? i.ref) : undefined}
-                                supplyView
-                                onOpen={() => (i.kind === 'supply' ? setSheet(i) : openDetail(i.item_id ?? i.ref))}
-                                onPill={() => setSheet(i)}
-                              />
-                            ))}
-                          </View>
-                          {b.items.length > (shown[key] ?? PAGE_SIZE) ? (
-                            <Button title={`Ver más (${b.items.length - (shown[key] ?? PAGE_SIZE)})`} variant="secondary" onPress={() => more(key)} />
-                          ) : null}
-                        </>
-                      ) : null}
-                    </View>
-                  );
-                })}
-              </>
-            ) : tabs.supplies.length > 0 ? (
-              <View style={styles.emptySupplies}>
-                <Text style={styles.meta}>{q ? 'Ningún insumo se llama así.' : 'Nada por aquí: todo está bien con este filtro.'}</Text>
-              </View>
-            ) : (
-              <View style={styles.emptySupplies}>
-                <Text style={styles.meta}>¿Gastas ingredientes, vasos o bolsas? Agrégalos con «+ Insumo» y te avisamos cuando se acaben. Si no usas, esta lista puede quedar vacía.</Text>
-              </View>
-            )}
-          </>
-        )}
-      </ScrollView>
-
-      {tab === 'supplies' ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Agregar un insumo" onPress={() => setNewSupply(true)} style={[styles.fab, { bottom: insets.bottom + spacing.lg }]}>
-          <Ionicons name="add" size={22} color="#fff" />
-          <Text style={styles.fabText}>Insumo</Text>
-        </Pressable>
-      ) : null}
-      {tab === 'sell' ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={browsing && current ? `Agregar en ${current}` : 'Agregar un producto o servicio'}
-          onPress={() => openDetail()}
-          style={[styles.fab, { bottom: insets.bottom + spacing.lg }]}
-        >
-          <Ionicons name="add" size={22} color="#fff" />
-          <Text style={styles.fabText} numberOfLines={1}>
-            Agregar
-          </Text>
-        </Pressable>
-      ) : null}
-
-      <NewSupplySheet
-        visible={newSupply}
-        entityId={entityId}
-        existing={tabs.supplies.map((i) => i.name)}
-        onClose={() => setNewSupply(false)}
-        onAdded={refresh}
+            );
+          }
+          const i = item;
+          const prev = index > 0 ? s.data[index - 1] : undefined;
+          const firstRow = index === 0 || (prev !== undefined && isPseudo(prev));
+          const open = expanded[i.ref] ?? Boolean(q);
+          const supplyRow = tab === 'supply';
+          return (
+            <View style={few ? [styles.fewCard, index === 0 && styles.fewFirst, index === s.data.length - 1 && styles.fewLast] : undefined}>
+              <ItemRow
+                item={i}
+                first={firstRow}
+                cover={i.photo}
+                icon={safeIcon(supplyRow ? supplyIcons.get(i.group ?? '') : sellIcons.get(i.section ?? ''), supplyRow ? 'cube-outline' : 'pricetag-outline')}
+                group={i.children.length > 0 ? { pill: variantPill(i), open, from: Math.min(...i.children.map((c) => c.price ?? Infinity)) } : undefined}
+                showSold={sort === 'sales'}
+                showSection={!grouped && !supplyRow && mixedSections}
+                showUnassigned={someAssigned}
+                supplyView={supplyRow}
+                onOpen={() => (i.kind === 'supply' ? setSheet(i) : openDetail(i.item_id ?? i.ref))}
+                onPill={() => (i.children.length > 0 ? setExpanded((m) => ({ ...m, [i.ref]: !open })) : setSheet(i))}
+              />
+              {i.children.length > 0 && open
+                ? i.children.map((c) => <ItemRow key={c.ref} item={c} first={false} child onOpen={() => openDetail(c.item_id ?? c.ref)} onPill={() => setSheet(c)} />)
+                : null}
+            </View>
+          );
+        }}
       />
+
+      {/* Crear lo de la pestaña y, a la derecha, el botón Empre: Empre AI va ahí, no en una tarjeta (tablero v103). */}
+      <View style={[styles.createBar, { paddingBottom: insets.bottom + spacing.md }]}>
+        <Button title={`Nuevo ${meta.one}`} onPress={create} style={{ flex: 1 }} />
+        {ledgerOn ? <EmpreButton inline bottom={insets.bottom + spacing.md + (createBarHeight - EMPRE_BUTTON_INLINE) / 2} entityId={entityId} here={here} /> : null}
+      </View>
+
+      <FilterSheet
+        visible={filterOpen}
+        tab={tab}
+        counts={tc}
+        total={pages.isPlaceholderData || !pages.data ? undefined : total}
+        searching={Boolean(q)}
+        state={state}
+        sort={sort}
+        onState={setState}
+        onSort={setSort}
+        sections={tc && tc.sections.length > SECTIONS_IN_FILTER ? tc.sections : []}
+        section={filterSection}
+        onSection={setFilterSection}
+        onClear={() => {
+          setState(undefined);
+          setSort(undefined);
+          setFilterSection(undefined);
+        }}
+        onClose={() => setFilterOpen(false)}
+      />
+      <NewSupplySheet visible={newSupply} entityId={entityId} existing={(names.data ?? []).filter((n) => n.kind === 'supply').map((n) => n.name)} onClose={() => setNewSupply(false)} onAdded={refresh} />
       <QuickStockSheet
         entityId={entityId}
         item={sheet}
@@ -735,38 +674,153 @@ export default function ProductsScreen() {
           openDetail(i.item_id ?? i.ref);
         }}
       />
-      <VoiceSheet
-        entityId={entityId}
-        visible={voiceOpen}
-        onClose={() => setVoiceOpen(false)}
-        defaultMode="inventory"
-        hints={(inv.data?.items ?? []).map((i) => i.name)}
-        onConfirmed={() => refresh()}
-      />
+      <GoProSheet visible={goPro} onClose={() => setGoPro(false)} businesses={[{ id: entityId, name: business.data?.name ?? '' }]} />
+      <VoiceSheet entityId={entityId} visible={voiceOpen} onClose={() => setVoiceOpen(false)} module="inventory" hints={(names.data ?? []).map((n) => n.name)} onConfirmed={() => refresh()} />
     </View>
   );
 }
 
-const PILL: Record<PillTone, { bg: string; fg: string }> = {
-  ok: { bg: colors.selectedSoft, fg: colors.ink },
-  low: { bg: colors.selectedSoft, fg: colors.ink },
-  out: { bg: colors.selectedSoft, fg: colors.ink },
-  neutral: { bg: colors.selectedSoft, fg: colors.ink },
-  muted: { bg: 'transparent', fg: colors.muted },
-  service: { bg: 'transparent', fg: colors.muted },
-};
-const SEM_DOT = { ok: '#14B8B0', low: colors.accent, out: colors.brand } as const;
-
-function SemChip({ label, n, dot, on, onPress }: { label: string; n: number; dot: string; on: boolean; onPress: () => void }) {
+/** Una ficha del filtro (tablero «Inventario»): arena si está elegida, borde si no. */
+function FilterChip({ label, on, onPress, dot }: { label: string; on: boolean; onPress: () => void; dot?: boolean }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityState={{ selected: on, disabled: n === 0 && !on }} accessibilityLabel={`${label}: ${n}`} disabled={n === 0 && !on} onPress={onPress} style={[styles.semPill, on && styles.semPillOn, n === 0 && !on && { opacity: 0.5 }]}>
-      <View style={[styles.semDot, { backgroundColor: dot }]} />
-      <Text style={styles.semLabel}>{label}</Text>
-      <Text style={styles.semNum}>{n}</Text>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: on }}
+      accessibilityLabel={dot ? `${label}, algo se acaba` : label}
+      onPress={onPress}
+      style={({ pressed }) => [styles.fChip, on && styles.fChipOn, pressed && !on && { backgroundColor: colors.well }]}
+    >
+      <Text style={styles.fChipText}>{label}</Text>
+      {dot ? <View style={styles.accDot} /> : null}
     </Pressable>
   );
 }
 
+/**
+ * Un solo filtro (tablero «Inventario», teléfono 2): cómo están, sección y orden, cada uno con su número. Reemplaza las
+ * tres filas de fichas de antes. Cada elección se aplica al tocarla (tocarla otra vez la quita) y el botón dice cuántos
+ * quedan.
+ */
+function FilterSheet({
+  visible,
+  tab,
+  counts,
+  total,
+  searching,
+  state,
+  section,
+  sort,
+  onState,
+  onSort,
+  sections,
+  onSection,
+  onClear,
+  onClose,
+}: {
+  visible: boolean;
+  tab: InventoryTab;
+  counts?: InventoryTabCounts;
+  /** Lo que devolvió el servidor con este filtro; vacío mientras llega (no se muestra un número viejo). */
+  total?: number;
+  searching: boolean;
+  state?: InventoryState;
+  section?: string;
+  sort?: InventorySort;
+  /** Las secciones, solo cuando son más de 8 (si no, el índice basta y no se repiten aquí). */
+  sections: InventoryTabCounts['sections'];
+  onState: (s: InventoryState | undefined) => void;
+  onSort: (s: InventorySort | undefined) => void;
+  onSection: (s: string | undefined) => void;
+  onClear: () => void;
+  onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [findSec, setFindSec] = useState('');
+  const fold = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const shownSecs = findSec.trim() ? sections.filter((x) => fold(x.name).includes(fold(findSec.trim())) || x.name === section) : sections;
+  const meta = TABS.find((t) => t.key === tab) ?? TABS[0];
+  // Con una sección elegida en la fila, los números son los de esa sección (no los de toda la pestaña). «Sin foto» no se
+  // cuenta por sección: va sin número.
+  const sec = section ? counts?.sections.find((s) => s.name === section) : undefined;
+  const base: { total: number; low: number; out: number; nophoto?: number } | undefined = sec
+    ? { total: sec.count, low: sec.low ?? 0, out: sec.out ?? 0 }
+    : counts
+      ? { total: counts.total, low: counts.low, out: counts.out, nophoto: counts.no_photo }
+      : undefined;
+  const states: { key: InventoryState; n?: number }[] = base
+    ? [
+        { key: 'low' as const, n: base.low },
+        { key: 'out' as const, n: base.out },
+        ...(tab !== 'supply' ? [{ key: 'nophoto' as const, n: base.nophoto }] : []),
+      ].filter((s) => s.n == null || s.n > 0 || s.key === state)
+    : [];
+  const any = Boolean(state || sort || section);
+  // Lo que ya se sabe por los conteos sale al instante; lo demás (buscando, o «Sin foto» en una sección) espera al servidor.
+  const known = !base || searching ? undefined : !state ? base.total : { low: base.low, out: base.out, nophoto: base.nophoto }[state];
+  const n = total ?? known;
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Cerrar el filtro" style={styles.sheetVeil} onPress={onClose} />
+      <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }]}>
+        <View style={styles.sheetHandle} />
+        <View style={styles.sheetHead}>
+          <Text style={styles.sheetTitle} accessibilityRole="header">
+            {`Filtrar ${meta.many}`}
+          </Text>
+          {any ? (
+            <Pressable accessibilityRole="button" onPress={onClear} style={styles.linkRow}>
+              <Text style={styles.link}>Quitar filtros</Text>
+            </Pressable>
+          ) : null}
+        </View>
+        {states.length > 0 ? (
+          <>
+            <Text style={styles.sheetLabel}>Cómo están</Text>
+            <View style={styles.chips}>
+              <FilterChip label={base ? `Todos ${base.total}` : 'Todos'} on={!state} onPress={() => onState(undefined)} />
+              {states.map((s) => (
+                <FilterChip key={s.key} label={s.n != null ? `${STATE_LABEL[s.key]} ${s.n}` : STATE_LABEL[s.key]} on={state === s.key} onPress={() => onState(state === s.key ? undefined : s.key)} />
+              ))}
+            </View>
+          </>
+        ) : null}
+        {sections.length > 0 ? (
+          <>
+            <Text style={styles.sheetLabel}>{`Sección · ${sections.length}`}</Text>
+            {sections.length > SECTION_SEARCH ? (
+              <TextInput value={findSec} onChangeText={setFindSec} placeholder="Buscar sección" placeholderTextColor={colors.muted} style={styles.findSec} accessibilityLabel="Buscar sección" />
+            ) : null}
+            <ScrollView style={{ maxHeight: 220 }} contentContainerStyle={styles.chips} keyboardShouldPersistTaps="handled">
+              <FilterChip label="Todas" on={!section} onPress={() => onSection(undefined)} />
+              {shownSecs.map((x) => (
+                <FilterChip
+                  key={x.name}
+                  label={`${x.name} ${x.count}`}
+                  dot={(x.low ?? 0) + (x.out ?? 0) > 0}
+                  on={section === x.name}
+                  onPress={() => onSection(section === x.name ? undefined : x.name)}
+                />
+              ))}
+            </ScrollView>
+          </>
+        ) : null}
+        <Text style={styles.sheetLabel}>Ordenar</Text>
+        <View style={styles.chips}>
+          {SORTS.filter((s) => !(tab === 'supply' && s.key === 'sales')).map((s) => (
+            <FilterChip key={s.key} label={s.label} on={sort === s.key} onPress={() => onSort(sort === s.key ? undefined : s.key)} />
+          ))}
+        </View>
+        <Button title={n != null ? `Ver ${n} ${n === 1 ? meta.one : meta.many}` : `Ver ${meta.many}`} onPress={onClose} />
+      </View>
+    </Modal>
+  );
+}
+
+/**
+ * Una fila del inventario (tablero «Inventario»): foto o unidad, nombre, una línea de detalle y, a la derecha, cómo
+ * está (en rojo si se acaba o se acabó). Tocar la fila abre la ficha; tocar lo de la derecha lo ajusta en un toque o, en
+ * un producto con variantes, las muestra.
+ */
 function ItemRow({
   item,
   first,
@@ -778,73 +832,78 @@ function ItemRow({
   cover,
   icon,
   showSold,
+  showSection,
+  showUnassigned,
 }: {
   item: InventoryItem;
-  /** Id de la foto de portada (productos) y el ícono de su sección (lo que se ve sin foto). */
+  /** Id de la foto de portada y el ícono de su sección (lo que se ve sin foto). */
   cover?: string;
   icon?: IconName;
   first: boolean;
   onOpen: () => void;
   onPill: () => void;
   supplyView?: boolean;
-  /** Producto con variantes: su pastilla resume y la flecha las muestra. */
-  group?: { pill: { label: string; tone: PillTone }; open: boolean };
+  /** Producto con variantes: su resumen a la derecha (la flecha las muestra) y el precio más bajo. */
+  group?: { pill: { label: string; tone: PillTone }; open: boolean; from: number };
   /** Una variante, dentro de su producto. */
   child?: boolean;
-  /** Con «Más vendidos primero», cuánto se vendió explica por qué va ahí. */
+  /** Con «Más vendidos», cuánto se vendió explica por qué va ahí. */
   showSold?: boolean;
+  /** Sin títulos de sección (buscando u ordenando), la sección va en la línea de detalle. */
+  showSection?: boolean;
+  /** Insumos: decir «Sin asignar» solo si otros sí están asignados. */
+  showUnassigned?: boolean;
 }) {
+  const service = item.is_service && !group;
   const pill = group ? group.pill : stockPill(item);
-  const semLevel: 'ok' | 'low' | 'out' | null =
-    pill.tone === 'out'
-      ? 'out'
-      : pill.tone === 'low'
-        ? 'low'
-        : pill.tone === 'ok' || (pill.tone === 'neutral' && !group && item.status === 'ok')
-          ? 'ok'
-          : null;
-  const tone = semLevel ? PILL[semLevel] : PILL[pill.tone];
+  const urgent = pill.tone === 'out' || pill.tone === 'low';
+  const quiet = pill.tone === 'muted' || pill.tone === 'service';
+  const right = service ? (item.price ? formatPesos(item.price) : 'Sin precio') : pill.label;
   const missing = missingIngredients(item);
   const usedIn = item.used_in ?? [];
   const daysNote = item.days_left != null && item.days_left > 0 && item.days_left <= 10 ? `~${Math.max(1, Math.round(item.days_left))} d` : null;
   const ingCount = item.ingredients?.length ?? 0;
-  const meta = supplyView
-    ? [item.kind === 'product' ? 'También se vende' : null, usedIn.length ? `Usado en ${usedIn.length}` : 'Sin asignar', daysNote].filter(Boolean).join(' · ')
-    : [item.price ? formatPesos(item.price) : 'Sin precio', item.servings != null ? `alcanza para ${item.servings}` : daysNote, ingCount > 0 ? `usa ${ingCount} ${ingCount === 1 ? 'insumo' : 'insumos'}` : null].filter(Boolean).join(' · ');
+  const price = group ? (Number.isFinite(group.from) ? `desde ${formatPesos(group.from)}` : null) : item.price ? formatPesos(item.price) : 'Sin precio';
+  const detail = supplyView
+    ? [item.kind === 'product' ? 'También se vende' : null, usedIn.length ? `Se usa en ${usedIn.length} ${usedIn.length === 1 ? 'producto' : 'productos'}` : showUnassigned ? 'Sin asignar' : null, daysNote]
+    : service
+      ? [showSection ? item.section : null]
+      : [showSection && !child ? item.section : null, price, item.servings != null ? `alcanza para ${item.servings}` : daysNote, ingCount > 0 ? `usa ${ingCount} ${ingCount === 1 ? 'insumo' : 'insumos'}` : null];
+  const line = [showSold && item.sold_28 > 0 ? `${fmtQty(item.sold_28)} ${item.sold_28 === 1 ? 'vendido' : 'vendidos'}` : null, ...detail].filter(Boolean).join(' · ');
+  const warnAt = supplyView && urgent && item.low_at != null ? `Avisa en ${fmtQty(item.low_at)} ${unitFor(item.unit, item.low_at)}` : null;
   return (
     <View style={[styles.itemRow, !first && styles.itemLine, child && styles.childRow]}>
       {!child ? (
         cover ? (
-          <Image source={{ uri: mediaUrl(cover) }} style={styles.thumb} contentFit="cover" transition={150} />
+          <Image source={{ uri: mediaUrl(cover) }} style={styles.thumb} contentFit="cover" transition={150} accessibilityIgnoresInvertColors />
         ) : (
-          <View style={[styles.thumb, styles.thumbIcon]}>
-            <Ionicons name={icon ?? 'pricetag-outline'} size={18} color={colors.muted} />
+          <View style={[styles.thumb, styles.thumbEmpty]}>
+            {item.kind === 'supply' ? <Text style={styles.thumbUnit}>{unitShort(item.unit)}</Text> : <Ionicons name={icon ?? 'pricetag-outline'} size={18} color={colors.muted} />}
           </View>
         )
       ) : null}
-      <Pressable accessibilityRole="button" accessibilityLabel={`${item.name}. ${pill.label}. Abrir`} onPress={onOpen} style={styles.itemMain}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${item.name}. ${right}. Abrir`} onPress={onOpen} style={styles.itemMain}>
         <Text style={styles.itemName} numberOfLines={1}>
           {child && item.variant_label ? item.variant_label : item.name}
         </Text>
-        <Text style={styles.meta} numberOfLines={1}>
-          {showSold && item.sold_28 > 0 ? `${fmtQty(item.sold_28)} ${item.sold_28 === 1 ? 'vendido' : 'vendidos'} · ${meta}` : meta}
-        </Text>
+        {line ? (
+          <Text style={styles.meta} numberOfLines={1}>
+            {line}
+          </Text>
+        ) : null}
+        {warnAt ? <Text style={styles.warn}>{warnAt}</Text> : null}
         {missing.out.length > 0 ? <Text style={styles.warn}>Falta insumo: {missing.out.join(', ')}</Text> : missing.low.length > 0 ? <Text style={styles.warnSoft}>Queda poco insumo: {missing.low.join(', ')}</Text> : null}
       </Pressable>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={
-          group ? `${item.name}: ${pill.label}. ${group.open ? 'Ocultar' : 'Ver'} variantes` : item.is_service ? `${item.name} es un servicio` : `${item.name}: ${pill.label}. Ajustar`
-        }
+        accessibilityLabel={group ? `${item.name}: ${pill.label}. ${group.open ? 'Ocultar' : 'Ver'} variantes` : service ? `${item.name}: ${right}` : `${item.name}: ${pill.label}. Ajustar`}
         accessibilityState={group ? { expanded: group.open } : undefined}
-        disabled={item.is_service && !group}
+        disabled={service}
         onPress={onPill}
-        hitSlop={6}
-        style={[styles.pill, { backgroundColor: tone.bg }, pill.tone === 'muted' && styles.pillMuted]}
+        style={styles.right}
       >
-        {semLevel ? <View style={[styles.semDot, { backgroundColor: SEM_DOT[semLevel] }]} /> : null}
-        <Text style={[styles.pillText, { color: tone.fg }]}>{pill.label}</Text>
-        {group ? <Ionicons name={group.open ? 'chevron-up' : 'chevron-down'} size={14} color={tone.fg} /> : null}
+        <Text style={[styles.rightText, urgent && styles.rightUrgent, quiet && !service && styles.rightQuiet]}>{right}</Text>
+        {group ? <Ionicons name={group.open ? 'chevron-up' : 'chevron-down'} size={14} color={urgent ? colors.primaryDark : colors.ink} /> : null}
       </Pressable>
     </View>
   );
@@ -868,9 +927,9 @@ function PlainList({ items, onOpen }: { items: ServiceItem[]; onOpen: (it: Servi
 }
 
 /** Ítems de antes que la app clasificó sola: el dueño confirma en un toque si son servicio o producto. */
-function KindReview({ entityId, items, onChanged }: { entityId: string; items: ServiceItem[]; onChanged: () => void }) {
+function KindReview({ entityId, items, total, onChanged }: { entityId: string; items: { id: string; name: string; kind: ItemKind }[]; total: number; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
-  const set = async (it: ServiceItem, kind: ItemKind) => {
+  const set = async (it: { id: string; kind: ItemKind }, kind: ItemKind) => {
     if (it.kind === kind) return;
     setBusy(true);
     try {
@@ -902,7 +961,7 @@ function KindReview({ entityId, items, onChanged }: { entityId: string; items: S
           <Chip label="Producto" selected={it.kind === 'product'} onPress={() => void set(it, 'product')} />
         </View>
       ))}
-      {items.length > 8 ? <Text style={styles.meta}>Y {items.length - 8} más: los ves en la lista.</Text> : null}
+      {total > items.length ? <Text style={styles.meta}>Y {total - items.length} más: los ves en la lista.</Text> : null}
       <Button title="Todo está bien" loading={busy} onPress={() => void confirm()} />
     </View>
   );
@@ -911,66 +970,95 @@ function KindReview({ entityId, items, onChanged }: { entityId: string; items: S
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   top: { backgroundColor: colors.bg, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm, gap: spacing.sm },
-  segment: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 16, padding: 4 },
-  segBtn: { flex: 1, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  segOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
-  segText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.muted },
-  segTextOn: { color: colors.ink, fontFamily: fonts.ui.extrabold },
-  semRow: { flexDirection: 'row', gap: 6 },
-  semPill: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, borderRadius: 12, backgroundColor: colors.selectedSoft },
-  semPillOn: { borderWidth: 2, borderColor: colors.ink },
-  semDot: { width: 8, height: 8, borderRadius: 4 },
-  semLabel: { flex: 1, fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  semNum: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink, fontVariant: ['tabular-nums'] },
-  search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, paddingLeft: spacing.md, paddingRight: 6, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
-  searchInput: { flex: 1, fontSize: 14.5, fontFamily: fonts.ui.semibold, color: colors.ink },
-  aiVoiceBtn: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 11, borderRadius: 12, backgroundColor: colors.primary },
-  aiVoiceBtnText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  // Pestañas (tablero): un riel de arena; la elegida, blanca y apenas levantada.
+  tabs: { flexDirection: 'row', gap: 2, padding: 3, borderRadius: radius.md, backgroundColor: colors.sand },
+  tab: { flex: 1, minHeight: 44, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
+  tabOn: { backgroundColor: colors.bg, shadowColor: colors.ink, shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  tabText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
+  tabCount: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted, fontVariant: ['tabular-nums'] },
+  bar: { flexDirection: 'row', gap: spacing.sm },
+  search: { flex: 1, minWidth: 0, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingLeft: 14, paddingRight: 2, borderRadius: radius.pill, backgroundColor: colors.well },
+  searchInput: { flex: 1, minWidth: 0, paddingVertical: 0, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink },
+  clear: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  filterPill: { maxWidth: 170, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
+  filterOn: { backgroundColor: colors.sand, borderColor: colors.sand },
+  filterText: { flexShrink: 1, fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
+  listHead: { gap: spacing.md, paddingTop: spacing.xs, paddingBottom: spacing.sm },
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },
   meta: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
-  setup: { gap: spacing.sm, backgroundColor: colors.primarySoft, borderRadius: radius.lg, padding: spacing.md },
+  // Arena, no verde: el verde es de Finance y el dinero.
+  setup: { gap: spacing.sm, backgroundColor: colors.well, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: spacing.md },
   setupTitle: { fontSize: 15.5, fontFamily: fonts.display.bold, color: colors.ink },
   row: { flexDirection: 'row', gap: spacing.sm },
-  linkRow: { minHeight: 40, justifyContent: 'center', alignSelf: 'center' },
+  linkRow: { minHeight: 44, justifyContent: 'center', alignSelf: 'center' },
   link: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink, textDecorationLine: 'underline' },
   news: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingLeft: 14, paddingRight: 6, borderRadius: 20, backgroundColor: colors.surface },
   newsTitle: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   newsText: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.semibold, color: colors.muted },
   newsClose: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  confirm: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, backgroundColor: colors.surface },
-  confirmText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   alertCard: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1.5, borderColor: '#F2C9A0', overflow: 'hidden' },
   alertHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md },
-  alertIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' },
+  alertIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.selectedSoft, alignItems: 'center', justifyContent: 'center' },
   alertTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  alertLine: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.accentInk },
+  alertLine: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
   alertFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 44, borderTopWidth: 1, borderTopColor: '#F5E6D6' },
-  alertLink: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primary },
-  blockHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 40 },
-  blockTitle: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.muted, letterSpacing: 0.5, textTransform: 'uppercase' },
+  alertLink: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
+  // Empre AI: su propia entrada, aparte del buscador (tablero, teléfono 1).
+  aiTitle: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
+  // Contar: la tarjeta de la sección (arena) con su botón en contorno rojo, y «Seguir contando» (blanca, con flecha).
+  countCard: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 10, paddingHorizontal: spacing.md, borderRadius: 16, backgroundColor: colors.well },
+  countBtn: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: 12, borderWidth: 2, borderColor: colors.brandRef, backgroundColor: colors.surface },
+  // Contar en Base: sin el aro rojo (no invita a lo que no tienes), el contenido en gris y la corona de Pro.
+  countBtnLocked: { borderWidth: 1, borderColor: colors.line, backgroundColor: colors.well, paddingHorizontal: 10 },
+  countBtnBody: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  countBtnText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
+  resume: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 10, paddingHorizontal: spacing.md, borderRadius: 16, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
+  aiSub: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
+  loadingMore: { textAlign: 'center', fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted, paddingVertical: spacing.xs },
+  confirm: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, backgroundColor: colors.surface },
+  confirmText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  // El índice: cada sección es un título plegable (la abierta, en arena) con su punto y su número.
+  accHead: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingHorizontal: 4, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg },
+  accOpen: { marginTop: 4, paddingHorizontal: 10, borderTopWidth: 0, borderRadius: 12, backgroundColor: colors.well },
+  accName: { flex: 1, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
+  accDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.brandRef },
+  accCount: { fontSize: 14, fontFamily: fonts.ui.medium, color: colors.muted, fontVariant: ['tabular-nums'] },
+  // La primera línea de la sección abierta: cuándo se contó y contarla (alineada con el nombre).
+  countLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, minHeight: 52, paddingLeft: 28 },
+  moreBtn: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderTopWidth: 1, borderTopColor: colors.line },
+  moreText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink, textDecorationLine: 'underline' },
+  // Con pocos, la lista va en una sola tarjeta (tablero, teléfono 5).
+  fewCard: { paddingHorizontal: spacing.md, borderLeftWidth: 1, borderRightWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
+  fewFirst: { borderTopWidth: 1, borderTopLeftRadius: 18, borderTopRightRadius: 18 },
+  fewLast: { borderBottomWidth: 1, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 },
+  createBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: spacing.md, paddingHorizontal: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg },
+  findSec: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.well, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink },
+  fChip: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
+  fChipOn: { backgroundColor: colors.sand, borderColor: colors.sand },
+  fChipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
+  sheetVeil: { flex: 1, backgroundColor: 'rgba(43,38,34,0.28)' },
+  sheet: { gap: 14, paddingTop: 10, paddingHorizontal: spacing.lg, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.bg },
+  sheetHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line },
+  sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
+  sheetTitle: { fontSize: 18, fontFamily: fonts.ui.semibold, color: colors.ink },
+  sheetLabel: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   card: { backgroundColor: colors.surface, borderRadius: 20, overflow: 'hidden' },
-  deckMore: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.sm },
-  itemRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingRight: spacing.md, minHeight: 72 },
-  itemLine: { borderTopWidth: 1, borderTopColor: colors.selectedSoft },
-  itemMain: { flex: 1, minWidth: 0, paddingVertical: spacing.sm, paddingLeft: 4, minHeight: 56, justifyContent: 'center' },
-  itemName: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  warn: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#B3261E' },
-  warnSoft: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.accentInk },
-  pill: { minHeight: 36, paddingHorizontal: 10, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 },
-  childRow: { marginLeft: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line },
-  pillMuted: { borderWidth: 1, borderColor: colors.line },
-  groupSum: { fontSize: 12, fontFamily: fonts.ui.extrabold },
-  pillText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold },
-  emptySupplies: { padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
-  review: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.primary },
+  // Fila (tablero): foto de 48, nombre, una línea y lo de la derecha; sin tarjeta, con una línea entre filas.
+  itemRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 64 },
+  itemLine: { borderTopWidth: 1, borderTopColor: colors.line },
+  childRow: { marginLeft: 60 },
+  thumb: { width: 48, height: 48, borderRadius: 12 },
+  thumbEmpty: { backgroundColor: colors.well, alignItems: 'center', justifyContent: 'center' },
+  thumbUnit: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
+  itemMain: { flex: 1, minWidth: 0, minHeight: 56, paddingVertical: spacing.sm, justifyContent: 'center', gap: 1 },
+  itemName: { fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
+  warn: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
+  warnSoft: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.ink },
+  right: { minWidth: 44, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2, paddingLeft: spacing.sm },
+  rightText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink, fontVariant: ['tabular-nums'], textAlign: 'right' },
+  rightUrgent: { color: colors.primaryDark },
+  rightQuiet: { fontFamily: fonts.ui.medium, color: colors.muted },
+  review: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.brandRef },
   reviewRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  fab: { position: 'absolute', right: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 56, paddingHorizontal: 22, borderRadius: 28, backgroundColor: colors.primary, elevation: 4, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-  fabText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#fff', maxWidth: 220 },
-  thumb: { width: 52, height: 52, borderRadius: 12, marginLeft: 10, marginVertical: 10 },
-  thumbIcon: { backgroundColor: colors.selectedSoft, alignItems: 'center', justifyContent: 'center' },
-  photoNudge: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, paddingHorizontal: spacing.md, borderRadius: 16, backgroundColor: colors.surface },
-  photoNudgeText: { flex: 1, fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  backRow: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 40, alignSelf: 'flex-start' },
-  audRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm },
-  audLabel: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
 });

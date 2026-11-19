@@ -1,5 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
@@ -22,8 +23,8 @@ import { answersApi } from '@/api/answers';
 import { chatApi, entitiesApi } from '@/api/endpoints';
 import { offersApi, statusApi } from '@/api/offers';
 import { useAuth } from '@/auth/AuthContext';
-import { Avatar } from '@/components/Avatar';
-import { Cover } from '@/components/Cover';
+import { ART_TINT, CategoryIllustration } from '@/components/CategoryIllustration';
+import { artKeyFor } from '@/components/CategoryArt';
 import { Chispa, type ChispaMood } from '@/components/ai/Chispa';
 import { AskManySheet } from '@/components/offers/AskManySheet';
 import { FEATURES } from '@/config';
@@ -38,12 +39,12 @@ import {
   type Block,
   type Intent,
 } from '@/lib/answers';
-import { sameItemPeers } from '@/lib/askMany';
+import { decisionPoints, sameItemPeers } from '@/lib/askMany';
 import { askMessage, catalogCopy, formatPesos } from '@/lib/catalog';
 import { chatItemParam } from '@/lib/chatItem';
-import { displayIcon } from '@/lib/mapView';
 import { formatEndsWhen } from '@/lib/offer';
 import { distanceLabel, itemStatusBadge, priceView, type MarketItem } from '@/lib/offerMarket';
+import { untilLabel } from '@/lib/offerHome';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, softShadow } from '@/theme';
@@ -55,6 +56,8 @@ interface Props {
   onClose: () => void;
   /** La Vitrina ya cargada: de aquí salen los otros negocios que ofrecen lo mismo («Pregúntales a los N», 3.64). */
   pool?: MarketItem[];
+  /** Ver otra opción (la de «Para decidir») en la misma hoja. */
+  onPick?: (item: MarketItem) => void;
 }
 
 /**
@@ -63,16 +66,16 @@ interface Props {
  * - Integra «Pregúntale a Empre AI» para responder al instante con lo que publicó el negocio.
  * - Permite escribirle directo al negocio adjuntando la tarjeta del producto/servicio o reclamar la oferta.
  */
-export function MarketItemSheet({ item, onClose, pool = [] }: Props) {
+export function MarketItemSheet({ item, onClose, pool = [], onPick }: Props) {
   const reduce = useReduceMotion();
   return (
     <Modal visible={item !== null} transparent animationType={reduce ? 'none' : 'slide'} onRequestClose={onClose}>
-      {item !== null ? <SheetContent key={item.id} item={item} onClose={onClose} pool={pool} /> : null}
+      {item !== null ? <SheetContent key={item.id} item={item} onClose={onClose} pool={pool} onPick={onPick} /> : null}
     </Modal>
   );
 }
 
-function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () => void; pool: MarketItem[] }) {
+function SheetContent({ item, onClose, pool, onPick }: { item: MarketItem; onClose: () => void; pool: MarketItem[]; onPick?: (item: MarketItem) => void }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const now = useNow(60_000);
@@ -126,6 +129,16 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
   const dist = distanceLabel(item.distance_meters);
   const p = priceView(item);
   const badge = itemStatusBadge(item, now);
+  const art = artKeyFor(item.category_name, item.category_icon);
+  const isOpen = biz?.is_open_now ?? item.open_now ?? null;
+  const until = untilLabel(item.open_until ?? null);
+  const openLabel = isOpen === true ? `Abierto${until ? ` ${until}` : ''}` : isOpen === false ? 'Cerrado ahora' : null;
+  const facts: { key: string; icon: IconName; text: string; urgent?: boolean }[] = [
+    ...(!isService ? [{ key: 'ends', icon: 'alarm-outline' as IconName, text: badge.text, urgent: badge.urgent }] : []),
+    ...(item.bookable ? [{ key: 'book', icon: 'calendar-outline' as IconName, text: 'Se puede reservar' }] : []),
+    ...(isService && item.duration_min ? [{ key: 'dur', icon: 'time-outline' as IconName, text: `${item.duration_min} min` }] : []),
+    ...(biz?.service_mode === 'delivery' || biz?.service_mode === 'both' ? [{ key: 'del', icon: 'bicycle-outline' as IconName, text: 'Hacen domicilio' }] : []),
+  ];
 
   // Detectar si este servicio específico está incluido dentro de alguna oferta activa del negocio
   const matchingOffer = useMemo(() => {
@@ -200,6 +213,10 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
 
   // Otros negocios cercanos con el mismo producto: si hay, una pregunta les llega a todos (3.64).
   const peers = useMemo(() => sameItemPeers(item, pool), [item, pool]);
+  // Para decidir: el mismo producto en otros negocios cerca, solo con hechos (precio, distancia, reseñas, si abre).
+  const decide = useMemo(() => decisionPoints(item, pool), [item, pool]);
+  // Media hoja: se sigue viendo Ofertas detrás; al desplazar o tocar la manija, sube entera.
+  const [full, setFull] = useState(false);
   const [askMany, setAskMany] = useState(false);
 
   const [aiQuestion, setAiQuestion] = useState('');
@@ -303,53 +320,58 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
   return (
     <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel="Cerrar vista rápida" onPress={onClose} />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 14 }]} accessibilityViewIsModal>
-        <View style={styles.handleWrap}>
+      <View style={[styles.sheet, { height: full ? '92%' : '62%', paddingBottom: insets.bottom + 14 }]} accessibilityViewIsModal>
+        <Pressable accessibilityRole="button" accessibilityLabel={full ? 'Bajar la hoja' : 'Subir la hoja'} onPress={() => setFull((v) => !v)} style={styles.handleWrap}>
           <View style={styles.handle} />
-        </View>
+        </Pressable>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          {/* HERO FOTO (Inspirado en Referencia 2 Swiggy Card Modal) */}
-          <View style={styles.heroWrap}>
-            <Cover
-              photo={item.photo}
-              category={item.category_name}
-              icon={item.category_icon}
-              iconName={displayIcon(item.category_icon) as IconName}
-              iconSize={76}
-              style={styles.heroPhoto}
-            />
-            <View style={styles.heroTopRow}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          onScroll={(e) => {
+            if (!full && e.nativeEvent.contentOffset.y > 24) setFull(true);
+          }}
+          scrollEventThrottle={64}
+        >
+          {/* CABECERA (tablero «Empre Offers», teléfono 3): todo al mismo margen. Foto o su ilustración, nombre, precio y
+              el negocio en una línea con si está abierto (texto legible, no sobre la foto). Sin repetir la sección. */}
+          <View style={styles.top}>
+            <View>
+              <View style={styles.topMedia}>
+                {item.photo ? (
+                  <Image source={{ uri: item.photo }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
+                ) : (
+                  <View style={[StyleSheet.absoluteFill, styles.topArt, { backgroundColor: ART_TINT[art] }]}>
+                    <CategoryIllustration k={art} size={58} />
+                  </View>
+                )}
+              </View>
               {p.save ? (
-                <View style={styles.heroOfferBadge}>
-                  <Ionicons name="flame" size={13} color={colors.ink} />
-                  <Text style={styles.heroOfferBadgeText}>OFERTA {p.save}</Text>
+                <View style={styles.topSeal}>
+                  <Text style={styles.topSealText}>{p.save.replace(' ', '')}</Text>
                 </View>
-              ) : (
-                <View style={styles.heroCatalogBadge}>
-                  <Ionicons name="pricetag-outline" size={12} color="#fff" />
-                  <Text style={styles.heroCatalogBadgeText}>{item.section || copy.noun}</Text>
-                </View>
-              )}
-              <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} style={styles.closeBtn}>
-                <Ionicons name="close" size={20} color={colors.ink} />
+              ) : null}
+            </View>
+            <View style={styles.topText}>
+              <Text style={styles.itemTitle} numberOfLines={2}>
+                {item.title}
+              </Text>
+              <View style={styles.topPriceRow}>
+                {p.now ? <Text style={styles.topPrice}>{p.now}</Text> : <Text style={styles.consultText}>Precio a consultar</Text>}
+                {p.was ? <Text style={styles.priceWas}>{p.was}</Text> : null}
+              </View>
+              <Pressable accessibilityRole="link" accessibilityLabel={`Ver ${biz?.name ?? item.entity_name}${openLabel ? `, ${openLabel}` : ''}`} onPress={openBusiness} hitSlop={6} style={styles.topBiz}>
+                <Text style={styles.topBizText} numberOfLines={1}>
+                  {[biz?.name ?? item.entity_name, dist].filter(Boolean).join(' · ')}
+                  {openLabel ? <Text style={[styles.topBizText, isOpen ? styles.topOpen : null]}>{` · ${openLabel}`}</Text> : null}
+                </Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.muted} />
               </Pressable>
             </View>
-
-            <View style={styles.heroBottomRow}>
-              {biz?.is_open_now ?? item.open_now ? (
-                <View style={styles.openBadge}>
-                  <View style={styles.openDot} />
-                  <Text style={styles.openBadgeText}>Abierto ahora</Text>
-                </View>
-              ) : null}
-              {(biz?.avg_rating ?? item.rating ?? 0) >= 4.0 ? (
-                <View style={styles.ratingBadge}>
-                  <Ionicons name="star" size={11} color="#fff" />
-                  <Text style={styles.ratingBadgeText}>{(biz?.avg_rating ?? item.rating ?? 0).toFixed(1)}</Text>
-                </View>
-              ) : null}
-            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} style={styles.closeBtn}>
+              <Ionicons name="close" size={20} color={colors.ink} />
+            </Pressable>
           </View>
 
           <View style={styles.body}>
@@ -362,11 +384,11 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
                 style={({ pressed }) => [styles.offerBanner, pressed && styles.pressed]}
               >
                 <View style={styles.offerBannerIcon}>
-                  <Ionicons name="flame" size={18} color={colors.ink} />
+                  <Ionicons name="pricetag-outline" size={18} color={colors.ink} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.offerBannerTag}>
-                    {serviceInOffer ? '¡ESTE SERVICIO ESTÁ EN OFERTA!' : 'ESTE NEGOCIO TIENE UNA OFERTA ACTIVA'}
+                    {serviceInOffer ? 'Está en oferta' : 'Este negocio tiene una oferta'}
                   </Text>
                   <Text style={styles.offerBannerTitle} numberOfLines={1}>
                     {matchingOffer.title}
@@ -380,82 +402,45 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
               </Pressable>
             ) : null}
 
-            {/* ENCABEZADO DEL PRODUCTO / SERVICIO / OFERTA */}
-            <View style={styles.headBlock}>
-              <View style={styles.titlePriceRow}>
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={styles.itemTitle}>{item.title}</Text>
-                  <Text style={styles.itemCategory}>
-                    {[item.category_name, item.section, dist ? `a ${dist}` : null].filter(Boolean).join(' · ')}
-                  </Text>
-                </View>
-                <View style={styles.priceColumn}>
-                  {p.now ? (
-                    <View style={[p.was ? styles.promoPriceBox : styles.catalogPriceBox]}>
-                      <Text style={styles.priceNow}>{p.now}</Text>
-                    </View>
-                  ) : (
-                    <Text style={styles.consultText}>Consultar</Text>
-                  )}
-                  {p.was ? <Text style={styles.priceWas}>Antes {p.was}</Text> : null}
-                </View>
-              </View>
-
-              {/* ATRIBUTOS RÁPIDOS (FAB: Features -> Benefits) */}
+            {/* Lo que suma a decidir, sin repetir la sección: hasta cuándo va la oferta, si se reserva, si llevan a domicilio */}
+            {facts.length ? (
               <View style={styles.factsRow}>
-                <View style={[styles.factPill, badge.urgent && styles.factPillUrgent]}>
-                  <Ionicons
-                    name={isService ? 'time-outline' : 'alarm-outline'}
-                    size={13}
-                    color={badge.urgent ? '#8F4300' : colors.ink}
-                  />
-                  <Text style={[styles.factPillText, badge.urgent && { color: '#8F4300' }]}>{badge.text}</Text>
-                </View>
-                {item.bookable ? (
-                  <View style={styles.factPill}>
-                    <Ionicons name="calendar-outline" size={13} color={colors.verified} />
-                    <Text style={[styles.factPillText, { color: colors.verified }]}>Se puede reservar</Text>
+                {facts.map((f) => (
+                  <View key={f.key} style={[styles.factPill, f.urgent && styles.factPillUrgent]}>
+                    <Ionicons name={f.icon} size={13} color={f.urgent ? colors.accentInk : colors.ink} />
+                    <Text style={[styles.factPillText, f.urgent && { color: colors.accentInk }]}>{f.text}</Text>
                   </View>
-                ) : null}
-                {biz?.service_mode === 'delivery' || biz?.service_mode === 'both' ? (
-                  <View style={styles.factPill}>
-                    <Ionicons name="bicycle-outline" size={13} color={colors.ink} />
-                    <Text style={styles.factPillText}>Hacen domicilio</Text>
-                  </View>
-                ) : null}
+                ))}
               </View>
+            ) : null}
+            {item.description ? (
+              <Text style={styles.descText} numberOfLines={3}>
+                {item.description}
+              </Text>
+            ) : null}
 
-              {item.description ? (
-                <Text style={styles.descText} numberOfLines={3}>
-                  {item.description}
-                </Text>
-              ) : null}
-            </View>
-
-            {/* TARJETA DEL NEGOCIO (Acceso directo al perfil completo) */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Ir al negocio ${biz?.name ?? item.entity_name}`}
-              onPress={openBusiness}
-              style={({ pressed }) => [styles.bizCard, pressed && styles.pressed]}
-            >
-              <Avatar uri={biz?.profile_url} name={biz?.name ?? item.entity_name} size={42} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={styles.bizNameRow}>
-                  <Text style={styles.bizName} numberOfLines={1}>
-                    {biz?.name ?? item.entity_name}
-                  </Text>
-                  {biz?.is_verified ? <Ionicons name="checkmark-circle" size={15} color={colors.verified} /> : null}
-                </View>
-                <Text style={styles.bizMeta} numberOfLines={1}>
-                  Ver todo su catálogo, horarios y ubicación
-                </Text>
+            {/* PARA DECIDIR: el mismo producto en otros negocios, sin favorecer a ninguno */}
+            {decide.points.length ? (
+              <View style={styles.decideCard}>
+                <Text style={styles.decideTitle}>{decide.peers ? `Para decidir · ${decide.peers + 1} negocios lo tienen cerca` : 'Para decidir'}</Text>
+                {decide.points.map((pt) => (
+                  <Pressable
+                    key={pt.key}
+                    accessibilityRole={pt.target ? 'button' : 'text'}
+                    disabled={!pt.target || !onPick}
+                    onPress={() => pt.target && onPick?.(pt.target)}
+                    style={({ pressed }) => [styles.decideRow, pressed && styles.pressed]}
+                  >
+                    <Ionicons name={DECIDE_ICON[pt.key]} size={18} color={colors.ink} />
+                    <Text style={styles.decideText}>
+                      {pt.text}
+                      {pt.bold ? <Text style={styles.decideBold}>{` ${pt.bold}`}</Text> : null}
+                    </Text>
+                    {pt.target && onPick ? <Text style={styles.decideGo}>Ver ›</Text> : null}
+                  </Pressable>
+                ))}
               </View>
-              <View style={styles.bizGoPill}>
-                <Text style={styles.bizGoText}>Ver local</Text>
-                <Ionicons name="chevron-forward" size={14} color={colors.ink} />
-              </View>
-            </Pressable>
+            ) : null}
 
             {/* MÓDULO EMPRE AI: RESPUESTAS RÁPIDAS AL INSTANTE */}
             <View style={styles.aiCard}>
@@ -464,9 +449,6 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
                 <View style={{ flex: 1 }}>
                   <Text style={styles.aiTitle}>Pregúntale a Empre AI</Text>
                   <Text style={styles.aiSub}>{thinking ? 'Entendiendo tu pregunta…' : `Responde al instante con lo que publicó ${biz?.name ?? item.entity_name}`}</Text>
-                </View>
-                <View style={styles.aiAutoBadge}>
-                  <Text style={styles.aiAutoText}>AL INSTANTE</Text>
                 </View>
               </View>
 
@@ -479,7 +461,7 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
                     onPress={() => setAskMany(true)}
                     style={({ pressed }) => [styles.aiChip, styles.aiChipCompare, pressed && styles.pressed]}
                   >
-                    <Ionicons name="git-compare-outline" size={13} color="#fff" />
+                    <Ionicons name="git-compare-outline" size={13} color={colors.ink} />
                     <Text style={[styles.aiChipText, styles.aiChipTextActive]}>{`Comparar en los ${peers.length}`}</Text>
                   </Pressable>
                 ) : null}
@@ -539,7 +521,7 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
                   onPress={() => void submitCustomQuestion()}
                   style={[styles.aiSendBtn, (!aiQuestion.trim() || thinking) && styles.aiSendBtnDisabled]}
                 >
-                  <Ionicons name="arrow-up" size={18} color="#fff" />
+                  <Ionicons name="arrow-up" size={18} color={colors.ink} />
                 </Pressable>
               </View>
             </View>
@@ -571,7 +553,7 @@ function SheetContent({ item, onClose, pool }: { item: MarketItem; onClose: () =
             style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
           >
             <Text style={styles.primaryBtnText}>{isService ? 'Ver detalle completo' : 'Reclamar oferta'}</Text>
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
+            <Ionicons name="arrow-forward" size={18} color={colors.ink} />
           </Pressable>
         </View>
       </View>
@@ -617,50 +599,76 @@ function AIBlockView({ b }: { b: Block }) {
   }
 }
 
+const DECIDE_ICON: Record<'price' | 'near' | 'rated' | 'open' | 'only', IconName> = {
+  price: 'pricetag-outline',
+  near: 'walk-outline',
+  rated: 'star-outline',
+  open: 'time-outline',
+  only: 'storefront-outline',
+};
+
 // Lo que el servidor ya clasificó en esta sesión: la misma pregunta no se paga dos veces (3.64).
 const classified = new Map<string, { intent: string; answer_id?: string }>();
 
 const styles = StyleSheet.create({
-  aiChipCompare: { backgroundColor: colors.ink, borderColor: colors.ink },
-  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(14,35,70,0.52)' },
-  sheet: { maxHeight: '90%', backgroundColor: colors.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden', ...softShadow },
+  aiChipCompare: { backgroundColor: colors.sand, borderColor: colors.ink },
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(43,38,34,0.28)' },
+  sheet: { backgroundColor: colors.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden', ...softShadow },
   handleWrap: { alignItems: 'center', paddingTop: 10, paddingBottom: 6, backgroundColor: colors.surface },
   handle: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.line },
   scrollContent: { paddingBottom: 16 },
-  heroWrap: { height: 188, position: 'relative', backgroundColor: colors.ink },
+  top: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, paddingHorizontal: 20, paddingTop: 6, paddingBottom: 4 },
+  topMedia: { width: 84, height: 84, borderRadius: 18, overflow: 'hidden', backgroundColor: colors.sandSoft },
+  topArt: { alignItems: 'center', justifyContent: 'center' },
+  topSeal: { position: 'absolute', right: -8, top: -8, minWidth: 40, height: 40, paddingHorizontal: 5, borderRadius: 20, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.bg, transform: [{ rotate: '-8deg' }] },
+  topSealText: { fontFamily: fonts.ui.extrabold, fontSize: 12, color: colors.ink },
+  topText: { flex: 1, minWidth: 0, gap: 3 },
+  topPriceRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 8 },
+  topPrice: { fontFamily: fonts.ui.extrabold, fontSize: 20, color: colors.ink, fontVariant: ['tabular-nums'] },
+  topBiz: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 28 },
+  topBizText: { flexShrink: 1, fontFamily: fonts.ui.medium, fontSize: 13, color: colors.muted },
+  topOpen: { fontFamily: fonts.ui.semibold, color: colors.ink },
+  heroWrap: { height: 188, position: 'relative', backgroundColor: colors.sand },
+  heroWrapHalf: { height: 132 },
+  decideCard: { padding: 14, gap: 4, borderRadius: 18, backgroundColor: colors.surface },
+  decideTitle: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink, marginBottom: 4 },
+  decideRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 40 },
+  decideText: { flex: 1, fontSize: 14, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.ink },
+  decideBold: { fontFamily: fonts.ui.semibold },
+  decideGo: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   heroPhoto: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   heroTopRow: { position: 'absolute', top: 12, left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  heroOfferBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.accent },
-  heroOfferBadgeText: { fontSize: 12.5, fontFamily: fonts.display.bold, color: colors.ink },
-  heroCatalogBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(14,35,70,0.86)' },
-  heroCatalogBadgeText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  heroOfferBadge: { minWidth: 52, height: 52, paddingHorizontal: 8, borderRadius: 26, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-8deg' }] },
+  heroOfferBadgeText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  heroCatalogBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(255,254,251,0.94)' },
+  heroCatalogBadgeText: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.ink },
   closeBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.94)', alignItems: 'center', justifyContent: 'center' },
   heroBottomRow: { position: 'absolute', bottom: 12, left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  openBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.94)' },
+  openBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(43,38,34,0.06)' },
   openDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.verified },
   openBadgeText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  ratingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: '#1B6B3C' },
-  ratingBadgeText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: '#fff' },
-  body: { paddingHorizontal: 18, paddingTop: 14, gap: 12 },
-  offerBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 16, backgroundColor: '#FFF1E3', borderWidth: 1.5, borderColor: colors.accent },
+  ratingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.sand },
+  ratingBadgeText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  body: { paddingHorizontal: 20, paddingTop: 14, gap: 12 },
+  offerBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 16, backgroundColor: colors.accentSoft },
   offerBannerIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
-  offerBannerTag: { fontSize: 10.5, letterSpacing: 0.4, fontFamily: fonts.ui.extrabold, color: '#8F4300' },
-  offerBannerTitle: { fontSize: 14, fontFamily: fonts.display.bold, color: colors.ink },
+  offerBannerTag: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.accentInk },
+  offerBannerTitle: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   offerBannerGo: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: colors.surface },
-  offerBannerGoText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  offerBannerGoText: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.ink },
   headBlock: { padding: 16, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, gap: 10 },
   titlePriceRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   itemTitle: { fontSize: 21, lineHeight: 25, fontFamily: fonts.display.bold, color: colors.ink },
   itemCategory: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   priceColumn: { alignItems: 'flex-end', gap: 3 },
-  promoPriceBox: { backgroundColor: '#FFF1E3', borderWidth: 1.5, borderColor: colors.accent, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
+  promoPriceBox: { backgroundColor: colors.accentSoft, borderWidth: 1.5, borderColor: colors.brand, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
   catalogPriceBox: { backgroundColor: colors.selectedSoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
   priceNow: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
   priceWas: { fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.faint, textDecorationLine: 'line-through', fontVariant: ['tabular-nums'] },
   consultText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.muted },
   factsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   factPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.selectedSoft },
-  factPillUrgent: { backgroundColor: '#FFF1E3' },
+  factPillUrgent: { backgroundColor: colors.accentSoft },
   factPillText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.ink },
   descText: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.muted },
   bizCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
@@ -669,37 +677,35 @@ const styles = StyleSheet.create({
   bizMeta: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
   bizGoPill: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.selectedSoft },
   bizGoText: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  aiCard: { padding: 14, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: '#D5E3F7', gap: 10 },
+  aiCard: { padding: 14, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line, gap: 10 },
   aiHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   aiTitle: { fontSize: 15, fontFamily: fonts.display.bold, color: colors.ink },
   aiSub: { fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
-  aiAutoBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: '#E3F5F3' },
-  aiAutoText: { fontSize: 10, fontFamily: fonts.ui.extrabold, color: colors.verified, letterSpacing: 0.4 },
   aiChipsRow: { gap: 6, paddingVertical: 2 },
-  aiChip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line },
-  aiChipActive: { backgroundColor: colors.ink, borderColor: colors.ink },
+  aiChip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.well, borderWidth: 1, borderColor: colors.line },
+  aiChipActive: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
   aiChipText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
-  aiChipTextActive: { color: '#fff' },
-  aiAnswerBox: { padding: 12, borderRadius: 14, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line, gap: 6 },
+  aiChipTextActive: { color: colors.ink },
+  aiAnswerBox: { padding: 12, borderRadius: 14, backgroundColor: colors.well, borderWidth: 1, borderColor: colors.line, gap: 6 },
   aiQuestionAsked: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.primaryDark },
   aiBlockTitle: { fontSize: 14, fontFamily: fonts.display.bold, color: colors.ink },
   aiBlockBody: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
   aiSvcRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, paddingVertical: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
   aiSvcName: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   aiSvcPrice: { fontSize: 13, fontFamily: fonts.display.bold, color: colors.ink },
-  aiOfferBlock: { padding: 8, borderRadius: 10, backgroundColor: '#FFF1E3', gap: 2 },
+  aiOfferBlock: { padding: 8, borderRadius: 10, backgroundColor: colors.accentSoft, gap: 2 },
   aiSource: { fontSize: 11, fontFamily: fonts.ui.bold, color: colors.faint },
   aiAnswerActions: { marginTop: 4, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.line },
   aiWriteLink: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32 },
-  aiWriteLinkText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
+  aiWriteLinkText: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.ink },
   aiInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  aiInput: { flex: 1, height: 42, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line, fontSize: 13, fontFamily: fonts.ui.medium, color: colors.ink },
-  aiSendBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  aiInput: { flex: 1, height: 42, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.well, borderWidth: 1, borderColor: colors.line, fontSize: 13, fontFamily: fonts.ui.medium, color: colors.ink },
+  aiSendBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, alignItems: 'center', justifyContent: 'center' },
   aiSendBtnDisabled: { opacity: 0.4 },
-  footerBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18, paddingTop: 12, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
+  footerBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingTop: 12, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
   chatBtn: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 16, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line },
   chatBtnText: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  primaryBtn: { flex: 1, minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16, borderRadius: 16, backgroundColor: colors.primary },
-  primaryBtnText: { fontSize: 15.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  primaryBtn: { flex: 1, minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  primaryBtnText: { fontSize: 15.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   pressed: { opacity: 0.86, transform: [{ scale: 0.98 }] },
 });

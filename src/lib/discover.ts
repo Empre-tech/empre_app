@@ -3,6 +3,7 @@
 
 import { containsPoint, type Box } from './mapArea';
 import { formatEndsWhen } from './offer';
+import { openStatus } from './openStatus';
 
 export const MINUTE = 60_000;
 
@@ -17,11 +18,9 @@ export function formatClockLabel(hhmm?: string | null): string {
   return `${h12}:${String(m).padStart(2, '0')} ${suffix}`;
 }
 
-/** «Abierto · hasta las 8:00 pm», «Abierto las 24 horas» o «Abierto». */
-export function openLine(closesAt?: string | null): string {
-  if (closesAt === '24h') return 'Abierto las 24 horas';
-  const clock = formatClockLabel(closesAt);
-  return clock ? `Abierto · hasta las ${clock}` : 'Abierto';
+/** «Abierto · cierra 8 pm», «Cierra en 40 min», «Abierto 24 h» o «Abierto»: las mismas palabras que Inicio (openStatus). */
+export function openLine(closesAt?: string | null, now: number = Date.now()): string {
+  return openStatus(true, closesAt, now)?.text ?? 'Abierto';
 }
 
 /** Tiempo corto para pastillas: «25 min», «2 h», «3 d». */
@@ -74,6 +73,8 @@ export function scopeText(scope: SearchScope): string {
 }
 
 export interface HeaderInput {
+  /** Si se buscó por tipo de negocio porque el texto no encontraba nada. */
+  typeLabel?: string;
   searching: boolean;
   query: string;
   status: 'loading' | 'error' | 'ok';
@@ -97,7 +98,7 @@ export function sheetHeader(h: HeaderInput): { title: string; subtitle: string }
     // La zona ya la dice la franja de arriba (3.22): el panel dice QUÉ se ve («Descubre» o el grupo elegido) y cuántos.
     // Los destacados son los negocios directamente en la zona; Todos suma los adicionales cerca.
     const what = h.categoryName || null;
-    const status = h.zoneStatus === 'error' && h.zoneCount === 0 ? 'Sin conexión con el servidor' : h.zoneStatus === 'loading' && h.zoneCount === 0 ? 'Cargando…' : null;
+    const status = h.zoneStatus === 'error' && h.zoneCount === 0 ? 'Sin conexión con el servidor' : h.zoneStatus === 'loading' && h.zoneCount === 0 ? 'Buscando…' : null;
     if (h.view === 'results') {
       const extra = h.extraCount ?? 0;
       return {
@@ -119,7 +120,9 @@ export function sheetHeader(h: HeaderInput): { title: string; subtitle: string }
         : h.results === 0
           ? 'Sin resultados'
           : `${h.results} ${h.results === 1 ? 'resultado' : 'resultados'}`;
-  return { title: `«${h.query}»`, subtitle };
+  // Al buscar también dice cuántos están abiertos y, si se buscó por tipo («corte de pelo» → Barbería), cuál.
+  const open = h.status === 'ok' && h.results > 0 && (h.openCount ?? 0) > 0 ? ` · ${h.openCount} ${h.openCount === 1 ? 'abierto' : 'abiertos'} ahora` : '';
+  return { title: `«${h.query}»`, subtitle: `${h.typeLabel && h.results > 0 ? `${h.typeLabel} · ` : ''}${subtitle}${open}` };
 }
 
 interface WithSubs {

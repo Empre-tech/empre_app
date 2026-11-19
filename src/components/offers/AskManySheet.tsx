@@ -1,9 +1,11 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
+import { RememberSize } from '@/components/ai/RememberSize';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -22,11 +24,13 @@ import { useAuth } from '@/auth/AuthContext';
 import { useChat } from '@/chat/ChatProvider';
 import { Chispa, type ChispaMood } from '@/components/ai/Chispa';
 import { Avatar } from '@/components/Avatar';
-import { detectIntent } from '@/lib/answers';
+import { TypeIn, typeMs } from '@/components/chat/EmpreVoice';
+import { asksCommitment, detectIntent } from '@/lib/answers';
 import {
   answerMany,
   askDraft,
   MANY_LABEL,
+  bestIntentOf,
   manyIntentOf,
   manySuggestions,
   toRow,
@@ -41,8 +45,14 @@ import type { MarketItem } from '@/lib/offerMarket';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, radius, softShadow } from '@/theme';
 
-/** De dónde salió la respuesta (modelo de uso, 3.64): reglas, clasificador del servidor o el dueño. */
-type Source = 'rule' | 'classify' | 'owner';
+/** De dónde salió la respuesta (modelo de uso, 3.64): reglas, clasificador, la ficha de cada negocio o el dueño. */
+type Source = 'rule' | 'classify' | 'ficha' | 'owner';
+
+/** Lo que Empre AI leyó en la ficha publicada de un negocio (nivel 3, 2026-11-14). */
+interface FichaLine {
+  row: ManyRow;
+  text: string;
+}
 
 interface Turn {
   id: string;
@@ -51,6 +61,10 @@ interface Turn {
   answer: ManyAnswer | null;
   /** Negocios a los que ya se les preguntó por chat en este turno. */
   sent: string[];
+  /** Lo que no estaba en las reglas pero sí en la ficha de algunos negocios. */
+  ficha?: FichaLine[];
+  /** Pide un compromiso (apartar, rebajar…): lo responden los dueños. */
+  owner?: boolean;
 }
 
 // Lo que ya clasificó el servidor en esta sesión: la misma pregunta no se paga dos veces (3.64).
@@ -65,15 +79,17 @@ const keyOf = (t: string) =>
     .trim();
 
 const ICON: Record<ManyIntent, keyof typeof Ionicons.glyphMap> = {
+  best: 'git-compare-outline',
   price: 'cash-outline',
   open: 'time-outline',
   offers: 'pricetag-outline',
   duration: 'hourglass-outline',
 };
 const TINT: Record<ManyIntent, { bg: string; ink: string }> = {
+  best: { bg: colors.primarySoft, ink: colors.primaryDark },
   price: { bg: colors.selectedSoft, ink: colors.ink },
   open: { bg: colors.verifiedSoft, ink: colors.verified },
-  offers: { bg: colors.accentSoft, ink: colors.warning },
+  offers: { bg: colors.accentSoft, ink: colors.accentInk },
   duration: { bg: colors.selectedSoft, ink: colors.ink },
 };
 
@@ -122,11 +138,11 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
   const busy = turns.some((t) => t.answer === null);
   const entityId = rows[0]?.entityId;
 
-  const finish = (id: string, a: ManyAnswer, source: Source) => {
+  const finish = (id: string, a: ManyAnswer, source: Source, extra: { ficha?: FichaLine[]; owner?: boolean } = {}) => {
     const t = setTimeout(
       () => {
-        setTurns((all) => all.map((x) => (x.id === id ? { ...x, answer: a } : x)));
-        setMood(a.intent === 'unknown' ? 'nosabe' : 'responde');
+        setTurns((all) => all.map((x) => (x.id === id ? { ...x, answer: a, ...extra } : x)));
+        setMood(a.intent === 'unknown' && !extra.ficha?.length ? 'nosabe' : 'responde');
         if (entityId) track('ai_answer_source', entityId, { intent: a.intent, source, businesses: n });
       },
       reduce ? 250 : 1100,
@@ -135,6 +151,8 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
   };
 
   const ask = async (intent: ManyIntent | null, question: string, typed?: string) => {
+    // Al preguntar se baja el teclado: la respuesta tiene que verse completa.
+    Keyboard.dismiss();
     if (busy || !n) return;
     seq.current += 1;
     const id = `t${seq.current}`;
@@ -143,9 +161,15 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
     // Niveles 0 y 1: tocada o entendida por reglas. Cero costo.
     let mi = intent;
     let source: Source = 'rule';
+    // Un compromiso (apartar, rebajar, encargar…) lo responden los dueños: Empre AI no lo intenta (2026-11-14).
+    if (!mi && typed && asksCommitment(typed)) {
+      finish(id, unknownMany(rows), 'owner', { owner: true });
+      return;
+    }
     if (!mi && typed) {
       const d = detectIntent(typed, []);
-      mi = manyIntentOf(d.intent);
+      // «¿Cuál es mejor?» se responde comparando lo que se sabe de cada uno.
+      mi = bestIntentOf(typed) ?? manyIntentOf(d.intent);
       // Nivel 3: nadie la entendió. Una sola clasificación por pregunta, no por negocio, y guardada.
       if (!mi && d.intent === 'unknown' && status === 'signedIn' && entityId) {
         const key = keyOf(typed);
@@ -158,8 +182,22 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
         if (mi) source = 'classify';
       }
     }
-    // Nivel 4: tampoco se entendió o no es algo que la Vitrina sepa: se les pregunta a los dueños.
-    finish(id, mi ? answerMany(mi, rows, product) : unknownMany(rows), mi ? source : 'owner');
+    if (mi) {
+      finish(id, answerMany(mi, rows, product), source);
+      return;
+    }
+    // Nivel 3: Empre AI lee la ficha publicada de cada uno (descripción, carta, reseñas), en una sola lectura.
+    let ficha: FichaLine[] = [];
+    if (typed && status === 'signedIn') {
+      const r = await chatApi.fichaMany(rows.slice(0, 5).map((x) => x.entityId), typed).catch(() => null);
+      ficha = (r?.answers ?? []).flatMap((x) => {
+        const row = rows.find((y) => y.entityId === x.entity_id);
+        return row && x.known && x.text ? [{ row, text: x.text }] : [];
+      });
+    }
+    // Nivel 4: lo que nadie publicó se les pregunta a los dueños.
+    const base = unknownMany(rows);
+    finish(id, { ...base, missing: base.missing.filter((r) => !ficha.some((f) => f.row.entityId === r.entityId)) }, ficha.length ? 'ficha' : 'owner', { ficha });
   };
 
   const submit = () => {
@@ -223,10 +261,10 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
   };
 
   const last = turns[turns.length - 1];
-  const moodText = !last ? 'Responde al instante con lo publicado' : last.answer === null ? `Revisando ${n} negocios…` : last.sent.length ? 'Le pasó la pregunta a los dueños' : last.answer.intent === 'unknown' ? 'Esto lo saben los dueños' : 'Respondió con lo publicado';
 
   return (
-    <KeyboardAvoidingView style={[styles.screen, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    // En Android un Modal de pantalla completa no se encoge con el teclado: sin «height», la caja quedaba debajo.
+    <KeyboardAvoidingView style={[styles.screen, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.header}>
         <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} style={styles.iconBtn}>
           <Ionicons name="close" size={24} color={colors.ink} />
@@ -235,8 +273,8 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
           <Text style={styles.headerTitle} accessibilityRole="header">
             Empre AI
           </Text>
-          <Text style={styles.headerSub} accessibilityLiveRegion="polite">
-            {moodText}
+          <Text style={styles.headerSub} numberOfLines={1}>
+            {`${product} · ${n} negocios${near ? ' a menos de 1 km' : ' cerca'}`}
           </Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Nueva pregunta" disabled={!turns.length} onPress={reset} style={[styles.iconBtn, !turns.length && styles.dim]}>
@@ -244,30 +282,13 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
         </Pressable>
       </View>
 
-      <View style={styles.context} accessible accessibilityLabel={`${product}, en ${n} negocios${near ? ' a menos de 1 kilómetro' : ''}`}>
-        <View style={styles.contextIcon}>
-          <Ionicons name="pricetag" size={18} color="#FFFFFF" />
-        </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.contextTitle} numberOfLines={1}>
-            {product}
-          </Text>
-          <Text style={styles.contextSub}>{`${n} negocios${near ? ' a menos de 1 km' : ' cerca'}`}</Text>
-        </View>
-        <View style={styles.faces}>
-          {rows.map((r, i) => (
-            <View key={r.entityId} style={[styles.face, i > 0 && { marginLeft: -7 }]}>
-              <Avatar name={r.name} size={24} />
-            </View>
-          ))}
-        </View>
-      </View>
-
       <ScrollView
         ref={scroll}
         style={{ flex: 1 }}
         contentContainerStyle={styles.body}
         keyboardShouldPersistTaps="handled"
+        // Deslizar la conversación o tocar fuera de la caja baja el teclado.
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: !reduce })}
       >
         {!turns.length ? (
@@ -275,7 +296,7 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
             <View style={styles.hero}>
               <Chispa size={92} mood="reposo" />
               <Text style={styles.heroTitle}>{`Pregúntales a los ${n}\nde una vez`}</Text>
-              <Text style={styles.heroBody}>Te respondo al instante con lo que cada negocio publicó. Lo que no sé, se lo pregunto a ellos por chat.</Text>
+              <Text style={styles.heroBody}>Te respondo al instante con lo que cada negocio publicó; los precios los confirma cada uno. Lo que no sé, se lo pregunto a ellos por chat.</Text>
             </View>
             <View style={styles.grid}>
               {suggestions.map((s, i) => (
@@ -289,6 +310,19 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
                 </Enter>
               ))}
             </View>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="Seguir en Empre AI, en su propia pantalla"
+              onPress={() => {
+                onClose();
+                router.push({ pathname: '/ask', params: { q: text.trim() || product } });
+              }}
+              hitSlop={8}
+              style={({ pressed }) => [styles.footLink, pressed && styles.pressed]}
+            >
+              <Text style={styles.footLinkText}>Seguir en Empre AI</Text>
+              <Ionicons name="arrow-forward" size={14} color={colors.ink} />
+            </Pressable>
           </View>
         ) : (
           turns.map((t) => (
@@ -306,6 +340,7 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
             />
           ))
         )}
+        {last ? <RememberSize text={last.question} /> : null}
       </ScrollView>
 
       <View style={[styles.composerWrap, { paddingBottom: insets.bottom + 10 }]}>
@@ -316,7 +351,7 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
             onSubmitEditing={submit}
             returnKeyType="send"
             placeholder={`Pregúntales a los ${n}…`}
-            placeholderTextColor={colors.placeholder}
+            placeholderTextColor={colors.faint}
             style={styles.input}
             accessibilityLabel={`Pregunta para los ${n} negocios`}
           />
@@ -327,10 +362,9 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
             onPress={submit}
             style={[styles.sendBtn, (!text.trim() || busy) && styles.sendOff]}
           >
-            <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
+            <Ionicons name="arrow-up" size={20} color={colors.ink} />
           </Pressable>
         </View>
-        <Text style={styles.disclaimer}>Responde con lo publicado. Los precios los confirma el negocio.</Text>
       </View>
     </KeyboardAvoidingView>
   );
@@ -370,10 +404,28 @@ function TurnView({
 }) {
   const a = turn.answer;
   const thinking = a === null;
-  const steps = ['Entendí la pregunta', `Revisé lo publicado por ${rows.length} negocios`, 'Separé precios de ofertas'];
+  const ficha = turn.ficha ?? [];
+  // Lo que nadie publicó (o un compromiso): Empre AI no aparece; solo una línea y preguntarles por chat.
+  const silent = a !== null && a.intent === 'unknown' && ficha.length === 0;
   const pending = a ? a.missing.filter((r) => !turn.sent.includes(r.entityId)) : [];
-  const next = a ? suggestions.filter((s) => s !== a.intent).slice(0, 3) : [];
-  const status = thinking ? 'Revisando…' : turn.sent.length ? 'Le preguntó a los dueños' : a.intent === 'unknown' ? 'No está en lo publicado' : `Respondió · ${rows.length} negocios`;
+  const next = a && !silent ? suggestions.filter((s) => s !== a.intent).slice(0, 2) : [];
+  // Cada frase se escribe después de la anterior; lo de abajo entra cuando terminó.
+  const leads = a && a.intent === 'unknown' ? ficha.map((f) => [{ t: f.row.name, bold: true }, { t: `: ${f.text}` }]) : a ? [[{ t: a.summary.lead }, { t: a.summary.bold, bold: true }, { t: a.summary.tail }]] : [];
+  const starts: number[] = [];
+  let at = 0;
+  for (const l of leads) {
+    starts.push(at);
+    at += typeMs(l) + 120;
+  }
+  const after = live ? at : 0;
+  const sources = a && a.intent === 'unknown' ? ficha.map((f) => f.row) : rows;
+  const quietText = turn.owner
+    ? 'Esto lo responden los dueños.'
+    : rows.length === 1
+      ? 'No lo publicó.'
+      : ficha.length
+        ? `${pending.length === 1 ? pending[0].name : `Los otros ${pending.length}`} no lo publicaron.`
+        : 'Ninguno lo publicó.';
 
   return (
     <View style={styles.turn}>
@@ -381,50 +433,42 @@ function TurnView({
         <Text style={styles.mineText}>{turn.question}</Text>
       </Enter>
 
-      <View style={styles.aiRow}>
-        <Chispa size={30} mood={live ? mood : 'reposo'} animated={live && mood !== 'reposo'} />
-        <Text style={styles.aiName}>Empre AI</Text>
-        <Text style={styles.aiStatus}>{status}</Text>
-      </View>
+      {thinking ? (
+        <View style={styles.aiRow} accessibilityLabel="Empre AI está revisando lo que publicaron los negocios" accessibilityLiveRegion="polite">
+          <Chispa size={20} mood="pensando" animated />
+          <Text style={styles.thinking}>{`Revisando lo publicado por ${rows.length} negocios…`}</Text>
+        </View>
+      ) : null}
 
-      <View style={styles.aiBody}>
-        {thinking ? (
-          <View style={styles.steps} accessibilityLabel="Empre AI está revisando lo que publicaron los negocios">
-            {steps.map((s, i) => (
-              <Enter key={i} delay={i * 320} style={styles.step}>
-                <View style={[styles.stepDot, i === 0 && styles.stepDotDone]}>{i === 0 ? <Ionicons name="checkmark" size={11} color="#FFFFFF" /> : null}</View>
-                <Text style={styles.stepText}>{s}</Text>
-              </Enter>
-            ))}
+      {a && !silent ? (
+        <>
+          <View style={styles.aiRow}>
+            <Chispa size={20} mood={live ? mood : 'reposo'} animated={live && mood !== 'reposo'} />
+            <Text style={styles.aiName}>Empre AI</Text>
           </View>
-        ) : null}
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sources} accessibilityLabel={`Consultó a ${rows.map((r) => r.name).join(', ')}`}>
-          {rows.map((r, i) => (
-            <Enter key={r.entityId} delay={thinking ? 400 + i * 120 : 0} style={styles.source}>
-              <Avatar name={r.name} size={20} />
-              <Text style={styles.sourceText} numberOfLines={1}>
-                {r.name}
-              </Text>
-            </Enter>
-          ))}
-        </ScrollView>
-
-        {a ? (
-          <>
-            <Enter>
-              <Text style={styles.summary} accessibilityLiveRegion="polite">
-                {a.summary.lead}
-                <Text style={styles.summaryBold}>{a.summary.bold}</Text>
-                {a.summary.tail}
+          <View style={styles.aiBody}>
+            {leads.map((l, i) => (
+              <TypeIn key={i} parts={l} play={live} delay={starts[i]} style={styles.summary} boldStyle={styles.summaryBold} />
+            ))}
+            {/* De dónde salió: las caras de los negocios que leyó y cuántos */}
+            <Enter delay={after} style={styles.srcRow}>
+              <View style={{ flexDirection: 'row' }}>
+                {sources.slice(0, 4).map((r, i) => (
+                  <View key={r.entityId} style={[styles.face, i > 0 && { marginLeft: -6 }]}>
+                    <Avatar name={r.name} size={18} />
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.srcText} numberOfLines={1}>
+                {`De lo publicado por ${sources.length === 1 ? sources[0].name : `${sources.length} negocios`}`}
               </Text>
             </Enter>
 
             {a.top ? <TopCard line={a.top} tag={a.topTag} onBook={() => onOpenProduct(a.top!.row)} onOpen={() => onOpenBusiness(a.top!.row)} /> : null}
 
-            {a.rest.length || (a.intent === 'unknown' && a.missing.length) ? (
-              <Enter delay={200} style={styles.list}>
-                {(a.intent === 'unknown' ? a.missing.map<ManyLine>((r) => ({ row: r, main: null, sub: '', known: false })) : a.rest).map((l, i) => (
+            {a.rest.length ? (
+              <Enter delay={after + 120} style={styles.list}>
+                {a.rest.map((l, i) => (
                   <RowView key={l.row.entityId} line={l} first={i === 0} sent={turn.sent.includes(l.row.entityId)} intent={a.intent} onAsk={() => onSend([l.row])} onOpen={() => onOpenBusiness(l.row)} />
                 ))}
               </Enter>
@@ -434,36 +478,42 @@ function TurnView({
               <Text style={styles.note}>{`Los otros ${rows.length - 1} no tienen oferta publicada para esto.`}</Text>
             ) : null}
 
-            {pending.length > 1 ? (
+            {a.intent !== 'unknown' && pending.length > 1 ? (
               <Pressable accessibilityRole="button" onPress={() => onSend(pending)} style={({ pressed }) => [styles.askAll, pressed && styles.pressed]}>
-                <Ionicons name="chatbubbles-outline" size={17} color="#FFFFFF" />
+                <Ionicons name="chatbubbles-outline" size={16} color={colors.ink} />
                 <Text style={styles.askAllText}>{`Preguntarles a los ${pending.length} por chat`}</Text>
               </Pressable>
             ) : null}
+          </View>
+        </>
+      ) : null}
 
-            {turn.sent.length ? (
-              <Enter style={styles.handoff}>
-                <View style={styles.handoffLine} />
-                <Text style={styles.handoffText}>{turn.sent.length === 1 ? 'Le pregunté al dueño · te aviso cuando responda' : `Les pregunté a ${turn.sent.length} dueños · te aviso cuando respondan`}</Text>
-                <View style={styles.handoffLine} />
-              </Enter>
-            ) : null}
+      {/* Lo que no está en lo publicado no es un turno de Empre AI: una línea tranquila y preguntarles por chat */}
+      {a && a.intent === 'unknown' && pending.length && !turn.sent.length ? (
+        <Enter delay={after} style={[styles.quiet, !silent && styles.aiBody]}>
+          <Text style={styles.quietText}>{quietText}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Preguntarle por chat a ${pending.map((r) => r.name).join(', ')}`} onPress={() => onSend(pending)} hitSlop={4} style={({ pressed }) => [styles.quietBtn, pressed && styles.pressed]}>
+            <Text style={styles.quietBtnText}>{pending.length === 1 ? 'Preguntarle' : 'Preguntarles'}</Text>
+          </Pressable>
+        </Enter>
+      ) : null}
 
-            {a.intent !== 'unknown' ? <Text style={styles.note}>Orden: abiertos y más cerca primero. Nadie paga por aparecer.</Text> : null}
+      {turn.sent.length ? (
+        <Enter style={[styles.handoff, !silent && styles.aiBody]}>
+          <Ionicons name="checkmark" size={13} color={colors.muted} />
+          <Text style={styles.handoffText}>{turn.sent.length === 1 ? 'Enviado · te avisamos cuando responda' : `Enviado a ${turn.sent.length} dueños · te avisamos cuando respondan`}</Text>
+        </Enter>
+      ) : null}
 
-            {next.length ? (
-              <View style={styles.nextRow}>
-                {next.map((s) => (
-                  <Pressable key={s} accessibilityRole="button" accessibilityLabel={MANY_LABEL[s].ask} onPress={() => onAsk(s)} style={({ pressed }) => [styles.nextChip, pressed && styles.pressed]}>
-                    <Ionicons name="arrow-forward" size={13} color={colors.ink} style={{ transform: [{ rotate: '-45deg' }] }} />
-                    <Text style={styles.nextText}>{MANY_LABEL[s].short}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
-          </>
-        ) : null}
-      </View>
+      {next.length ? (
+        <Enter delay={after + 200} style={[styles.nextRow, styles.aiBody]}>
+          {next.map((s) => (
+            <Pressable key={s} accessibilityRole="button" onPress={() => onAsk(s)} hitSlop={4} style={({ pressed }) => [styles.nextChip, pressed && styles.pressed]}>
+              <Text style={styles.nextText}>{MANY_LABEL[s].ask}</Text>
+            </Pressable>
+          ))}
+        </Enter>
+      ) : null}
     </View>
   );
 }
@@ -506,6 +556,7 @@ function TopCard({ line, tag, onBook, onOpen }: { line: ManyLine; tag: string; o
 }
 
 const MISSING_TEXT: Record<ManyIntent | 'unknown', string> = {
+  best: 'Puede responderte el dueño',
   price: 'No publicó su precio',
   duration: 'No publicó cuánto demora',
   open: 'No publicó su horario',
@@ -551,8 +602,8 @@ function RowView({ line, first, sent, intent, onAsk, onOpen }: { line: ManyLine;
           onPress={onAsk}
           style={({ pressed }) => [styles.askBtn, sent && styles.askBtnSent, pressed && styles.pressed]}
         >
-          <Ionicons name={sent ? 'checkmark' : 'chatbubble-outline'} size={14} color={sent ? colors.verified : '#FFFFFF'} />
-          <Text style={[styles.askText, sent && { color: colors.verified }]}>{sent ? 'Preguntado' : 'Preguntarle'}</Text>
+          <Ionicons name={sent ? 'checkmark' : 'chatbubble-outline'} size={14} color={sent ? colors.muted : colors.ink} />
+          <Text style={[styles.askText, sent && { color: colors.muted }]}>{sent ? 'Preguntado' : 'Preguntarle'}</Text>
         </Pressable>
       )}
     </Pressable>
@@ -567,15 +618,10 @@ const styles = StyleSheet.create({
   headerMid: { flex: 1, alignItems: 'center' },
   headerTitle: { fontFamily: fonts.display.bold, fontSize: 17, color: colors.ink },
   headerSub: { fontFamily: fonts.ui.bold, fontSize: 11.5, color: colors.muted },
-  context: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16, marginTop: 4, padding: 8, paddingRight: 12, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
-  contextIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
-  contextTitle: { fontFamily: fonts.ui.extrabold, fontSize: 14, color: colors.ink },
-  contextSub: { fontFamily: fonts.ui.bold, fontSize: 12, color: colors.muted },
-  faces: { flexDirection: 'row' },
-  face: { borderRadius: 13, borderWidth: 2, borderColor: colors.surface },
+  face: { borderRadius: 11, borderWidth: 1.5, borderColor: colors.bg },
   body: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16, gap: 18 },
   hero: { alignItems: 'center', gap: 10, paddingTop: 22 },
-  heroTitle: { marginTop: 6, fontFamily: fonts.display.bold, fontSize: 22, lineHeight: 26, color: colors.ink, textAlign: 'center' },
+  heroTitle: { marginTop: 6, fontFamily: fonts.display.bold, fontSize: 20, lineHeight: 24, color: colors.ink, textAlign: 'center' },
   heroBody: { maxWidth: 300, fontFamily: fonts.ui.semibold, fontSize: 13.5, lineHeight: 19, color: colors.muted, textAlign: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 18 },
   gridCell: { width: '48.6%' },
@@ -583,20 +629,18 @@ const styles = StyleSheet.create({
   sugIcon: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   sugText: { fontFamily: fonts.ui.extrabold, fontSize: 13.5, lineHeight: 17, color: colors.ink },
   turn: { gap: 10 },
-  mine: { alignSelf: 'flex-end', maxWidth: '80%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, borderBottomRightRadius: 6, backgroundColor: colors.ink },
-  mineText: { fontFamily: fonts.ui.bold, fontSize: 14, lineHeight: 19, color: '#FFFFFF' },
-  aiRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  aiName: { fontFamily: fonts.ui.extrabold, fontSize: 13, color: colors.ink },
-  aiStatus: { fontFamily: fonts.ui.bold, fontSize: 12, color: colors.muted },
-  aiBody: { marginLeft: 38, gap: 10 },
-  steps: { gap: 6 },
-  step: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  stepDot: { width: 18, height: 18, borderRadius: 9, backgroundColor: colors.line, alignItems: 'center', justifyContent: 'center' },
-  stepDotDone: { backgroundColor: '#14B8B0' },
-  stepText: { fontFamily: fonts.ui.bold, fontSize: 12.5, color: colors.muted },
-  sources: { gap: 6, paddingRight: 16 },
-  source: { height: 30, paddingLeft: 4, paddingRight: 10, borderRadius: 15, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sourceText: { maxWidth: 140, fontFamily: fonts.ui.extrabold, fontSize: 12, color: colors.ink },
+  mine: { alignSelf: 'flex-end', maxWidth: '80%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, borderBottomRightRadius: 6, backgroundColor: colors.sand },
+  mineText: { fontFamily: fonts.ui.bold, fontSize: 14, lineHeight: 19, color: colors.ink },
+  aiRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  aiName: { fontFamily: fonts.ui.extrabold, fontSize: 12.5, color: colors.ink },
+  thinking: { flexShrink: 1, fontFamily: fonts.ui.semibold, fontSize: 12.5, color: colors.muted },
+  aiBody: { marginLeft: 27, gap: 10 },
+  srcRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  srcText: { flexShrink: 1, fontFamily: fonts.ui.semibold, fontSize: 12, color: colors.muted },
+  quiet: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  quietText: { flex: 1, fontFamily: fonts.ui.semibold, fontSize: 13, lineHeight: 18, color: colors.muted },
+  quietBtn: { minHeight: 44, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  quietBtnText: { fontFamily: fonts.ui.extrabold, fontSize: 13, color: colors.ink },
   summary: { fontFamily: fonts.ui.semibold, fontSize: 14.5, lineHeight: 21, color: colors.ink },
   summaryBold: { fontFamily: fonts.ui.extrabold },
   top: { padding: 12, borderRadius: 18, backgroundColor: colors.surface, gap: 10, ...softShadow },
@@ -608,8 +652,8 @@ const styles = StyleSheet.create({
   offerTag: { alignSelf: 'flex-start', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, backgroundColor: colors.accentSoft },
   offerTagText: { fontFamily: fonts.ui.extrabold, fontSize: 12, color: colors.warning },
   topActions: { flexDirection: 'row', gap: 6 },
-  primaryBtn: { flex: 1, minHeight: 44, borderRadius: 12, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { fontFamily: fonts.ui.extrabold, fontSize: 13.5, color: '#FFFFFF' },
+  primaryBtn: { flex: 1, minHeight: 44, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, alignItems: 'center', justifyContent: 'center' },
+  primaryText: { fontFamily: fonts.ui.extrabold, fontSize: 13.5, color: colors.ink },
   secondaryBtn: { flex: 1, minHeight: 44, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   secondaryText: { fontFamily: fonts.ui.extrabold, fontSize: 13.5, color: colors.ink },
   list: { borderRadius: 18, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surface, overflow: 'hidden' },
@@ -618,23 +662,23 @@ const styles = StyleSheet.create({
   rowName: { fontFamily: fonts.ui.extrabold, fontSize: 13.5, color: colors.ink },
   rowSub: { fontFamily: fonts.ui.bold, fontSize: 11.5, color: colors.muted },
   rowValue: { fontFamily: fonts.display.bold, fontSize: 15.5, color: colors.ink },
-  askBtn: { minHeight: 44, paddingHorizontal: 12, borderRadius: 22, backgroundColor: colors.ink, flexDirection: 'row', alignItems: 'center', gap: 5 },
-  askBtnSent: { backgroundColor: colors.verifiedSoft, borderWidth: 1.5, borderColor: '#14B8B0' },
-  askText: { fontFamily: fonts.ui.extrabold, fontSize: 12.5, color: '#FFFFFF' },
-  askAll: { minHeight: 46, borderRadius: 14, backgroundColor: colors.ink, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  askAllText: { fontFamily: fonts.ui.extrabold, fontSize: 13.5, color: '#FFFFFF' },
-  handoff: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  handoffLine: { flex: 1, height: 1, backgroundColor: '#CFE9EC' },
-  handoffText: { flexShrink: 1, fontFamily: fonts.ui.extrabold, fontSize: 12, color: colors.verified, textAlign: 'center' },
+  askBtn: { minHeight: 44, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  askBtnSent: { backgroundColor: colors.well },
+  askText: { fontFamily: fonts.ui.extrabold, fontSize: 12.5, color: colors.ink },
+  askAll: { alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  askAllText: { fontFamily: fonts.ui.extrabold, fontSize: 13, color: colors.ink },
+  handoff: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  handoffText: { flexShrink: 1, fontFamily: fonts.ui.semibold, fontSize: 12, color: colors.muted },
   note: { fontFamily: fonts.ui.bold, fontSize: 11.5, color: colors.muted },
   nextRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  nextChip: { minHeight: 44, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  nextText: { fontFamily: fonts.ui.extrabold, fontSize: 13, color: colors.ink },
+  nextChip: { minHeight: 44, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
+  nextText: { fontFamily: fonts.ui.semibold, fontSize: 13, color: colors.ink },
   composerWrap: { paddingHorizontal: 12, paddingTop: 8, backgroundColor: colors.bg },
   composer: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 16, padding: 6, borderRadius: 28, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
   input: { flex: 1, minHeight: 44, fontFamily: fonts.ui.semibold, fontSize: 14.5, color: colors.ink },
-  sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, alignItems: 'center', justifyContent: 'center' },
   sendOff: { opacity: 0.35 },
-  disclaimer: { marginTop: 6, textAlign: 'center', fontFamily: fonts.ui.bold, fontSize: 11, color: colors.faint },
+  footLink: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44, paddingHorizontal: 12, marginTop: 10 },
+  footLinkText: { fontFamily: fonts.ui.extrabold, fontSize: 13, color: colors.ink },
   pressed: { opacity: 0.85 },
 });

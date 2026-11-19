@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -176,7 +176,7 @@ export default function CashScreen() {
                     <View style={[styles.stepDot, n === step && styles.stepDotNow, n < step && styles.stepDotPast]}>
                       {n < step ? <Ionicons name="checkmark" size={14} color="#fff" /> : <Text style={[styles.stepNum, n === step && { color: '#fff' }]}>{n}</Text>}
                     </View>
-                    {i < 2 ? <View style={[styles.stepBar, n < step && { backgroundColor: colors.verified }]} /> : null}
+                    {i < 2 ? <View style={[styles.stepBar, n < step && { backgroundColor: colors.finance }]} /> : null}
                   </View>
                 );
               })}
@@ -195,7 +195,7 @@ export default function CashScreen() {
           <>
             {data.close ? (
               <View style={styles.notice}>
-                <Ionicons name="checkmark-circle" size={18} color={colors.verified} />
+                <Ionicons name="checkmark-circle" size={18} color={colors.finance} />
                 <Text style={styles.noticeText}>Ya cerraste hoy con {formatPesos(data.close.counted)}. Si cierras otra vez, reemplaza ese cierre.</Text>
               </View>
             ) : null}
@@ -289,7 +289,7 @@ export default function CashScreen() {
         {step === 3 ? (
           <>
             <View accessibilityLiveRegion="polite" style={[styles.result, matches ? styles.resultOk : styles.resultOff]}>
-              <Ionicons name={matches ? 'checkmark-circle' : 'alert-circle'} size={26} color={matches ? colors.verified : colors.warning} />
+              <Ionicons name={matches ? 'checkmark-circle' : 'alert-circle'} size={26} color={matches ? colors.finance : colors.warning} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.resultTitle}>{matches ? 'La caja cuadra' : `${diff < 0 ? 'Faltan' : 'Sobran'} ${formatPesos(Math.abs(diff))}`}</Text>
                 <Text style={styles.resultBody}>{matches ? `Contaste ${formatPesos(total)}, justo lo que debía haber.` : `Contaste ${formatPesos(total)} y debía haber ${formatPesos(expected)}.`}</Text>
@@ -330,7 +330,7 @@ export default function CashScreen() {
               </Text>
             </View>
             <View style={styles.notice}>
-              <Ionicons name="checkmark-circle" size={18} color={colors.verified} />
+              <Ionicons name="checkmark-circle" size={18} color={colors.finance} />
               <Text style={styles.noticeText}>
                 Caja de hoy cerrada · {formatPesos(total)}
                 {moves.length ? ` · ${plural(moves.length, 'movimiento de plata', 'movimientos de plata')}` : ''}
@@ -406,8 +406,8 @@ const styles = StyleSheet.create({
   steps: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   step: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   stepDot: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line },
-  stepDotNow: { backgroundColor: colors.ink, borderColor: colors.ink },
-  stepDotPast: { backgroundColor: colors.verified, borderColor: colors.verified },
+  stepDotNow: { backgroundColor: colors.finance, borderColor: colors.ink },
+  stepDotPast: { backgroundColor: colors.finance, borderColor: colors.finance },
   stepNum: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
   stepName: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   stepBar: { flex: 1, minWidth: 10, height: 2, borderRadius: 1, backgroundColor: colors.line },
@@ -416,16 +416,16 @@ const styles = StyleSheet.create({
   eyebrowCaps: { fontSize: 11, letterSpacing: 1.1, fontFamily: fonts.ui.extrabold, color: colors.faint },
   stepNames: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   stepNameOff: { fontFamily: fonts.ui.bold, color: colors.muted },
-  firstTime: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 16, backgroundColor: colors.ink },
-  firstTimeText: { flex: 1, fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.bold, color: '#fff' },
-  hero: { fontSize: 34, fontFamily: fonts.display.bold, color: colors.ink },
+  firstTime: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 16, backgroundColor: colors.sand },
+  firstTimeText: { flex: 1, fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.bold, color: colors.ink },
+  hero: { fontSize: 30, fontFamily: fonts.display.bold, color: colors.ink },
   openingBox: { gap: 4, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.selectedSoft },
   calcRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingTop: spacing.sm },
   line: { borderTopWidth: 1, borderTopColor: colors.selectedSoft },
   rowTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   rowSub: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.muted, marginTop: 1 },
   calcValue: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  notice: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.verifiedSoft },
+  notice: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.financeSoft },
   noticeText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.ink },
   moveLink: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.line },
   moveLinkAlone: { backgroundColor: colors.surface },
@@ -444,8 +444,8 @@ const styles = StyleSheet.create({
   coinsSign: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.muted },
   coinsInput: { flex: 1, padding: 0, textAlign: 'right', fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   result: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg, borderRadius: radius.lg },
-  resultOk: { backgroundColor: colors.verifiedSoft },
-  resultOff: { backgroundColor: colors.accentSoft },
+  resultOk: { backgroundColor: colors.financeSoft },
+  resultOff: { backgroundColor: colors.selectedSoft },
   resultTitle: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
   resultBody: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.ink, marginTop: 2 },
   causeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 56, paddingTop: spacing.sm },

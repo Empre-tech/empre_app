@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useMemo, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -38,7 +38,7 @@ interface Props {
   onDone: (refs: string[], created: NewSupply[]) => void;
 }
 
-const DOT: Record<string, string> = { ok: colors.success, low: colors.accent, out: colors.danger };
+const DOT: Record<string, string> = { ok: colors.finance, low: colors.ink, out: colors.danger };
 
 type Row = { type: 'head'; title: string; count: number } | { type: 'item'; item: PickerChoice };
 
@@ -157,7 +157,7 @@ function PickerBody({ visible, entityId, forName, choices, selected, onClose, on
                   <Text style={styles.pickedText} numberOfLines={1}>
                     {byRef.get(ref)?.name ?? 'Insumo'}
                   </Text>
-                  <Ionicons name="close" size={14} color={colors.primaryDark} />
+                  <Ionicons name="close" size={14} color={colors.finance} />
                 </Pressable>
               ))}
             </ScrollView>
@@ -214,29 +214,29 @@ function PickerBody({ visible, entityId, forName, choices, selected, onClose, on
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.surface },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
-  close: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
+  close: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.well, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 19, fontFamily: fonts.display.bold, color: colors.ink },
   meta: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
-  search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, marginHorizontal: spacing.lg, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.bg },
+  search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, marginHorizontal: spacing.lg, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.well },
   searchInput: { flex: 1, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink },
   chips: { gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
-  picked: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, backgroundColor: colors.bg, borderTopWidth: 1, borderTopColor: colors.line },
+  picked: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, backgroundColor: colors.well, borderTopWidth: 1, borderTopColor: colors.line },
   pickedLabel: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.muted },
   pickedChip: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 32, paddingHorizontal: 10, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: '#C9D9EF', maxWidth: 180 },
-  pickedText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.primaryDark, flexShrink: 1 },
+  pickedText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.finance, flexShrink: 1 },
   head: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xs, fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.muted, letterSpacing: 0.5, textTransform: 'uppercase', borderTopWidth: 1, borderTopColor: colors.line },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 54, paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: '#EEF2F7' },
-  box: { width: 24, height: 24, borderRadius: 7, borderWidth: 2, borderColor: '#D5DEEA', alignItems: 'center', justifyContent: 'center' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 54, paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: '#EFF0F2' },
+  box: { width: 24, height: 24, borderRadius: 7, borderWidth: 2, borderColor: '#E4E6EA', alignItems: 'center', justifyContent: 'center' },
   boxOn: { borderColor: colors.primary, backgroundColor: colors.primary },
   name: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
   dot: { width: 10, height: 10, borderRadius: 5 },
-  create: { margin: spacing.lg, padding: spacing.md, gap: spacing.sm, borderRadius: radius.md, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#D5DEEA' },
+  create: { margin: spacing.lg, padding: spacing.md, gap: spacing.sm, borderRadius: radius.md, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#E4E6EA' },
   createHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  plus: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  plus: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.financeSoft, alignItems: 'center', justifyContent: 'center' },
   createTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   label: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   otherRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  otherInput: { flex: 1, minHeight: 46, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink, backgroundColor: colors.bg },
+  otherInput: { flex: 1, minHeight: 46, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 15, fontFamily: fonts.ui.semibold, color: colors.ink, backgroundColor: colors.well },
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.surface },
 });

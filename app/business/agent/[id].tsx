@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -225,12 +225,12 @@ const styles = StyleSheet.create({
   back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   headText: { flex: 1, minWidth: 0 },
   eyebrow: { fontSize: 12, letterSpacing: 1, fontFamily: fonts.ui.extrabold, color: colors.faint },
-  title: { fontSize: 24, lineHeight: 29, fontFamily: fonts.display.bold, color: colors.ink },
+  title: { fontSize: 22, lineHeight: 26, fontFamily: fonts.display.bold, color: colors.ink },
   state: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 6, paddingRight: 12, borderRadius: 20, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   stateText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   stats: { flexDirection: 'row', gap: 10, padding: 14, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
   stat: { flex: 1, gap: 2 },
-  statN: { fontSize: 26, lineHeight: 31, fontFamily: fonts.display.bold },
+  statN: { fontSize: 22, lineHeight: 26, fontFamily: fonts.display.bold },
   statLabel: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   statLine: { width: 1, backgroundColor: colors.selectedSoft },
   req: { padding: 14, gap: 10, borderRadius: 20, borderWidth: 2, borderColor: colors.warning, backgroundColor: colors.surface },
@@ -240,15 +240,15 @@ const styles = StyleSheet.create({
   reqBody: { flex: 1, minWidth: 0, gap: 1 },
   reqName: { fontSize: 17, lineHeight: 21, fontFamily: fonts.display.bold, color: colors.ink },
   reqService: { fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.muted },
-  reqMeta: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.accentInk },
-  why: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.bg },
+  reqMeta: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.agenda },
+  why: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.well },
   whyIcon: { marginTop: 2 },
   whyText: { flex: 1, fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.ink },
   reqBtns: { flexDirection: 'row', gap: 8 },
   btnOff: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   btnOffText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  btnOn: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.primary },
-  btnOnText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  btnOn: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  btnOnText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   none: { padding: 14, gap: 2, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
   noneTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   noneText: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
   sheet: { gap: spacing.md, padding: spacing.lg, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, backgroundColor: colors.surface },
   sheetBrand: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   sheetTitle: { fontSize: 19, fontFamily: fonts.display.bold, color: colors.ink },
-  facts: { gap: 6, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.bg },
+  facts: { gap: 6, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.well },
   factLine: { fontSize: 14.5, lineHeight: 20, fontFamily: fonts.ui.extrabold, color: colors.ink },
   factNote: { fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.medium, color: colors.muted },
 });

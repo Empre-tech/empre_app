@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { Image } from 'expo-image';
 import { useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -103,8 +103,8 @@ const styles = StyleSheet.create({
   photo: { flex: 1 },
   bottom: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.sm },
   flex: { flex: 1 },
-  primary: { minHeight: 44, paddingHorizontal: spacing.xl, borderRadius: radius.pill, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  primary: { minHeight: 44, paddingHorizontal: spacing.xl, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, alignItems: 'center', justifyContent: 'center' },
+  primaryText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   secondary: { flex: 1, minHeight: 44, paddingHorizontal: spacing.lg, borderRadius: radius.pill, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.35)', alignItems: 'center', justifyContent: 'center' },
   secondaryText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: '#fff' },
   pressed: { opacity: 0.8 },

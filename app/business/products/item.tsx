@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -10,7 +10,9 @@ import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi, type InventoryItem, type StockMode } from '@/api/ledger';
 import { useAudienceEnabled, useEntitySections, type SectionPick } from '@/api/sections';
 import { Button } from '@/components/Button';
+import { PhotoGuide } from '@/components/catalog/PhotoGuide';
 import { ProductPhotos, readyIds, slotsFrom, type PhotoSlot } from '@/components/catalog/ProductPhotos';
+import { ReadyChecklist } from '@/components/catalog/ReadyChecklist';
 import { SectionSheet } from '@/components/catalog/SectionSheet';
 import { QuickStockSheet } from '@/components/inventory/QuickStockSheet';
 import { SupplyPicker, type NewSupply, type PickerChoice } from '@/components/inventory/SupplyPicker';
@@ -18,16 +20,17 @@ import { Chip } from '@/components/ledger/parts';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { TextField } from '@/components/TextField';
 import { FEATURES } from '@/config';
-import { AUDIENCE_OPTIONS, audienceText, catalogCopy, defaultItemKind, parsePriceInput, type ItemKind } from '@/lib/catalog';
+import { parseVariantInput, AUDIENCE_OPTIONS, audienceText, catalogCopy, defaultItemKind, parsePriceInput, type ItemKind } from '@/lib/catalog';
 import { mediaUrl } from '@/lib/image';
 import { fmtQty, itemLine, MODE_LABEL, splitTabs } from '@/lib/inventory';
 import { formatPesos, newClientId } from '@/lib/ledger';
+import { businessFamily, parseSpoken, starterItems } from '@/lib/family';
 import { suggestSection } from '@/lib/sections';
 import { groupOf, marginOf, NO_GROUP } from '@/lib/supplies';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const DURATIONS = [15, 30, 45, 60, 90];
-const DOT: Record<string, string> = { ok: colors.success, low: colors.accent, out: colors.danger };
+const DOT: Record<string, string> = { ok: colors.finance, low: colors.ink, out: colors.danger };
 
 const TRACK: { mode: StockMode; label: string; hint: string }[] = [
   { mode: 'exact', label: 'Cuento', hint: 'cuántos hay' },
@@ -41,7 +44,8 @@ const TRACK: { mode: StockMode; label: string; hint: string }[] = [
  * Todo se guarda con un botón; los ajustes de existencias de un producto que ya existe se guardan al instante.
  */
 export default function ItemScreen() {
-  const { entityId: rawEntity, itemId, sectionId, sectionName } = useLocalSearchParams<{ entityId: string; itemId?: string; sectionId?: string; sectionName?: string }>();
+  // kind: desde Inventario, «Nuevo servicio» abre la ficha ya como servicio (y «Nuevo producto», como producto).
+  const { entityId: rawEntity, itemId, sectionId, sectionName, kind: kindParam } = useLocalSearchParams<{ entityId: string; itemId?: string; sectionId?: string; sectionName?: string; kind?: string }>();
   const entityId = rawEntity ?? '';
   const isNew = !itemId;
   const router = useRouter();
@@ -92,6 +96,8 @@ export default function ItemScreen() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // «Escríbelo como lo dirías» (3.69): una línea que llena nombre, duración y precio.
+  const [spoken, setSpoken] = useState('');
 
   // Llena el formulario una vez que llegan los datos (o con los valores por defecto si es nuevo).
   useEffect(() => {
@@ -99,7 +105,7 @@ export default function ItemScreen() {
     if (isNew) {
       // Llenado único al llegar los datos (lo protege «loaded»): no hay cascada de renders.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setKind(defaultItemKind(copy));
+      setKind(kindParam === 'service' || kindParam === 'product' ? kindParam : defaultItemKind(copy));
       // Agregado desde una sección de la lista: ya nace en ella.
       if (sectionId && sectionName) setSection({ id: sectionId, name: sectionName });
       // Cómo llevar la cuenta: lo que recomendamos para este tipo de negocio.
@@ -138,7 +144,7 @@ export default function ItemScreen() {
   if (!loaded) {
     return (
       <View style={styles.screen}>
-        <SubScreenHeader title={isNew ? 'Agregar' : 'Cargando…'} />
+        <SubScreenHeader title={isNew ? (kindParam === 'service' ? 'Nuevo servicio' : 'Nuevo producto') : 'Cargando…'} />
         <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
       </View>
     );
@@ -200,6 +206,7 @@ export default function ItemScreen() {
     setPendingSupplies((p) => p.filter((x) => x.key !== ref));
   };
 
+  const priceN = Number(price.replace(/\D/g, ''));
   const save = async () => {
     const dur = isService ? (customDuration.trim() ? Number(customDuration.trim()) : duration ?? 0) : 0;
     if (name.trim().length < (isVariant ? 1 : 2)) return setError(isVariant ? 'Escribe la variante, por ejemplo Chocolate o Talla M.' : 'Escribe el nombre (mínimo 2 letras).');
@@ -296,7 +303,15 @@ export default function ItemScreen() {
     setAddingVariant(true);
     setError(null);
     try {
-      await catalogApi.create(entityId, { name: label, price: null, price_from: false, parent_id: existing.id, variant_label: label });
+      // «Talla 40, Color vinotinto» queda como atributos (filtros y búsqueda); «Chocolate», como el nombre corto.
+      const known = [...new Set((catalog.data ?? []).filter((i) => i.parent_id === existing.id).flatMap((i) => (i.attrs ?? []).map((a) => a.name)))];
+      const parsed = parseVariantInput(label, known);
+      await catalogApi.create(
+        entityId,
+        parsed.attrs.length
+          ? { name: label, price: null, price_from: false, parent_id: existing.id, attrs: parsed.attrs }
+          : { name: label, price: null, price_from: false, parent_id: existing.id, variant_label: label },
+      );
       await refresh();
       setNewVariant('');
     } catch (e) {
@@ -424,11 +439,78 @@ export default function ItemScreen() {
     </View>
   );
 
+  // «Escríbelo como lo dirías»: cada cambio vuelve a leer la línea y llena los campos de abajo (que se pueden corregir).
+  const heard = spoken.trim() ? parseSpoken(spoken) : null;
+  const onSpoken = (text: string) => {
+    setSpoken(text);
+    const p = parseSpoken(text);
+    setName(p.name);
+    setPrice(p.price !== null ? String(p.price) : '');
+    setFrom(p.from);
+    if (p.duration !== null) {
+      setKind('service');
+      if (DURATIONS.includes(p.duration)) {
+        setDuration(p.duration);
+        setCustomDuration('');
+      } else {
+        setDuration(null);
+        setCustomDuration(String(p.duration));
+      }
+    }
+  };
+  const family = businessFamily({ profile: business.data?.business_profile, category: business.data?.category?.name, items: catalog.data ?? [] });
+  const have = new Set((catalog.data ?? []).map((i) => i.name.trim().toLowerCase()));
+  const starters = starterItems(family, business.data?.category?.name).filter((s) => !have.has(s.name.toLowerCase()));
+  const heardChips = heard
+    ? [
+        heard.name ? { ok: true, text: `Nombre: ${heard.name}` } : { ok: false, text: 'Falta el nombre' },
+        ...(isService || heard.duration !== null ? [heard.duration !== null ? { ok: true, text: `Dura ${heard.duration} min` } : { ok: false, text: 'Sin duración' }] : []),
+        heard.price !== null ? { ok: true, text: `Precio: ${heard.from ? 'desde ' : ''}${formatPesos(heard.price)}` } : { ok: false, text: 'Falta el precio' },
+      ]
+    : [];
+  const spokenBlock = isNew ? (
+    <View style={{ gap: spacing.sm }}>
+      <TextField
+        label="Escríbelo como lo dirías"
+        placeholder={isService ? 'corte con lavado 30 min 20 mil' : copy.kind === 'food' ? 'bandeja paisa 22 mil' : 'arroz 500 g 3.500'}
+        value={spoken}
+        onChangeText={onSpoken}
+        autoCapitalize="none"
+        maxLength={120}
+      />
+      {heardChips.length ? (
+        <View style={styles.heardRow} accessibilityLiveRegion="polite">
+          {heardChips.map((c) => (
+            <View key={c.text} style={[styles.heard, !c.ok && styles.heardMissing]}>
+              <Ionicons name={c.ok ? 'checkmark' : 'ellipse-outline'} size={13} color={c.ok ? colors.finance : colors.ink} />
+              <Text style={[styles.heardText, !c.ok && { color: colors.ink }]}>{c.text}</Text>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <Text style={styles.metaSmall}>Nombre, duración y precio en una línea: «20 mil», «media hora». Abajo lo puedes corregir.</Text>
+      )}
+      {starters.length && !spoken.trim() ? (
+        <View style={{ gap: spacing.xs }}>
+          <Text style={styles.fieldLabel}>Lo que suelen tener negocios como el tuyo</Text>
+          <View style={styles.heardRow}>
+            {starters.map((s) => (
+              <Pressable key={s.name} accessibilityRole="button" accessibilityLabel={`Empezar con ${s.name}, sin precio`} onPress={() => onSpoken(`${s.name.toLowerCase()}${s.duration ? ` ${s.duration} min` : ''} `)} style={styles.starter}>
+                <Text style={styles.starterText}>{s.name}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.metaSmall}>Tócalo y solo te falta tu precio.</Text>
+        </View>
+      ) : null}
+    </View>
+  ) : null;
+
   const moreItems = [!suppliesUpFront && showSupplies ? 'insumos que lleva' : null, showAlsoSupply ? 'si también lo usas tú' : null].filter(Boolean) as string[];
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <SubScreenHeader title={isNew ? 'Agregar' : isVariant ? existing!.variant_label ?? existing!.name : existing!.name} />
+      <SubScreenHeader title={isNew ? (isService ? 'Nuevo servicio' : 'Nuevo producto') : isVariant ? existing!.variant_label ?? existing!.name : existing!.name} />
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl }} keyboardShouldPersistTaps="handled">
         {isNew ? (
           <View style={styles.segment} accessibilityRole="radiogroup" accessibilityLabel="Qué vas a agregar">
@@ -446,12 +528,15 @@ export default function ItemScreen() {
           </View>
         ) : null}
 
+        {spokenBlock}
+
         <View style={styles.card}>
           <View style={styles.cardHead}>
             <Ionicons name="eye-outline" size={17} color={colors.muted} />
             <Text style={styles.cardTitle}>Lo que ven tus clientes</Text>
           </View>
           {isVariant && parent ? <Text style={styles.meta}>Variante de «{parent.name}»</Text> : null}
+          {!isVariant ? <PhotoGuide /> : null}
           {!isVariant ? <ProductPhotos value={photos} onChange={setPhotos} onError={setError} /> : null}
           <TextField
             label={isVariant ? 'Variante' : 'Nombre'}
@@ -643,8 +728,8 @@ export default function ItemScreen() {
               </View>
               {margin ? (
                 <View style={[styles.margin, margin.amount < 0 ? styles.marginBad : styles.marginOk]}>
-                  <Ionicons name={margin.amount < 0 ? 'alert-circle-outline' : 'trending-up'} size={18} color={margin.amount < 0 ? '#B3261E' : '#0A6E6A'} />
-                  <Text style={[styles.marginText, { color: margin.amount < 0 ? '#B3261E' : '#0A6E6A' }]}>
+                  <Ionicons name={margin.amount < 0 ? 'alert-circle-outline' : 'trending-up'} size={18} color={margin.amount < 0 ? '#2B2622' : '#0B7F3D'} />
+                  <Text style={[styles.marginText, { color: margin.amount < 0 ? '#2B2622' : '#0B7F3D' }]}>
                     {margin.amount < 0
                       ? `Pierdes ${formatPesos(-margin.amount)} en cada uno. ¿Revisas el precio?`
                       : margin.amount === 0
@@ -667,8 +752,8 @@ export default function ItemScreen() {
                 <View style={styles.trackRow} accessibilityRole="radiogroup">
                   {TRACK.map((t) => (
                     <Pressable key={t.mode} accessibilityRole="radio" accessibilityState={{ checked: track === t.mode }} onPress={() => setTrack(t.mode)} style={[styles.trackBtn, track === t.mode && styles.trackOn]}>
-                      <Text style={[styles.trackLabel, track === t.mode && { color: colors.primaryDark }]}>{t.label}</Text>
-                      <Text style={[styles.trackHint, track === t.mode && { color: colors.primaryDark }]}>{t.hint}</Text>
+                      <Text style={[styles.trackLabel, track === t.mode && { color: colors.finance }]}>{t.label}</Text>
+                      <Text style={[styles.trackHint, track === t.mode && { color: colors.finance }]}>{t.hint}</Text>
                     </Pressable>
                   ))}
                 </View>
@@ -747,7 +832,7 @@ export default function ItemScreen() {
               <TextInput
                 value={newVariant}
                 onChangeText={setNewVariant}
-                placeholder={variants.length ? 'Otra variante' : 'Ej. Chocolate, Talla M'}
+                placeholder={variants.length ? 'Otra: Talla 41, Color negro' : 'Ej. Talla 40, Color negro'}
                 placeholderTextColor={colors.muted}
                 style={styles.input}
                 maxLength={40}
@@ -755,6 +840,7 @@ export default function ItemScreen() {
               />
               <Button title="Agregar" variant="secondary" loading={addingVariant} disabled={newVariant.trim().length < 1} onPress={() => void addVariant()} />
             </View>
+            <Text style={styles.metaSmall}>Escribe cada atributo con su nombre: «Talla 40, Color negro». Así se filtra y se encuentra en Empre.</Text>
             {variants.length === 0 && stock?.counted ? <Text style={styles.metaSmall}>Al agregar variantes, el producto deja de contarse: cuenta cada variante.</Text> : null}
           </View>
         ) : null}
@@ -796,6 +882,23 @@ export default function ItemScreen() {
 
         {stock && stock.sold_28 > 0 ? <Text style={styles.meta}>Vendiste {fmtQty(stock.sold_28)} en las últimas 4 semanas.</Text> : null}
 
+        {!isVariant && !isGroup ? (
+          <ReadyChecklist
+            items={[
+              { key: 'foto', label: 'Foto, para salir en Ofertas', ok: readyIds(photos).length > 0, value: readyIds(photos).length > 0 ? 'Lista' : 'Falta' },
+              { key: 'nombre', label: 'Nombre claro, de menos de 40 letras', ok: name.trim().length >= 3 && name.trim().length <= 40, value: name.trim().length > 40 ? 'Muy largo' : name.trim().length >= 3 ? 'Listo' : 'Falta' },
+              { key: 'precio', label: 'Precio final en pesos', ok: priceN > 0 || from, value: priceN > 0 ? `$${priceN.toLocaleString('es-CO').replace(/,/g, '.')}` : from ? 'Desde' : 'Falta' },
+              { key: 'seccion', label: 'Sección', ok: Boolean(section), value: section ? 'Lista' : 'Falta' },
+              ...(isService
+                ? [
+                    { key: 'dura', label: 'Duración', ok: Boolean(duration) || Number(customDuration) > 0, value: duration ? `${duration} min` : Number(customDuration) > 0 ? `${customDuration} min` : 'Falta' },
+                    ...(FEATURES.agenda ? [{ key: 'reserva', label: 'Se puede reservar', ok: bookable, value: bookable ? 'Sí' : 'Falta' }] : []),
+                  ]
+                : []),
+            ]}
+          />
+        ) : null}
+
         {!isNew ? (
           <View style={{ gap: spacing.xs }}>
             {!isVariant && !isGroup ? <Button title={isService ? 'Cambiar a producto' : 'Cambiar a servicio'} variant="secondary" onPress={changeKind} /> : null}
@@ -825,61 +928,67 @@ const styles = StyleSheet.create({
   meta: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
   metaSmall: { fontSize: 12, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.muted },
   placeholder: { fontSize: 15, fontFamily: fonts.ui.medium, color: colors.muted },
-  segment: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: '#EEF2F7' },
+  heardRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  heard: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.financeSoft },
+  heardMissing: { backgroundColor: '#FFF6DE' },
+  heardText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.finance },
+  starter: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
+  starterText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  segment: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: '#EFF0F2' },
   segBtn: { flex: 1, minHeight: 52, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   segOn: { backgroundColor: colors.surface, elevation: 1, shadowColor: colors.ink, shadowOpacity: 0.12, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } },
   segLabel: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  segHint: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: '#4C5C74' },
+  segHint: { fontSize: 11.5, fontFamily: fonts.ui.bold, color: '#5B606B' },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   money: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 50, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.lg, paddingHorizontal: spacing.md, backgroundColor: colors.surface },
   moneySign: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: colors.muted },
   moneyInput: { flex: 1, fontSize: 16, fontFamily: fonts.ui.extrabold, color: colors.ink, paddingVertical: 0 },
-  miniSeg: { flexDirection: 'row', padding: 3, borderRadius: radius.md, backgroundColor: '#EEF2F7' },
+  miniSeg: { flexDirection: 'row', padding: 3, borderRadius: radius.md, backgroundColor: '#EFF0F2' },
   miniBtn: { minHeight: 44, paddingHorizontal: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   miniOn: { backgroundColor: colors.surface },
-  miniText: { fontSize: 13, fontFamily: fonts.ui.bold, color: '#4C5C74' },
+  miniText: { fontSize: 13, fontFamily: fonts.ui.bold, color: '#5B606B' },
   miniTextOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
   select: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 52, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.lg, paddingHorizontal: spacing.md },
-  sectionPill: { minHeight: 30, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.primarySoft, justifyContent: 'center' },
+  sectionPill: { minHeight: 30, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.financeSoft, justifyContent: 'center' },
   audWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  suggest: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 40, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
-  suggestText: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
-  sectionPillText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
-  preview: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.bg },
+  suggest: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 40, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.financeSoft },
+  suggestText: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.semibold, color: colors.finance },
+  sectionPillText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.finance },
+  preview: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.well },
   previewIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   previewName: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   previewPrice: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   margin: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md },
-  marginOk: { backgroundColor: '#E3F5F3' },
-  marginBad: { backgroundColor: '#FDECEC' },
+  marginOk: { backgroundColor: '#E8F5EC' },
+  marginBad: { backgroundColor: '#EFF0F2' },
   marginText: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.extrabold },
-  divider: { height: 1, backgroundColor: '#EEF2F7' },
+  divider: { height: 1, backgroundColor: '#EFF0F2' },
   trackRow: { flexDirection: 'row', gap: 6 },
   trackBtn: { flex: 1, minHeight: 56, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', padding: 6 },
-  trackOn: { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  trackOn: { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.financeSoft },
   trackLabel: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  trackHint: { fontSize: 11, fontFamily: fonts.ui.bold, color: '#4C5C74' },
+  trackHint: { fontSize: 11, fontFamily: fonts.ui.bold, color: '#5B606B' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  stepBtn: { width: 52, height: 52, borderRadius: 14, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
-  count: { fontSize: 30, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center', minWidth: 120, paddingVertical: 0 },
+  stepBtn: { width: 52, height: 52, borderRadius: 14, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.well, alignItems: 'center', justifyContent: 'center' },
+  count: { fontSize: 26, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center', minWidth: 120, paddingVertical: 0 },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 44 },
   switchLabel: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  stockRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.bg, minHeight: 64 },
+  stockRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.well, minHeight: 64 },
   stockBig: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
   link: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primary },
   inlineRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  supplyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56, borderBottomWidth: 1, borderBottomColor: '#EEF2F7' },
+  supplyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56, borderBottomWidth: 1, borderBottomColor: '#EFF0F2' },
   dot: { width: 10, height: 10, borderRadius: 5 },
   remove: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  pickBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, minHeight: 48, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  pickBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, minHeight: 48, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.financeSoft },
   pickText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.primary },
   variantRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, borderTopWidth: 1, borderTopColor: colors.line },
-  qty: { width: 64, minHeight: 42, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.xs, fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink, textAlign: 'center', backgroundColor: colors.bg },
-  input: { flex: 1, minHeight: 48, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink, backgroundColor: colors.bg },
+  qty: { width: 64, minHeight: 42, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.xs, fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink, textAlign: 'center', backgroundColor: colors.well },
+  input: { flex: 1, minHeight: 48, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink, backgroundColor: colors.well },
   moreHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 64, paddingHorizontal: spacing.md },
   moreTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  moreBody: { gap: spacing.md, padding: spacing.md, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: '#EEF2F7' },
+  moreBody: { gap: spacing.md, padding: spacing.md, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: '#EFF0F2' },
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },
 });

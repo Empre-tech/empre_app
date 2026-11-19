@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -6,10 +6,13 @@ import { ActivityIndicator, Animated, KeyboardAvoidingView, Modal, Platform, Pre
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { catalogApi } from '@/api/catalog';
 import { ApiError } from '@/api/client';
+import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi, type AdjustReason, type InventoryItem, type VoiceAction, type VoiceResult } from '@/api/ledger';
+import { answerFor, askWhichReading, destinationLabel, MODULE_COPY, numberQuestions, otherJob, serverModule, type AssistantModule, type NumberAnswer, type OtherJob } from '@/lib/assistantRoute';
 import { useEntitySections } from '@/api/sections';
 import { Button } from '@/components/Button';
 import { Chispa } from '@/components/ai/Chispa';
+import { TypeIn } from '@/components/chat/EmpreVoice';
 import { VoiceOrb } from '@/components/ai/VoiceOrb';
 import { AmountField, Chip, MethodChips, PartyPicker } from '@/components/ledger/parts';
 import { PayDeck } from '@/components/ledger/PayDeck';
@@ -49,6 +52,8 @@ const QUICK_PROMPTS: Record<EmpreAIMode, string[]> = {
 function errorText(e: unknown): string {
   if (e instanceof ApiError) {
     if (e.status === 503) return 'Empre AI no está disponible en este momento. Intenta de nuevo en unos segundos.';
+    // Planes (tablero «Base y Empre Pro»): el servidor cierra Empre AI a los negocios en Base.
+    if (e.status === 402) return 'Hablar con Empre AI es de Empre Pro. Pásate desde Mi negocio > Suscripción.';
     if (e.status === 429) return 'Llegaste al límite de consultas de voz de este mes.';
     if (e.status === 0) return 'Necesitas conexión a internet para confirmar con Empre AI.';
     return e.message;
@@ -93,9 +98,9 @@ export function actionProblem(a: VoiceAction): string | null {
 /** Los tonos de la paleta para lo entendido (3.65): producto en tinta, lo bueno en verde azulado, lo que falta en rojo. */
 const TONE: Record<WordTone, { ink: string; bg: string }> = {
   item: { ink: colors.ink, bg: colors.selectedSoft },
-  good: { ink: colors.verified, bg: colors.verifiedSoft },
-  bad: { ink: colors.primaryDark, bg: colors.primarySoft },
-  warn: { ink: colors.warning, bg: colors.accentSoft },
+  good: { ink: colors.finance, bg: colors.financeSoft },
+  bad: { ink: colors.ink, bg: colors.selectedSoft },
+  warn: { ink: colors.warning, bg: colors.selectedSoft },
 };
 
 const ROW_ICON: Record<LiveRow['icon'], keyof typeof Ionicons.glyphMap> = {
@@ -111,16 +116,49 @@ const ROW_ICON: Record<LiveRow['icon'], keyof typeof Ionicons.glyphMap> = {
   cheap: 'cash-outline',
 };
 
-const MODES: { key: EmpreAIMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { key: 'finance', label: 'Finanzas', icon: 'wallet-outline' },
-  { key: 'inventory', label: 'Inventario', icon: 'cube-outline' },
-  { key: 'search', label: 'Buscar', icon: 'search' },
-];
+/**
+ * La cabecera de una respuesta, como en el chat (tablero «Empre AI · cuándo responde y cómo se ve»): sin burbuja, la
+ * Chispa pequeña, «Empre AI» y qué hizo.
+ */
+function AiHead({ status }: { status: string }) {
+  return (
+    <View style={styles.aiHead}>
+      <Chispa size={20} mood="contento" animated={false} />
+      <Text style={styles.aiName}>Empre AI</Text>
+      <Text style={styles.aiStatus} numberOfLines={1}>{`· ${status}`}</Text>
+    </View>
+  );
+}
+
+/** Lo que dijiste, a la derecha y quieto: la respuesta va debajo, a la izquierda, como en una conversación. */
+function Said({ text }: { text: string }) {
+  return (
+    <View style={styles.saidBubble}>
+      <Text style={styles.saidBubbleText} numberOfLines={3}>
+        {text}
+      </Text>
+    </View>
+  );
+}
+
+/** El ícono del chip de cada módulo (dónde se abrió la hoja). */
+const MODULE_ICON: Record<AssistantModule, keyof typeof Ionicons.glyphMap> = {
+  finance: 'wallet-outline',
+  inventory: 'cube-outline',
+  debts: 'people-outline',
+  tab: 'receipt-outline',
+  none: 'storefront-outline',
+};
 
 /**
  * Empre AI por voz (3.65): la Chispa hace de orbe y su aura crece con el volumen real del micrófono; lo que dices
  * aparece grande con las palabras entendidas marcadas y, debajo, lo que se va armando en vivo (solo con reglas). Nada
  * mueve caja ni inventario sin que el dueño confirme.
+ *
+ * «Habla con Empre AI» por trabajo (tablero «Empre AI · un asistente por trabajo», 2026-11-17): sin pestañas. Un chip
+ * dice dónde se abrió la hoja (`module`), y eso solo desempata lo que tiene dos lecturas y elige los ejemplos. Buscar
+ * otros negocios y redactar textos son de otro trabajo: no se responden aquí, se llevan a su lugar. Las preguntas sobre
+ * tus números se responden con tus datos y una plantilla, sin modelo.
  */
 export function VoiceSheet({
   entityId,
@@ -129,6 +167,7 @@ export function VoiceSheet({
   hints,
   tabId,
   defaultMode = 'finance',
+  module: moduleProp,
   onConfirmed,
 }: {
   entityId: string;
@@ -137,15 +176,23 @@ export function VoiceSheet({
   hints: string[];
   /** Se dicta desde dentro de una cuenta abierta: lo pedido va a esa cuenta. */
   tabId?: string;
-  /** Módulo inicial al abrir Empre AI Live: 'finance', 'inventory' o 'search'. */
+  /** Antes del tablero por trabajo: 'search' es la búsqueda del cliente; 'finance' e 'inventory' equivalen a `module`. */
   defaultMode?: EmpreAIMode;
+  /** Dónde se abrió la hoja del negocio. Sin él: la cuenta si hay `tabId`; si no, lo que diga `defaultMode`. */
+  module?: AssistantModule;
   /** Permite avisar al mostrador cuando se confirma una venta o gasto dictado. */
   onConfirmed?: (actions: VoiceAction[]) => void;
 }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
-  const [mode, setMode] = useState<EmpreAIMode>(defaultMode);
+  const isSearch = !entityId || defaultMode === 'search';
+  const module: AssistantModule = moduleProp ?? (tabId ? 'tab' : defaultMode === 'inventory' ? 'inventory' : 'finance');
+  // Lo que usan las frases de cada fase: la búsqueda del cliente, inventario o la plata.
+  const mode: EmpreAIMode = isSearch ? 'search' : module === 'inventory' ? 'inventory' : 'finance';
+  const [other, setOther] = useState<OtherJob | null>(null);
+  const [numbers, setNumbers] = useState<NumberAnswer[] | null>(null);
+  const [doubt, setDoubt] = useState<{ text: string; qty: number; name: string } | null>(null);
   const [text, setText] = useState('');
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [listening, setListening] = useState(false);
@@ -171,6 +218,16 @@ export function VoiceSheet({
     staleTime: 60_000,
   });
 
+  // El tope de Empre AI del mes (tablero «Base y Empre Pro»): siempre ves cuánto te queda. Se refresca al confirmar.
+  const usage = useQuery({
+    queryKey: ['ledger', entityId, 'voice', 'usage'],
+    queryFn: () => ledgerApi.voiceUsage(entityId),
+    enabled: visible && Boolean(entityId),
+    staleTime: 60_000,
+  });
+  // En Base no hay tope que mostrar: el servidor responde 402 y la hoja dice que es de Empre Pro.
+  const quota = usage.data && usage.data.pro !== false && usage.data.limit > 0 ? { left: Math.max(0, usage.data.limit - usage.data.used), limit: usage.data.limit } : null;
+
   const live = useMemo(
     () =>
       liveParse(
@@ -180,12 +237,10 @@ export function VoiceSheet({
     [text, items.data],
   );
 
-  // Si el usuario menciona palabras claras de inventario («se acabó», «queda poco»), sugerimos visualmente ese contexto.
-  useEffect(() => {
-    if (live.stock.length > 0 && live.lines.length === 0 && !live.expense && mode === 'finance') {
-      setMode('inventory');
-    }
-  }, [live.stock.length, live.lines.length, live.expense, mode]);
+  // El chip: dónde estás. Desde el botón Empre en otra pantalla, el nombre del negocio.
+  const mine = useQuery({ queryKey: ['my-entities'], queryFn: entitiesApi.mine, enabled: visible && !isSearch, staleTime: 60_000 });
+  const businessName = mine.data?.find((e) => e.id === entityId)?.name;
+  const chipLabel = MODULE_COPY[module].label ?? businessName ?? 'Tu negocio';
 
   const listen = async () => {
     if (listening) {
@@ -219,12 +274,14 @@ export function VoiceSheet({
 
   useEffect(() => {
     if (visible) {
-      setMode(defaultMode);
       setText('');
       setError(null);
       setErrorCode(null);
       setResult(null);
       setAnswer(null);
+      setOther(null);
+      setNumbers(null);
+      setDoubt(null);
       setActions([]);
       setDone(false);
       setBusy(false);
@@ -242,13 +299,27 @@ export function VoiceSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, defaultMode]);
 
-  const interpret = async () => {
-    const t = text.trim();
+  // Tus números con plantillas: la cifra sale de lo que anotaste; sin modelo y sin gastar el tope.
+  const answerNumbers = async (qs: ReturnType<typeof numberQuestions>) => {
+    const period = qs.find((q) => q.topic === 'sales' || q.topic === 'expenses')?.period ?? 'day';
+    const needSummary = qs.some((q) => q.topic === 'sales' || q.topic === 'expenses');
+    const needParties = qs.some((q) => q.topic === 'owed_to_me' || q.topic === 'i_owe');
+    const [summary, parties] = await Promise.all([
+      needSummary ? ledgerApi.summary(entityId, period) : Promise.resolve(null),
+      needParties ? ledgerApi.parties(entityId, { owing: '1' }) : Promise.resolve([]),
+    ]);
+    const byBalance = (kind: string) => parties.filter((p) => p.kind === kind && p.balance > 0).sort((a, b) => b.balance - a.balance).map((p) => ({ name: p.name, balance: p.balance }));
+    const data = { sales_total: summary?.sales_total, sales_count: summary?.sales_count, expenses_total: summary?.expenses_total, owing: byBalance('customer'), owed: byBalance('supplier') };
+    setNumbers(qs.map((q) => answerFor(q, data)));
+  };
+
+  const interpret = async (said?: string) => {
+    const t = (said ?? text).trim();
     if (!t || busy) return;
     stopRef.current?.();
     setListening(false);
 
-    if (mode === 'search' || !entityId) {
+    if (isSearch) {
       onClose();
       setTimeout(() => {
         router.push({ pathname: '/ask', params: { q: t } });
@@ -256,13 +327,26 @@ export function VoiceSheet({
       return;
     }
 
+    // Lo de otro trabajo no se responde aquí: se lleva a su lugar, sin gastar el tope.
+    const job = otherJob(t);
+    if (job) {
+      setOther(job);
+      return;
+    }
+
     setBusy(true);
     setError(null);
     try {
+      // «¿Cuánto vendí?» es una pregunta, no una venta: va antes que las reglas de plata e inventario.
+      const qs = numberQuestions(t);
+      if (qs.length > 0) {
+        await answerNumbers(qs);
+        return;
+      }
       if (await handleLocally(t)) return;
-      const r = await ledgerApi.voiceParse(entityId, t, tabId);
+      const r = await ledgerApi.voiceParse(entityId, t, tabId, serverModule(module));
       const priced = await withPriceAsk(t, r.actions);
-      const parsed = mode === 'inventory' ? await keepInInventory(t, priced) : priced;
+      const parsed = module === 'inventory' ? await keepInInventory(t, priced) : priced;
       setResult(r);
       setActions(parsed);
       if (parsed.length === 0) setError(r.message ?? 'No entendí qué registrar. Prueba con otra frase.');
@@ -284,7 +368,12 @@ export function VoiceSheet({
   // Preguntar, sumar, descontar y contar no pasan por el modelo: se resuelven aquí, al instante y sin costo.
   const handleLocally = async (t: string): Promise<boolean> => {
     const intent = isMoneyTalk(t) || isPriceStatement(t) ? null : inventoryIntent(t);
-    if (!intent || (intent.kind !== 'ask' && mode !== 'inventory')) return false;
+    // «30 pollos» desde el botón Empre en otra pantalla: dos lecturas, así que se pregunta antes de gastar el tope.
+    if (intent && intent.kind === 'count' && askWhichReading(module, intent.kind, false)) {
+      setDoubt({ text: t, qty: intent.qty, name: intent.name });
+      return true;
+    }
+    if (!intent || (intent.kind !== 'ask' && module !== 'inventory')) return false;
     let items: InventoryItem[];
     try {
       items = (await qc.fetchQuery({ queryKey: ['ledger', entityId, 'inventory'], queryFn: () => ledgerApi.inventory(entityId), staleTime: 15_000 })).items;
@@ -299,6 +388,33 @@ export function VoiceSheet({
     }
     startLocal(t, [localMove(intent.name, intent.kind, intent.qty, items, intent.kind === 'remove' ? intent.reason : 'otro')]);
     return true;
+  };
+
+  // La respuesta a «¿Vendiste 30 pollos o te llegaron?»: vendidos pasa por el modelo (con «vendí»); llegaron o es lo que
+  // hay se arma aquí, sin costo.
+  const resolveDoubt = async (kind: 'sold' | 'add' | 'count') => {
+    if (!doubt) return;
+    const d = doubt;
+    setDoubt(null);
+    if (kind === 'sold') {
+      void interpret(`vendí ${d.text}`);
+      return;
+    }
+    try {
+      const items = (await qc.fetchQuery({ queryKey: ['ledger', entityId, 'inventory'], queryFn: () => ledgerApi.inventory(entityId), staleTime: 15_000 })).items;
+      startLocal(d.text, [localMove(d.name, kind, d.qty, items, 'otro')]);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+
+  // Volver a la hoja para decir otra cosa.
+  const again = () => {
+    setOther(null);
+    setNumbers(null);
+    setDoubt(null);
+    setAnswer(null);
+    setText('');
   };
 
   const keepInInventory = async (t: string, list: VoiceAction[]): Promise<VoiceAction[]> => {
@@ -399,7 +515,11 @@ export function VoiceSheet({
   const canGo = Boolean(text.trim()) && !busy;
   const goLabel = mode === 'search' ? 'Buscar' : liveIntent?.kind === 'ask' ? 'Preguntar' : mode === 'inventory' ? 'Actualizar' : 'Seguir y revisar';
   const hintLine =
-    mode !== 'search' && text.trim() && rows.length === 0 && !listening && !busy
+    mode !== 'search' && text.trim() && !listening && !busy && otherJob(text)
+      ? 'Eso es de otro lugar: te digo a dónde ir. No gasta tu tope.'
+      : mode !== 'search' && text.trim() && !listening && !busy && numberQuestions(text).length > 0
+        ? 'Vas a preguntar por tus números: sale de lo que anotaste y no gasta tu tope.'
+        : mode !== 'search' && text.trim() && rows.length === 0 && !listening && !busy
       ? liveIntent?.kind === 'ask'
         ? `Vas a preguntar si hay «${liveIntent.name}».`
         : liveIntent?.kind === 'add' && mode === 'inventory'
@@ -445,11 +565,10 @@ export function VoiceSheet({
             </View>
           ) : answer ? (
             <>
-              <View style={styles.headRow}>
-                <View style={styles.brandRow}>
-                  <Chispa size={30} animated={false} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.liveBrandText}>Empre AI · tu inventario</Text>
+              <AiHead status="tu inventario" />
+              <View>
+                <View>
+                  <View>
                     <Text style={styles.title} accessibilityLiveRegion="polite">
                       {answer.exact ? `${answer.exact.name}: ${availabilityLine(answer.exact).text.toLowerCase()}` : answer.rows.length ? `«${answer.name}» no está con ese nombre` : `«${answer.name}» no está en tu inventario`}
                     </Text>
@@ -492,8 +611,94 @@ export function VoiceSheet({
               )}
               <View style={{ gap: spacing.sm }}>
                 <Button title="Listo" onPress={onClose} />
-                <Button title="Preguntar otra cosa" variant="ghost" onPress={() => { setAnswer(null); setText(''); }} />
+                <Button title="Preguntar otra cosa" variant="ghost" onPress={again} />
               </View>
+            </>
+          ) : other ? (
+            // Lo de otro trabajo (tablero, teléfono 5): no se responde a medias; se lleva a su lugar y no gasta el tope.
+            <>
+              <Said text={text.trim()} />
+              <View style={styles.aiTurn}>
+                <AiHead status="eso es de otro lugar" />
+                <View style={styles.aiBody}>
+                  <TypeIn
+                    play
+                    style={styles.aiLead}
+                    boldStyle={styles.aiLeadBold}
+                    parts={
+                      other.job === 'search'
+                        ? [{ t: 'Eso es para ' }, { t: 'buscar negocios', bold: true }, { t: `. Aquí anoto y respondo sobre ${businessName ?? 'tu negocio'}.` }]
+                        : [{ t: 'Eso se hace en ' }, { t: 'Redactar', bold: true }, { t: ', dentro de cada texto: el título de una oferta, una publicación o tu descripción.' }]
+                    }
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      onClose();
+                      setTimeout(() => (other.job === 'search' ? router.push({ pathname: '/ask', params: { q: other.query } }) : router.push({ pathname: '/business/offers/new', params: { entityId } })), 80);
+                    }}
+                    style={({ pressed }) => [styles.aiCta, pressed && styles.pressed]}
+                  >
+                    <Ionicons name={other.job === 'search' ? 'search' : 'create-outline'} size={16} color={colors.ink} />
+                    <Text style={styles.aiCtaText}>{other.job === 'search' ? `Buscar «${other.query}»` : 'Crear una oferta'}</Text>
+                  </Pressable>
+                  <Text style={styles.aiSource}>No gasta tu tope del mes</Text>
+                </View>
+              </View>
+              <View style={{ flex: 1 }} />
+              <Button title="Decir otra cosa" variant="ghost" onPress={again} />
+            </>
+          ) : numbers ? (
+            // Tus números (teléfono 4): plantillas con tus datos; cada cifra lleva a su detalle.
+            <>
+              <Said text={text.trim()} />
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.aiTurn}>
+                <AiHead status="tus números" />
+                <View style={styles.aiBody}>
+                  {numbers.map((n, i) => (
+                    <View key={n.topic} style={styles.aiPart}>
+                      {/* Una frase después de la otra, como en el chat: la segunda empieza cuando termina la primera. */}
+                      <TypeIn play delay={i * 700} style={styles.aiLead} boldStyle={styles.aiLeadBold} parts={n.say} />
+                      <Pressable
+                        accessibilityRole="link"
+                        accessibilityLabel={n.link}
+                        onPress={() => {
+                          onClose();
+                          const to = n.topic === 'owed_to_me' || n.topic === 'i_owe' ? '/business/ledger/debts/[id]' : '/business/ledger/[id]';
+                          setTimeout(() => router.push({ pathname: to, params: { id: entityId } }), 80);
+                        }}
+                        style={({ pressed }) => [styles.aiCta, pressed && styles.pressed]}
+                      >
+                        <Text style={styles.aiCtaText}>{n.link}</Text>
+                        <Ionicons name="chevron-forward" size={14} color={colors.ink} />
+                      </Pressable>
+                    </View>
+                  ))}
+                  <Text style={styles.aiSource}>Sale de lo que anotaste en Empre Finance · no gasta tu tope</Text>
+                </View>
+              </ScrollView>
+              <View style={{ gap: spacing.sm }}>
+                <Button title="Listo" onPress={onClose} />
+                <Button title="Preguntar otra cosa" variant="ghost" onPress={again} />
+              </View>
+            </>
+          ) : doubt ? (
+            // Lo dudoso (teléfono 3): desde otra pantalla «30 pollos» tiene dos lecturas; se pregunta antes de gastar.
+            <>
+              <Said text={doubt.text} />
+              <View style={styles.aiTurn}>
+                <AiHead status="una pregunta" />
+                <View style={styles.aiBody}>
+                  <TypeIn play style={styles.aiLead} boldStyle={styles.aiLeadBold} parts={[{ t: '¿' }, { t: `Vendiste ${doubt.qty} ${doubt.name}`, bold: true }, { t: ' o te llegaron? Elige y lo dejo listo para revisar.' }]} />
+                </View>
+              </View>
+              <View style={{ flex: 1 }} />
+              <View style={{ gap: spacing.sm }}>
+                <Button title="Los vendí" onPress={() => void resolveDoubt('sold')} loading={busy} />
+                <Button title="Me llegaron" variant="secondary" onPress={() => void resolveDoubt('add')} />
+                <Button title="Ninguna: es lo que hay ahora" variant="ghost" onPress={() => void resolveDoubt('count')} />
+              </View>
+              {error ? <Text style={styles.error}>{error}</Text> : null}
             </>
           ) : !result || actions.length === 0 ? (
             <>
@@ -509,21 +714,19 @@ export function VoiceSheet({
                 </Pressable>
               </View>
 
-              <View style={styles.modeTrack} accessibilityRole="tablist">
-                {MODES.filter((m) => m.key === 'search' || entityId).map((m) => (
-                  <Pressable
-                    key={m.key}
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected: mode === m.key }}
-                    onPress={() => setMode(m.key)}
-                    style={[styles.modePill, mode === m.key && styles.modePillOn]}
-                  >
-                    <Ionicons name={m.icon} size={15} color={mode === m.key ? colors.ink : colors.muted} />
-                    <Text style={[styles.modePillText, mode === m.key && styles.modePillTextOn]}>{m.label}</Text>
-                  </Pressable>
-                ))}
-              </View>
+              {/* Dónde estás: reemplaza a las pestañas Finanzas / Inventario / Buscar. No se toca para cambiar. */}
+              {isSearch ? null : (
+                <View style={styles.hereChip} accessible accessibilityLabel={`Empre AI de tu negocio. ${chipLabel}`}>
+                  <Ionicons name={MODULE_ICON[module]} size={15} color={colors.ink} />
+                  <Text style={styles.hereChipText} numberOfLines={1}>
+                    {chipLabel}
+                  </Text>
+                </View>
+              )}
 
+              {quota ? (
+                <Text style={styles.quota} accessibilityLiveRegion="polite">{`Quedan ${quota.left} de ${quota.limit} este mes · lo simple no gasta`}</Text>
+              ) : null}
               <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.stage} keyboardShouldPersistTaps="handled">
                 <View style={[styles.orbArea, copy.big && styles.orbAreaBig]}>
                   <VoiceOrb size={copy.big ? 132 : 96} mood={copy.mood} level={level} listening={listening} />
@@ -537,14 +740,8 @@ export function VoiceSheet({
                     ref={inputRef}
                     value={text}
                     onChangeText={setText}
-                    placeholder={
-                      mode === 'finance'
-                        ? 'Ej: Vendí dos empanadas por 6 mil en Nequi…'
-                        : mode === 'inventory'
-                          ? 'Ej: Se acabó la harina y queda poco café…'
-                          : 'Ej: Comida rápida abierta ahora con oferta…'
-                    }
-                    placeholderTextColor={colors.placeholder}
+                    placeholder={isSearch ? 'Ej: Comida rápida abierta ahora con oferta…' : `Ej: ${MODULE_COPY[module].examples[0]}…`}
+                    placeholderTextColor={colors.faint}
                     style={styles.stageInput}
                     multiline
                     maxLength={400}
@@ -571,7 +768,7 @@ export function VoiceSheet({
 
                 {phase === 'ready' && !keyboardOpen ? (
                   <View style={styles.prompts}>
-                    {QUICK_PROMPTS[mode].map((prompt) => (
+                    {(isSearch ? QUICK_PROMPTS.search : MODULE_COPY[module].examples).map((prompt) => (
                       <Pressable
                         key={prompt}
                         accessibilityRole="button"
@@ -620,7 +817,7 @@ export function VoiceSheet({
                   onPress={() => (keyboardOpen ? setKeyboardOpen(false) : openKeyboard())}
                   style={[styles.dockSide, keyboardOpen && styles.dockSideOn]}
                 >
-                  <Ionicons name="keypad-outline" size={22} color={keyboardOpen ? '#FFFFFF' : colors.ink} />
+                  <Ionicons name="keypad-outline" size={22} color={colors.ink} />
                 </Pressable>
                 {canSpeak ? (
                   <Pressable
@@ -643,7 +840,7 @@ export function VoiceSheet({
                   onPress={() => void interpret()}
                   style={[styles.dockSide, styles.go, !canGo && styles.goOff]}
                 >
-                  {busy ? <ActivityIndicator color="#FFFFFF" /> : <Ionicons name="arrow-forward" size={22} color="#FFFFFF" />}
+                  {busy ? <ActivityIndicator color={colors.ink} /> : <Ionicons name="arrow-forward" size={22} color={colors.ink} />}
                 </Pressable>
               </View>
               <Text style={styles.foot}>{copy.foot}</Text>
@@ -664,16 +861,19 @@ export function VoiceSheet({
               </Text>
               <ScrollView style={{ maxHeight: 470 }} contentContainerStyle={{ gap: spacing.md }} keyboardShouldPersistTaps="handled">
                 {actions.map((a, i) => (
-                  <ActionCard
-                    key={a.client_id}
-                    entityId={entityId}
-                    heard={result.text}
-                    action={a}
-                    problem={actionProblem(a)}
-                    onChange={(p) => patch(i, p)}
-                    onRemove={() => setActions((l) => l.filter((_, k) => k !== i))}
-                    onSwap={(next) => setActions((l) => l.flatMap((x, k) => (k === i ? next : [x])))}
-                  />
+                  // El destino de cada línea (teléfono 2): así se ve qué cambia antes de guardar.
+                  <View key={a.client_id} style={{ gap: 6 }}>
+                    <Text style={styles.destTag}>{a.price_ask ? 'Cambia el precio en tu catálogo' : a.type === 'sale' && a.method === 'credit' ? 'Va a Finance · queda en Cuentas como fiado' : destinationLabel(a.type, a.tab_name)}</Text>
+                    <ActionCard
+                      entityId={entityId}
+                      heard={result.text}
+                      action={a}
+                      problem={actionProblem(a)}
+                      onChange={(p) => patch(i, p)}
+                      onRemove={() => setActions((l) => l.filter((_, k) => k !== i))}
+                      onSwap={(next) => setActions((l) => l.flatMap((x, k) => (k === i ? next : [x])))}
+                    />
+                  </View>
                 ))}
               </ScrollView>
               {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -814,7 +1014,7 @@ function StockCard({ entityId, heard, action: a, problem, onChange, onRemove }: 
       )}
       {[...(a.warnings ?? []), ...(problem && !(a.warnings ?? []).includes(problem) ? [problem] : [])].map((w) => (
         <View key={w} style={styles.warn}>
-          <Ionicons name="alert-circle-outline" size={16} color={colors.accentInk} />
+          <Ionicons name="alert-circle-outline" size={16} color={colors.ink} />
           <Text style={styles.warnText}>{w}</Text>
         </View>
       ))}
@@ -870,7 +1070,7 @@ function MoveCard({ action: a, move, problem, onChange, onRemove }: { action: Vo
       {move.kind === 'remove' && !needsCount ? <Text style={styles.cardMeta}>Si lo vendiste, mejor regístralo como venta: descuenta solo y cuenta en tu plata.</Text> : null}
       {problem ? (
         <View style={styles.warn}>
-          <Ionicons name="alert-circle-outline" size={16} color={colors.accentInk} />
+          <Ionicons name="alert-circle-outline" size={16} color={colors.ink} />
           <Text style={styles.warnText}>{problem}</Text>
         </View>
       ) : null}
@@ -903,7 +1103,7 @@ function PriceCard({ action: a, ask, problem, onChange, onRemove }: { action: Vo
           </View>
           {problem ? (
             <View style={styles.warn}>
-              <Ionicons name="alert-circle-outline" size={16} color={colors.accentInk} />
+              <Ionicons name="alert-circle-outline" size={16} color={colors.ink} />
               <Text style={styles.warnText}>{problem}</Text>
             </View>
           ) : null}
@@ -1156,7 +1356,7 @@ function ActionCard({ entityId, heard, action: a, problem, onChange, onRemove, o
 
       {[...(a.warnings ?? []), ...(problem && !(a.warnings ?? []).includes(problem) ? [problem] : [])].filter((w) => !(needsPrice && w === 'Falta el monto.')).map((w) => (
         <View key={w} style={styles.warn}>
-          <Ionicons name="alert-circle-outline" size={16} color={colors.accentInk} />
+          <Ionicons name="alert-circle-outline" size={16} color={colors.ink} />
           <Text style={styles.warnText}>{w}</Text>
         </View>
       ))}
@@ -1165,6 +1365,7 @@ function ActionCard({ entityId, heard, action: a, problem, onChange, onRemove, o
 }
 
 const styles = StyleSheet.create({
+  quota: { alignSelf: 'center', marginTop: 6, fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.medium, color: colors.muted },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   topTitle: { fontSize: 18, fontFamily: fonts.display.bold, color: colors.ink },
   topStatus: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
@@ -1191,16 +1392,16 @@ const styles = StyleSheet.create({
   hintLine: { alignSelf: 'stretch', fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.semibold, color: colors.muted, textAlign: 'center' },
   dock: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: spacing.sm },
   dockSide: { width: 52, height: 52, borderRadius: 26, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  dockSideOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-  go: { backgroundColor: colors.ink, borderColor: colors.ink },
-  goOff: { backgroundColor: '#C7D2E0', borderColor: '#C7D2E0' },
-  mic: { width: 76, height: 76, borderRadius: 38, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', shadowColor: colors.ink, shadowOpacity: 0.22, shadowRadius: 20, shadowOffset: { width: 0, height: 6 }, elevation: 6 },
+  dockSideOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
+  go: { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  goOff: { backgroundColor: '#CBCED4', borderColor: '#CBCED4' },
+  mic: { width: 76, height: 76, borderRadius: 38, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', shadowColor: colors.ink, shadowOpacity: 0.22, shadowRadius: 20, shadowOffset: { width: 0, height: 6 }, elevation: 6 },
   micOn: { backgroundColor: colors.primary, shadowColor: colors.primary },
   micSpacer: { width: 76, height: 76 },
   stopSquare: { width: 24, height: 24, borderRadius: 6, backgroundColor: '#FFFFFF' },
   foot: { textAlign: 'center', fontSize: 11.5, fontFamily: fonts.ui.bold, color: colors.faint },
   pressed: { opacity: 0.85 },
-  backdrop: { flex: 1, backgroundColor: 'rgba(11, 21, 38, 0.52)', justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(43,38,34,0.35)', justifyContent: 'flex-end' },
   sheet: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -1213,8 +1414,8 @@ const styles = StyleSheet.create({
     ...softShadow,
   },
   stockDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.placeholder },
-  stockHas: { backgroundColor: '#14B8B0' },
-  stockOut: { backgroundColor: colors.brand },
+  stockHas: { backgroundColor: '#0B7F3D' },
+  stockOut: { backgroundColor: colors.danger },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   stepBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.line },
   stepN: { minWidth: 56, textAlign: 'center', fontSize: 28, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
@@ -1223,7 +1424,7 @@ const styles = StyleSheet.create({
   similarName: { flex: 1, minWidth: 0, fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  liveBrandText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.verified, letterSpacing: 0.7 },
+  liveBrandText: { fontSize: 11.5, fontFamily: fonts.ui.extrabold, color: colors.finance, letterSpacing: 0.7 },
   closeBtn: {
     width: 44,
     height: 44,
@@ -1233,42 +1434,42 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     ...softShadow,
   },
-  modeTrack: {
+  // Dónde se abrió la hoja: un chip en arena, no un control (tablero «Empre AI · un asistente por trabajo»).
+  hereChip: {
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    padding: 4,
-    borderRadius: 14,
-    backgroundColor: colors.hairline,
-  },
-  modePill: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: 11,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
     gap: 6,
-    paddingHorizontal: 8,
+    paddingLeft: 8,
+    paddingRight: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: colors.sand,
   },
-  modePillOn: {
-    backgroundColor: colors.surface,
-    ...softShadow,
-  },
-  modePillText: {
-    fontSize: 13,
-    fontFamily: fonts.ui.extrabold,
-    color: colors.muted,
-  },
-  modePillTextOn: {
-    color: colors.ink,
-  },
+  hereChipText: { flexShrink: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
+  freeNote: { fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
+  destTag: { fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.semibold, color: colors.muted },
+  // La respuesta como en el chat: sin tarjetas; la frase con el dato en negrita y el siguiente paso, tranquilo.
+  aiTurn: { gap: 8, paddingTop: 4 },
+  aiHead: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  aiName: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  aiStatus: { flexShrink: 1, fontSize: 12, fontFamily: fonts.ui.semibold, color: colors.muted },
+  aiBody: { marginLeft: 27, gap: 12 },
+  aiPart: { gap: 8 },
+  aiLead: { fontSize: 17, lineHeight: 25, fontFamily: fonts.ui.semibold, color: colors.ink },
+  aiLeadBold: { fontFamily: fonts.ui.extrabold, fontVariant: ['tabular-nums'] },
+  aiCta: { alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: 22, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  aiCtaText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  aiSource: { fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.semibold, color: colors.muted },
+  saidBubble: { alignSelf: 'flex-end', maxWidth: '86%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18, borderBottomRightRadius: 6, backgroundColor: colors.well, borderWidth: 1, borderColor: colors.line },
+  saidBubbleText: { fontSize: 15, lineHeight: 21, fontFamily: fonts.ui.semibold, color: colors.ink },
   stageInput: {
     minHeight: 84,
     maxHeight: 140,
     padding: 12,
     borderRadius: 18,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.well,
     borderWidth: 1.5,
     borderColor: colors.primary,
     fontSize: 18,
@@ -1288,7 +1489,7 @@ const styles = StyleSheet.create({
   link: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.primary },
   party: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  warn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.accentSoft, borderRadius: radius.sm, padding: spacing.sm },
-  warnText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.accentInk },
+  warn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.selectedSoft, borderRadius: radius.sm, padding: spacing.sm },
+  warnText: { flex: 1, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   doneBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, paddingVertical: spacing.xl },
 });

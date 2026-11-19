@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
@@ -144,7 +144,7 @@ export function SectionDeck({
             <Text style={styles.meta}>{countText}</Text>
             {alert ? (
               <View style={styles.alert}>
-                <View style={[styles.dot, { backgroundColor: alert.tone === 'out' ? colors.brand : colors.accent }]} />
+                <View style={[styles.dot, { backgroundColor: alert.tone === 'out' ? colors.ink : colors.faint }]} />
                 <Text style={styles.alertText} numberOfLines={1}>
                   {alert.text}
                 </Text>
@@ -198,6 +198,6 @@ const styles = StyleSheet.create({
   alert: { flexShrink: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 5 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   alertText: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.ink },
-  chev: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
+  chev: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.well },
   fold: { paddingBottom: 6 },
 });

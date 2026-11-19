@@ -352,6 +352,64 @@ export interface InventoryItem {
   variants?: number;
   /** Cuántos llegaron en la última compra registrada («como la última vez»). */
   last_purchase?: number;
+  /** Id de la foto de portada (la variante sin fotos usa la del producto). */
+  photo?: string;
+}
+
+/** Las pestañas del inventario (tablero «Inventario», 2026-11-16). */
+export type InventoryTab = 'product' | 'service' | 'supply';
+export type InventoryState = 'low' | 'out' | 'nophoto';
+export type InventorySort = 'az' | 'stock' | 'sales';
+
+export interface InventoryPageQuery {
+  tab: InventoryTab;
+  q?: string;
+  section?: string;
+  state?: InventoryState;
+  sort?: InventorySort;
+  /** El next_cursor de la página anterior. */
+  cursor?: string;
+  limit?: number;
+}
+
+/** Una página: las filas de arriba, las variantes de esos productos (para plegarlas), el total con ese filtro y el
+ * cursor de la siguiente (sin cursor, no hay más). */
+export interface InventoryPage {
+  items: InventoryItem[];
+  variants: InventoryItem[];
+  total: number;
+  next_cursor?: string;
+}
+
+export interface InventoryTabCounts {
+  total: number;
+  low: number;
+  out: number;
+  no_photo: number;
+  /** Cada sección con cuántas filas tiene y cuántas se acaban o se acabaron (el punto rojo de la fila de secciones). */
+  sections: { name: string; count: number; low?: number; out?: number; counted_at?: string | null }[];
+}
+
+/**
+ * Lo de arriba de Inventario ya contado en el servidor (avisos, empezar a llevar inventario, revisar qué es cada cosa y la
+ * nota de precios), para no bajar todas las filas ni el catálogo entero.
+ */
+export interface InventorySummary {
+  kind: string;
+  category: string;
+  unset: number;
+  tracked: number;
+  alerts: { out: number; soon: number; risk: number; total: number };
+  unchecked: { id: string; name: string; kind: 'service' | 'product' }[];
+  unchecked_total: number;
+  prices: { priced: number; stale: number; oldest_at?: string | null };
+}
+
+/** Los números de las tres pestañas y del filtro, sin las filas. */
+export interface InventoryCounts {
+  products: InventoryTabCounts;
+  services: InventoryTabCounts;
+  supplies: InventoryTabCounts;
 }
 
 export interface NameStatus {
@@ -520,6 +578,9 @@ export const ledgerApi = {
     request<Sale>(`${base(entityId)}/sales`, { method: 'POST', body: input }),
   setSaleMethod: (entityId: string, saleId: string, method: PayMethod) =>
     request<Sale>(`${base(entityId)}/sales/${saleId}/method`, { method: 'PUT', body: { method } }),
+  /** Lo cobrado en un canje cuya oferta no decía el precio en pesos: queda como venta de Empre Offers. */
+  recordClaimSale: (entityId: string, claimId: string, total: number, method: PayMethod) =>
+    request<Sale>(`${base(entityId)}/claims/${claimId}/sale`, { method: 'POST', body: { total, method } }),
   voidSale: (entityId: string, saleId: string, reason: string) =>
     request<Sale>(`${base(entityId)}/sales/${saleId}/void`, { method: 'POST', body: { reason } }),
 
@@ -552,6 +613,28 @@ export const ledgerApi = {
     request<{ ok: boolean }>(`${base(entityId)}/items/${itemId}/cost`, { method: 'PUT', body: { cost } }),
 
   inventory: (entityId: string) => request<InventoryOverview>(`${base(entityId)}/inventory`),
+  /** Una página de una pestaña del inventario: se busca y se filtra en el servidor. */
+  inventoryPage: (entityId: string, q: InventoryPageQuery) =>
+    request<InventoryPage>(`${base(entityId)}/inventory/page`, {
+      query: { tab: q.tab, q: q.q || undefined, section: q.section || undefined, state: q.state, sort: q.sort, cursor: q.cursor, limit: q.limit },
+    }),
+  /** Los números de las pestañas y del filtro. */
+  inventoryCounts: (entityId: string) => request<InventoryCounts>(`${base(entityId)}/inventory/counts`),
+  /** Guarda el conteo de una sección de una vez (reenviar el mismo client_id no lo aplica dos veces). */
+  countSection: (
+    entityId: string,
+    input: { client_id: string; tab: 'product' | 'supply'; section: string; lines: { ref: string; expected?: number; counted?: number; level?: StockLevel; reason?: string }[] },
+  ) => request<{ counted: number; changed: number; counted_at: string }>(`${base(entityId)}/inventory/count`, { method: 'POST', body: input }),
+  /** Cuántos dictados de Empre AI lleva el negocio este mes y su tope (0 = sin tope). */
+  voiceUsage: (entityId: string) => request<{ used: number; limit: number; pro: boolean }>(`${base(entityId)}/voice/usage`),
+  /** Lo de arriba de Inventario, ya contado. */
+  inventorySummary: (entityId: string) => request<InventorySummary>(`${base(entityId)}/inventory/summary`),
+  /** Solo las filas pedidas (por id de la fila o de su ítem del catálogo; hasta 100). */
+  inventoryItems: async (entityId: string, ids: string[]): Promise<InventoryItem[]> =>
+    (await request<{ items: InventoryItem[] | null }>(`${base(entityId)}/inventory/items`, { query: { ids: ids.slice(0, 100).join(',') } })).items ?? [],
+  /** Los nombres de todas las filas (para Empre AI y para no repetir un insumo). Se piden al abrir esas hojas. */
+  inventoryNames: async (entityId: string): Promise<{ name: string; kind: 'product' | 'supply' }[]> =>
+    (await request<{ names: { name: string; kind: 'product' | 'supply' }[] | null }>(`${base(entityId)}/inventory/names`)).names ?? [],
   setupInventory: (entityId: string, choice: SetupChoice) =>
     request<InventoryOverview>(`${base(entityId)}/inventory/setup`, { method: 'POST', body: { choice } }),
   stockSettings: (entityId: string, ref: string, input: ItemSettings) =>
@@ -578,8 +661,8 @@ export const ledgerApi = {
     (await request<{ insights: Insight[] | null }>(`${base(entityId)}/insights`)).insights ?? [],
 
   /** tabId: se dicta desde dentro de una cuenta abierta (lo pedido va a esa cuenta). */
-  voiceParse: (entityId: string, text: string, tabId?: string) =>
-    request<VoiceResult>(`${base(entityId)}/voice/parse`, { method: 'POST', body: { text, tab_id: tabId } }),
+  voiceParse: (entityId: string, text: string, tabId?: string, module?: 'finance' | 'inventory' | 'debts') =>
+    request<VoiceResult>(`${base(entityId)}/voice/parse`, { method: 'POST', body: { text, tab_id: tabId, module } }),
 
   // ---- cuentas abiertas ----
   tabs: async (entityId: string) => (await request<{ items: OpenTab[] | null }>(`${base(entityId)}/tabs`)).items ?? [],

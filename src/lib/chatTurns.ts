@@ -29,6 +29,63 @@ export function splitQuestions(text: string): string[] {
   return parts.length ? parts : [text.trim()];
 }
 
+/** «Hola», «Buenas tardes», «Hola!»: un saludo sin pregunta. Empre AI lo contesta con un saludo, no con un aviso. */
+export function isGreetingOnly(text: string): boolean {
+  const p = plain(text);
+  return p.length > 0 && GREETING.test(p);
+}
+
+type TailMsg = { id: string; sender_id: string; sent_by_entity: boolean; kind?: string; content: string; created_at: string; reply_to_id?: string; ai_unanswered?: boolean };
+
+/**
+ * Lo que el cliente escribió desde que el negocio contestó por última vez y nadie ha respondido, de lo más viejo a lo
+ * más nuevo. Sirve para que Empre AI responda también lo que llegó desde otra pantalla («Pregúntales a varios», una
+ * oferta). `messages` viene del más nuevo al más viejo; solo cuenta lo de las últimas `maxAgeMs`.
+ * - Una pregunta ya respondida por Empre AI (una respuesta la nombra en `reply_to_id`) o que Empre AI ya no supo
+ *   (`ai_unanswered`) no vuelve a salir: abrir el chat otra vez no repite nada (3.71).
+ * - Una respuesta vieja de Empre AI sin `reply_to_id` cuenta como respuesta a todo lo anterior.
+ */
+export function unansweredTail<M extends TailMsg>(messages: M[], meId: string, now: number, maxAgeMs = 24 * 60 * 60 * 1000): M[] {
+  const answered = new Set(messages.filter((m) => m.kind === 'ai_answer' && m.reply_to_id).map((m) => m.reply_to_id as string));
+  const out: M[] = [];
+  for (const m of messages) {
+    if (m.kind === 'ai_answer') {
+      if (!m.reply_to_id) break;
+      continue;
+    }
+    if (m.sent_by_entity || m.sender_id !== meId) break;
+    if (now - Date.parse(m.created_at) > maxAgeMs) break;
+    if (m.kind && m.kind !== 'text') continue;
+    if (answered.has(m.id) || m.ai_unanswered) continue;
+    if (m.content.trim()) out.push(m);
+  }
+  return out.reverse();
+}
+
+/**
+ * La conversación en orden (la más nueva primero, como la lista invertida): cada respuesta de Empre AI va justo
+ * debajo de la pregunta que nombra en `reply_to_id`, aunque se haya guardado después (3.71). Lo demás, por su hora.
+ */
+export function timelineOrder<R extends { id: string; created_at: string; reply_to_id?: string }>(rows: R[]): R[] {
+  const at = new Map(rows.map((r) => [r.id, Date.parse(r.created_at)]));
+  const key = (r: R) => {
+    const q = r.reply_to_id ? at.get(r.reply_to_id) : undefined;
+    return q !== undefined ? q + 1 : Date.parse(r.created_at);
+  };
+  return [...rows].sort((a, b) => key(b) - key(a) || Date.parse(b.created_at) - Date.parse(a.created_at));
+}
+
+/** El aviso cuando Empre AI no tiene el dato: dice cuándo puede contestar el negocio si se sabe. */
+export function waitNotice(who: string, online: boolean, opening: { text: string; tone: 'open' | 'closed' } | null): string {
+  // 2026-11-14: una línea bajo tu mensaje, sin la Chispa: Empre AI solo aparece cuando sabe la respuesta.
+  if (online) return `Enviado · ${who} está en línea`;
+  if (opening?.tone === 'closed' && opening.text.startsWith('Cerrado · abre ')) {
+    const when = opening.text.slice('Cerrado · abre '.length);
+    return `Enviado · esto lo responde ${who} · abre ${when}`;
+  }
+  return `Enviado · esto lo responde ${who}`;
+}
+
 /** Lo que se necesita saber de cada fila de la conversación (la más nueva primero, como la lista invertida). */
 export interface TurnRow {
   id: string;
@@ -38,7 +95,10 @@ export interface TurnRow {
 }
 
 export interface AiGroups {
-  /** La fila que dibuja la burbuja de cada grupo (la más nueva) → las del grupo, de la más vieja a la más nueva. */
+  /**
+   * La fila que dibuja la burbuja de cada grupo (la MÁS VIEJA, 2026-11-14: así la burbuja no se desmonta y vuelve a
+   * aparecer cada vez que llega otra respuesta) → las del grupo, de la más vieja a la más nueva.
+   */
   lead: Map<string, string[]>;
   /** Filas que no se dibujan porque ya van dentro de la burbuja de su grupo. */
   hidden: Set<string>;
@@ -55,8 +115,8 @@ export function groupAiAnswers(rows: TurnRow[], gapMs = 120_000): AiGroups {
   const close = () => {
     if (!run.length) return;
     const ids = run.map((r) => r.id).reverse();
-    lead.set(run[0].id, ids);
-    for (const r of run.slice(1)) hidden.add(r.id);
+    lead.set(ids[0], ids);
+    for (const id of ids.slice(1)) hidden.add(id);
     run = [];
   };
   for (const r of rows) {

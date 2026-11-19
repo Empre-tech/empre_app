@@ -10,9 +10,9 @@ import { test } from 'node:test';
 const SRC = join(import.meta.dirname, '..');
 const read = (f: string) => readFileSync(join(SRC, f), 'utf8');
 
-// La paleta: lo que define theme.ts más los colores del anillo del logo (momento de marca) y sus grises.
+// La paleta: lo que define theme.ts más el blanco y los grises del anillo de la Chispa.
 const THEME = new Set([...read('theme.ts').matchAll(/#[0-9A-Fa-f]{6}\b/g)].map((m) => m[0].toUpperCase()));
-const LOGO = ['#14B8B0', '#F03232', '#FF8A1F', '#FFFFFF', '#C7D2E0', '#CFE9EC'];
+const LOGO = ['#FFFFFF', '#D9DCE1', '#CBCED4', '#EFF0F2', '#8E929A'];
 const PALETTE = new Set([...THEME, ...LOGO]);
 
 const SCREENS = [
@@ -23,7 +23,7 @@ const SCREENS = [
   'components/offers/AskManySheet.tsx',
   'components/chat/ChatVoices.tsx',
   'components/search/SearchFilters.tsx',
-  'components/QuickActionSheet.tsx',
+  'components/EmpreButton.tsx',
 ];
 
 for (const f of SCREENS) {

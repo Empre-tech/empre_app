@@ -1,5 +1,5 @@
-import { Ionicons } from '@expo/vector-icons';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@/components/Icon';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect, useRef, useState } from 'react';
 import { ledgerApi } from '@/api/ledger';
@@ -231,18 +231,61 @@ function SaleReceipt({ result, onFinance }: { result: RedeemResult; onFinance?: 
   const [method, setMethod] = useState<PayMethod>('cash');
   const [voided, setVoided] = useState(false);
   const [error, setError] = useState('');
+  // La oferta no decía el precio en pesos («2x1», «15%»): el dueño dice cuánto cobró y queda como venta del canje.
+  const [amount, setAmount] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [made, setMade] = useState<{ id: string; total: number } | null>(null);
   const entityId = result.entity_id;
-  const saleId = result.sale_id;
-  if (!saleId || !entityId) {
+  const claimId = result.claim_id;
+  const saleId = result.sale_id ?? made?.id;
+  const saleTotal = result.sale_total ?? made?.total ?? 0;
+  if (!entityId) return null;
+  if (!saleId) {
+    const total = Number(amount.replace(/\D/g, ''));
+    const record = () => {
+      if (!claimId || total <= 0 || saving) return;
+      setSaving(true);
+      setError('');
+      ledgerApi
+        .recordClaimSale(entityId, claimId, total, method)
+        .then((sale) => setMade({ id: sale.id, total: sale.total }))
+        .catch(() => setError('No pudimos anotarla. Revisa tu conexión e inténtalo otra vez.'))
+        .finally(() => setSaving(false));
+    };
     return (
       <View style={styles.sale}>
-        <Text style={styles.saleTitle}>No quedó en tus ventas</Text>
-        <Text style={styles.saleSub}>Esta oferta no dice cuánto cobrar en pesos. Si cobraste algo, anótalo como venta.</Text>
-        {entityId && onFinance ? (
-          <Pressable accessibilityRole="button" onPress={() => onFinance(entityId)} style={styles.saleLink}>
-            <Text style={styles.saleLinkText}>Ir a Finanzas</Text>
-          </Pressable>
-        ) : null}
+        <Text style={styles.saleLabel}>¿CUÁNTO COBRASTE?</Text>
+        <Text style={styles.saleSub}>Esta oferta no dice el precio en pesos. Escríbelo y queda en tus ventas como venta de Empre Offers.</Text>
+        <TextInput
+          accessibilityLabel="Cuánto cobraste, en pesos"
+          value={total > 0 ? formatPesos(total) : ''}
+          onChangeText={(t) => setAmount(t.replace(/\D/g, '').slice(0, 9))}
+          placeholder="$0"
+          placeholderTextColor={colors.faint}
+          keyboardType="number-pad"
+          returnKeyType="done"
+          onSubmitEditing={record}
+          editable={Boolean(claimId)}
+          style={styles.saleInput}
+        />
+        <View style={styles.saleChips}>
+          {PAY_METHODS.map((m) => (
+            <Pressable key={m} accessibilityRole="button" accessibilityState={{ selected: method === m }} onPress={() => setMethod(m)} style={[styles.saleChip, method === m && styles.saleChipOn]}>
+              <Text style={styles.saleChipText}>{METHOD_LABEL[m]}</Text>
+            </Pressable>
+          ))}
+        </View>
+        {error ? <Text style={styles.saleError}>{error}</Text> : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: total <= 0 || saving || !claimId }}
+          disabled={total <= 0 || saving || !claimId}
+          onPress={record}
+          style={[styles.saleBtn, (total <= 0 || saving || !claimId) && styles.saleBtnOff]}
+        >
+          <Text style={styles.saleBtnText}>{saving ? 'Anotando…' : 'Anotar la venta'}</Text>
+        </Pressable>
+        <Text style={styles.saleSub}>Si no cobraste nada, déjalo así.</Text>
       </View>
     );
   }
@@ -283,7 +326,7 @@ function SaleReceipt({ result, onFinance }: { result: RedeemResult; onFinance?: 
             Empre Finance registró la venta
           </Text>
           <Text style={styles.saleSub}>
-            {formatPesos(result.sale_total ?? 0)} · {METHOD_LABEL[method]}. No tienes que anotarlo.
+            {formatPesos(saleTotal)} · {METHOD_LABEL[method]}. {made ? 'Quedó como venta de Empre Offers.' : 'No tienes que anotarlo.'}
           </Text>
         </View>
       </View>
@@ -346,13 +389,13 @@ const styles = StyleSheet.create({
   discOk: { width: 84, height: 84, marginTop: 4, borderRadius: 42, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
   discBad: { width: 76, height: 76, marginTop: 4, borderRadius: 38, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.18)' },
   titleOk: { fontSize: 40, lineHeight: 44, letterSpacing: 2.4, fontFamily: fonts.display.bold, color: '#fff', textAlign: 'center' },
-  title: { fontSize: 28, lineHeight: 32, fontFamily: fonts.display.bold, color: '#fff', textAlign: 'center' },
+  title: { fontSize: 24, lineHeight: 28, fontFamily: fonts.display.bold, color: '#fff', textAlign: 'center' },
   why: { maxWidth: 300, fontSize: 15.5, lineHeight: 22, fontFamily: fonts.ui.medium, color: 'rgba(255,255,255,0.95)', textAlign: 'center' },
   cards: { marginTop: -16, paddingHorizontal: 20, gap: 12 },
   deliver: { padding: 18, gap: 12, borderRadius: 20, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 22, shadowOffset: { width: 0, height: 10 }, elevation: 4 },
   deliverLabel: { fontSize: 12, letterSpacing: 1.2, fontFamily: fonts.ui.extrabold, color: colors.faint },
-  deliverTitle: { fontSize: 22, lineHeight: 25, fontFamily: fonts.display.bold, color: colors.ink },
-  charge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.bg },
+  deliverTitle: { fontSize: 20, lineHeight: 24, fontFamily: fonts.display.bold, color: colors.ink },
+  charge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.well },
   chargeLabel: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.muted },
   chargeValue: { fontSize: 26, fontFamily: fonts.ui.extrabold, color: colors.ink },
   client: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -368,6 +411,10 @@ const styles = StyleSheet.create({
   saleChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line },
   saleChipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
   saleChipText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  saleInput: { minHeight: 56, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, fontSize: 24, fontFamily: fonts.ui.extrabold, color: colors.ink, backgroundColor: colors.well },
+  saleBtn: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  saleBtnOff: { opacity: 0.4 },
+  saleBtnText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   saleError: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.danger },
   saleSync: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   saleLine: { width: 16, height: 2, borderRadius: 1, backgroundColor: colors.line },
@@ -384,8 +431,8 @@ const styles = StyleSheet.create({
   hint: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 16, backgroundColor: colors.surface },
   hintText: { flex: 1, fontSize: 13, lineHeight: 19, fontFamily: fonts.ui.semibold, color: colors.ink },
   actions: { gap: 8, paddingTop: 12, paddingHorizontal: 20 },
-  btn: { minHeight: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.primary },
-  btnText: { fontSize: 17, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  btn: { minHeight: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
+  btnText: { fontSize: 17, fontFamily: fonts.ui.extrabold, color: colors.ink },
   btnGhost: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   btnGhostText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });

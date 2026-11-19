@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts } from '@/theme';
 
@@ -44,9 +44,9 @@ export function ActionBar({ name, bottomInset, onBook, onMessage, onCall }: Prop
 
 const styles = StyleSheet.create({
   bar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: 8, paddingTop: 12, paddingHorizontal: 14, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.hairline },
-  primary: { flex: 1.3, minHeight: 52, borderRadius: 16, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  primary: { flex: 1.3, minHeight: 52, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, alignItems: 'center', justifyContent: 'center' },
   primaryPressed: { backgroundColor: colors.primaryDark },
-  primaryText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: '#fff' },
+  primaryText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   secondary: { flex: 1, minHeight: 52, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   secondaryPressed: { opacity: 0.8 },
   secondaryText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink, textAlign: 'center' },

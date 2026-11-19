@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -251,7 +251,7 @@ export function AmountField({ value, onChange, autoFocus }: { value: number; onC
         </View>
         {value > 0 ? (
           <View style={styles.amountWordsPill} accessibilityLiveRegion="polite">
-            <Ionicons name="checkmark-circle" size={14} color={colors.verified} />
+            <Ionicons name="checkmark-circle" size={14} color={colors.finance} />
             <Text style={styles.amountWordsText}>{pesosInWords(value)}</Text>
           </View>
         ) : (
@@ -336,7 +336,7 @@ export function PartyPicker({ entityId, kind, value, onChange, onNew }: { entity
 
 /** Un número con su título (Vendiste / Gastaste / Utilidad). */
 export function Stat({ title, value, tone = 'ink', big = false }: { title: string; value: number; tone?: 'ink' | 'good' | 'bad'; big?: boolean }) {
-  const color = tone === 'good' ? colors.success : tone === 'bad' ? colors.danger : colors.ink;
+  const color = tone === 'good' ? colors.finance : tone === 'bad' ? colors.danger : colors.ink;
   return (
     <View style={{ flex: 1 }}>
       <Text style={styles.statTitle}>{title}</Text>
@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepDotPast: {
-    backgroundColor: colors.ink,
+    backgroundColor: colors.finance,
     borderColor: colors.ink,
   },
   stepDotCur: {
@@ -444,7 +444,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.line,
   },
   stepBarPast: {
-    backgroundColor: colors.ink,
+    backgroundColor: colors.sand,
   },
   stepLabel: {
     fontSize: 12,
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: colors.brand,
+    backgroundColor: colors.finance,
   },
   rcptTitle: {
     fontSize: 13.5,
@@ -567,7 +567,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.line,
   },
   chipDotOn: {
-    backgroundColor: colors.selected,
+    backgroundColor: colors.sand,
   },
   chipText: { fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.ink },
   chipTextOn: { fontFamily: fonts.ui.extrabold, color: colors.selected },
@@ -593,7 +593,7 @@ const styles = StyleSheet.create({
     borderColor: colors.selected,
   },
   amountRow: { flexDirection: 'row', alignItems: 'center' },
-  amountSign: { fontSize: 30, fontFamily: fonts.display.bold, color: colors.muted, marginRight: 6 },
+  amountSign: { fontSize: 26, fontFamily: fonts.display.bold, color: colors.muted, marginRight: 6 },
   amountInput: {
     flex: 1,
     minWidth: 0,
@@ -612,12 +612,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: radius.pill,
-    backgroundColor: colors.verifiedSoft,
+    backgroundColor: colors.financeSoft,
   },
   amountWordsText: {
     fontSize: 12.5,
     fontFamily: fonts.ui.extrabold,
-    color: colors.verified,
+    color: colors.finance,
   },
   amountHint: {
     fontSize: 12.5,
@@ -627,9 +627,9 @@ const styles = StyleSheet.create({
   },
   picked: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.selectedSoft, borderRadius: radius.md, padding: spacing.md },
   pickedName: { flex: 1, fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
-  link: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
-  search: { minHeight: 48, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.lg, paddingHorizontal: spacing.md, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink, backgroundColor: colors.bg },
+  link: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.finance },
+  search: { minHeight: 48, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.lg, paddingHorizontal: spacing.md, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink, backgroundColor: colors.well },
   statTitle: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   statValue: { fontSize: 20, fontFamily: fonts.display.bold },
-  statBig: { fontSize: 34, fontFamily: fonts.display.bold },
+  statBig: { fontSize: 30, fontFamily: fonts.display.bold },
 });

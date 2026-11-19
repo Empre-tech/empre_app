@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -234,7 +234,9 @@ export function BusinessForm({ initial, draft }: Props) {
 
   const goToBusiness = (id: string) => {
     if (editing && router.canGoBack()) router.back();
-    else router.replace({ pathname: '/business/[id]', params: { id } });
+    else if (editing) router.replace({ pathname: '/business/[id]', params: { id } });
+    // Recién creado: «Listo» con un solo siguiente paso (tablero «Primera vez», teléfono 5).
+    else router.replace({ pathname: '/business/listo', params: { id } });
   };
 
   const goBack = () => {
@@ -715,6 +717,7 @@ export function BusinessForm({ initial, draft }: Props) {
                 businessName={name}
                 categoryName={selectedCategory?.name}
                 onApply={setDescription}
+                entityId={initial?.id}
               />
             }
           />
@@ -847,6 +850,7 @@ export function BusinessForm({ initial, draft }: Props) {
                   businessName={name}
                   categoryName={selectedCategory?.name}
                   onApply={setDescription}
+                  entityId={initial?.id}
                 />
               }
             />
@@ -1234,10 +1238,10 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.bg,
+    backgroundColor: colors.well,
   },
   stepDotActive: { borderWidth: 2, borderColor: colors.selected },
-  stepDotDone: { backgroundColor: colors.selected, borderColor: colors.selected },
+  stepDotDone: { backgroundColor: colors.primaryDark, borderColor: colors.selected },
   stepDotText: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
   stepDotTextActive: { color: colors.selected },
   stepLabel: { fontSize: 11, fontFamily: fonts.ui.medium, color: colors.muted, marginTop: 4, textAlign: 'center' },
@@ -1274,7 +1278,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.well,
   },
   dropdownSelected: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   dropdownText: { flex: 1, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink, marginRight: spacing.sm },
@@ -1328,7 +1332,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.xs,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.well,
   },
   serviceModeOptionActive: { borderColor: colors.primary, backgroundColor: colors.primary + '1A' },
   profileOption: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 56, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, marginTop: spacing.sm },
@@ -1360,7 +1364,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     borderRadius: radius.md,
     paddingHorizontal: spacing.sm,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.well,
     alignItems: 'center',
     justifyContent: 'center',
   },

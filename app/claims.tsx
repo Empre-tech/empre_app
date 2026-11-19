@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingBottom: 6 },
   back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
-  title: { fontSize: 22, fontFamily: fonts.display.bold, color: colors.ink },
+  title: { fontSize: 20, fontFamily: fonts.display.bold, color: colors.ink },
   list: { paddingHorizontal: 24, paddingTop: 12, gap: 18, flexGrow: 1 },
   ticket: { borderRadius: 18, backgroundColor: colors.surface, shadowColor: colors.ink, shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3 },
   top: { paddingVertical: 16, paddingHorizontal: 18, gap: 10 },
