@@ -1,0 +1,32 @@
+name: CI - App
+
+# En cada push y PR: tipos (tsc) y pruebas de la lógica (node --test). No construye la app: eso lo hace EAS.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Node 24 corre los .test.ts directo (quita los tipos sin compilar).
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Tipos (tsc)
+        run: npx tsc --noEmit
+
+      - name: Pruebas
+        run: node --test src/lib/*.test.ts
