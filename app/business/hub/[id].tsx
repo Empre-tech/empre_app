@@ -159,14 +159,13 @@ export default function BusinessHubScreen() {
   const dayEnd = Date.parse(startCO(addDays(today, 1)));
   const appts = weekAppts.filter((a) => Date.parse(a.starts_at) >= dayStart && Date.parse(a.starts_at) < dayEnd);
   const weekCount = weekAppts.length;
-  // La cabecera: el anillo, las cifras que existen (sin datos, sin cifra) y su estado.
+  // La cabecera: la portada, el anillo, las cifras que existen (sin datos, sin cifra) y su estado. Las fotos no se
+  // cuentan aquí: ya las dice «Fotos y videos» abajo (2026-11-18).
   const growth = completeness.data ? growthView(completeness.data) : undefined;
   const missing = missingLine(growth);
-  const nPhotos = b.photos?.length ?? 0;
   const stats = [
     ...(nFollowers > 0 ? [{ value: String(nFollowers), label: nFollowers === 1 ? 'seguidor' : 'seguidores' }] : []),
     ...(b.review_count > 0 ? [{ value: b.avg_rating.toFixed(1).replace('.', ','), label: b.review_count === 1 ? '1 reseña' : `${b.review_count} reseñas` }] : []),
-    ...(nPhotos > 0 ? [{ value: String(nPhotos), label: nPhotos === 1 ? 'foto' : 'fotos' }] : []),
   ];
   const opening = openingFromHours(b.hours, new Date(nowMs), Boolean(b.is_open_now));
   const status = statusLine({ has_hours: Boolean(b.hours?.length), is_open_now: Boolean(b.is_open_now), ...opening })?.text ?? b.category?.name ?? null;
