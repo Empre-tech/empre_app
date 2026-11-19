@@ -147,7 +147,8 @@ const styles = StyleSheet.create({
   // El anillo se monta sobre el borde de la portada, con un aro del color del fondo para que se lea encima de la foto.
   row: { flexDirection: 'row', alignItems: 'flex-end', gap: 16, marginTop: -54, paddingHorizontal: 8 },
   ringBg: { width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
-  stats: { flex: 1, flexDirection: 'row', justifyContent: 'space-around', gap: 4, paddingBottom: 6, minHeight: 44 },
+  // Las cifras quedan justo debajo de la portada (el anillo sí se monta sobre su borde).
+  stats: { flex: 1, flexDirection: 'row', justifyContent: 'space-around', gap: 4, paddingBottom: 2 },
   stat: { flex: 1, alignItems: 'center', minWidth: 0 },
   statValue: { ...typeScale.name, color: colors.ink, fontVariant: ['tabular-nums'] },
   statLabel: { ...typeScale.label, fontFamily: fonts.ui.medium, color: colors.muted },
