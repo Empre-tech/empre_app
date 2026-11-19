@@ -97,7 +97,17 @@ export function GrowthCard({ entityId, onGo }: { entityId: string; onGo: (target
         <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={20} color={colors.muted} />
       </Pressable>
       {expanded ? <Text style={styles.sub}>Cada punto cambia algo que tus clientes ven.</Text> : null}
-      {expanded ? view.groups.map((g) => (
+      {expanded ? <GrowthGroups view={view} onGo={onGo} /> : null}
+      {expanded ? <Text style={styles.note}>Nada de esto te sube en el orden: lo que cambia es lo que el cliente ve de ti.</Text> : null}
+    </View>
+  );
+}
+
+/** Los puntos agrupados, cada uno con lo que cambia y su botón. La usan esta tarjeta y la hoja del anillo de Mi negocio. */
+export function GrowthGroups({ view, onGo }: { view: ReturnType<typeof growthView>; onGo: (target: GrowthTarget) => void }) {
+  return (
+    <>
+      {view.groups.map((g) => (
         <View key={g.id} style={styles.group}>
           <Text style={styles.groupTitle}>{g.title}</Text>
           {g.rows.map((r, i) => (
@@ -117,9 +127,8 @@ export function GrowthCard({ entityId, onGo }: { entityId: string; onGo: (target
             </View>
           ))}
         </View>
-      )) : null}
-      {expanded ? <Text style={styles.note}>Nada de esto te sube en el orden: lo que cambia es lo que el cliente ve de ti.</Text> : null}
-    </View>
+      ))}
+    </>
   );
 }
 

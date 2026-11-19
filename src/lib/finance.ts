@@ -414,3 +414,10 @@ export function monthlyGap(monthly: number, leftThisMonth: number): { covered: b
   const missing = monthly - Math.max(0, leftThisMonth);
   return { covered: missing <= 0, missing: Math.max(0, missing) };
 }
+
+/** Lunes a domingo de la semana de `today` (YYYY-MM-DD), para «Esta semana: 18 citas» en Mi negocio. */
+export function weekOf(today: string): { from: string; to: string } {
+  const weekday = new Date(`${today}T12:00:00Z`).getUTCDay(); // 0 = domingo
+  const from = addDays(today, -((weekday + 6) % 7));
+  return { from, to: addDays(from, 6) };
+}

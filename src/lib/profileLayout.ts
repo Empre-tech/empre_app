@@ -111,14 +111,15 @@ export interface SectionInput {
 }
 
 /**
- * Los chips del índice, en el orden del perfil (3.28): Ofertas · Catálogo · Fotos · Reseñas · Info. Un apartado sin
- * contenido no tiene chip. El dueño siempre tiene «Ofertas» y «Fotos» (ahí publica). «Info» siempre está.
+ * Los chips del índice, en el orden del perfil: Catálogo · Fotos (las pestañas de lo que ofrece, lienzo v115) ·
+ * Ofertas · Info · Reseñas. Un apartado sin contenido no tiene chip. El dueño siempre tiene «Ofertas». «Info» siempre
+ * está.
  */
 export function sections(i: SectionInput): SectionId[] {
   const out: SectionId[] = [];
-  if (i.offers > 0 || i.isOwner) out.push('offers');
   if (i.hasServices) out.push('services');
-  if (i.photos > 0 || i.isOwner) out.push('photos');
+  if (i.photos > 0) out.push('photos');
+  if (i.offers > 0 || i.isOwner) out.push('offers');
   out.push('info');
   if (i.reviews === undefined || i.reviews > 0 || i.isOwner) out.push('reviews');
   return out;
@@ -144,7 +145,8 @@ export type BlockId = 'offers' | 'services' | 'photos' | 'reviews' | 'info' | 'r
  * (información). Al final las recomendaciones, también cuando está cerrado. El dueño no ve recomendaciones.
  */
 export function blockOrder(i: { isOwner: boolean }): BlockId[] {
-  const out: BlockId[] = ['offers', 'services', 'photos', 'info', 'about', 'reviews', 'where', 'latest'];
+  // El catálogo y las fotos van arriba, en las pestañas de lo que ofrece (lienzo v115), no como apartados.
+  const out: BlockId[] = ['offers', 'info', 'about', 'reviews', 'where', 'latest'];
   if (!i.isOwner) out.push('recs');
   return out;
 }

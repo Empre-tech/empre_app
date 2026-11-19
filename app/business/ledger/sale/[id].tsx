@@ -6,6 +6,7 @@ import { Alert, Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressab
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ledgerApi, type InventoryItem, type ItemCost } from '@/api/ledger';
 import { Button } from '@/components/Button';
+import { SkeletonBlock } from '@/components/Skeleton';
 import { DoneMark, FlowHeader, Pop, useFlowBack, useFlowStep } from '@/components/ledger/Flow';
 import { AmountField, Chip, LedgerReceipt, PartyPicker, type PartyChoice } from '@/components/ledger/parts';
 import { PayDeck } from '@/components/ledger/PayDeck';
@@ -117,6 +118,9 @@ export default function NewSaleScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const lastActiveSale = useMemo(() => (recent.data ?? []).find((s) => s.status === 'active'), [recent.data]);
+  // Un punto de carga (2026-11-18): lo que vendes llega antes que su tipo (servicio o producto) y la venta anterior; sin
+  // esperar, la lista salía entera y después se partía en Servicios y Productos. Mientras tanto, su lugar en gris.
+  const loadingWhat = items.isLoading || inv.isLoading || recent.isLoading;
 
   const lines = sellable.filter((i) => (qty[i.id] ?? 0) > 0);
   const linesTotal = lines.reduce((s, i) => s + (i.price ?? 0) * (qty[i.id] ?? 0), 0);
@@ -428,6 +432,18 @@ export default function NewSaleScreen() {
                 {toast}
               </Text>
             ) : null}
+            {loadingWhat ? (
+              <View style={styles.loadingWhat} accessible accessibilityLabel="Cargando lo que vendes">
+                <SkeletonBlock width="60%" height={26} borderRadius={8} />
+                <SkeletonBlock height={52} borderRadius={16} />
+                <View style={styles.tilesGrid}>
+                  {[0, 1, 2, 3].map((i) => (
+                    <SkeletonBlock key={i} width="48.5%" height={104} borderRadius={20} />
+                  ))}
+                </View>
+              </View>
+            ) : (
+            <>
             <Text style={styles.question} accessibilityRole="header">
               {sellable.length > 0 ? '¿Qué vendiste?' : '¿Cuánto fue la venta?'}
             </Text>
@@ -509,6 +525,8 @@ export default function NewSaleScreen() {
               </Pressable>
             ) : (
               <AmountField key={sellable.length > 0 ? 'c' : 'n'} value={total} onChange={(n) => setManual(n)} autoFocus={!items.isLoading} />
+            )}
+            </>
             )}
           </ScrollView>
         )}
@@ -601,6 +619,7 @@ const styles = StyleSheet.create({
   tabPillOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
   tabPillText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   tilesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  loadingWhat: { gap: 16 },
   tileWrap: { width: '48.5%' },
   tile: { flexGrow: 1, minHeight: 104, justifyContent: 'space-between', gap: 4, padding: 14, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
   tileActive: { borderWidth: 2, borderColor: colors.ink, padding: 12, backgroundColor: colors.selectedSoft },

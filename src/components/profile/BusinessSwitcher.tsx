@@ -1,6 +1,6 @@
 import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi } from '@/api/endpoints';
@@ -12,18 +12,33 @@ import { colors, fonts } from '@/theme';
  * La casilla para elegir negocio (tablero «Mi negocio»): una sola línea dice en cuál estás; al tocarla ves todos y
  * entras a otro con un toque. Con un solo negocio no se dibuja.
  */
-export function BusinessSwitcher({ currentId, onPick, onAdd }: { currentId: string; onPick: (id: string) => void; onAdd: () => void }) {
+export function BusinessSwitcher({
+  currentId,
+  onPick,
+  onAdd,
+  trigger,
+  fallback = null,
+}: {
+  currentId: string;
+  onPick: (id: string) => void;
+  onAdd: () => void;
+  /** Otro disparador (Mi negocio, lienzo v115: el nombre con su flecha). Sin él, la casilla de siempre. */
+  trigger?: (open: () => void) => ReactNode;
+  /** Lo que se muestra con un solo negocio (sin nada que cambiar). */
+  fallback?: ReactNode;
+}) {
   const insets = useSafeAreaInsets();
   const { status } = useAuth();
   const mine = useQuery({ queryKey: ['my-entities'], queryFn: entitiesApi.mine, enabled: status === 'signedIn', staleTime: 60_000 });
   const [open, setOpen] = useState(false);
   const list = mine.data ?? [];
-  if (list.length < 2) return null;
+  if (list.length < 2) return <>{fallback}</>;
   const idx = Math.max(0, list.findIndex((e) => e.id === currentId));
   const cur = list[idx];
 
   return (
     <>
+      {trigger ? trigger(() => setOpen(true)) : (
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Tu negocio: ${cur?.name}. ${idx + 1} de ${list.length}. Cambiar`}
@@ -40,6 +55,7 @@ export function BusinessSwitcher({ currentId, onPick, onAdd }: { currentId: stri
         </View>
         <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.ink} />
       </Pressable>
+      )}
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" style={styles.veil} onPress={() => setOpen(false)} />
         <View style={[styles.panel, { top: insets.top + 64 }]} accessibilityRole="list">

@@ -1,7 +1,7 @@
 import { CrownIcon, Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
-import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi, type Appointment } from '@/api/agenda';
@@ -14,23 +14,23 @@ import { useChat } from '@/chat/ChatProvider';
 import { useInboxSummary } from '@/chat/useInboxSummary';
 import { Chispa } from '@/components/ai/Chispa';
 import { useAnswerData } from '@/components/chat/useAnswerData';
-import { Avatar } from '@/components/Avatar';
-import { Cover } from '@/components/Cover';
-import { EmpreSymbol, type EmpreProduct } from '@/components/EmpreSymbol';
 import { EmptyState } from '@/components/EmptyState';
 import { BusinessSwitcher } from '@/components/profile/BusinessSwitcher';
 import { EMPRE_BUTTON } from '@/components/EmpreButton';
 import { GoProSheet } from '@/components/pro/GoProSheet';
 import { LOCKED_OPACITY, ProTag } from '@/components/pro/ProTag';
-import { GrowthCard } from '@/components/profile/GrowthCard';
+import { GrowthSheet } from '@/components/hub/GrowthSheet';
+import { HubHeader, HubName } from '@/components/hub/HubHeader';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { StatusCap, SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
 import { FEATURES } from '@/config';
 import { ownerDraft } from '@/lib/answers';
 import { catalogCopy } from '@/lib/catalog';
-import { addDays, presetRange, todayCO } from '@/lib/finance';
+import { addDays, presetRange, todayCO, weekOf } from '@/lib/finance';
+import { verificationLabel } from '@/lib/format';
+import { growthView, missingLine } from '@/lib/growth';
 import { formatPesos } from '@/lib/ledger';
-import { displayIcon } from '@/lib/mapView';
+import { openingFromHours, statusLine } from '@/lib/placeCard';
 import { timeLeftLabel, timeLeftMs } from '@/lib/offer';
 import { isProSubscription } from '@/lib/proPlan';
 import { useNow } from '@/lib/useNow';
@@ -40,8 +40,6 @@ type IconName = keyof typeof Ionicons.glyphMap;
 interface HubRow {
   key: string;
   icon: IconName;
-  symbol?: EmpreProduct;
-  product?: string;
   title: string;
   sub: string;
   alert?: boolean;
@@ -49,13 +47,21 @@ interface HubRow {
   onPress: () => void;
 }
 
+// Cada espacio con un ícono de su tema, sobre un cuadro suave de su color (lienzo v115): ya no el logo de Empre.
+const SPACE_LOOK: Record<string, { icon: IconName; bg: string; ink: string }> = {
+  finance: { icon: 'wallet-outline', bg: colors.financeSoft, ink: colors.finance },
+  products: { icon: 'cube-outline', bg: colors.sandSoft, ink: colors.ink },
+  agenda: { icon: 'calendar-outline', bg: colors.agendaSoft, ink: colors.agenda },
+  offers: { icon: 'pricetag-outline', bg: colors.accentSoft, ink: colors.accentInk },
+};
+
 const startCO = (ymd: string) => `${ymd}T00:00:00-05:00`;
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
 
 /**
- * «Mi negocio» administra (lienzo v113, «un rol por lugar»): la portada de cómo lo ven, el día en una frase, «Lo que
- * sigue» (lo que pide respuesta y las citas de hoy), sus cuatro espacios con un dato que no se repite y lo de vez en
- * cuando. Vender, ofertar y subir viven en el botón Empre; aquí no se repiten.
+ * «Mi negocio» administra (lienzo v113, «un rol por lugar»): arriba, el anillo de lo que falta para completar el perfil
+ * (lienzo v115); el día en una frase, «Lo que sigue» (lo que pide respuesta y las citas de hoy), sus cuatro espacios con
+ * un dato que no se repite y lo de vez en cuando. Vender, ofertar y subir viven en el botón Empre; aquí no se repiten.
  */
 export default function BusinessHubScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -80,13 +86,24 @@ export default function BusinessHubScreen() {
     staleTime: 30_000,
     retry: false,
   });
-  const agendaDay = useQuery({
-    queryKey: ['agenda', entityId, 'hub', today],
-    queryFn: () => agendaApi.agenda(entityId, startCO(today), startCO(addDays(today, 1))),
+  // La semana entera (lunes a domingo): Agenda dice cuántas citas tiene; las de hoy salen de aquí mismo.
+  const week = useMemo(() => weekOf(today), [today]);
+  const agendaWeek = useQuery({
+    queryKey: ['agenda', entityId, 'hub-week', week.from],
+    queryFn: () => agendaApi.agenda(entityId, startCO(week.from), startCO(addDays(week.to, 1))),
     enabled: Boolean(entityId) && FEATURES.agenda,
     staleTime: 30_000,
     retry: false,
   });
+  // Lo que falta para completar el perfil (el anillo): se recalcula al volver de editar, subir fotos o publicar.
+  const completeness = useQuery({ queryKey: ['completeness', entityId], queryFn: () => entitiesApi.completeness(entityId), enabled: Boolean(entityId), staleTime: 0 });
+  useFocusEffect(
+    useCallback(() => {
+      void completeness.refetch();
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al enfocar
+    }, []),
+  );
+  const [growthOpen, setGrowthOpen] = useState(false);
   const items = useQuery({ queryKey: ['ledger', entityId, 'items'], queryFn: () => ledgerApi.items(entityId), enabled: Boolean(entityId) && FEATURES.ledger, staleTime: 60_000, retry: false });
   const insights = useQuery({ queryKey: ['ledger', entityId, 'insights'], queryFn: () => ledgerApi.insights(entityId), enabled: Boolean(entityId) && FEATURES.ledger, staleTime: 60_000, retry: false });
   const offerList = useQuery({ queryKey: ['offers', entityId], queryFn: () => offersApi.list(entityId), enabled: Boolean(entityId), staleTime: 60_000, retry: false });
@@ -137,7 +154,22 @@ export default function BusinessHubScreen() {
   const salesToday = sold.data?.current.sales_count ?? 0;
   const owed = sold.data?.receivable ?? 0;
 
-  const appts = (agendaDay.data ?? []).filter((a) => a.kind === 'booking' && (a.status === 'requested' || a.status === 'confirmed'));
+  const weekAppts = (agendaWeek.data ?? []).filter((a) => a.kind === 'booking' && (a.status === 'requested' || a.status === 'confirmed'));
+  const dayStart = Date.parse(startCO(today));
+  const dayEnd = Date.parse(startCO(addDays(today, 1)));
+  const appts = weekAppts.filter((a) => Date.parse(a.starts_at) >= dayStart && Date.parse(a.starts_at) < dayEnd);
+  const weekCount = weekAppts.length;
+  // La cabecera: el anillo, las cifras que existen (sin datos, sin cifra) y su estado.
+  const growth = completeness.data ? growthView(completeness.data) : undefined;
+  const missing = missingLine(growth);
+  const nPhotos = b.photos?.length ?? 0;
+  const stats = [
+    ...(nFollowers > 0 ? [{ value: String(nFollowers), label: nFollowers === 1 ? 'seguidor' : 'seguidores' }] : []),
+    ...(b.review_count > 0 ? [{ value: b.avg_rating.toFixed(1).replace('.', ','), label: b.review_count === 1 ? '1 reseña' : `${b.review_count} reseñas` }] : []),
+    ...(nPhotos > 0 ? [{ value: String(nPhotos), label: nPhotos === 1 ? 'foto' : 'fotos' }] : []),
+  ];
+  const opening = openingFromHours(b.hours, new Date(nowMs), Boolean(b.is_open_now));
+  const status = statusLine({ has_hours: Boolean(b.hours?.length), is_open_now: Boolean(b.is_open_now), ...opening })?.text ?? b.category?.name ?? null;
   const confirmed = appts.filter((a) => a.status === 'confirmed').length;
   const who = (a: Appointment) => [a.customer?.name, a.service?.name].filter(Boolean).join(' · ') || 'Cita';
   // «Lo que sigue» (tablero «Mi negocio», teléfono 2): lo que pide respuesta primero; después las citas de hoy en orden,
@@ -159,11 +191,12 @@ export default function BusinessHubScreen() {
   const stockAlert = (insights.data ?? []).find((i) => i.kind === 'soon' || i.kind === 'out' || i.kind === 'low');
   const nItems = items.data?.length ?? 0;
   const nUnanswered = unansweredQ.data?.data?.length ?? 0;
-  const spaces: { key: string; title: string; sub: string; symbol?: EmpreProduct; alert?: boolean; locked?: boolean; onPress: () => void }[] = [
-    ...(FEATURES.ledger ? [{ key: 'finance', title: 'Finanzas', sub: owed > 0 ? `Te deben ${formatPesos(owed)}` : 'Tu caja y lo que te deben', symbol: 'finance' as const, onPress: finance }] : []),
+  const spaces: { key: string; title: string; sub: string; alert?: boolean; locked?: boolean; onPress: () => void }[] = [
+    ...(FEATURES.ledger ? [{ key: 'finance', title: 'Finanzas', sub: owed > 0 ? `Te deben ${formatPesos(owed)}` : 'Tu caja y lo que te deben', onPress: finance }] : []),
     { key: 'products', title: 'Inventario', sub: stockAlert ? stockAlert.title : nItems > 0 ? (nItems === 1 ? '1 en tu catálogo' : `${nItems} en tu catálogo`) : `Agrega lo que ${copy.kind === 'service' ? 'ofreces' : 'vendes'}`, alert: Boolean(stockAlert), onPress: products },
-    ...(FEATURES.agenda ? [{ key: 'agenda', title: 'Agenda', sub: requests > 0 ? `${requests} por responder` : confirmed > 0 ? (confirmed === 1 ? '1 cita hoy' : `${confirmed} citas hoy`) : 'Sin citas por ahora', symbol: 'agenda' as const, alert: requests > 0, onPress: agenda, ...(base && !requests && !confirmed ? { sub: 'Citas que se apartan solas', locked: true, onPress: () => setGoPro(true) } : {}) }] : []),
-    { key: 'offers', title: 'Ofertas', sub: hasRunning ? timeLeftLabel(running) : 'Publica una', symbol: 'offers', onPress: offers },
+    // Las citas de hoy y las que esperan respuesta ya están en la frase del día: aquí, la semana.
+    ...(FEATURES.agenda ? [{ key: 'agenda', title: 'Agenda', sub: weekCount > 0 ? `Esta semana: ${weekCount} ${weekCount === 1 ? 'cita' : 'citas'}` : 'Sin citas esta semana', alert: requests > 0, onPress: agenda, ...(base && !requests && !weekCount ? { sub: 'Citas que se apartan solas', locked: true, onPress: () => setGoPro(true) } : {}) }] : []),
+    { key: 'offers', title: 'Ofertas', sub: hasRunning ? timeLeftLabel(running) : 'Publica una', onPress: offers },
   ];
   const later: HubRow[] = [
     // Todo lo que pasó en una línea de tiempo, con la meta del mes arriba (tablero «Actividad y meta»).
@@ -182,32 +215,33 @@ export default function BusinessHubScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.body, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 28 + EMPRE_BUTTON }]}>
-        {/* Varios negocios: una casilla para cambiar sin salir (tablero «Mi negocio»). */}
-        <View style={styles.switchRow}>
-          <BusinessSwitcher currentId={entityId} onPick={(id) => router.replace({ pathname: '/business/hub/[id]', params: { id } })} onAdd={() => router.push('/business/new')} />
-        </View>
-        {/* Así te ven: ocupa el lugar del encabezado, así que no empuja nada hacia abajo. */}
-        <View style={styles.seen}>
-          <Cover photo={b.banner_url} category={b.category?.name} icon={b.category?.icon} style={styles.seenCover}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))} style={styles.back}>
-              <Ionicons name="chevron-back" size={20} color={colors.ink} />
-            </Pressable>
-            <Pressable accessibilityRole="link" accessibilityLabel={`${b.name}. Ver cómo te ven`} onPress={profile} style={({ pressed }) => [styles.seenBody, pressed && { opacity: 0.9 }]}>
-              <View style={styles.seenAvatar}>
-                {b.profile_url ? <Avatar uri={b.profile_url} name={b.name} size={44} /> : <Ionicons name={displayIcon(b.category?.icon) as IconName} size={20} color={colors.ink} />}
-              </View>
-              <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
-                <Text style={styles.seenName} numberOfLines={1} accessibilityRole="header">
-                  {b.name}
-                </Text>
-                <Text style={styles.seenMeta} numberOfLines={1}>
-                  {[b.is_open_now ? 'Abierto' : 'Cerrado', b.review_count > 0 ? b.avg_rating.toFixed(1).replace('.', ',') : null, nFollowers > 0 ? `${nFollowers} ${nFollowers === 1 ? 'seguidor' : 'seguidores'}` : null].filter(Boolean).join(' · ')}
-                </Text>
-              </View>
-              <Text style={styles.seenLink}>Ver perfil</Text>
-            </Pressable>
-          </Cover>
-        </View>
+        {/* Arriba, como el perfil de Instagram (lienzo v115): el anillo de lo que falta, las cifras y el nombre, que con
+            varios negocios abre la lista para cambiar. */}
+        <HubHeader
+          name={b.name}
+          logo={b.profile_url}
+          cover={b.banner_url}
+          category={b.category?.name}
+          categoryIcon={b.category?.icon}
+          loading={followers.isLoading || completeness.isLoading}
+          status={status}
+          state={b.verification_status === 'verified' ? null : verificationLabel(b.verification_status)}
+          pct={growth?.percent ?? 0}
+          stats={stats}
+          missing={missing && growth ? { ...missing, done: growth.done, total: growth.total } : null}
+          nameRow={
+            <BusinessSwitcher
+              currentId={entityId}
+              onPick={(id) => router.replace({ pathname: '/business/hub/[id]', params: { id } })}
+              onAdd={() => router.push('/business/new')}
+              trigger={(open) => <HubName name={b.name} onPress={open} />}
+              fallback={<HubName name={b.name} />}
+            />
+          }
+          onBack={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
+          onSeeProfile={profile}
+          onMissing={() => setGrowthOpen(true)}
+        />
 
         {/* El día en una frase, armada con plantillas (tablero «Mi negocio · Hoy»): solo lo que sí pasó. */}
         <Text style={styles.daySentence} accessibilityRole="header">
@@ -265,8 +299,6 @@ export default function BusinessHubScreen() {
           />
         ) : null}
 
-        <GrowthCard entityId={entityId} onGo={(g) => (g === 'catalog' ? products() : g === 'offer' ? offers() : g === 'photos' ? photos() : edit())} />
-
         <View style={styles.spaces} accessibilityRole="menu" accessibilityLabel="Tus espacios">
           {spaces.map((s) => (
             <Pressable
@@ -278,7 +310,9 @@ export default function BusinessHubScreen() {
               style={({ pressed }) => [styles.space, s.locked && styles.spaceLocked, pressed && { opacity: 0.85 }]}
             >
               <View style={[styles.spaceBody, s.locked && { opacity: LOCKED_OPACITY }]}>
-                {s.symbol ? <EmpreSymbol product={s.symbol} size={28} animated={false} /> : <Ionicons name="cube-outline" size={24} color={colors.ink} />}
+                <View style={[styles.spaceIcon, { backgroundColor: SPACE_LOOK[s.key].bg }]}>
+                  <Ionicons name={SPACE_LOOK[s.key].icon} size={22} color={SPACE_LOOK[s.key].ink} />
+                </View>
                 <View style={{ gap: 1 }}>
                   <Text style={styles.spaceTitle} numberOfLines={1}>
                     {s.title}
@@ -315,6 +349,7 @@ export default function BusinessHubScreen() {
         </SystemSection>
       </ScrollView>
       <GoProSheet visible={goPro} onClose={() => setGoPro(false)} businesses={[{ id: entityId, name: b.name }]} />
+      <GrowthSheet visible={growthOpen} view={growth} onClose={() => setGrowthOpen(false)} onGo={(g) => (g === 'catalog' ? products() : g === 'offer' ? offers() : g === 'photos' ? photos() : edit())} />
       <StatusCap />
     </View>
   );
@@ -362,7 +397,6 @@ const styles = StyleSheet.create({
   draftBtn: { flex: 1, alignItems: 'center' },
   draftEdit: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderColor: colors.nightSoft },
   draftEditText: { ...typeScale.title, color: colors.ink },
-  switchRow: { flexDirection: 'row', marginBottom: 12 },
   screen: { flex: 1, backgroundColor: colors.bg },
   body: { paddingHorizontal: 20, gap: 16 },
   main: { borderRadius: 20, overflow: 'hidden', backgroundColor: colors.surface, ...softShadow },
@@ -383,23 +417,15 @@ const styles = StyleSheet.create({
   dsMoney: { color: colors.finance },
   btnRed: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
   btnRedText: { ...typeScale.title, color: colors.ink },
-  seen: { borderRadius: 20, overflow: 'hidden', ...softShadow },
-  seenCover: { height: 136, justifyContent: 'flex-end' },
-  // Un velo bajo el nombre: sobre una foto clara el texto blanco se seguiría leyendo.
-  seenBody: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: 'rgba(11, 21, 38, 0.55)' },
-  seenLink: { ...typeScale.body, flexShrink: 0, fontFamily: fonts.ui.semibold, color: '#fff', textDecorationLine: 'underline' },
-  back: { position: 'absolute', top: 10, left: 10, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   spaces: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   space: { width: '48.8%', minHeight: 92, justifyContent: 'space-between', gap: 6, padding: 12, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
   spaceBody: { flex: 1, justifyContent: 'space-between', gap: 6 },
   spaceLocked: { backgroundColor: colors.well },
+  spaceIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   spaceTag: { position: 'absolute', top: 12, right: 12 },
   goPro: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderRadius: 16, borderWidth: 2, borderColor: colors.brandRef, backgroundColor: colors.surface },
   goProTitle: { ...typeScale.title, color: colors.ink },
   spaceDot: { position: 'absolute', top: 12, right: 12, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.brand },
   spaceTitle: { ...typeScale.title, color: colors.ink },
   spaceSub: { ...typeScale.body, color: colors.muted },
-  seenAvatar: { width: 44, height: 44, borderRadius: 12, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  seenName: { ...typeScale.name, color: '#fff' },
-  seenMeta: { ...typeScale.body, color: '#fff' },
 });
