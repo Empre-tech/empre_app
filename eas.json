@@ -21,14 +21,14 @@
         "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://3-138-217-37.sslip.io"
+        "EXPO_PUBLIC_API_URL": "https://api.empre.com.co"
       },
       "environment": "preview"
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://3-138-217-37.sslip.io"
+        "EXPO_PUBLIC_API_URL": "https://api.empre.com.co"
       },
       "environment": "production"
     }
