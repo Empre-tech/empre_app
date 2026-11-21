@@ -74,6 +74,10 @@ export const usersApi = {
   /** Deja de recibir notificaciones push en este dispositivo (p. ej. al cerrar sesión). */
   removePushToken: (token: string) =>
     request<{ message: string }>('/api/users/push-token', { method: 'DELETE', body: { token } }),
+
+  /** Elimina la cuenta (lo exigen las tiendas). Si la cuenta tiene contraseña, hay que mandarla. */
+  deleteAccount: (password: string) =>
+    request<{ message: string }>('/api/users/me', { method: 'DELETE', body: { password } }),
 };
 
 export const categoriesApi = {

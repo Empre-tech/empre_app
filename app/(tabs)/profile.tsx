@@ -389,6 +389,7 @@ export default function ProfileScreen() {
           <MenuRow icon="map-outline" label="Cómo usar el mapa" onPress={() => router.push({ pathname: '/map', params: { guide: '1' } })} />
           {user.role === 'admin' ? <MenuRow icon="settings-outline" label="Panel de administración" onPress={() => router.push('/admin')} /> : null}
           <MenuRow danger icon="log-out-outline" label="Cerrar sesión" onPress={() => void signOut()} />
+          <MenuRow danger icon="trash-outline" label="Eliminar mi cuenta" onPress={() => router.push('/delete-account')} />
         </View>
         {version ? <Text style={styles.version}>Empre · versión {version}</Text> : null}
       </View>

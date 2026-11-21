@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import { Image } from 'expo-image';
+import Svg, { Path } from 'react-native-svg';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, radius } from '@/theme';
+
+const MARK = require('../../assets/brand/empre-mark.png');
+/** El rojo de la marca (el del ícono de la app y el botón Empre). */
+const EMPRE_RED = '#FF1D25';
 
 export type EmpreProduct = 'master' | 'finder' | 'offers' | 'finance' | 'ai' | 'agent' | 'agenda' | 'check';
 
@@ -18,11 +23,9 @@ export const PRODUCT_META: Record<EmpreProduct, { name: string; tagline: string 
 };
 
 /**
- * Logo oficial de Empre (Fusión Identidad de Euler `e•` + El Toldo del Emprendedor bajo la Regla de los 3 Colores):
- * - El cuerpo exterior traza la «e» continua de Euler (crecimiento exponencial y unión Negocio ↔ Cliente).
- * - El travesaño interior de la «e» forma las 3 ondas del toldo de un negocio local (y sus 3 motores: Finanzas, Citas, Ofertas),
- *   de modo que el arco superior parece la carpa de la tienda y el arco inferior su mostrador abierto.
- * - El exponente elevado (`•`) en el 3.er color (`colors.brand`, `#0D7A5F`) simboliza la potencia tecnológica de Empre.
+ * Logo de Empre (2026-11-20): el mismo del ícono de la app y del botón Empre, la «e» con techo en blanco sobre el rojo
+ * de referencia (#FF1D25). Reemplaza al logo viejo dibujado en SVG (cuadro oscuro con la «e» de ondas y el punto verde).
+ * `product` solo cambia el símbolo en «check» (el canje verificado); el nombre del módulo lo pone quien lo usa.
  */
 export function EmpreSymbol({
   product = 'finder',
@@ -72,45 +75,15 @@ export function EmpreSymbol({
 
   return (
     <Animated.View style={[{ width: size, height: size }, animatedStyle]}>
-      <Svg width={size} height={size} viewBox="0 0 64 64">
-        <Rect x="2" y="2" width="60" height="60" rx="18" fill={colors.ink} />
+      <View style={{ width: size, height: size, borderRadius: size * 0.28, backgroundColor: EMPRE_RED, alignItems: 'center', justifyContent: 'center' }}>
         {product === 'check' ? (
-          <>
-            <Path
-              d="M20 33.5 L28 41.5 L45 23.5"
-              fill="none"
-              stroke="#FFFFFF"
-              strokeWidth={6}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <Circle cx="49" cy="16" r="5.5" fill={colors.brand} />
-          </>
+          <Svg width={size * 0.62} height={size * 0.62} viewBox="0 0 64 64">
+            <Path d="M14 33.5 L26 45.5 L50 19.5" fill="none" stroke="#FFFFFF" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" />
+          </Svg>
         ) : (
-          <>
-            {/* Silueta continua de la «e» de Euler (techo del negocio arriba + mostrador abierto abajo) */}
-            <Path
-              d="M41.5 31C41.5 21.8 35.6 16 27.5 16C19.2 16 14 23.2 14 33C14 42.8 19.8 49.5 29 49.5C35.2 49.5 39.8 46.8 42.5 43"
-              fill="none"
-              stroke="#FFFFFF"
-              strokeWidth={5.8}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            {/* El travesaño de la «e» dibujado como las 3 ondas del toldo emprendedor (Finanzas, Citas, Ofertas) */}
-            <Path
-              d="M15.5 30.5 C18 35, 22.5 35, 24.5 30.5 C26.5 35, 31 35, 33 30.5 C35 35, 39.5 35, 41.5 30.5"
-              fill="none"
-              stroke="#FFFFFF"
-              strokeWidth={5.2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            {/* Exponente de Euler en el 3.er color (la potencia que impulsa al negocio) */}
-            <Circle cx="49" cy="16" r="5.5" fill={colors.brand} />
-          </>
+          <Image source={MARK} style={{ width: size * 0.7, height: size * 0.7 }} contentFit="contain" tintColor="#FFFFFF" accessible={false} />
         )}
-      </Svg>
+      </View>
     </Animated.View>
   );
 }

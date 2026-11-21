@@ -19,6 +19,18 @@ try {
   // sin el paquete: sin plugin
 }
 
+// Sin la llave de Google Maps, Android cierra la app apenas abre un mapa (Empre Finder, el mapa del perfil del
+// negocio). En EAS (preview / production) la build falla aquí en vez de entregar un APK que se cierra. La llave se crea
+// una vez con: npx eas-cli env:create --name GOOGLE_MAPS_API_KEY --environment preview --environment production
+const mapsKey = process.env.GOOGLE_MAPS_API_KEY?.trim();
+const easProfile = process.env.EAS_BUILD_PROFILE;
+if (easProfile && easProfile !== 'development' && !mapsKey) {
+  throw new Error(
+    `Falta GOOGLE_MAPS_API_KEY para la build "${easProfile}": sin ella la app se cierra al abrir un mapa. ` +
+      'Créala en EAS: npx eas-cli env:create --name GOOGLE_MAPS_API_KEY --environment preview --environment production --visibility sensitive',
+  );
+}
+
 const config: ExpoConfig = {
   name: 'Empre',
   slug: 'empre',
@@ -46,7 +58,7 @@ const config: ExpoConfig = {
     permissions: ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION'],
     config: {
       // Solo necesaria en builds propios (EAS/dev client); Expo Go ya trae una.
-      googleMaps: { apiKey: process.env.GOOGLE_MAPS_API_KEY },
+      googleMaps: { apiKey: mapsKey },
     },
   },
   plugins: [
@@ -75,9 +87,20 @@ const config: ExpoConfig = {
       },
     ],
     [
+      // La pantalla de carga con el logo nuevo (la «e» blanca sobre el rojo de la marca), igual al ícono.
+      'expo-splash-screen',
+      {
+        image: './assets/brand/empre-mark.png',
+        imageWidth: 150,
+        backgroundColor: '#FF1D25',
+      },
+    ],
+    [
       'expo-notifications',
       {
-        color: '#F58220',
+        // Android pinta el ícono de la notificación en un solo color: la silueta del logo, en el rojo de la marca.
+        icon: './assets/brand/empre-mark.png',
+        color: '#FF1D25',
       },
     ],
     ...speechPlugin,
