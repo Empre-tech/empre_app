@@ -2,7 +2,7 @@ import { Ionicons } from '@/components/Icon';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { catalogApi } from '@/api/catalog';
@@ -16,7 +16,9 @@ import { ReadyChecklist } from '@/components/catalog/ReadyChecklist';
 import { SectionSheet } from '@/components/catalog/SectionSheet';
 import { QuickStockSheet } from '@/components/inventory/QuickStockSheet';
 import { SupplyPicker, type NewSupply, type PickerChoice } from '@/components/inventory/SupplyPicker';
+import { EXACT_IS_PRO } from '@/components/inventory/TrackModeChips';
 import { Chip } from '@/components/ledger/parts';
+import { LOCKED_OPACITY, ProTag } from '@/components/pro/ProTag';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { TextField } from '@/components/TextField';
 import { FEATURES } from '@/config';
@@ -27,16 +29,19 @@ import { formatPesos, newClientId } from '@/lib/ledger';
 import { businessFamily, parseSpoken, starterItems } from '@/lib/family';
 import { suggestSection } from '@/lib/sections';
 import { groupOf, marginOf, NO_GROUP } from '@/lib/supplies';
+import { useEntityPlan } from '@/lib/useProPlan';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const DURATIONS = [15, 30, 45, 60, 90];
 const DOT: Record<string, string> = { ok: colors.finance, low: colors.ink, out: colors.danger };
 
+// Cómo se lleva la cuenta: semáforo o cantidad exacta (de Empre Pro). Ya no se ofrece «No llevo».
 const TRACK: { mode: StockMode; label: string; hint: string }[] = [
-  { mode: 'exact', label: 'Cuento', hint: 'cuántos hay' },
   { mode: 'light', label: 'Semáforo', hint: 'hay · poco · no' },
-  { mode: 'none', label: 'No llevo', hint: 'siempre hay' },
+  { mode: 'exact', label: 'Cuento', hint: 'cuántos hay' },
 ];
+
+type WizardStep = 'basico' | 'fotos' | 'detalles' | 'tuyo' | 'resumen';
 
 /**
  * La ficha de un producto o servicio. Arriba, lo que ven los clientes (con una vista previa); después, lo que es solo
@@ -98,6 +103,12 @@ export default function ItemScreen() {
   const [loaded, setLoaded] = useState(false);
   // «Escríbelo como lo dirías» (3.69): una línea que llena nombre, duración y precio.
   const [spoken, setSpoken] = useState('');
+  // Crear por pasos: en cuál va y el desplazamiento (cada paso arranca arriba).
+  const [stepIdx, setStepIdx] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
+  // Contar cuántos hay es de Empre Pro: en Base, «Cuento» sale en gris con la corona.
+  const plan = useEntityPlan(entityId, FEATURES.ledger);
+  const [proNote, setProNote] = useState(false);
 
   // Llena el formulario una vez que llegan los datos (o con los valores por defecto si es nuevo).
   useEffect(() => {
@@ -109,7 +120,7 @@ export default function ItemScreen() {
       // Agregado desde una sección de la lista: ya nace en ella.
       if (sectionId && sectionName) setSection({ id: sectionId, name: sectionName });
       // Cómo llevar la cuenta: lo que recomendamos para este tipo de negocio.
-      setTrack(inv.data?.mode === 'exact' ? 'exact' : inv.data?.mode === 'none' ? 'none' : 'light');
+      setTrack(inv.data?.mode === 'exact' ? 'exact' : 'light');
     } else if (existing) {
       setKind(existing.kind ?? (existing.duration_min || existing.bookable ? 'service' : 'product'));
       setName(existing.parent_id ? existing.variant_label ?? '' : existing.name);
@@ -162,6 +173,8 @@ export default function ItemScreen() {
   const isVariant = Boolean(existing?.parent_id);
   const isGroup = variants.length > 0;
   const withLedger = FEATURES.ledger;
+  // En Base no hay cantidad exacta: lo recomendado «Cuento» queda en semáforo.
+  const trackMode: StockMode = plan.base && track === 'exact' ? 'light' : track;
   const parsedPrice = parsePriceInput(price);
   const parsedCost = parsePriceInput(cost);
   const margin = marginOf(parsedPrice ?? null, parsedCost ?? null);
@@ -255,8 +268,8 @@ export default function ItemScreen() {
         if (!isService && isNew) {
           // Primero el modo y después el conteo (el conteo solo vale contando exacto).
           tries.push(
-            ledgerApi.stockSettings(entityId, saved.id, { mode: track }).then(() =>
-              track === 'exact' && count !== null ? ledgerApi.adjust(entityId, { client_id: newClientId(), ref: saved.id, counted: count }) : null,
+            ledgerApi.stockSettings(entityId, saved.id, { mode: trackMode }).then(() =>
+              trackMode === 'exact' && count !== null ? ledgerApi.adjust(entityId, { client_id: newClientId(), ref: saved.id, counted: count }) : null,
             ),
           );
         }
@@ -508,408 +521,573 @@ export default function ItemScreen() {
 
   const moreItems = [!suppliesUpFront && showSupplies ? 'insumos que lleva' : null, showAlsoSupply ? 'si también lo usas tú' : null].filter(Boolean) as string[];
 
-  return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <SubScreenHeader title={isNew ? (isService ? 'Nuevo servicio' : 'Nuevo producto') : isVariant ? existing!.variant_label ?? existing!.name : existing!.name} />
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl }} keyboardShouldPersistTaps="handled">
-        {isNew ? (
-          <View style={styles.segment} accessibilityRole="radiogroup" accessibilityLabel="Qué vas a agregar">
-            {(
-              [
-                ['product', 'Producto', 'Se cuenta y se agota'],
-                ['service', 'Servicio', 'Un corte, una clase'],
-              ] as const
-            ).map(([k, label, hint]) => (
-              <Pressable key={k} accessibilityRole="radio" accessibilityState={{ checked: kind === k }} onPress={() => setKind(k)} style={[styles.segBtn, kind === k && styles.segOn]}>
-                <Text style={[styles.segLabel, kind === k && { color: colors.primary }]}>{label}</Text>
-                <Text style={styles.segHint}>{hint}</Text>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
+  const kindSegment = (
+    <View style={styles.segment} accessibilityRole="radiogroup" accessibilityLabel="Qué vas a agregar">
+      {(
+        [
+          ['product', 'Producto', 'Se cuenta y se agota'],
+          ['service', 'Servicio', 'Un corte, una clase'],
+        ] as const
+      ).map(([k, label, hint]) => (
+        <Pressable key={k} accessibilityRole="radio" accessibilityState={{ checked: kind === k }} onPress={() => setKind(k)} style={[styles.segBtn, kind === k && styles.segOn]}>
+          <Text style={[styles.segLabel, kind === k && { color: colors.primary }]}>{label}</Text>
+          <Text style={styles.segHint}>{hint}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
 
-        {spokenBlock}
+  const photosBlock = !isVariant ? (
+    <>
+      <PhotoGuide />
+      <ProductPhotos value={photos} onChange={setPhotos} onError={setError} />
+    </>
+  ) : null;
 
-        <View style={styles.card}>
-          <View style={styles.cardHead}>
-            <Ionicons name="eye-outline" size={17} color={colors.muted} />
-            <Text style={styles.cardTitle}>Lo que ven tus clientes</Text>
-          </View>
-          {isVariant && parent ? <Text style={styles.meta}>Variante de «{parent.name}»</Text> : null}
-          {!isVariant ? <PhotoGuide /> : null}
-          {!isVariant ? <ProductPhotos value={photos} onChange={setPhotos} onError={setError} /> : null}
-          <TextField
-            label={isVariant ? 'Variante' : 'Nombre'}
-            placeholder={isVariant ? 'Chocolate' : isService ? 'Corte clásico' : copy.kind === 'food' ? 'Bandeja paisa' : 'Arroz 500 g'}
-            value={name}
-            onChangeText={setName}
-            autoCapitalize="sentences"
-            maxLength={isVariant ? 40 : 80}
+  const nameField = (
+    <TextField
+      label={isVariant ? 'Variante' : 'Nombre'}
+      placeholder={isVariant ? 'Chocolate' : isService ? 'Corte clásico' : copy.kind === 'food' ? 'Bandeja paisa' : 'Arroz 500 g'}
+      value={name}
+      onChangeText={setName}
+      autoCapitalize="sentences"
+      maxLength={isVariant ? 40 : 80}
+    />
+  );
+
+  const priceField = (
+    <View style={{ gap: spacing.xs }}>
+      <Text style={styles.fieldLabel}>{isVariant ? 'Precio (si es distinto)' : 'Precio'}</Text>
+      <View style={styles.priceRow}>
+        <View style={styles.money}>
+          <Text style={styles.moneySign}>$</Text>
+          <TextInput
+            value={price}
+            onChangeText={setPrice}
+            keyboardType="numeric"
+            placeholder={isVariant && parent?.price != null ? `${fmtQty(parent.price)} (igual)` : '25.000'}
+            placeholderTextColor={colors.muted}
+            style={styles.moneyInput}
+            accessibilityLabel="Precio"
           />
+        </View>
+        <View style={styles.miniSeg} accessibilityRole="radiogroup" accessibilityLabel="Tipo de precio">
+          {(
+            [
+              [false, 'Fijo'],
+              [true, 'Desde'],
+            ] as const
+          ).map(([v, label]) => (
+            <Pressable
+              key={label}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: from === v, disabled: parsedPrice == null }}
+              disabled={parsedPrice == null}
+              onPress={() => setFrom(v)}
+              style={[styles.miniBtn, from === v && styles.miniOn]}
+            >
+              <Text style={[styles.miniText, from === v && styles.miniTextOn]}>{label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+      <Text style={styles.metaSmall}>
+        {parsedPrice == null ? 'Vacío: tu perfil dice «Pregunta el precio».' : from ? `Tu perfil dice «Desde ${formatPesos(parsedPrice)}»: el precio final puede ser mayor.` : 'Siempre cuesta eso.'}
+      </Text>
+    </View>
+  );
 
-          <View style={{ gap: spacing.xs }}>
-            <Text style={styles.fieldLabel}>{isVariant ? 'Precio (si es distinto)' : 'Precio'}</Text>
-            <View style={styles.priceRow}>
-              <View style={styles.money}>
-                <Text style={styles.moneySign}>$</Text>
-                <TextInput
-                  value={price}
-                  onChangeText={setPrice}
-                  keyboardType="numeric"
-                  placeholder={isVariant && parent?.price != null ? `${fmtQty(parent.price)} (igual)` : '25.000'}
-                  placeholderTextColor={colors.muted}
-                  style={styles.moneyInput}
-                  accessibilityLabel="Precio"
-                />
-              </View>
-              <View style={styles.miniSeg} accessibilityRole="radiogroup" accessibilityLabel="Tipo de precio">
-                {(
-                  [
-                    [false, 'Fijo'],
-                    [true, 'Desde'],
-                  ] as const
-                ).map(([v, label]) => (
-                  <Pressable
-                    key={label}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: from === v, disabled: parsedPrice == null }}
-                    disabled={parsedPrice == null}
-                    onPress={() => setFrom(v)}
-                    style={[styles.miniBtn, from === v && styles.miniOn]}
-                  >
-                    <Text style={[styles.miniText, from === v && styles.miniTextOn]}>{label}</Text>
-                  </Pressable>
-                ))}
-              </View>
+  const sectionField = !isVariant ? (
+    <View style={{ gap: spacing.xs }}>
+      <Text style={styles.fieldLabel}>Sección</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Sección: ${section?.name || 'sin elegir'}. Cambiar`} onPress={() => setSectionSheet(true)} style={styles.select}>
+        {section ? (
+          <>
+            <View style={styles.sectionPill}>
+              <Text style={styles.sectionPillText}>{section.name}</Text>
             </View>
-            <Text style={styles.metaSmall}>
-              {parsedPrice == null ? 'Vacío: tu perfil dice «Pregunta el precio».' : from ? `Tu perfil dice «Desde ${formatPesos(parsedPrice)}»: el precio final puede ser mayor.` : 'Siempre cuesta eso.'}
+            <Text style={[styles.metaSmall, { flex: 1 }]} numberOfLines={1}>
+              {othersInSection > 0 ? `con ${othersInSection} ${othersInSection === 1 ? 'producto más' : 'productos más'}` : 'aún sin otros productos'}
             </Text>
-          </View>
+          </>
+        ) : (
+          <Text style={[styles.placeholder, { flex: 1 }]}>Elige la sección</Text>
+        )}
+        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+      </Pressable>
+      {suggested ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={`Usar la sección ${suggested.name}`} onPress={() => setSection({ id: suggested.id, name: suggested.name })} style={styles.suggest}>
+          <Ionicons name="sparkles-outline" size={16} color={colors.primary} />
+          <Text style={styles.suggestText}>
+            ¿Va en <Text style={{ fontFamily: fonts.ui.extrabold }}>{suggested.name}</Text>? Toca para usarla.
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  ) : null;
 
-          {!isVariant ? (
-            <View style={{ gap: spacing.xs }}>
-              <Text style={styles.fieldLabel}>Sección</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Sección: ${section?.name || 'sin elegir'}. Cambiar`} onPress={() => setSectionSheet(true)} style={styles.select}>
-                {section ? (
-                  <>
-                    <View style={styles.sectionPill}>
-                      <Text style={styles.sectionPillText}>{section.name}</Text>
-                    </View>
-                    <Text style={[styles.metaSmall, { flex: 1 }]} numberOfLines={1}>
-                      {othersInSection > 0 ? `con ${othersInSection} ${othersInSection === 1 ? 'producto más' : 'productos más'}` : 'aún sin otros productos'}
-                    </Text>
-                  </>
-                ) : (
-                  <Text style={[styles.placeholder, { flex: 1 }]}>Elige la sección</Text>
-                )}
-                <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-              </Pressable>
-              {suggested ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Usar la sección ${suggested.name}`}
-                  onPress={() => setSection({ id: suggested.id, name: suggested.name })}
-                  style={styles.suggest}
-                >
-                  <Ionicons name="sparkles-outline" size={16} color={colors.primary} />
-                  <Text style={styles.suggestText}>
-                    ¿Va en <Text style={{ fontFamily: fonts.ui.extrabold }}>{suggested.name}</Text>? Toca para usarla.
-                  </Text>
-                </Pressable>
-              ) : null}
+  const audienceField =
+    audOn && !isVariant ? (
+      <View style={{ gap: spacing.xs }}>
+        <Text style={styles.fieldLabel}>
+          ¿Para quién es? <Text style={styles.metaSmall}>(opcional)</Text>
+        </Text>
+        <View style={styles.audWrap}>
+          {AUDIENCE_OPTIONS.map((o) => {
+            const on = audience.includes(o.key);
+            return <Chip key={o.key} label={o.label} icon={on ? 'checkmark' : undefined} selected={on} onPress={() => setAudience((a) => (on ? a.filter((x) => x !== o.key) : [...a, o.key]))} />;
+          })}
+        </View>
+        <Text style={styles.metaSmall}>Puedes marcar más de uno. Tus clientes filtran por esto en tu perfil.</Text>
+      </View>
+    ) : null;
+
+  const descriptionField = (
+    <TextField
+      label="Descripción (opcional)"
+      placeholder={isService ? 'Con tijera y máquina' : 'Marca, tamaño, sabor…'}
+      value={description}
+      onChangeText={setDescription}
+      autoCapitalize="sentences"
+      maxLength={600}
+      multiline
+      style={{ minHeight: 72, textAlignVertical: 'top', paddingTop: spacing.sm }}
+    />
+  );
+
+  const previewBlock =
+    name.trim().length >= 2 ? (
+      <View style={{ gap: spacing.xs }}>
+        <Text style={styles.metaSmall}>Así se ve en tu perfil</Text>
+        <View style={styles.preview}>
+          {readyIds(photos)[0] ? (
+            <Image source={{ uri: mediaUrl(readyIds(photos)[0]) }} style={styles.previewIcon} contentFit="cover" />
+          ) : (
+            <View style={styles.previewIcon}>
+              <Ionicons name={isService ? 'cut-outline' : 'cube-outline'} size={20} color={colors.muted} />
             </View>
-          ) : null}
-
-          {audOn && !isVariant ? (
-            <View style={{ gap: spacing.xs }}>
-              <Text style={styles.fieldLabel}>
-                ¿Para quién es? <Text style={styles.metaSmall}>(opcional)</Text>
+          )}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.previewName} numberOfLines={1}>
+              {isVariant && parent ? `${parent.name} · ${name.trim()}` : name.trim()}
+            </Text>
+            {description.trim() || (audOn && audience.length > 0) ? (
+              <Text style={styles.metaSmall} numberOfLines={1}>
+                {[description.trim(), audOn ? audienceText(audience) : ''].filter(Boolean).join(' · ')}
               </Text>
-              <View style={styles.audWrap}>
-                {AUDIENCE_OPTIONS.map((o) => {
-                  const on = audience.includes(o.key);
-                  return (
-                    <Chip
-                      key={o.key}
-                      label={o.label}
-                      icon={on ? 'checkmark' : undefined}
-                      selected={on}
-                      onPress={() => setAudience((a) => (on ? a.filter((x) => x !== o.key) : [...a, o.key]))}
-                    />
-                  );
-                })}
-              </View>
-              <Text style={styles.metaSmall}>Puedes marcar más de uno. Tus clientes filtran por esto en tu perfil.</Text>
-            </View>
-          ) : null}
+            ) : null}
+          </View>
+          <Text style={[styles.previewPrice, parsedPrice == null && { color: colors.muted, fontSize: 12.5 }]}>{previewPrice}</Text>
+        </View>
+      </View>
+    ) : null;
 
-          <TextField
-            label="Descripción (opcional)"
-            placeholder={isService ? 'Con tijera y máquina' : 'Marca, tamaño, sabor…'}
-            value={description}
-            onChangeText={setDescription}
-            autoCapitalize="sentences"
-            maxLength={600}
-            multiline
-            style={{ minHeight: 72, textAlignVertical: 'top', paddingTop: spacing.sm }}
+  const agendaCard = isService ? (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>Agenda</Text>
+      <Text style={styles.meta}>Cuánto dura</Text>
+      <View style={styles.wrap}>
+        {DURATIONS.map((d) => (
+          <Chip
+            key={d}
+            label={d < 60 ? `${d} min` : d === 60 ? '1 h' : `${d / 60} h`.replace('.', ',')}
+            selected={!customDuration && duration === d}
+            onPress={() => {
+              setCustomDuration('');
+              setDuration(duration === d ? null : d);
+            }}
           />
+        ))}
+      </View>
+      <TextField label="Otra duración, en minutos (opcional)" placeholder="40" value={customDuration} onChangeText={setCustomDuration} keyboardType="number-pad" maxLength={3} />
+      {FEATURES.agenda ? (
+        <View style={styles.switchRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.switchLabel}>Se puede reservar en Empre</Text>
+            <Text style={styles.metaSmall}>Tus clientes eligen la hora desde tu perfil</Text>
+          </View>
+          <Switch value={bookable} onValueChange={setBookable} disabled={!duration && !customDuration.trim()} accessibilityLabel="Se puede reservar en Empre" />
+        </View>
+      ) : null}
+    </View>
+  ) : null;
 
-          {name.trim().length >= 2 ? (
-            <View style={{ gap: spacing.xs }}>
-              <Text style={styles.metaSmall}>Así se ve en tu perfil</Text>
-              <View style={styles.preview}>
-                {readyIds(photos)[0] ? (
-                  <Image source={{ uri: mediaUrl(readyIds(photos)[0]) }} style={styles.previewIcon} contentFit="cover" />
-                ) : (
-                  <View style={styles.previewIcon}>
-                    <Ionicons name={isService ? 'cut-outline' : 'cube-outline'} size={20} color={colors.muted} />
-                  </View>
-                )}
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.previewName} numberOfLines={1}>
-                    {isVariant && parent ? `${parent.name} · ${name.trim()}` : name.trim()}
-                  </Text>
-                  {description.trim() || (audOn && audience.length > 0) ? (
-                    <Text style={styles.metaSmall} numberOfLines={1}>
-                      {[description.trim(), audOn ? audienceText(audience) : ''].filter(Boolean).join(' · ')}
-                    </Text>
-                  ) : null}
-                </View>
-                <Text style={[styles.previewPrice, parsedPrice == null && { color: colors.muted, fontSize: 12.5 }]}>{previewPrice}</Text>
-              </View>
+  const ownerCard =
+    !isService && withLedger ? (
+      <View style={styles.card}>
+        <View style={styles.cardHead}>
+          <Ionicons name="lock-closed-outline" size={16} color={colors.muted} />
+          <Text style={styles.cardTitle}>Solo para ti · tus clientes no lo ven</Text>
+        </View>
+
+        <View style={{ gap: spacing.xs }}>
+          <Text style={styles.fieldLabel}>¿Cuánto te cuesta a ti?</Text>
+          <View style={styles.money}>
+            <Text style={styles.moneySign}>$</Text>
+            <TextInput value={cost} onChangeText={setCost} keyboardType="numeric" placeholder="18.000" placeholderTextColor={colors.muted} style={styles.moneyInput} accessibilityLabel="Cuánto te cuesta" />
+            <Text style={styles.metaSmall}>por unidad</Text>
+          </View>
+          {margin ? (
+            <View style={[styles.margin, margin.amount < 0 ? styles.marginBad : styles.marginOk]}>
+              <Ionicons name={margin.amount < 0 ? 'alert-circle-outline' : 'trending-up'} size={18} color={margin.amount < 0 ? '#2B2622' : '#0B7F3D'} />
+              <Text style={[styles.marginText, { color: margin.amount < 0 ? '#2B2622' : '#0B7F3D' }]}>
+                {margin.amount < 0
+                  ? `Pierdes ${formatPesos(-margin.amount)} en cada uno. ¿Revisas el precio?`
+                  : margin.amount === 0
+                    ? 'Lo vendes al mismo precio que te cuesta: no ganas nada.'
+                    : `Ganas ${formatPesos(margin.amount)} por cada uno (${margin.pct} %)`}
+              </Text>
             </View>
+          ) : parsedPrice == null && parsedCost ? (
+            <Text style={styles.metaSmall}>Ponle precio y te decimos cuánto ganas.</Text>
           ) : null}
         </View>
 
-        {isService ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Agenda</Text>
-            <Text style={styles.meta}>Cuánto dura</Text>
-            <View style={styles.wrap}>
-              {DURATIONS.map((d) => (
-                <Chip
-                  key={d}
-                  label={d < 60 ? `${d} min` : d === 60 ? '1 h' : `${d / 60} h`.replace('.', ',')}
-                  selected={!customDuration && duration === d}
-                  onPress={() => {
-                    setCustomDuration('');
-                    setDuration(duration === d ? null : d);
-                  }}
-                />
-              ))}
-            </View>
-            <TextField label="Otra duración, en minutos (opcional)" placeholder="40" value={customDuration} onChangeText={setCustomDuration} keyboardType="number-pad" maxLength={3} />
-            {FEATURES.agenda ? (
-              <View style={styles.switchRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.switchLabel}>Se puede reservar en Empre</Text>
-                  <Text style={styles.metaSmall}>Tus clientes eligen la hora desde tu perfil</Text>
-                </View>
-                <Switch value={bookable} onValueChange={setBookable} disabled={!duration && !customDuration.trim()} accessibilityLabel="Se puede reservar en Empre" />
-              </View>
-            ) : null}
-          </View>
-        ) : null}
+        <View style={styles.divider} />
 
-        {!isService && withLedger ? (
-          <View style={styles.card}>
-            <View style={styles.cardHead}>
-              <Ionicons name="lock-closed-outline" size={16} color={colors.muted} />
-              <Text style={styles.cardTitle}>Solo para ti · tus clientes no lo ven</Text>
-            </View>
-
-            <View style={{ gap: spacing.xs }}>
-              <Text style={styles.fieldLabel}>¿Cuánto te cuesta a ti?</Text>
-              <View style={styles.money}>
-                <Text style={styles.moneySign}>$</Text>
-                <TextInput value={cost} onChangeText={setCost} keyboardType="numeric" placeholder="18.000" placeholderTextColor={colors.muted} style={styles.moneyInput} accessibilityLabel="Cuánto te cuesta" />
-                <Text style={styles.metaSmall}>por unidad</Text>
-              </View>
-              {margin ? (
-                <View style={[styles.margin, margin.amount < 0 ? styles.marginBad : styles.marginOk]}>
-                  <Ionicons name={margin.amount < 0 ? 'alert-circle-outline' : 'trending-up'} size={18} color={margin.amount < 0 ? '#2B2622' : '#0B7F3D'} />
-                  <Text style={[styles.marginText, { color: margin.amount < 0 ? '#2B2622' : '#0B7F3D' }]}>
-                    {margin.amount < 0
-                      ? `Pierdes ${formatPesos(-margin.amount)} en cada uno. ¿Revisas el precio?`
-                      : margin.amount === 0
-                        ? 'Lo vendes al mismo precio que te cuesta: no ganas nada.'
-                        : `Ganas ${formatPesos(margin.amount)} por cada uno (${margin.pct} %)`}
-                  </Text>
-                </View>
-              ) : parsedPrice == null && parsedCost ? (
-                <Text style={styles.metaSmall}>Ponle precio y te decimos cuánto ganas.</Text>
-              ) : null}
-            </View>
-
-            <View style={styles.divider} />
-
-            {isGroup ? (
-              <Text style={styles.meta}>Cada variante se cuenta por separado: ajústalas abajo, en Variantes.</Text>
-            ) : isNew ? (
-              <View style={{ gap: spacing.sm }}>
-                <Text style={styles.fieldLabel}>¿Cómo llevas la cuenta?</Text>
-                <View style={styles.trackRow} accessibilityRole="radiogroup">
-                  {TRACK.map((t) => (
-                    <Pressable key={t.mode} accessibilityRole="radio" accessibilityState={{ checked: track === t.mode }} onPress={() => setTrack(t.mode)} style={[styles.trackBtn, track === t.mode && styles.trackOn]}>
-                      <Text style={[styles.trackLabel, track === t.mode && { color: colors.finance }]}>{t.label}</Text>
-                      <Text style={[styles.trackHint, track === t.mode && { color: colors.finance }]}>{t.hint}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-                {track === 'exact' ? (
-                  <>
-                    <View style={styles.stepper}>
-                      <Pressable accessibilityRole="button" accessibilityLabel="Uno menos" onPress={() => step(-1)} style={styles.stepBtn}>
-                        <Ionicons name="remove" size={22} color={colors.ink} />
-                      </Pressable>
-                      <View style={{ flex: 1, alignItems: 'center' }}>
-                        <TextInput
-                          value={initialCount}
-                          onChangeText={setInitialCount}
-                          keyboardType="decimal-pad"
-                          placeholder="0"
-                          placeholderTextColor={colors.muted}
-                          style={styles.count}
-                          maxLength={7}
-                          accessibilityLabel="Cuántos tienes hoy"
-                        />
-                        <Text style={styles.metaSmall}>tienes hoy</Text>
-                      </View>
-                      <Pressable accessibilityRole="button" accessibilityLabel="Uno más" onPress={() => step(1)} style={styles.stepBtn}>
-                        <Ionicons name="add" size={22} color={colors.ink} />
-                      </Pressable>
+        {isGroup ? (
+          <Text style={styles.meta}>Cada variante se cuenta por separado: ajústalas abajo, en Variantes.</Text>
+        ) : isNew ? (
+          <View style={{ gap: spacing.sm }}>
+            <Text style={styles.fieldLabel}>¿Cómo llevas la cuenta?</Text>
+            <View style={styles.trackRow} accessibilityRole="radiogroup">
+              {TRACK.map((t) => {
+                const locked = t.mode === 'exact' && plan.base;
+                const on = trackMode === t.mode;
+                return (
+                  <Pressable
+                    key={t.mode}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: on }}
+                    accessibilityLabel={locked ? `${t.label}. Es de Empre Pro` : undefined}
+                    onPress={() => (locked ? setProNote(true) : setTrack(t.mode))}
+                    style={[styles.trackBtn, on && styles.trackOn]}
+                  >
+                    <View style={{ alignItems: 'center', opacity: locked ? LOCKED_OPACITY : 1 }}>
+                      <Text style={[styles.trackLabel, on && { color: colors.primary }]}>{t.label}</Text>
+                      <Text style={[styles.trackHint, on && { color: colors.primary }]}>{t.hint}</Text>
                     </View>
-                    <Text style={[styles.metaSmall, { textAlign: 'center' }]}>Baja solo cada vez que vendes uno.</Text>
-                  </>
-                ) : (
-                  <Text style={styles.metaSmall}>
-                    {track === 'light' ? 'Marcas «hay», «queda poco» o «se acabó» cuando cambie. Si se acaba, tus clientes lo ven agotado.' : 'No te avisamos cuándo se acaba. Puedes cambiarlo cuando quieras.'}
-                  </Text>
-                )}
-              </View>
-            ) : stock ? (
-              <View style={{ gap: spacing.sm }}>
-                <Text style={styles.fieldLabel}>Cuántos tienes</Text>
-                <Pressable accessibilityRole="button" onPress={() => setSheet(true)} style={styles.stockRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.stockBig}>{stock.mode === 'none' || stock.mode === 'unset' ? 'Sin control' : itemLine(stock)}</Text>
-                    <Text style={styles.metaSmall}>
-                      {stock.mode === 'none' || stock.mode === 'unset' ? 'Toca para saber cuándo se acaba' : `Control: ${MODE_LABEL[stock.mode]} · se actualiza solo al vender`}
-                    </Text>
-                  </View>
-                  <Text style={styles.link}>Ajustar</Text>
-                </Pressable>
-                {stock.servings != null ? (
-                  <Text style={styles.meta}>
-                    Con tus insumos alcanza para {stock.servings}. Lo que limita: {stock.limit}.
-                  </Text>
-                ) : null}
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-
-        {!isService && !isNew && !isVariant ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Variantes (opcional)</Text>
-            <Text style={styles.meta}>Sabores, tallas o tamaños. Cada una lleva su propia cantidad; si no le pones precio, usa el del producto.</Text>
-            {variants.map((v) => (
-              <Pressable
-                key={v.ref}
-                accessibilityRole="button"
-                onPress={() => router.push({ pathname: '/business/products/item', params: { entityId, itemId: v.ref } })}
-                style={styles.variantRow}
-              >
-                <Text style={[styles.switchLabel, { flex: 1 }]} numberOfLines={1}>
-                  {v.variant_label ?? v.name}
-                </Text>
-                <Text style={styles.metaSmall}>{v.mode === 'none' || v.mode === 'unset' ? 'Sin control' : itemLine(v)}</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.muted} />
-              </Pressable>
-            ))}
-            <View style={styles.inlineRow}>
-              <TextInput
-                value={newVariant}
-                onChangeText={setNewVariant}
-                placeholder={variants.length ? 'Otra: Talla 41, Color negro' : 'Ej. Talla 40, Color negro'}
-                placeholderTextColor={colors.muted}
-                style={styles.input}
-                maxLength={40}
-                accessibilityLabel="Nombre de una variante nueva"
-              />
-              <Button title="Agregar" variant="secondary" loading={addingVariant} disabled={newVariant.trim().length < 1} onPress={() => void addVariant()} />
+                    {locked ? <ProTag /> : null}
+                  </Pressable>
+                );
+              })}
             </View>
-            <Text style={styles.metaSmall}>Escribe cada atributo con su nombre: «Talla 40, Color negro». Así se filtra y se encuentra en Empre.</Text>
-            {variants.length === 0 && stock?.counted ? <Text style={styles.metaSmall}>Al agregar variantes, el producto deja de contarse: cuenta cada variante.</Text> : null}
-          </View>
-        ) : null}
-
-        {showSupplies && suppliesUpFront ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>
-              {ingredientWord}
-              {picked.length ? ` · ${picked.length}` : ' (opcional)'}
-            </Text>
-            {suppliesBlock}
-          </View>
-        ) : null}
-
-        {moreItems.length > 0 ? (
-          <View style={[styles.card, { padding: 0, gap: 0 }]}>
-            <Pressable accessibilityRole="button" accessibilityState={{ expanded: moreOpen }} onPress={() => setMoreOpen((v) => !v)} style={styles.moreHead}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.moreTitle}>Más opciones</Text>
-                {!moreOpen ? <Text style={styles.metaSmall}>{moreItems.join(' · ').replace(/^./, (c) => c.toUpperCase())}</Text> : null}
-              </View>
-              {!moreOpen ? <Text style={styles.metaSmall}>{[!suppliesUpFront && picked.length ? `${picked.length} insumos` : null, alsoSupply ? 'Lo usas tú' : null].filter(Boolean).join(' · ') || 'Ninguna'}</Text> : null}
-              <Ionicons name={moreOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
-            </Pressable>
-            {moreOpen ? (
-              <View style={styles.moreBody}>
-                {!suppliesUpFront && showSupplies ? (
-                  <View style={{ gap: spacing.sm }}>
-                    <Text style={styles.fieldLabel}>¿Lleva insumos?</Text>
-                    {suppliesBlock}
+            {proNote && plan.base ? <Text style={styles.metaSmall}>{EXACT_IS_PRO}</Text> : null}
+            {trackMode === 'exact' ? (
+              <>
+                <View style={styles.stepper}>
+                  <Pressable accessibilityRole="button" accessibilityLabel="Uno menos" onPress={() => step(-1)} style={styles.stepBtn}>
+                    <Ionicons name="remove" size={22} color={colors.ink} />
+                  </Pressable>
+                  <View style={{ flex: 1, alignItems: 'center' }}>
+                    <TextInput
+                      value={initialCount}
+                      onChangeText={setInitialCount}
+                      keyboardType="decimal-pad"
+                      placeholder="0"
+                      placeholderTextColor={colors.muted}
+                      style={styles.count}
+                      maxLength={7}
+                      accessibilityLabel="Cuántos tienes hoy"
+                    />
+                    <Text style={styles.metaSmall}>tienes hoy</Text>
                   </View>
-                ) : null}
-                {!suppliesUpFront && showSupplies && showAlsoSupply ? <View style={styles.divider} /> : null}
-                {showAlsoSupply ? alsoSupplyRow : null}
+                  <Pressable accessibilityRole="button" accessibilityLabel="Uno más" onPress={() => step(1)} style={styles.stepBtn}>
+                    <Ionicons name="add" size={22} color={colors.ink} />
+                  </Pressable>
+                </View>
+                <Text style={[styles.metaSmall, { textAlign: 'center' }]}>Baja solo cada vez que vendes uno.</Text>
+              </>
+            ) : (
+              <Text style={styles.metaSmall}>Marcas «hay», «queda poco» o «se acabó» cuando cambie. Si se acaba, tus clientes lo ven agotado.</Text>
+            )}
+          </View>
+        ) : stock ? (
+          <View style={{ gap: spacing.sm }}>
+            <Text style={styles.fieldLabel}>Cuántos tienes</Text>
+            <Pressable accessibilityRole="button" onPress={() => setSheet(true)} style={styles.stockRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.stockBig}>{stock.mode === 'none' || stock.mode === 'unset' ? 'Sin control' : itemLine(stock)}</Text>
+                <Text style={styles.metaSmall}>
+                  {stock.mode === 'none' || stock.mode === 'unset' ? 'Toca para saber cuándo se acaba' : `Control: ${MODE_LABEL[stock.mode]} · se actualiza solo al vender`}
+                </Text>
               </View>
+              <Text style={styles.link}>Ajustar</Text>
+            </Pressable>
+            {stock.servings != null ? (
+              <Text style={styles.meta}>
+                Con tus insumos alcanza para {stock.servings}. Lo que limita: {stock.limit}.
+              </Text>
             ) : null}
           </View>
         ) : null}
+      </View>
+    ) : null;
 
-        {stock && stock.sold_28 > 0 ? <Text style={styles.meta}>Vendiste {fmtQty(stock.sold_28)} en las últimas 4 semanas.</Text> : null}
-
-        {!isVariant && !isGroup ? (
-          <ReadyChecklist
-            items={[
-              { key: 'foto', label: 'Foto, para salir en Ofertas', ok: readyIds(photos).length > 0, value: readyIds(photos).length > 0 ? 'Lista' : 'Falta' },
-              { key: 'nombre', label: 'Nombre claro, de menos de 40 letras', ok: name.trim().length >= 3 && name.trim().length <= 40, value: name.trim().length > 40 ? 'Muy largo' : name.trim().length >= 3 ? 'Listo' : 'Falta' },
-              { key: 'precio', label: 'Precio final en pesos', ok: priceN > 0 || from, value: priceN > 0 ? `$${priceN.toLocaleString('es-CO').replace(/,/g, '.')}` : from ? 'Desde' : 'Falta' },
-              { key: 'seccion', label: 'Sección', ok: Boolean(section), value: section ? 'Lista' : 'Falta' },
-              ...(isService
-                ? [
-                    { key: 'dura', label: 'Duración', ok: Boolean(duration) || Number(customDuration) > 0, value: duration ? `${duration} min` : Number(customDuration) > 0 ? `${customDuration} min` : 'Falta' },
-                    ...(FEATURES.agenda ? [{ key: 'reserva', label: 'Se puede reservar', ok: bookable, value: bookable ? 'Sí' : 'Falta' }] : []),
-                  ]
-                : []),
-            ]}
+  const variantsCard =
+    !isService && !isNew && !isVariant ? (
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Variantes (opcional)</Text>
+        <Text style={styles.meta}>Sabores, tallas o tamaños. Cada una lleva su propia cantidad; si no le pones precio, usa el del producto.</Text>
+        {variants.map((v) => (
+          <Pressable key={v.ref} accessibilityRole="button" onPress={() => router.push({ pathname: '/business/products/item', params: { entityId, itemId: v.ref } })} style={styles.variantRow}>
+            <Text style={[styles.switchLabel, { flex: 1 }]} numberOfLines={1}>
+              {v.variant_label ?? v.name}
+            </Text>
+            <Text style={styles.metaSmall}>{v.mode === 'none' || v.mode === 'unset' ? 'Sin control' : itemLine(v)}</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+          </Pressable>
+        ))}
+        <View style={styles.inlineRow}>
+          <TextInput
+            value={newVariant}
+            onChangeText={setNewVariant}
+            placeholder={variants.length ? 'Otra: Talla 41, Color negro' : 'Ej. Talla 40, Color negro'}
+            placeholderTextColor={colors.muted}
+            style={styles.input}
+            maxLength={40}
+            accessibilityLabel="Nombre de una variante nueva"
           />
-        ) : null}
+          <Button title="Agregar" variant="secondary" loading={addingVariant} disabled={newVariant.trim().length < 1} onPress={() => void addVariant()} />
+        </View>
+        <Text style={styles.metaSmall}>Escribe cada atributo con su nombre: «Talla 40, Color negro». Así se filtra y se encuentra en Empre.</Text>
+        {variants.length === 0 && stock?.counted ? <Text style={styles.metaSmall}>Al agregar variantes, el producto deja de contarse: cuenta cada variante.</Text> : null}
+      </View>
+    ) : null;
 
-        {!isNew ? (
-          <View style={{ gap: spacing.xs }}>
-            {!isVariant && !isGroup ? <Button title={isService ? 'Cambiar a producto' : 'Cambiar a servicio'} variant="secondary" onPress={changeKind} /> : null}
-            <Button title="Quitar" variant="ghost" onPress={retire} />
+  const suppliesCard =
+    showSupplies && suppliesUpFront ? (
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>
+          {ingredientWord}
+          {picked.length ? ` · ${picked.length}` : ' (opcional)'}
+        </Text>
+        {suppliesBlock}
+      </View>
+    ) : null;
+
+  const moreCard =
+    moreItems.length > 0 ? (
+      <View style={[styles.card, { padding: 0, gap: 0 }]}>
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: moreOpen }} onPress={() => setMoreOpen((v) => !v)} style={styles.moreHead}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.moreTitle}>Más opciones</Text>
+            {!moreOpen ? <Text style={styles.metaSmall}>{moreItems.join(' · ').replace(/^./, (c) => c.toUpperCase())}</Text> : null}
+          </View>
+          {!moreOpen ? <Text style={styles.metaSmall}>{[!suppliesUpFront && picked.length ? `${picked.length} insumos` : null, alsoSupply ? 'Lo usas tú' : null].filter(Boolean).join(' · ') || 'Ninguna'}</Text> : null}
+          <Ionicons name={moreOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
+        </Pressable>
+        {moreOpen ? (
+          <View style={styles.moreBody}>
+            {!suppliesUpFront && showSupplies ? (
+              <View style={{ gap: spacing.sm }}>
+                <Text style={styles.fieldLabel}>¿Lleva insumos?</Text>
+                {suppliesBlock}
+              </View>
+            ) : null}
+            {!suppliesUpFront && showSupplies && showAlsoSupply ? <View style={styles.divider} /> : null}
+            {showAlsoSupply ? alsoSupplyRow : null}
           </View>
         ) : null}
+      </View>
+    ) : null;
+
+  const checklist =
+    !isVariant && !isGroup ? (
+      <ReadyChecklist
+        items={[
+          { key: 'foto', label: 'Foto, para salir en Ofertas', ok: readyIds(photos).length > 0, value: readyIds(photos).length > 0 ? 'Lista' : 'Falta' },
+          { key: 'nombre', label: 'Nombre claro, de menos de 40 letras', ok: name.trim().length >= 3 && name.trim().length <= 40, value: name.trim().length > 40 ? 'Muy largo' : name.trim().length >= 3 ? 'Listo' : 'Falta' },
+          { key: 'precio', label: 'Precio final en pesos', ok: priceN > 0 || from, value: priceN > 0 ? `$${priceN.toLocaleString('es-CO').replace(/,/g, '.')}` : from ? 'Desde' : 'Falta' },
+          { key: 'seccion', label: 'Sección', ok: Boolean(section), value: section ? 'Lista' : 'Falta' },
+          ...(isService
+            ? [
+                { key: 'dura', label: 'Duración', ok: Boolean(duration) || Number(customDuration) > 0, value: duration ? `${duration} min` : Number(customDuration) > 0 ? `${customDuration} min` : 'Falta' },
+                ...(FEATURES.agenda ? [{ key: 'reserva', label: 'Se puede reservar', ok: bookable, value: bookable ? 'Sí' : 'Falta' }] : []),
+              ]
+            : []),
+        ]}
+      />
+    ) : null;
+
+  // Crear va por pasos (2026-11-22): lo básico, las fotos, los detalles, lo que es solo tuyo y un resumen para revisar
+  // antes de agregar. Editar sigue en una sola página.
+  const steps: { key: WizardStep; title: string }[] = [
+    { key: 'basico', title: isService ? 'El servicio' : 'El producto' },
+    { key: 'fotos', title: 'Fotos' },
+    { key: 'detalles', title: 'Detalles' },
+    ...(withLedger && (!isService || showSupplies) ? [{ key: 'tuyo' as const, title: 'Solo para ti' }] : []),
+    { key: 'resumen', title: 'Resumen' },
+  ];
+  const at = Math.min(stepIdx, steps.length - 1);
+  const current = steps[at].key;
+  const lastStep = at === steps.length - 1;
+  const stepProblem = (k: WizardStep): string | null => {
+    if (k === 'basico') {
+      if (name.trim().length < 2) return 'Escribe el nombre (mínimo 2 letras).';
+      if (parsedPrice === undefined) return 'El precio debe ser un número, por ejemplo 25.000.';
+      const dur = isService ? (customDuration.trim() ? Number(customDuration.trim()) : duration ?? 0) : 0;
+      if (isService && (!Number.isInteger(dur) || (dur !== 0 && (dur < 5 || dur > 480)))) return 'La duración va en minutos, de 5 a 480.';
+      if (isService && bookable && !dur) return 'Para reservar por Empre, elige cuánto dura.';
+    }
+    if (k === 'fotos' && photos.some((p) => p.uploading)) return 'Espera a que terminen de subir las fotos.';
+    if (k === 'detalles' && !section) return 'Elige la sección en la que va.';
+    if (k === 'tuyo' && parsedCost === undefined) return 'El costo debe ser un número, por ejemplo 18.000.';
+    return null;
+  };
+  const goStep = (i: number) => {
+    setError(null);
+    setStepIdx(i);
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  };
+  const nextStep = () => {
+    const p = stepProblem(current);
+    if (p) return setError(p);
+    goStep(at + 1);
+  };
+  const durText = duration ? `${duration} min` : Number(customDuration) > 0 ? `${customDuration} min` : 'Sin duración';
+  const summaryRows: { label: string; value: string; step: WizardStep }[] = [
+    { label: 'Qué es', value: isService ? 'Servicio' : 'Producto', step: 'basico' },
+    { label: 'Nombre', value: name.trim() || 'Falta', step: 'basico' },
+    { label: 'Precio', value: previewPrice, step: 'basico' },
+    ...(isService ? [{ label: 'Duración', value: `${durText}${FEATURES.agenda && bookable ? ' · se reserva en Empre' : ''}`, step: 'basico' as const }] : []),
+    { label: 'Fotos', value: readyIds(photos).length ? `${readyIds(photos).length} de 3` : 'Sin fotos', step: 'fotos' },
+    { label: 'Sección', value: section?.name ?? 'Falta', step: 'detalles' },
+    ...(audOn ? [{ label: 'Para quién', value: audience.length ? audienceText(audience) : 'Todos', step: 'detalles' as const }] : []),
+    { label: 'Descripción', value: description.trim() || 'Sin descripción', step: 'detalles' },
+    ...(steps.some((x) => x.key === 'tuyo')
+      ? [
+          ...(!isService ? [{ label: 'Te cuesta', value: parsedCost ? formatPesos(parsedCost) : 'Sin costo', step: 'tuyo' as const }] : []),
+          ...(!isService
+            ? [{ label: 'La cuenta', value: trackMode === 'exact' ? `Cantidad exacta${initialCount.trim() ? ` · ${initialCount.trim()} hoy` : ''}` : 'Semáforo', step: 'tuyo' as const }]
+            : []),
+          ...(showSupplies ? [{ label: ingredientWord, value: picked.length ? String(picked.length) : 'Ninguno', step: 'tuyo' as const }] : []),
+        ]
+      : []),
+  ];
+  const summaryCard = (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>Revisa antes de agregar</Text>
+      {summaryRows.map((r, i) => (
+        <Pressable
+          key={r.label}
+          accessibilityRole="button"
+          accessibilityLabel={`${r.label}: ${r.value}. Cambiar`}
+          onPress={() => goStep(steps.findIndex((x) => x.key === r.step))}
+          style={[styles.sumRow, i > 0 && styles.sumRowLine]}
+        >
+          <Text style={styles.sumLabel}>{r.label}</Text>
+          <Text style={styles.sumValue} numberOfLines={2}>
+            {r.value}
+          </Text>
+          <Text style={styles.link}>Cambiar</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+
+  const wizardBody =
+    current === 'basico' ? (
+      <>
+        {kindSegment}
+        {spokenBlock}
+        <View style={styles.card}>
+          {nameField}
+          {priceField}
+        </View>
+        {agendaCard}
+      </>
+    ) : current === 'fotos' ? (
+      <View style={styles.card}>
+        <View style={styles.cardHead}>
+          <Ionicons name="eye-outline" size={17} color={colors.muted} />
+          <Text style={styles.cardTitle}>Lo que ven tus clientes</Text>
+        </View>
+        {photosBlock}
+        <Text style={styles.metaSmall}>Puedes seguir sin fotos y agregarlas después.</Text>
+      </View>
+    ) : current === 'detalles' ? (
+      <View style={styles.card}>
+        {sectionField}
+        {audienceField}
+        {descriptionField}
+      </View>
+    ) : current === 'tuyo' ? (
+      <>
+        {ownerCard}
+        {suppliesCard}
+        {moreCard}
+      </>
+    ) : (
+      <>
+        <View style={styles.card}>{previewBlock}</View>
+        {summaryCard}
+        {checklist}
+      </>
+    );
+
+  return (
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <SubScreenHeader
+        title={isNew ? (isService ? 'Nuevo servicio' : 'Nuevo producto') : isVariant ? existing!.variant_label ?? existing!.name : existing!.name}
+        subtitle={isNew ? `Paso ${at + 1} de ${steps.length} · ${steps[at].title}` : undefined}
+      />
+      {isNew ? (
+        <View style={styles.progress} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {steps.map((x, i) => (
+            <View key={x.key} style={[styles.progressBit, i <= at && styles.progressOn]} />
+          ))}
+        </View>
+      ) : null}
+      <ScrollView ref={scrollRef} contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl }} keyboardShouldPersistTaps="handled">
+        {isNew ? (
+          wizardBody
+        ) : (
+          <>
+            <View style={styles.card}>
+              <View style={styles.cardHead}>
+                <Ionicons name="eye-outline" size={17} color={colors.muted} />
+                <Text style={styles.cardTitle}>Lo que ven tus clientes</Text>
+              </View>
+              {isVariant && parent ? <Text style={styles.meta}>Variante de «{parent.name}»</Text> : null}
+              {photosBlock}
+              {nameField}
+              {priceField}
+              {sectionField}
+              {audienceField}
+              {descriptionField}
+              {previewBlock}
+            </View>
+            {agendaCard}
+            {ownerCard}
+            {variantsCard}
+            {suppliesCard}
+            {moreCard}
+            {stock && stock.sold_28 > 0 ? <Text style={styles.meta}>Vendiste {fmtQty(stock.sold_28)} en las últimas 4 semanas.</Text> : null}
+            {checklist}
+            <View style={{ gap: spacing.xs }}>
+              {!isVariant && !isGroup ? <Button title={isService ? 'Cambiar a producto' : 'Cambiar a servicio'} variant="secondary" onPress={changeKind} /> : null}
+              <Button title="Quitar" variant="ghost" onPress={retire} />
+            </View>
+          </>
+        )}
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        <Button title={isNew ? (isService ? 'Agregar servicio' : 'Agregar producto') : 'Guardar'} loading={saving} onPress={() => void save()} />
+        {isNew && !lastStep ? (
+          <View style={styles.footRow}>
+            {at > 0 ? <Button title="Atrás" variant="secondary" onPress={() => goStep(at - 1)} style={{ flex: 1 }} /> : null}
+            <Button title="Siguiente" onPress={nextStep} style={{ flex: 2 }} />
+          </View>
+        ) : isNew ? (
+          <View style={styles.footRow}>
+            <Button title="Atrás" variant="secondary" onPress={() => goStep(at - 1)} style={{ flex: 1 }} />
+            <Button title={isService ? 'Agregar servicio' : 'Agregar producto'} loading={saving} onPress={() => void save()} style={{ flex: 2 }} />
+          </View>
+        ) : (
+          <Button title="Guardar" loading={saving} onPress={() => void save()} />
+        )}
       </View>
 
       <QuickStockSheet entityId={entityId} item={sheet ? stock : null} onClose={() => setSheet(false)} onChanged={() => void refresh()} />
@@ -949,11 +1127,11 @@ const styles = StyleSheet.create({
   miniText: { fontSize: 13, fontFamily: fonts.ui.bold, color: '#5B606B' },
   miniTextOn: { fontFamily: fonts.ui.extrabold, color: colors.ink },
   select: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 52, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.lg, paddingHorizontal: spacing.md },
-  sectionPill: { minHeight: 30, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.financeSoft, justifyContent: 'center' },
+  sectionPill: { minHeight: 30, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.primarySoft, justifyContent: 'center' },
   audWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  suggest: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 40, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.financeSoft },
-  suggestText: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.semibold, color: colors.finance },
-  sectionPillText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.finance },
+  suggest: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 40, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
+  suggestText: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
+  sectionPillText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
   preview: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.well },
   previewIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   previewName: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
@@ -964,8 +1142,8 @@ const styles = StyleSheet.create({
   marginText: { flex: 1, fontSize: 13.5, fontFamily: fonts.ui.extrabold },
   divider: { height: 1, backgroundColor: '#EFF0F2' },
   trackRow: { flexDirection: 'row', gap: 6 },
-  trackBtn: { flex: 1, minHeight: 56, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', padding: 6 },
-  trackOn: { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.financeSoft },
+  trackBtn: { flex: 1, minHeight: 56, gap: 4, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', padding: 6 },
+  trackOn: { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft },
   trackLabel: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   trackHint: { fontSize: 11, fontFamily: fonts.ui.bold, color: '#5B606B' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
@@ -981,7 +1159,8 @@ const styles = StyleSheet.create({
   supplyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56, borderBottomWidth: 1, borderBottomColor: '#EFF0F2' },
   dot: { width: 10, height: 10, borderRadius: 5 },
   remove: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  pickBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, minHeight: 48, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.financeSoft },
+  // Buscar o agregar insumos: botón en contorno rojo sobre blanco (la paleta de Empre, sin el verde de Finance).
+  pickBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, minHeight: 48, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.surface },
   pickText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.primary },
   variantRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, borderTopWidth: 1, borderTopColor: colors.line },
   qty: { width: 64, minHeight: 42, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.xs, fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink, textAlign: 'center', backgroundColor: colors.well },
@@ -989,6 +1168,14 @@ const styles = StyleSheet.create({
   moreHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 64, paddingHorizontal: spacing.md },
   moreTitle: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   moreBody: { gap: spacing.md, padding: spacing.md, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: '#EFF0F2' },
+  progress: { flexDirection: 'row', gap: 4, paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
+  progressBit: { flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.line },
+  progressOn: { backgroundColor: colors.primary },
+  sumRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, paddingVertical: 6 },
+  sumRowLine: { borderTopWidth: 1, borderTopColor: '#EFF0F2' },
+  sumLabel: { width: 96, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
+  sumValue: { flex: 1, fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  footRow: { flexDirection: 'row', gap: spacing.sm },
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },
 });
