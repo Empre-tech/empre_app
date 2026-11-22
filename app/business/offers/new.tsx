@@ -235,8 +235,9 @@ export default function NewOfferScreen() {
   const kindsHere = new Set(services.map((s) => s.kind ?? 'service'));
   const catalogLabel = kindsHere.size > 1 ? 'Productos y servicios' : kindsHere.has('product') ? 'Productos' : 'Servicios';
   const listed = [...chosen, ...services.filter((s) => !picked.includes(s.id) && (!itemQuery.trim() || fold(s.name).includes(fold(itemQuery.trim()))))];
-  const shownItems = itemQuery.trim() ? listed : listed.slice(0, Math.max(12, chosen.length));
-  const hiddenCount = services.length - picked.length - (shownItems.length - chosen.length);
+  // Nunca más de 12 a la vista (más lo elegido), aunque sean 100 o la búsqueda encuentre muchos.
+  const shownItems = listed.slice(0, chosen.length + 12);
+  const hiddenCount = listed.length - shownItems.length;
 
   const priceText = useCatalog
     ? specialValue != null
@@ -298,7 +299,7 @@ export default function NewOfferScreen() {
               <Chip key={s.id} label={s.name} on={picked.includes(s.id)} onPress={() => togglePick(s.id)} role="checkbox" />
             ))}
           </View>
-          {hiddenCount > 0 && !itemQuery.trim() ? <Text style={styles.note}>{`Y ${hiddenCount} más: búscalos arriba.`}</Text> : null}
+          {hiddenCount > 0 ? <Text style={styles.note}>{itemQuery.trim() ? `Y ${hiddenCount} más con «${itemQuery.trim()}»: escribe más para afinar.` : `Y ${hiddenCount} más: búscalos arriba.`}</Text> : null}
           {itemQuery.trim() && shownItems.length === chosen.length ? <Text style={styles.note}>{`Nada con «${itemQuery.trim()}».`}</Text> : null}
           {preview.reference !== null ? <Text style={styles.note}>Precio habitual: {formatPesos(preview.reference)} (de tu catálogo; no cambia).</Text> : null}
           {picked.length > 0 && preview.reference === null ? <Text style={styles.note}>Alguno no tiene precio habitual: la oferta se publica sin mostrar ahorro.</Text> : null}
