@@ -2,7 +2,7 @@
 // ROJO de la marca para lo que se elige o se toca. Ya no hay arena cálida: lo elegido (chips, pestañas, botones) va
 // en rojo con letra blanca, y las opciones grandes elegidas en rojo suave con borde rojo. El degradado de arriba de las
 // pantallas es rojo claro que se funde con el blanco (ScreenGlow).
-// El rojo #F03232 va en formas; para TEXTO rojo o fondo con letra blanca, #D42020 (5,2:1). Verde para la plata y
+// El rojo #F03232 va en formas; para TEXTO rojo o fondo con letra blanca, #D42020 (5,2:1). Verde #0B7F3D para la plata y
 // Finance, naranja (con letra negra) para las ofertas. Los errores van en negro con ícono.
 export const colors = {
   primary: '#D42020', // botón principal en rojo de Empre (texto blanco, 5,2:1)
