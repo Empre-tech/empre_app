@@ -13,6 +13,7 @@ import { categoriesApi } from '@/api/endpoints';
 import { discoveryApi } from '@/api/offers';
 import type { DiscoveryItem } from '@/api/types';
 import { Chispa } from '@/components/ai/Chispa';
+import { HoldToTalk } from '@/components/ai/HoldToTalk';
 import { Avatar } from '@/components/Avatar';
 import { TypeIn } from '@/components/chat/EmpreVoice';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
@@ -74,6 +75,13 @@ export default function AskScreen() {
   const stopRef = useRef<(() => void) | null>(null);
   const seq = useRef(0);
   const started = useRef(false);
+  // La conversación (2026-11-22): las preguntas anteriores quedan arriba, como en un chat; la última, con sus resultados.
+  const [history, setHistory] = useState<{ q: string; reply: string }[]>([]);
+  const [voiceNote, setVoiceNote] = useState<string | null>(null);
+  const inputRef = useRef<TextInput>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const holdText = useRef('');
+  const released = useRef(false);
 
   const categories = useQuery({ queryKey: ['categories'], queryFn: categoriesApi.list, staleTime: 10 * 60_000 });
   // Un solo buscador (3.66): lo que el servidor filtra (abierto, oferta, domicilio, más barato) va en `filters`; lo que
@@ -90,6 +98,14 @@ export default function AskScreen() {
     const clean = q.trim();
     if (!clean) return;
     setErrorKind('generic');
+    setVoiceNote(null);
+    // Una pregunta nueva: la anterior pasa a la conversación de arriba (cambiar un filtro no cuenta como nueva).
+    if (question && clean !== question && (answer || rec)) {
+      const prev = question;
+      const reply = answer?.reply ?? 'Te recomendé lo que hay cerca.';
+      setHistory((h) => [...h.slice(-9), { q: prev, reply }]);
+    }
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
     // «¿Me recomiendas algún negocio?» (3.67): no se busca la palabra «negocio»; Empre AI recomienda de lo cercano.
     if (isRecommendAsk(clean)) {
       seq.current += 1;
@@ -163,28 +179,50 @@ export default function AskScreen() {
     setEditing(true);
   };
 
-  const listen = async () => {
-    if (listening) {
-      stopRef.current?.();
-      return;
-    }
+  /** Termina lo dicho: si hay texto, busca. Se llama una sola vez por toma (al soltar o cuando el teléfono deja de oír). */
+  const finishHold = () => {
+    const t = holdText.current.trim();
+    holdText.current = '';
+    if (t) void run(t, liveParse(t).searchFilters);
+  };
+
+  /** Empieza a escuchar. `autoSubmit`: busca sola cuando el teléfono deja de oír (al abrir desde «Hablar con Empre AI»). */
+  const startHold = async (autoSubmit = false) => {
+    if (listening) return;
+    holdText.current = '';
+    released.current = autoSubmit;
+    setVoiceNote(null);
     setListening(true);
+    setText('');
+    setEditing(true);
     stopRef.current = await startDictation(
       {
         onText: (t, isFinal) => {
+          holdText.current = t;
           setText(t);
-          if (isFinal && t.trim()) {
-            setListening(false);
-            setHeard(true);
-          }
+          if (isFinal && released.current) finishHold();
         },
-        onEnd: () => setListening(false),
-        onError: () => setListening(false),
+        onEnd: () => {
+          setListening(false);
+          finishHold();
+        },
+        onError: (message, code) => {
+          setListening(false);
+          if (code !== 'no-speech' && code !== 'speech-timeout') setVoiceNote(message);
+          else if (!holdText.current) setVoiceNote('No te escuché. Mantén presionado mientras hablas.');
+        },
       },
       [],
     );
     if (!stopRef.current) setListening(false);
   };
+
+  /** Soltó el botón: deja de escuchar y busca lo dicho. */
+  const endHold = () => {
+    released.current = true;
+    stopRef.current?.();
+  };
+
 
   useEffect(() => {
     void loadRecents().then((saved) => setRecents((now) => (now.length ? now : saved)));
@@ -193,7 +231,7 @@ export default function AskScreen() {
     const t = setTimeout(() => {
       started.current = true;
       if (typeof params.q === 'string' && params.q.trim()) void run(params.q, NO_FILTERS);
-      else if (params.voice === '1' && speechAvailable()) void listen();
+      else if (params.voice === '1' && speechAvailable()) void startHold(true);
     }, 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -260,39 +298,94 @@ export default function AskScreen() {
   const order = orderLabel(searchFilters, caps);
   const nextSuggestions = (answer?.suggestions ?? []).filter((x) => { const k = suggestionAction(x).kind; return k !== 'map' && k !== 'filter'; }).slice(0, 2);
 
-  if (showResults) {
-    return (
-      <View style={styles.screen}>
-        {/* El mapa sigue arriba: los resultados se encienden en él. */}
-        <View style={styles.mapTop}>
-          {region ? (
-            <MapView key={onMap.map((b) => b.id).join('|')} style={StyleSheet.absoluteFill} initialRegion={region} showsUserLocation={Boolean(coords)} showsPointsOfInterests={false} customMapStyle={MAP_STYLE} toolbarEnabled={false} rotateEnabled={false} pitchEnabled={false}>
-              {onMap.map((b) => (
-                <Marker key={b.id} coordinate={{ latitude: b.latitude, longitude: b.longitude }} accessibilityLabel={`${b.name}, resultado`} onPress={() => setCard(b)} tracksViewChanges={false}>
-                  <View style={[styles.pinRing, b.has_active_offer && styles.pinRingOffer]}>
-                    <View style={styles.pin}>
-                      <Ionicons name={displayIcon(b.category_icon) as keyof typeof Ionicons.glyphMap} size={18} color={colors.ink} />
-                    </View>
-                    <View style={[styles.pinDot, { backgroundColor: b.is_open_now ? '#D42020' : colors.placeholder }]} />
-                  </View>
-                </Marker>
-              ))}
-            </MapView>
+  const voiceOK = speechAvailable();
+  const send = () => void run(text, liveParse(text).searchFilters);
+  const newChat = () => {
+    clear();
+    setHistory([]);
+  };
+  // Abajo, siempre a la mano (2026-11-22): lo que se escribe y el micrófono de mantener presionado.
+  const dock = (
+    <View style={[styles.dock, { paddingBottom: insets.bottom + 10 }]}>
+      <Text style={styles.dockHint} accessibilityLiveRegion="polite">
+        {voiceNote ?? (listening ? 'Te escucho… suelta para buscar' : voiceOK ? 'Mantén presionado el micrófono para hablar y suéltalo para buscar' : 'Escribe lo que necesitas, como se lo dirías a un vecino')}
+      </Text>
+      <View style={styles.dockRow}>
+        <View style={styles.dockField}>
+          <TextInput
+            ref={inputRef}
+            value={text}
+            onChangeText={(v) => {
+              setText(v);
+              setEditing(true);
+            }}
+            placeholder={listening ? 'Te escucho…' : '¿Qué necesitas?'}
+            placeholderTextColor={colors.faint}
+            style={styles.dockInput}
+            returnKeyType="search"
+            onSubmitEditing={send}
+            maxLength={200}
+            autoCorrect={false}
+            accessibilityLabel="Escribe lo que necesitas"
+            autoFocus={params.voice !== '1' && !params.q}
+          />
+          {text.trim() && !listening ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Buscar" onPress={send} style={styles.sendBtn}>
+              <Ionicons name="arrow-up" size={18} color={colors.onPrimary} />
+            </Pressable>
           ) : null}
-          <View style={[styles.floating, { top: insets.top + 12 }]}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Buscaste ${question}. Cambiar la búsqueda`} onPress={() => setEditing(true)} style={styles.floatingTap}>
-              <EmpreSymbol size={22} />
-              <Text style={styles.floatingText} numberOfLines={1}>
-                {question}
-              </Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Borrar la búsqueda" onPress={clear} style={styles.floatingX}>
-              <Ionicons name="close" size={20} color={colors.ink} />
-            </Pressable>
+        </View>
+        <HoldToTalk listening={listening} available={voiceOK} onStart={() => void startHold(false)} onRelease={endHold} onUnavailable={() => inputRef.current?.focus()} />
+      </View>
+    </View>
+  );
+  const chatHeader = (
+    <View style={[styles.chatHeader, { paddingTop: insets.top + 8 }]}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))} style={styles.back}>
+        <Ionicons name="chevron-back" size={22} color={colors.ink} />
+      </Pressable>
+      <EmpreSymbol size={28} animated={false} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.chatTitle}>Empre AI</Text>
+        <Text style={styles.chatSub} numberOfLines={1}>
+          Lo que necesitas, cerca de ti
+        </Text>
+      </View>
+      {question || history.length ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Nueva conversación" onPress={newChat} style={styles.back}>
+          <Ionicons name="create-outline" size={20} color={colors.ink} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+  // Las preguntas de antes, como burbujas: la tuya a la derecha en rojo y la respuesta de Empre AI a la izquierda.
+  const thread = (
+    <>
+      {history.map((h, i) => (
+        <View key={`h-${i}`} style={styles.turn}>
+          <View style={styles.youBubble}>
+            <Text style={styles.youText}>{h.q}</Text>
+          </View>
+          <View style={styles.aiBubble}>
+            <Chispa size={16} mood="responde" />
+            <Text style={styles.aiText}>{h.reply}</Text>
           </View>
         </View>
+      ))}
+      {question && !editing ? (
+        <View style={styles.youBubble}>
+          <Text style={styles.youText}>{question}</Text>
+        </View>
+      ) : null}
+    </>
+  );
 
-        <ScrollView style={styles.sheet} contentContainerStyle={[styles.sheetIn, { paddingBottom: insets.bottom + 20 }]} keyboardShouldPersistTaps="handled">
+  if (showResults) {
+    return (
+      <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {chatHeader}
+        <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={styles.chatBody} keyboardShouldPersistTaps="handled">
+          {thread}
           {rec ? (
             <View style={styles.group} accessibilityLiveRegion="polite">
               <View style={styles.recHead}>
@@ -466,7 +559,24 @@ export default function AskScreen() {
           ) : null}
           </>
           )}
+          {region && onMap.length ? (
+            <View style={styles.mapCard}>
+            <MapView key={onMap.map((b) => b.id).join('|')} style={StyleSheet.absoluteFill} initialRegion={region} showsUserLocation={Boolean(coords)} showsPointsOfInterests={false} customMapStyle={MAP_STYLE} toolbarEnabled={false} rotateEnabled={false} pitchEnabled={false}>
+              {onMap.map((b) => (
+                <Marker key={b.id} coordinate={{ latitude: b.latitude, longitude: b.longitude }} accessibilityLabel={`${b.name}, resultado`} onPress={() => setCard(b)} tracksViewChanges={false}>
+                  <View style={[styles.pinRing, b.has_active_offer && styles.pinRingOffer]}>
+                    <View style={styles.pin}>
+                      <Ionicons name={displayIcon(b.category_icon) as keyof typeof Ionicons.glyphMap} size={18} color={colors.ink} />
+                    </View>
+                    <View style={[styles.pinDot, { backgroundColor: b.is_open_now ? '#D42020' : colors.placeholder }]} />
+                  </View>
+                </Marker>
+              ))}
+            </MapView>
+            </View>
+          ) : null}
         </ScrollView>
+        {dock}
 
         <BusinessCardModal entity={card ? ({ ...card, distance_meters: card.distance_km * 1000, distanceKm: card.distance_km } as unknown as WithDistance) : null} onClose={() => setCard(null)} origin="ask" />
         <FiltersSheet
@@ -478,46 +588,29 @@ export default function AskScreen() {
           groups={groups.map((g) => ({ id: g.id, name: g.name }))}
           resultCount={biz.length}
         />
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))} style={styles.back}>
-          <Ionicons name="chevron-back" size={22} color={colors.ink} />
-        </Pressable>
-        <View style={styles.searchBox}>
-          <EmpreSymbol size={22} />
-          <TextInput
-            value={text}
-            onChangeText={(v) => {
-              setText(v);
-              setEditing(true);
-            }}
-            placeholder={listening ? 'Te escucho…' : '¿Qué necesitas?'}
-            placeholderTextColor={colors.faint}
-            style={styles.input}
-            returnKeyType="search"
-            onSubmitEditing={() => void run(text, NO_FILTERS)}
-            maxLength={200}
-            autoCorrect={false}
-            accessibilityLabel="Buscar un negocio, un servicio o lo que necesites"
-            autoFocus={params.voice !== '1' && !params.q}
-          />
-          {text ? (
-            <Pressable accessibilityRole="button" accessibilityLabel="Borrar la búsqueda" onPress={clear} style={styles.clearBtn}>
-              <Ionicons name="close" size={18} color={colors.ink} />
-            </Pressable>
-          ) : null}
-          <Pressable accessibilityRole="button" accessibilityLabel={listening ? 'Dejar de escuchar' : 'Buscar hablando'} onPress={() => void listen()} hitSlop={4} style={styles.micBtn}>
-            <Ionicons name={listening ? 'stop' : 'mic-outline'} size={16} color={colors.primaryDark} />
-          </Pressable>
-        </View>
-      </View>
-
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 20 }]} keyboardShouldPersistTaps="handled">
+      {chatHeader}
+      <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={styles.chatBody} keyboardShouldPersistTaps="handled">
+        {thread}
+        {!typed && !listening && !history.length ? (
+          <View style={styles.hello}>
+            <Chispa size={44} mood="responde" />
+            <Text style={styles.helloTitle}>¿Qué necesitas?</Text>
+            <Text style={styles.helloSub}>Pídelo como se lo dirías a un vecino: «una droguería abierta», «almuerzo barato cerca».</Text>
+            <View style={styles.chips}>
+              {hourIdeas(hourCO(new Date().toISOString())).map((idea) => (
+                <Pressable key={idea.ask} accessibilityRole="button" onPress={() => void run(idea.ask, NO_FILTERS)} style={({ pressed }) => [styles.chipAdd, pressed && styles.pressed]}>
+                  <Text style={styles.chipAddText}>{idea.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ) : null}
         {question ? <RememberSize text={question} /> : null}
         {listening || hasLiveFilters || heard ? (
           <View style={styles.liveCard} accessibilityLiveRegion="polite">
@@ -647,6 +740,7 @@ export default function AskScreen() {
         ) : null}
         {!typed ? <Text style={styles.typeHint}>Escribe como lo dirías: «corrientazo», «motilarme». Empre entiende palabras de aquí y errores de dedo.</Text> : null}
       </ScrollView>
+      {dock}
     </KeyboardAvoidingView>
   );
 }
@@ -720,6 +814,25 @@ function ResultRow({ b, tone, onOpen }: { b: AskPlace; tone: number; onOpen: () 
 }
 
 const styles = StyleSheet.create({
+  chatHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8, paddingBottom: 10, backgroundColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.hairline },
+  chatTitle: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
+  chatSub: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
+  chatBody: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24, gap: 12 },
+  turn: { gap: 8 },
+  youBubble: { alignSelf: 'flex-end', maxWidth: '85%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, borderBottomRightRadius: 6, backgroundColor: colors.primary },
+  youText: { fontSize: 15, lineHeight: 21, fontFamily: fonts.ui.semibold, color: colors.onPrimary },
+  aiBubble: { alignSelf: 'flex-start', maxWidth: '90%', flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, borderBottomLeftRadius: 6, backgroundColor: colors.well },
+  aiText: { flexShrink: 1, fontSize: 14.5, lineHeight: 20, fontFamily: fonts.ui.medium, color: colors.ink },
+  hello: { alignItems: 'center', gap: 10, paddingTop: 24, paddingHorizontal: 8 },
+  helloTitle: { fontSize: 24, fontFamily: fonts.display.bold, color: colors.ink, textAlign: 'center' },
+  helloSub: { fontSize: 14.5, lineHeight: 21, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center', marginBottom: 6 },
+  mapCard: { height: 200, borderRadius: 16, overflow: 'hidden', backgroundColor: colors.well },
+  dock: { paddingHorizontal: 12, paddingTop: 8, gap: 6, backgroundColor: colors.bg, borderTopWidth: 1, borderTopColor: colors.hairline },
+  dockHint: { fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
+  dockRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  dockField: { flex: 1, minWidth: 0, minHeight: 48, flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingRight: 6, borderRadius: 24, backgroundColor: colors.well, borderWidth: 1, borderColor: colors.line },
+  dockInput: { flex: 1, minWidth: 0, fontSize: 15.5, fontFamily: fonts.ui.medium, color: colors.ink, paddingVertical: 10 },
+  sendBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary },
   heardRow: { flexDirection: 'row', gap: 8 },
   heardGo: { flex: 1, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
   heardGoText: { fontSize: 15, fontFamily: fonts.ui.bold, color: colors.ink },
