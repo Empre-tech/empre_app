@@ -1,12 +1,8 @@
-import { CrownIcon, Ionicons } from '@/components/Icon';
+import { CrownIcon } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { entitiesApi } from '@/api/endpoints';
-import { ledgerApi } from '@/api/ledger';
-import { VoiceSheet } from '@/components/ledger/VoiceSheet';
-import { LOCKED_OPACITY } from '@/components/pro/ProTag';
 import { useGoPro } from '@/components/pro/useGoPro';
 import { SystemHead, SystemTitle } from '@/components/system/parts';
 import { useEntityPlan } from '@/lib/useProPlan';
@@ -21,12 +17,10 @@ const SPACES: { key: FinanceSpace; label: string; flex: number }[] = [
   { key: 'rentabilidad', label: 'Rentabilidad', flex: 4.6 },
 ];
 
-/** Lo que se repite arriba en cada espacio de Finanzas: de qué negocio, dictar, el título y los cuatro espacios. */
+/** Lo que se repite arriba en cada espacio de Finanzas: de qué negocio, el título y los cuatro espacios. */
 export function FinanceTop({ entityId, space, title }: { entityId: string; space: FinanceSpace; title: string }) {
   const router = useRouter();
-  const [voiceOpen, setVoiceOpen] = useState(false);
   const entity = useQuery({ queryKey: ['entity', entityId], queryFn: () => entitiesApi.get(entityId), enabled: Boolean(entityId), staleTime: 60_000 });
-  const items = useQuery({ queryKey: ['ledger', entityId, 'items'], queryFn: () => ledgerApi.items(entityId), enabled: Boolean(entityId), staleTime: 60_000 });
   // Base y Empre Pro: el diseño de Finance no cambia (usuario, 2026-11-17); solo el plan. En Base se usa Hoy; Plata,
   // Cuentas y Rentabilidad llevan la corona y abren «Pásate a Empre Pro», y dictar es de Pro.
   const plan = useEntityPlan(entityId);
@@ -48,27 +42,8 @@ export function FinanceTop({ entityId, space, title }: { entityId: string; space
 
   return (
     <View style={styles.top}>
-      <SystemHead
-        lead="Finanzas de"
-        name={entity.data?.name}
-        right={
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={plan.base ? 'Habla con Empre AI. Es de Empre Pro' : 'Habla con Empre AI: dicta una venta o un gasto'}
-            onPress={() => (plan.base ? goPro.open() : setVoiceOpen(true))}
-            style={[styles.mic, plan.base && styles.micLocked]}
-          >
-            <View style={plan.base ? { opacity: LOCKED_OPACITY } : undefined}>
-              <Ionicons name="mic-outline" size={20} color={colors.ink} />
-            </View>
-            {plan.base ? (
-              <View style={styles.micCrown}>
-                <CrownIcon size={11} color={colors.ink} />
-              </View>
-            ) : null}
-          </Pressable>
-        }
-      />
+      {/* Dictar y preguntar va en el botón Empre (abajo a la derecha), como en el resto de la app (2026-11-22). */}
+      <SystemHead lead="Finanzas de" name={entity.data?.name} />
       <SystemTitle>{title}</SystemTitle>
       <View accessibilityRole="tablist" accessibilityLabel="Espacios de Empre Finance" style={styles.spaces}>
         {SPACES.map((s) => {
@@ -85,7 +60,6 @@ export function FinanceTop({ entityId, space, title }: { entityId: string; space
           );
         })}
       </View>
-      <VoiceSheet entityId={entityId} visible={voiceOpen} onClose={() => setVoiceOpen(false)} hints={(items.data ?? []).map((i) => i.name)} module="finance" />
       {goPro.sheet}
     </View>
   );

@@ -555,6 +555,8 @@ export interface VoiceResult {
   text: string;
   actions: VoiceAction[];
   message?: string;
+  /** Si fue una pregunta (no algo que registrar): la respuesta de Empre AI con los datos del negocio. */
+  answer?: string;
 }
 
 export interface VoiceConfirmResult {

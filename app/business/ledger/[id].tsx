@@ -13,7 +13,10 @@ import { AnimatedBar, FinanceHeroSkeleton, Stage } from '@/components/finance/Fi
 import { EmpreAICard, StatusCap, SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
 import { expenseMovement, MoveRows, saleMovement, type Movement } from '@/components/finance/Moves';
 import { FinanceTop } from '@/components/finance/Top';
-import { addDays, atHour, dayReadings, expectedToday, hourBars, hourCO, hourLabel, leftOf, moneyIn, moneyOut, monthlyGap, presetRange, showHours, todayCO, todayTitle, WEEK_NAMES, weekdayIndex, type DaySale } from '@/lib/finance';
+import { RangeSheet } from '@/components/finance/RangeSheet';
+import { useEntityPlan } from '@/lib/useProPlan';
+import { useGoPro } from '@/components/pro/useGoPro';
+import { addDays, atHour, dayReadings, expectedToday, hourBars, hourCO, hourLabel, leftOf, moneyIn, moneyOut, monthlyGap, presetRange, rangeTitle, showHours, todayCO, todayTitle, WEEK_NAMES, weekdayIndex, type DateRange, type DaySale, type Preset } from '@/lib/finance';
 import { categoryLabel, formatPesos, pendingCredit, pendingTotals, salePayText } from '@/lib/ledger';
 import { useFinanceSetup } from '@/ledger/financeSetup';
 import { useParkedSales } from '@/ledger/parkedSales';
@@ -51,9 +54,15 @@ export default function LedgerHome() {
   const outbox = useLedgerOutbox();
   const inbox = useInboxSummary();
   const parked = useParkedSales(entityId);
-  const dayRange = useMemo(() => presetRange('today', today), [today]);
+  // Por defecto, hoy; el dueño puede ver otro rango (2026-11-22): 7 días, 30 días, el mes o fechas a elección.
+  const [range, setRange] = useState<DateRange>(() => presetRange('today', today));
+  const [rangeOpen, setRangeOpen] = useState(false);
+  const dayRange = range;
+  const isToday = range.from === today && range.to === today;
+  const plan = useEntityPlan(entityId);
+  const goPro = useGoPro(entityId);
   const weekRange = useMemo(() => presetRange('7d', today), [today]);
-  const span = { from: startCO(today), to: startCO(addDays(today, 1)) };
+  const span = { from: startCO(range.from), to: startCO(addDays(range.to, 1)) };
 
   // La hora actual avanza sola con la pantalla abierta.
   useEffect(() => {
@@ -74,8 +83,8 @@ export default function LedgerHome() {
     enabled: Boolean(entityId),
     staleTime: 60_000,
   });
-  const sales = useQuery({ queryKey: ['ledger', entityId, 'sales', today], queryFn: () => ledgerApi.sales(entityId, { ...span, limit: SALES_LIMIT }), enabled: Boolean(entityId) });
-  const expenses = useQuery({ queryKey: ['ledger', entityId, 'expenses', today], queryFn: () => ledgerApi.expenses(entityId, { ...span, limit: 100 }), enabled: Boolean(entityId) });
+  const sales = useQuery({ queryKey: ['ledger', entityId, 'sales', range.from, range.to], queryFn: () => ledgerApi.sales(entityId, { ...span, limit: SALES_LIMIT }), enabled: Boolean(entityId) });
+  const expenses = useQuery({ queryKey: ['ledger', entityId, 'expenses', range.from, range.to], queryFn: () => ledgerApi.expenses(entityId, { ...span, limit: 100 }), enabled: Boolean(entityId) });
   const items = useQuery({ queryKey: ['ledger', entityId, 'items'], queryFn: () => ledgerApi.items(entityId), enabled: Boolean(entityId), staleTime: 60_000 });
   const monthRange = useMemo(() => presetRange('month', today), [today]);
   const month = useQuery({
@@ -127,7 +136,7 @@ export default function LedgerHome() {
   const count = daySales.length;
 
   const nowHour = hourCO(now.toISOString());
-  const hasHours = showHours(daySales);
+  const hasHours = isToday && showHours(daySales);
   const bars = useMemo(() => hourBars(daySales, nowHour, hoursToday(entity.data?.hours, now)), [daySales, nowHour, entity.data?.hours, now]);
   const topBar = Math.max(1, ...bars.map((b) => b.total));
   const selected = selHour === null ? null : bars.find((b) => b.hour === selHour) ?? null;
@@ -155,7 +164,8 @@ export default function LedgerHome() {
   const accountsSub = owedAll > 0 || oweAll > 0 ? [owedAll > 0 ? `Te deben ${formatPesos(owedAll)}` : null, oweAll > 0 ? `Debes ${formatPesos(oweAll)}` : null].filter(Boolean).join(' · ') : null;
   const w = week.data;
   const hasHistory = Boolean(w) && w!.current.sales_count + w!.previous.sales_count > 0;
-  const goPlata = () => router.push({ pathname: '/business/ledger/plata/[id]', params: { id: entityId } });
+  // Plata es de Empre Pro: en Base abre «Pásate a Empre Pro» en vez de llevar a Plata.
+  const goPlata = () => (plan.base ? goPro.open() : router.push({ pathname: '/business/ledger/plata/[id]', params: { id: entityId } }));
 
   // Cuánto falta para cubrir lo del mes, con lo que el dueño nos contó que paga.
   const gap = setup.monthly && month.data ? monthlyGap(setup.monthly, leftOf(month.data.current)) : null;
@@ -193,7 +203,24 @@ export default function LedgerHome() {
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={[styles.body, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 32 }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-        <FinanceTop entityId={entityId} space="hoy" title={`Hoy, ${todayTitle(today)}`} />
+        <FinanceTop entityId={entityId} space="hoy" title={isToday ? `Hoy, ${todayTitle(today)}` : rangeTitle(range, today)} />
+        {/* Ver otro rango de tiempo, no solo el día */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rangeRow}>
+          {RANGE_CHIPS.map(([key, label]) => {
+            const on = range.preset === key && range.from === presetRange(key, today).from && range.to === presetRange(key, today).to;
+            return (
+              <Pressable key={key} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setRange(presetRange(key, today))} style={[styles.rangeChip, on && styles.rangeChipOn]}>
+                <Text style={[styles.rangeChipText, on && styles.rangeChipTextOn]}>{label}</Text>
+              </Pressable>
+            );
+          })}
+          <Pressable accessibilityRole="button" accessibilityState={{ selected: range.preset === 'custom' }} onPress={() => setRangeOpen(true)} style={[styles.rangeChip, range.preset === 'custom' && styles.rangeChipOn]}>
+            <Ionicons name="calendar-outline" size={14} color={range.preset === 'custom' ? colors.onPrimary : colors.ink} />
+            <Text style={[styles.rangeChipText, range.preset === 'custom' && styles.rangeChipTextOn]}>Elegir fechas</Text>
+          </Pressable>
+        </ScrollView>
+      <RangeSheet visible={rangeOpen} value={range} onApply={setRange} onClose={() => setRangeOpen(false)} />
+      {goPro.sheet}
 
         {outbox.items.some((x) => x.entityId === entityId) ? <OutboxBanner entityId={entityId} /> : null}
 
@@ -207,14 +234,14 @@ export default function LedgerHome() {
               <View style={styles.main}>
                 <View style={styles.mainTop}>
                   <View>
-                    <Text style={styles.label}>{openingHero ? openingHero.label : 'Vendiste hoy'}</Text>
-                    {openingHero && !openingHero.value ? (
+                    <Text style={styles.label}>{openingHero && isToday ? openingHero.label : isToday ? 'Vendiste hoy' : `Vendiste · ${rangeTitle(range, today)}`}</Text>
+                    {openingHero && isToday && !openingHero.value ? (
                       <Text style={styles.heroWords} accessibilityLiveRegion="polite">
                         {openingHero.words}
                       </Text>
                     ) : (
                       <Text style={styles.hero} numberOfLines={1} adjustsFontSizeToFit accessibilityLiveRegion="polite">
-                        {openingHero ? openingHero.value : formatPesos(salesTotal)}
+                        {openingHero && isToday ? openingHero.value : formatPesos(salesTotal)}
                       </Text>
                     )}
                   </View>
@@ -230,7 +257,7 @@ export default function LedgerHome() {
                 </View>
                 <View style={styles.mainFoot}>
                   <Text style={styles.count} numberOfLines={2}>
-                    {count === 0 ? 'Aún sin ventas hoy' : count === 1 ? '1 venta' : `${count} ventas`}
+                    {count === 0 ? (isToday ? 'Aún sin ventas hoy' : 'Sin ventas en estas fechas') : count === 1 ? '1 venta' : `${count} ventas`}
                   </Text>
                   <Pressable accessibilityRole="button" onPress={goExpense} style={styles.btnOutline}>
                     <Ionicons name="remove" size={16} color={colors.ink} />
@@ -429,7 +456,19 @@ function OutboxBanner({ entityId }: { entityId: string }) {
   );
 }
 
+const RANGE_CHIPS: [Exclude<Preset, 'custom'>, string][] = [
+  ['today', 'Hoy'],
+  ['7d', '7 días'],
+  ['30d', '30 días'],
+  ['month', 'Este mes'],
+];
+
 const styles = StyleSheet.create({
+  rangeRow: { gap: 8, paddingVertical: 2, paddingRight: 8 },
+  rangeChip: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
+  rangeChipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  rangeChipText: { fontSize: 13.5, fontFamily: fonts.ui.semibold, color: colors.ink },
+  rangeChipTextOn: { color: colors.onPrimary },
   screen: { flex: 1, backgroundColor: colors.bg },
   body: { paddingHorizontal: 20, gap: 24 },
   main: { borderRadius: 20, overflow: 'hidden', backgroundColor: colors.surface, ...softShadow },

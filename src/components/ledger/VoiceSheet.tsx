@@ -192,6 +192,8 @@ export function VoiceSheet({
   const mode: EmpreAIMode = isSearch ? 'search' : module === 'inventory' ? 'inventory' : 'finance';
   const [other, setOther] = useState<OtherJob | null>(null);
   const [numbers, setNumbers] = useState<NumberAnswer[] | null>(null);
+  // La respuesta de Empre AI a una pregunta que las reglas no saben (2026-11-22): sale de los datos del negocio.
+  const [aiReply, setAiReply] = useState<string | null>(null);
   const [doubt, setDoubt] = useState<{ text: string; qty: number; name: string } | null>(null);
   const [text, setText] = useState('');
   const [keyboardOpen, setKeyboardOpen] = useState(false);
@@ -281,6 +283,7 @@ export function VoiceSheet({
       setAnswer(null);
       setOther(null);
       setNumbers(null);
+    setAiReply(null);
       setDoubt(null);
       setActions([]);
       setDone(false);
@@ -349,7 +352,8 @@ export function VoiceSheet({
       const parsed = module === 'inventory' ? await keepInInventory(t, priced) : priced;
       setResult(r);
       setActions(parsed);
-      if (parsed.length === 0) setError(r.message ?? 'No entendí qué registrar. Prueba con otra frase.');
+      if (parsed.length === 0 && r.answer) setAiReply(r.answer);
+      else if (parsed.length === 0) setError(r.message ?? 'No entendí qué registrar. Prueba con otra frase.');
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -412,6 +416,7 @@ export function VoiceSheet({
   const again = () => {
     setOther(null);
     setNumbers(null);
+    setAiReply(null);
     setDoubt(null);
     setAnswer(null);
     setText('');
@@ -647,6 +652,22 @@ export function VoiceSheet({
               </View>
               <View style={{ flex: 1 }} />
               <Button title="Decir otra cosa" variant="ghost" onPress={again} />
+            </>
+          ) : aiReply ? (
+            // Una pregunta sobre tus números o tu inventario que las reglas no saben: responde Empre AI con tus datos.
+            <>
+              <Said text={text.trim()} />
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.aiTurn}>
+                <AiHead status="tu respuesta" />
+                <View style={styles.aiBody}>
+                  <TypeIn play style={styles.aiLead} boldStyle={styles.aiLeadBold} parts={[{ t: aiReply }]} />
+                  <Text style={styles.aiSource}>{module === 'inventory' ? 'Sale de tu inventario en Empre' : 'Sale de lo que anotaste en Empre Finance'}</Text>
+                </View>
+              </ScrollView>
+              <View style={{ gap: spacing.sm }}>
+                <Button title="Listo" onPress={onClose} />
+                <Button title="Preguntar otra cosa" variant="ghost" onPress={again} />
+              </View>
             </>
           ) : numbers ? (
             // Tus números (teléfono 4): plantillas con tus datos; cada cifra lleva a su detalle.

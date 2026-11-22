@@ -7,7 +7,7 @@ import { useKeyboardOpen } from '@/lib/useKeyboardOpen';
  * El botón Empre en las demás vistas (tablero «Base y Empre Pro»: «en todas las vistas»). Las pestañas y el Inventario
  * ya lo traen en su barra; aquí flota en las pantallas que no tienen una barra propia abajo. Queda fuera de los pasos
  * de una tarea (formularios, contar, pagar), del chat, del mapa y de las pantallas con su propia barra o botón abajo
- * (Empre Finance anota con sus propios botones: un rol por lugar), y se esconde mientras escribes. En la pantalla de un negocio tuyo, los atajos van directo a ese negocio.
+ * y se esconde mientras escribes. En Empre Finance, Empre AI dicta y responde sobre la plata. En la pantalla de un negocio tuyo, los atajos van directo a ese negocio.
  */
 const ROUTES: Record<string, 'id' | 'entityId' | null> = {
   // Del negocio (el id es del negocio; si no es tuyo, el botón muestra el menú de siempre).
@@ -18,6 +18,11 @@ const ROUTES: Record<string, 'id' | 'entityId' | null> = {
   'business/services/[id]': 'id',
   'business/agent/[id]': 'id',
   'business/offers': 'entityId',
+  // Empre Finance (2026-11-22): el botón Empre también aquí; Empre AI dicta y responde sobre la plata.
+  'business/ledger/[id]': 'id',
+  'business/ledger/plata/[id]': 'id',
+  'business/ledger/debts/[id]': 'id',
+  'business/ledger/rentabilidad/[id]': 'id',
   // De quien compra.
   favorites: null,
   salidas: null,
@@ -38,5 +43,6 @@ export function GlobalEmpreButton() {
   const key = ROUTES[route];
   const raw = key ? params[key] : undefined;
   const entityId = typeof raw === 'string' && raw ? raw : undefined;
-  return <EmpreButton key={route} bottom={insets.bottom + 16} entityId={entityId} />;
+  const module = route.startsWith('business/ledger/debts') ? 'debts' : route.startsWith('business/ledger/') ? 'finance' : 'none';
+  return <EmpreButton key={route} bottom={insets.bottom + 16} entityId={entityId} module={module} />;
 }
