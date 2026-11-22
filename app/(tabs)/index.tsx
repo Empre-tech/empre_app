@@ -1,8 +1,8 @@
 import { Ionicons } from '@/components/Icon';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
-import { Animated, Easing, Linking, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { Animated, Easing, Keyboard, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { ScreenGlow } from '@/components/ScreenGlow';
@@ -26,6 +26,7 @@ import { useZones } from '@/components/explore/useZoneName';
 import type { DoorRect } from '@/components/home/HomeDoors';
 import { Muro, type MuroPin } from '@/components/home/Muro';
 import { PuertaMapa } from '@/components/home/PuertaMapa';
+import { HomeSearchBar, HomeSearchPanel, type HomeCat } from '@/components/home/HomeSearch';
 import { handOffItem } from '@/lib/offerHandoff';
 import { SystemGroup, SystemRow, SystemSection } from '@/components/system/parts';
 import { ZoneButton, ZoneList } from '@/components/ZoneButton';
@@ -63,6 +64,17 @@ export default function HomeScreen() {
   const [zoneId, setZoneId] = useState<string | null>(null);
   const [zonesOpen, setZonesOpen] = useState(false);
   const [card, setCard] = useState<WithDistance | null>(null);
+  // Buscar en el inicio (2026-11-22): filtra lo del inicio en vez de abrir el mapa.
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState('');
+  const [searchCat, setSearchCat] = useState<HomeCat | null>(null);
+  const searchRef = useRef<TextInput>(null);
+  const stopSearch = () => {
+    setSearching(false);
+    setQuery('');
+    setSearchCat(null);
+    Keyboard.dismiss();
+  };
   // La hora del inicio: se fija al entrar y se renueva cada vez que vuelves a él (de ella salen la franja y «Para ti»).
   const [now, setNow] = useState(() => Date.now());
   // La puerta Explorar se abre hasta llenar la pantalla y ahí empieza el mapa (3.60).
@@ -238,25 +250,49 @@ export default function HomeScreen() {
             />
           ) : null}
 
-          {/* Buscar: abre el buscador del mapa ya escribiendo, no otra pantalla */}
-          <Pressable accessibilityRole="button" accessibilityLabel="Buscar en Empre" onPress={() => router.push({ pathname: '/map', params: { q: '', buscar: '1' } })} style={({ pressed }) => [styles.search, styles.searchWithMic, pressed && styles.pressed]}>
-            <Ionicons name="search" size={20} color={colors.ink} />
-            <Text style={styles.searchText} numberOfLines={1}>
-              Busca negocios, cortes, almuerzos…
-            </Text>
-            {/* Buscar con Empre AI (tablero «un asistente por trabajo»): el micrófono vive en la barra, como en Ofertas. */}
-            <Pressable accessibilityRole="button" accessibilityLabel="Buscar hablando con Empre AI" onPress={() => router.push({ pathname: '/ask', params: { voice: '1' } })} hitSlop={4} style={styles.searchMic}>
-              <Ionicons name="mic-outline" size={17} color={colors.primaryDark} />
-            </Pressable>
-          </Pressable>
+          {/* Buscar: filtra lo del inicio (recientes, sugeridos y categorías al tocarla; productos, servicios y negocios al escribir) */}
+          <HomeSearchBar
+            ref={searchRef}
+            value={query}
+            active={searching}
+            onChange={(v) => {
+              setQuery(v);
+              setSearching(true);
+            }}
+            onFocus={() => setSearching(true)}
+            onSubmit={() => Keyboard.dismiss()}
+            onCancel={stopSearch}
+          />
 
-          {/* Las categorías con lo que hay: cada una abre el mapa ya filtrado */}
+          {searching ? (
+            <HomeSearchPanel
+              query={query}
+              cat={searchCat}
+              cats={cats}
+              discovery={discovery}
+              center={center ?? null}
+              onQuery={(q) => {
+                setQuery(q);
+                Keyboard.dismiss();
+              }}
+              onCat={(c) => {
+                setSearchCat(c);
+                if (c) noteInterest('category', c.key);
+                Keyboard.dismiss();
+              }}
+              onOpenBusiness={(b) => setCard({ ...b, distanceKm: b.distance_meters != null ? b.distance_meters / 1000 : null } as unknown as WithDistance)}
+            />
+          ) : (
+          <>
+          {/* Las categorías con lo que hay: cada una filtra el inicio */}
           {cats.length ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rail} contentContainerStyle={styles.catsIn}>
               {cats.map((c) => (
                 <Pressable key={c.key} accessibilityRole="button" accessibilityLabel={`${c.label}, ${c.count} ${c.count === 1 ? 'negocio' : 'negocios'} cerca`} onPress={() => {
                     noteInterest('category', c.key);
-                    router.push({ pathname: '/map', params: { q: '', cat: c.ids, catName: c.label } });
+                    // Filtra el inicio por esa categoría (productos, servicios y negocios), sin ir al mapa.
+                    setSearchCat(c);
+                    setSearching(true);
                   }} style={({ pressed }) => [styles.cat, pressed && styles.pressed]}>
                   <CategoryIllustration k={c.key} size={34} />
                   <Text style={styles.catText}>{c.label}</Text>
@@ -473,8 +509,11 @@ export default function HomeScreen() {
               <Ionicons name="chevron-forward" size={18} color={colors.muted} />
             </Pressable>
           ) : null}
+          </>
+          )}
         </View>
 
+        {!searching ? (
         <View style={[styles.pad, styles.body]}>
           {/* Al bajar: solo novedades, lo que publicaron los negocios cerca */}
           {pins.length ? (
@@ -499,6 +538,7 @@ export default function HomeScreen() {
             </SystemSection>
           )}
         </View>
+        ) : null}
         <BusinessCardModal entity={card} onClose={() => setCard(null)} origin="home" />
       </ScrollView>
       {door ? (
