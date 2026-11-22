@@ -267,8 +267,9 @@ export default function ChatScreen() {
     const quiet = (q: PendingQuestion): AiRow => ({ id: `ai-q-${q.askedAt}`, created_at: q.anchor ?? new Date().toISOString(), ai: 'status', text: waitNotice(who, online, open) });
     for (const q of list) {
       const answerable = !q.answer.unanswered && q.intent !== 'unknown';
-      // Sin dato en las reglas ni en lo enseñado: Empre AI lee la ficha publicada del negocio, salvo un compromiso.
-      const fichable = !answerable && !q.commitment;
+      // Sin dato en las reglas ni en lo enseñado: responde el dueño. (Hasta 2026-11-22 Empre AI leía la ficha con IA;
+      // ahora la IA solo está en «Pregúntale a Empre».)
+      const fichable = false;
       const step = autoAnswerStep({
         answerable: answerable || fichable,
         intent: fichable ? `ficha|${q.id}` : answerKey(q.intent, q.serviceId, q.taughtId),

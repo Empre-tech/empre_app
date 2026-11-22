@@ -42,6 +42,9 @@ function unwrapList<T>(res: unknown): T[] {
   return [];
 }
 
+/** Empre AI ya no usa IA en el chat (2026-11-22): solo «Pregúntale a Empre». */
+const AI_OFF_IN_CHAT = 'Empre AI no usa IA en el chat';
+
 export const authApi = {
   login: (email: string, password: string) =>
     request<TokenPair>('/api/auth/login', { method: 'POST', body: { email, password }, auth: false }),
@@ -313,18 +316,19 @@ export const chatApi = {
 
   /** Empre AI no supo responder esta pregunta del cliente: el dueño la ve para enseñarle (3.62, F3). */
   /** F4: el servidor clasifica una pregunta que las reglas no entendieron (solo la intención, nunca una respuesta). */
-  classify: (entityId: string, text: string) => request<{ intent: string; answer_id?: string }>(`/api/chat/classify/${entityId}`, { method: 'POST', body: { text } }),
+  // 2026-11-22: sin IA en el chat, solo en «Pregúntale a Empre». Estas tres ya no llaman al servidor: fallan al
+  // momento y quien las usa sigue como antes sin IA (las reglas, lo que enseñó el dueño y, si no, el dueño responde).
+  classify: (_entityId: string, _text: string): Promise<{ intent: string; answer_id?: string }> => Promise.reject(new Error(AI_OFF_IN_CHAT)),
 
   /**
    * Nivel 3 (2026-11-14): Empre AI lee la ficha publicada del negocio. Si está, el servidor guarda la respuesta atada a
    * la pregunta y se la muestra al dueño; si no, `known: false` y Empre AI no aparece.
    */
-  aiFicha: (entityId: string, text: string, replyTo?: string) =>
-    request<{ known: boolean; message?: ChatMessage }>(`/api/chat/ai-ficha/${entityId}`, { method: 'POST', body: { text, ...(replyTo ? { reply_to: replyTo } : {}) } }),
+  aiFicha: (_entityId: string, _text: string, _replyTo?: string): Promise<{ known: boolean; message?: ChatMessage }> => Promise.reject(new Error(AI_OFF_IN_CHAT)),
 
   /** Lo mismo para «Pregúntales a los N»: una sola lectura de varias fichas; no guarda nada. */
-  fichaMany: (entityIds: string[], text: string) =>
-    request<{ answers?: { entity_id: string; known: boolean; text?: string; source?: string }[] }>(`/api/chat/ficha`, { method: 'POST', body: { entity_ids: entityIds, text } }),
+  fichaMany: (_entityIds: string[], _text: string): Promise<{ answers?: { entity_id: string; known: boolean; text?: string; source?: string }[] }> =>
+    Promise.reject(new Error(AI_OFF_IN_CHAT)),
 
   aiUnknown: (entityId: string, messageId: string) => request<void>(`/api/chat/ai-unknown/${entityId}`, { method: 'POST', body: { message_id: messageId } }),
 
