@@ -2,7 +2,7 @@ import { Ionicons } from '@/components/Icon';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Offer, OfferType, RepeatPolicy } from '@/api/types';
 import { catalogApi } from '@/api/catalog';
@@ -80,6 +80,9 @@ export default function NewOfferScreen() {
   const [appliedFrom, setAppliedFrom] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stepIdx, setStepIdx] = useState(0);
+  const [itemQuery, setItemQuery] = useState('');
+  const scrollRef = useRef<ScrollView>(null);
 
   const chosen = services.filter((s) => picked.includes(s.id));
   const specialValue = parsePriceInput(special);
@@ -200,76 +203,111 @@ export default function NewOfferScreen() {
     }
   };
 
-  return (
-    <View style={[styles.screen, { paddingTop: insets.top + spacing.md }]}>
-      <View style={styles.header}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={() => router.back()} style={styles.back}>
-          <Ionicons name="arrow-back" size={22} color={colors.ink} />
+  // Por pasos (2026-11-22), como crear un producto: qué y a qué precio, cuándo y cuántos, y revisar antes de publicar.
+  const steps = [
+    { key: 'que', title: 'Qué ofreces' },
+    { key: 'cuando', title: 'Cuándo y cuántos' },
+    { key: 'revisar', title: 'Revisar y publicar' },
+  ] as const;
+  const current = steps[stepIdx].key;
+  const goStep = (i: number) => {
+    setError(null);
+    setStepIdx(i);
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  };
+  const stepProblem = (k: (typeof steps)[number]['key']): string | null => {
+    if (k === 'que') {
+      if (!shownTitle) return useCatalog ? 'Elige qué va en la oferta o escribe un título' : 'Escribe un título';
+      if (useCatalog && specialValue === undefined) return 'El precio especial debe ser un número, por ejemplo 30.000';
+      if (useCatalog && preview.error) return preview.error;
+    }
+    if (k === 'cuando' && (!slots || slots <= 0)) return 'Cupos inválidos';
+    return null;
+  };
+  const nextStep = () => {
+    const p = stepProblem(current);
+    if (p) return setError(p);
+    goStep(stepIdx + 1);
+  };
+
+  // El catálogo: lo elegido primero y, con muchos, un buscador (sin tildes ni mayúsculas).
+  const fold = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const kindsHere = new Set(services.map((s) => s.kind ?? 'service'));
+  const catalogLabel = kindsHere.size > 1 ? 'Productos y servicios' : kindsHere.has('product') ? 'Productos' : 'Servicios';
+  const listed = [...chosen, ...services.filter((s) => !picked.includes(s.id) && (!itemQuery.trim() || fold(s.name).includes(fold(itemQuery.trim()))))];
+  const shownItems = itemQuery.trim() ? listed : listed.slice(0, Math.max(12, chosen.length));
+  const hiddenCount = services.length - picked.length - (shownItems.length - chosen.length);
+
+  const priceText = useCatalog
+    ? specialValue != null
+      ? `${formatPesos(specialValue)}${preview.reference ? ` (antes ${formatPesos(preview.reference)})` : ''}`
+      : 'Sin precio especial'
+    : price.trim() || 'Sin precio';
+  const summaryRows: { label: string; value: string; step: number }[] = [
+    ...(useCatalog ? [{ label: 'Incluye', value: chosenNames.join(', ') || 'Nada del catálogo', step: 0 }] : []),
+    { label: 'Precio', value: priceText, step: 0 },
+    { label: 'Título', value: shownTitle || 'Falta', step: 0 },
+    { label: 'Dura', value: `${offerTypeLabel(type)} · ${hours} h`, step: 1 },
+    { label: 'Cupos', value: `${slots}`, step: 1 },
+    { label: 'Condiciones', value: `${radiusM} m · ${repeat === 'daily' ? '1 al día por persona' : '1 por persona'}`, step: 1 },
+  ];
+
+  const stepQue = (
+    <>
+      {bestFull && !from ? (
+        <Pressable accessibilityRole="button" onPress={() => loadFrom(bestFull, `Cargamos «${bestFull.title}», tu oferta con más canjes.`)} style={styles.repeat}>
+          <Ionicons name="refresh" size={20} color={colors.primary} />
+          <View style={styles.repeatText}>
+            <Text style={styles.repeatTitle}>Repetir la que mejor funcionó</Text>
+            <Text style={styles.repeatSub} numberOfLines={2}>
+              {bestFull.title} · {best?.redeemed} canjes · {Math.round((best?.duration_minutes ?? 0) / 60)} h · {bestFull.total_slots} cupos
+            </Text>
+          </View>
         </Pressable>
-        <Text style={styles.title} accessibilityRole="header">
-          Nueva oferta
-        </Text>
-      </View>
-
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]} keyboardShouldPersistTaps="handled">
-        {bestFull && !from ? (
-          <Pressable accessibilityRole="button" onPress={() => loadFrom(bestFull, `Cargamos «${bestFull.title}», tu oferta con más canjes.`)} style={styles.repeat}>
-            <Ionicons name="refresh" size={20} color={colors.primary} />
-            <View style={styles.repeatText}>
-              <Text style={styles.repeatTitle}>Repetir la que mejor funcionó</Text>
-              <Text style={styles.repeatSub} numberOfLines={2}>
-                {bestFull.title} · {best?.redeemed} canjes · {Math.round((best?.duration_minutes ?? 0) / 60)} h · {bestFull.total_slots} cupos
-              </Text>
-            </View>
-          </Pressable>
-        ) : summary && !summary.enough && !from ? (
-          <View style={styles.firstOnes}>
-            <Text style={styles.firstTitle}>Primeras ofertas</Text>
-            <Text style={styles.firstText}>Cuando tengas algunas terminadas, aquí verás qué te funcionó mejor.</Text>
-          </View>
-        ) : null}
-        {applied ? (
-          <View style={styles.applied} accessibilityRole="alert">
-            <Text style={styles.appliedText}>✓ {applied} Revisa y ajusta lo que quieras.</Text>
-          </View>
-        ) : null}
-
-        {quiet || idle ? (
-          <View style={styles.ai}>
-            <View style={styles.aiHead}>
-              <EmpreSymbol product="ai" size={28} />
-              <Text style={styles.aiTitle}>Empre AI, con tus últimos 30 días</Text>
-            </View>
-            {idle ? (
-              <Pressable accessibilityRole="button" accessibilityLabel={`Agregar ${idle.line.name} a la oferta`} onPress={() => togglePick(idle.service!.id)} style={styles.aiRow}>
-                <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
-                  <Text style={styles.aiStrong}>{idle.line.name} está quieto</Text>
-                  <Text style={styles.aiSub}>{idle.line.text}. Una oferta puede moverlo.</Text>
-                </View>
-                <Text style={styles.aiAct}>Agregar</Text>
-              </Pressable>
-            ) : null}
-            {quiet ? <Text style={styles.aiSub}>Lo que menos te vende: {quiet}. Si quieres mover ese momento, publícala ese día; la oferta empieza al publicarla.</Text> : null}
-          </View>
-        ) : null}
-
-        <Text style={styles.label}>¿Cuánto dura?</Text>
-        <View style={styles.chips}>
-          {TYPES.map((t) => (
-            <Chip key={t} label={offerTypeLabel(t)} on={type === t} onPress={() => selectType(t)} />
-          ))}
+      ) : null}
+      {applied ? (
+        <View style={styles.applied} accessibilityRole="alert">
+          <Text style={styles.appliedText}>✓ {applied} Revisa y ajusta lo que quieras.</Text>
         </View>
+      ) : null}
 
+      {useCatalog ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>{`${catalogLabel} · hasta 5`}</Text>
+          {idle ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={`Agregar ${idle.line.name} a la oferta`} onPress={() => togglePick(idle.service!.id)} style={styles.aiInline}>
+              <EmpreSymbol product="ai" size={22} animated={false} />
+              <Text style={styles.aiInlineText}>
+                <Text style={styles.aiStrong}>{idle.line.name}</Text> está quieto: {idle.line.text.toLowerCase()}. Toca para agregarlo.
+              </Text>
+            </Pressable>
+          ) : null}
+          {services.length > 8 ? (
+            <View style={styles.search}>
+              <Ionicons name="search" size={18} color={colors.muted} />
+              <TextInput value={itemQuery} onChangeText={setItemQuery} placeholder={`Buscar en ${services.length}`} placeholderTextColor={colors.muted} style={styles.searchInput} accessibilityLabel="Buscar en el catálogo" />
+              {itemQuery ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Borrar la búsqueda" onPress={() => setItemQuery('')} hitSlop={8}>
+                  <Ionicons name="close-circle" size={18} color={colors.muted} />
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+          <View style={styles.chips}>
+            {shownItems.map((s) => (
+              <Chip key={s.id} label={s.name} on={picked.includes(s.id)} onPress={() => togglePick(s.id)} role="checkbox" />
+            ))}
+          </View>
+          {hiddenCount > 0 && !itemQuery.trim() ? <Text style={styles.note}>{`Y ${hiddenCount} más: búscalos arriba.`}</Text> : null}
+          {itemQuery.trim() && shownItems.length === chosen.length ? <Text style={styles.note}>{`Nada con «${itemQuery.trim()}».`}</Text> : null}
+          {preview.reference !== null ? <Text style={styles.note}>Precio habitual: {formatPesos(preview.reference)} (de tu catálogo; no cambia).</Text> : null}
+          {picked.length > 0 && preview.reference === null ? <Text style={styles.note}>Alguno no tiene precio habitual: la oferta se publica sin mostrar ahorro.</Text> : null}
+        </View>
+      ) : null}
+
+      <View style={styles.card}>
         {useCatalog ? (
           <>
-            <Text style={styles.label}>Servicios del catálogo (hasta 5)</Text>
-            <View style={styles.chips}>
-              {services.map((s) => (
-                <Chip key={s.id} label={s.name} on={picked.includes(s.id)} onPress={() => togglePick(s.id)} role="checkbox" />
-              ))}
-            </View>
-            {preview.reference !== null ? <Text style={styles.note}>Precio habitual: {formatPesos(preview.reference)} (de tu catálogo; no cambia).</Text> : null}
-            {picked.length > 0 && preview.reference === null ? <Text style={styles.note}>Algún servicio no tiene precio habitual: la oferta se publica sin mostrar ahorro.</Text> : null}
             <TextField label="Precio especial" placeholder={preview.reference ? formatPesos(Math.round((preview.reference * 0.7) / 1000) * 1000) : '30.000'} value={special} onChangeText={setSpecial} keyboardType="numeric" />
             {priceIdea ? (
               <Pressable accessibilityRole="button" accessibilityLabel={`Usar ${formatPesos(priceIdea)} como precio especial`} onPress={() => setSpecial(String(priceIdea))} style={styles.aiInline}>
@@ -290,11 +328,14 @@ export default function NewOfferScreen() {
           <>
             <TextField label="Precio especial" placeholder="$30.000" value={price} onChangeText={setPrice} keyboardType="numeric" />
             <TextField label="Precio habitual (opcional)" placeholder="$45.000" value={normalPrice} onChangeText={setNormalPrice} keyboardType="numeric" />
-            <Text style={styles.note}>Se verá en tu perfil (en el mapa no sale el precio). Con tus servicios en el catálogo, el precio habitual se pone solo.</Text>
+            <Text style={styles.note}>Se verá en tu perfil (en el mapa no sale el precio). Con tu catálogo, el precio habitual se pone solo.</Text>
           </>
         )}
+      </View>
 
-        <TextField label="Título" placeholder={chosen.map((s) => s.name).join(' + ') || 'Corte + barba'} value={title} onChangeText={setTitle} />
+      <View style={styles.card}>
+        <TextField label={useCatalog ? 'Título (opcional)' : 'Título'} placeholder={chosen.map((s) => s.name).join(' + ') || 'Corte + barba'} value={title} onChangeText={setTitle} />
+        {useCatalog && !title.trim() && chosen.length ? <Text style={styles.note}>Si lo dejas vacío, se llama como lo que elegiste.</Text> : null}
         {titleIdeas.length ? (
           <View style={styles.chips} accessibilityLabel="Títulos que sugiere Empre AI">
             {titleIdeas.map((t) => (
@@ -303,7 +344,27 @@ export default function NewOfferScreen() {
           </View>
         ) : null}
         <AIWritingAssist kind="offer_title" currentText={[title.trim() || chosenNames.join(' + '), specialValue ? `Precio especial: ${formatPesos(specialValue)}` : '', preview.reference ? `Precio habitual: ${formatPesos(preview.reference)}` : ''].filter(Boolean).join('. ')} onApply={setTitle} label="Redactar con Empre AI" entityId={entityId} fallback={offerTitleIdeas(chosenNames.length ? chosenNames : title.trim() ? [title.trim()] : [], specialValue, preview.reference)} />
+      </View>
+    </>
+  );
 
+  const stepCuando = (
+    <>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>¿Cuánto dura?</Text>
+        <View style={styles.chips}>
+          {TYPES.map((t) => (
+            <Chip key={t} label={offerTypeLabel(t)} on={type === t} onPress={() => selectType(t)} />
+          ))}
+        </View>
+        <Regulator label="Duración" value={hours} unit="h" min={type === 'HORAS' ? 1 : 8} max={type === 'HORAS' ? 12 : 24} onChange={setHours} />
+        <Text style={styles.note}>Empieza al publicarla y termina {type === 'HORAS' ? `en ${hours} h` : 'al final del tiempo elegido'}.</Text>
+        {hints.duration ? <HintView hint={hints.duration} /> : null}
+        {hints.band ? <HintView hint={hints.band} /> : null}
+        {quiet ? <HintView hint={{ text: `Empre AI: lo que menos te vende es ${quiet}. Si quieres mover ese momento, publícala entonces.`, warn: false }} /> : null}
+      </View>
+
+      <View style={styles.card}>
         <Regulator label="Cupos" value={slots} unit={slots === 1 ? 'cupo' : 'cupos'} min={1} max={500} onChange={setSlots} />
         {starSlots && starSlots !== slots ? (
           <Pressable accessibilityRole="button" onPress={() => setSlots(starSlots)} style={styles.bestLine}>
@@ -311,52 +372,98 @@ export default function NewOfferScreen() {
           </Pressable>
         ) : null}
         {hints.slots ? <HintView hint={hints.slots} /> : null}
+      </View>
 
-        <Regulator label="Duración" value={hours} unit="h" min={type === 'HORAS' ? 1 : 8} max={type === 'HORAS' ? 12 : 24} onChange={setHours} />
-        {hints.duration ? <HintView hint={hints.duration} /> : null}
-        {hints.band ? <HintView hint={hints.band} /> : null}
-
-        <View style={styles.fold}>
-          <Pressable accessibilityRole="button" accessibilityState={{ expanded: condOpen }} onPress={() => setCondOpen((v) => !v)} style={styles.foldHead}>
-            <Text style={styles.foldTitle}>
-              Condiciones · {radiusM} m · {repeat === 'daily' ? '1 al día por persona' : '1 por persona'}
-            </Text>
-            <Ionicons name={condOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
-          </Pressable>
-          {condOpen ? (
-            <View style={styles.foldBody}>
-              <View style={styles.row}>
-                <Text style={styles.rowLabel}>Distancia para reclamar</Text>
-                <View style={styles.stepper}>
-                  <Pressable accessibilityRole="button" accessibilityLabel="Menos distancia" onPress={() => setRadiusM((r) => Math.max(100, r - 100))} style={styles.stepBtn}>
-                    <Text style={styles.stepText}>−</Text>
-                  </Pressable>
-                  <Text style={styles.stepValue}>{radiusM} m</Text>
-                  <Pressable accessibilityRole="button" accessibilityLabel="Más distancia" onPress={() => setRadiusM((r) => Math.min(2000, r + 100))} style={styles.stepBtn}>
-                    <Text style={styles.stepText}>+</Text>
-                  </Pressable>
-                </View>
+      <View style={styles.fold}>
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: condOpen }} onPress={() => setCondOpen((v) => !v)} style={styles.foldHead}>
+          <Text style={styles.foldTitle}>
+            Condiciones · {radiusM} m · {repeat === 'daily' ? '1 al día por persona' : '1 por persona'}
+          </Text>
+          <Ionicons name={condOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
+        </Pressable>
+        {condOpen ? (
+          <View style={styles.foldBody}>
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>Distancia para reclamar</Text>
+              <View style={styles.stepper}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Menos distancia" onPress={() => setRadiusM((r) => Math.max(100, r - 100))} style={styles.stepBtn}>
+                  <Text style={styles.stepText}>−</Text>
+                </Pressable>
+                <Text style={styles.stepValue}>{radiusM} m</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="Más distancia" onPress={() => setRadiusM((r) => Math.min(2000, r + 100))} style={styles.stepBtn}>
+                  <Text style={styles.stepText}>+</Text>
+                </Pressable>
               </View>
-              <View style={styles.row}>
-                <Text style={styles.rowLabel}>Reclamos por persona</Text>
-                <View style={styles.chips}>
-                  <Chip label="Una vez" on={repeat === 'once'} onPress={() => setRepeat('once')} />
-                  <Chip label="Una al día" on={repeat === 'daily'} onPress={() => setRepeat('daily')} />
-                </View>
-              </View>
-              <Text style={styles.note}>Al reclamar, el cliente recibe un QR que sirve una sola vez.</Text>
             </View>
-          ) : null}
-        </View>
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>Reclamos por persona</Text>
+              <View style={styles.chips}>
+                <Chip label="Una vez" on={repeat === 'once'} onPress={() => setRepeat('once')} />
+                <Chip label="Una al día" on={repeat === 'daily'} onPress={() => setRepeat('daily')} />
+              </View>
+            </View>
+            <Text style={styles.note}>Al reclamar, el cliente recibe un QR que sirve una sola vez.</Text>
+          </View>
+        ) : null}
+      </View>
+    </>
+  );
 
-        <View style={styles.preview}>
-          <Text style={styles.previewLabel}>Así la verán en tu perfil</Text>
-          <OfferTicket offer={previewOffer} />
-        </View>
+  const stepRevisar = (
+    <>
+      <View style={styles.preview}>
+        <Text style={styles.previewLabel}>Así la verán en tu perfil</Text>
+        <OfferTicket offer={previewOffer} />
+      </View>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Revisa antes de publicar</Text>
+        {summaryRows.map((r, i) => (
+          <Pressable key={r.label} accessibilityRole="button" accessibilityLabel={`${r.label}: ${r.value}. Cambiar`} onPress={() => goStep(r.step)} style={[styles.sumRow, i > 0 && styles.sumLine]}>
+            <Text style={styles.sumLabel}>{r.label}</Text>
+            <Text style={styles.sumValue} numberOfLines={2}>
+              {r.value}
+            </Text>
+            <Text style={styles.sumLink}>Cambiar</Text>
+          </Pressable>
+        ))}
+      </View>
+    </>
+  );
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        <Button title="Publicar oferta" onPress={onSubmit} loading={loading} disabled={Boolean(useCatalog && preview.error)} />
+  return (
+    <View style={[styles.screen, { paddingTop: insets.top + spacing.md }]}>
+      <View style={styles.header}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Volver" onPress={() => (stepIdx > 0 ? goStep(stepIdx - 1) : router.back())} style={styles.back}>
+          <Ionicons name="arrow-back" size={22} color={colors.ink} />
+        </Pressable>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title} accessibilityRole="header">
+            Nueva oferta
+          </Text>
+          <Text style={styles.stepLine}>{`Paso ${stepIdx + 1} de ${steps.length} · ${steps[stepIdx].title}`}</Text>
+        </View>
+      </View>
+      <View style={styles.progress} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        {steps.map((x, i) => (
+          <View key={x.key} style={[styles.progressBit, i <= stepIdx && styles.progressOn]} />
+        ))}
+      </View>
+
+      <ScrollView ref={scrollRef} contentContainerStyle={[styles.content, { paddingBottom: spacing.xl }]} keyboardShouldPersistTaps="handled">
+        {current === 'que' ? stepQue : current === 'cuando' ? stepCuando : stepRevisar}
       </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <View style={styles.footRow}>
+          {stepIdx > 0 ? <Button title="Atrás" variant="secondary" onPress={() => goStep(stepIdx - 1)} style={{ flex: 1 }} /> : null}
+          {current === 'revisar' ? (
+            <Button title="Publicar oferta" onPress={onSubmit} loading={loading} disabled={Boolean(useCatalog && preview.error)} style={{ flex: 2 }} />
+          ) : (
+            <Button title="Siguiente" onPress={nextStep} style={{ flex: 2 }} />
+          )}
+        </View>
+      </View>
     </View>
   );
 }
@@ -472,9 +579,21 @@ const styles = StyleSheet.create({
   repeatText: { flex: 1 },
   repeatTitle: { fontSize: 14, fontFamily: fonts.display.bold, color: colors.ink },
   repeatSub: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.primaryDark },
-  firstOnes: { gap: 4, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.line, backgroundColor: colors.surface },
-  firstTitle: { fontSize: 14, fontFamily: fonts.display.bold, color: colors.ink },
-  firstText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
+  card: { gap: spacing.md, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  cardTitle: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.muted, letterSpacing: 0.5, textTransform: 'uppercase' },
+  search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 46, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
+  searchInput: { flex: 1, minHeight: 44, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink },
+  stepLine: { fontSize: 12.5, fontFamily: fonts.ui.semibold, color: colors.muted },
+  progress: { flexDirection: 'row', gap: 4, paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  progressBit: { flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.line },
+  progressOn: { backgroundColor: colors.primary },
+  sumRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, paddingVertical: 6 },
+  sumLine: { borderTopWidth: 1, borderTopColor: colors.line },
+  sumLabel: { width: 92, fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
+  sumValue: { flex: 1, fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  sumLink: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
+  footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
+  footRow: { flexDirection: 'row', gap: spacing.sm },
   applied: { padding: spacing.sm, borderRadius: radius.sm, backgroundColor: '#FEF3E9' },
   appliedText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#A35C13' },
   fold: { borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
