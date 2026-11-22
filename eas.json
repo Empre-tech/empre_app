@@ -10,7 +10,11 @@
       "android": {
         "buildType": "apk"
       },
-      "environment": "development"
+      "environment": "development",
+      "env": {
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "610757440726-alpf1ein951vs9tqkek01lnb905mbbi3.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "610757440726-huba2mai3bqoaksnjnj4s38lqp6kttik.apps.googleusercontent.com"
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -21,14 +25,18 @@
         "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.empre.com.co"
+        "EXPO_PUBLIC_API_URL": "https://api.empre.com.co",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "610757440726-alpf1ein951vs9tqkek01lnb905mbbi3.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "610757440726-huba2mai3bqoaksnjnj4s38lqp6kttik.apps.googleusercontent.com"
       },
       "environment": "preview"
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.empre.com.co"
+        "EXPO_PUBLIC_API_URL": "https://api.empre.com.co",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "610757440726-alpf1ein951vs9tqkek01lnb905mbbi3.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "610757440726-huba2mai3bqoaksnjnj4s38lqp6kttik.apps.googleusercontent.com"
       },
       "environment": "production"
     }

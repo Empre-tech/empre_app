@@ -12,6 +12,7 @@ import { authApi, usersApi } from '@/api/endpoints';
 import { ApiError, setSessionHandlers, setSessionTokens } from '@/api/client';
 import type { RegisterInput, User } from '@/api/types';
 import { getRegisteredPushToken, setRegisteredPushToken } from '@/notifications/pushTokenStore';
+import { googleSignOut } from './google';
 import { clearTokens, loadTokens, saveTokens } from './storage';
 
 type Status = 'loading' | 'signedOut' | 'signedIn';
@@ -20,6 +21,8 @@ interface AuthContextValue {
   status: Status;
   user: User | null;
   signIn: (email: string, password: string) => Promise<void>;
+  /** Entra (o crea la cuenta) con el id_token de «Continuar con Google». */
+  signInWithGoogle: (idToken: string) => Promise<void>;
   signUp: (input: RegisterInput) => Promise<void>;
   signOut: () => Promise<void>;
   /** Vuelve a pedir los datos del usuario (p. ej. tras cambiar la foto de perfil). */
@@ -49,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setSessionTokens(null);
     await clearTokens();
+    void googleSignOut();
     queryClient.clear();
     setUser(null);
     setStatus('signedOut');
@@ -95,8 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [signOut]);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    const tokens = await authApi.login(email.trim(), password);
+  const startSession = useCallback(async (tokens: Awaited<ReturnType<typeof authApi.login>>) => {
     setSessionTokens(tokens);
     try {
       const me = await usersApi.me();
@@ -108,6 +111,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw error;
     }
   }, []);
+
+  const signIn = useCallback(
+    async (email: string, password: string) => startSession(await authApi.login(email.trim(), password)),
+    [startSession],
+  );
+
+  const signInWithGoogle = useCallback(
+    async (idToken: string) => startSession(await authApi.google(idToken)),
+    [startSession],
+  );
 
   const signUp = useCallback(
     async (input: RegisterInput) => {
@@ -127,8 +140,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ status, user, signIn, signUp, signOut, refreshUser }),
-    [status, user, signIn, signUp, signOut, refreshUser],
+    () => ({ status, user, signIn, signInWithGoogle, signUp, signOut, refreshUser }),
+    [status, user, signIn, signInWithGoogle, signUp, signOut, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

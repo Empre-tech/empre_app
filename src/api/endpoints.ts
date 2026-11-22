@@ -46,6 +46,10 @@ export const authApi = {
   login: (email: string, password: string) =>
     request<TokenPair>('/api/auth/login', { method: 'POST', body: { email, password }, auth: false }),
 
+  /** «Continuar con Google»: el backend verifica el id_token y devuelve la misma sesión que el login. */
+  google: (idToken: string) =>
+    request<TokenPair>('/api/auth/google', { method: 'POST', body: { id_token: idToken }, auth: false }),
+
   register: (input: RegisterInput) =>
     request<{ message: string }>('/api/auth/register', { method: 'POST', body: input, auth: false }),
 

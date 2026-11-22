@@ -15,13 +15,15 @@ import { colors, fonts } from '@/theme';
  */
 export default function DeleteAccountScreen() {
   const router = useRouter();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
+  // Las cuentas creadas con Google no tienen contraseña: basta con confirmar.
+  const needsPassword = user?.has_password !== false;
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const onDelete = async () => {
-    if (!password.trim()) {
+    if (needsPassword && !password.trim()) {
       setError('Escribe tu contraseña para confirmar.');
       return;
     }
@@ -55,19 +57,23 @@ export default function DeleteAccountScreen() {
         <Text style={styles.item}>• Los mensajes y reseñas que escribiste quedan como «Usuario eliminado».</Text>
         <Text style={styles.item}>• Si tienes Empre Pro pagado, el tiempo que te queda se pierde.</Text>
       </View>
-      <TextField
-        label="Tu contraseña"
-        value={password}
-        onChangeText={(t) => {
-          setPassword(t);
-          setError(null);
-        }}
-        secureTextEntry
-        autoComplete="current-password"
-        error={error ?? undefined}
-        returnKeyType="done"
-        onSubmitEditing={() => void onDelete()}
-      />
+      {needsPassword ? (
+        <TextField
+          label="Tu contraseña"
+          value={password}
+          onChangeText={(t) => {
+            setPassword(t);
+            setError(null);
+          }}
+          secureTextEntry
+          autoComplete="current-password"
+          error={error ?? undefined}
+          returnKeyType="done"
+          onSubmitEditing={() => void onDelete()}
+        />
+      ) : error ? (
+        <Text style={styles.error}>{error}</Text>
+      ) : null}
       <Button title="Eliminar mi cuenta para siempre" onPress={() => void onDelete()} loading={loading} />
       <Button title="Cancelar" variant="ghost" onPress={() => router.back()} disabled={loading} />
     </AuthLayout>
@@ -82,6 +88,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primarySoft,
     marginBottom: 8,
   },
+  error: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.danger },
   item: {
     fontSize: 14,
     lineHeight: 20,

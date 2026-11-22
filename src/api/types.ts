@@ -16,6 +16,8 @@ export interface User {
   phone?: string;
   profile_picture_url: string;
   role: Role;
+  /** false si la cuenta entra solo con Google (no tiene contraseña). */
+  has_password?: boolean;
 }
 
 export interface RegisterInput {

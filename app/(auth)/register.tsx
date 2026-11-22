@@ -5,6 +5,7 @@ import { ApiError } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext';
 import { AuthLayout } from '@/components/AuthLayout';
 import { Button } from '@/components/Button';
+import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 import { TextField } from '@/components/TextField';
 import { finishAuth } from '@/lib/navigation';
 import { colors, fonts, spacing } from '@/theme';
@@ -90,6 +91,7 @@ export default function RegisterScreen() {
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Button title="Crear cuenta" onPress={onSubmit} loading={loading} />
+      <GoogleSignInButton onError={setError} />
       <View style={styles.links}>
         <Button title="Ya tengo cuenta" variant="secondary" onPress={() => router.replace('/(auth)/login')} />
       </View>

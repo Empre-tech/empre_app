@@ -31,6 +31,17 @@ if (easProfile && easProfile !== 'development' && !mapsKey) {
   );
 }
 
+// Login con Google (opcional, como el dictado): el plugin registra en iOS el esquema que usa el cliente iOS de
+// OAuth. Sin el paquete instalado la app compila igual y el botón «Continuar con Google» no aparece.
+const GOOGLE_IOS_URL_SCHEME = 'com.googleusercontent.apps.610757440726-huba2mai3bqoaksnjnj4s38lqp6kttik';
+const googlePlugin: NonNullable<ExpoConfig['plugins']> = [];
+try {
+  (require as unknown as { resolve: (id: string) => string }).resolve('@react-native-google-signin/google-signin');
+  googlePlugin.push(['@react-native-google-signin/google-signin', { iosUrlScheme: GOOGLE_IOS_URL_SCHEME }]);
+} catch {
+  // sin el paquete: sin plugin
+}
+
 const config: ExpoConfig = {
   name: 'Empre',
   slug: 'empre',
@@ -104,6 +115,7 @@ const config: ExpoConfig = {
       },
     ],
     ...speechPlugin,
+    ...googlePlugin,
   ],
 };
 
