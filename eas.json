@@ -16,6 +16,12 @@
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "610757440726-huba2mai3bqoaksnjnj4s38lqp6kttik.apps.googleusercontent.com"
       }
     },
+    "development-simulator": {
+      "extends": "development",
+      "ios": {
+        "simulator": true
+      }
+    },
     "preview": {
       "distribution": "internal",
       "android": {
