@@ -8,10 +8,13 @@ import { ledgerApi } from '@/api/ledger';
 import { Button } from '@/components/Button';
 import type { SectionPick } from '@/api/sections';
 import { SectionChooser } from '@/components/catalog/SectionChooser';
+import { EXACT_IS_PRO } from '@/components/inventory/TrackModeChips';
 import { Chip } from '@/components/ledger/parts';
+import { LOCKED_OPACITY, ProTag } from '@/components/pro/ProTag';
 import { fmtQty, normalize } from '@/lib/inventory';
 import { newClientId } from '@/lib/ledger';
 import { cleanLabel } from '@/lib/supplies';
+import { useEntityPlan } from '@/lib/useProPlan';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const UNITS = [
@@ -45,6 +48,9 @@ function Body({ entityId, existing, initialSection, onClose, onAdded }: Props) {
   const [name, setName] = useState('');
   const [section, setSection] = useState<SectionPick | null>(initialSection ?? null);
   const [mode, setMode] = useState<'light' | 'exact'>('light');
+  // Contar cuánto hay es de Empre Pro: en Base, «Cuento» se ve en gris con la corona.
+  const plan = useEntityPlan(entityId);
+  const [proNote, setProNote] = useState(false);
   const [qty, setQty] = useState('');
   const [unit, setUnit] = useState('unidad');
   const [error, setError] = useState<string | null>(null);
@@ -127,13 +133,27 @@ function Body({ entityId, existing, initialSection, onClose, onAdded }: Props) {
                     ['light', 'Semáforo', 'hay · poco · no'],
                     ['exact', 'Cuento', 'cuánto hay'],
                   ] as const
-                ).map(([k, label, hint]) => (
-                  <Pressable key={k} accessibilityRole="radio" accessibilityState={{ checked: mode === k }} onPress={() => setMode(k)} style={[styles.segBtn, mode === k && styles.segOn]}>
-                    <Text style={[styles.segText, mode === k && styles.segTextOn]}>{label}</Text>
-                    <Text style={styles.segHint}>{hint}</Text>
-                  </Pressable>
-                ))}
+                ).map(([k, label, hint]) => {
+                  const locked = k === 'exact' && plan.base;
+                  return (
+                    <Pressable
+                      key={k}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: mode === k }}
+                      accessibilityLabel={locked ? `${label}. Es de Empre Pro` : undefined}
+                      onPress={() => (locked ? setProNote(true) : setMode(k))}
+                      style={[styles.segBtn, mode === k && styles.segOn]}
+                    >
+                      <View style={{ alignItems: 'center', opacity: locked ? LOCKED_OPACITY : 1 }}>
+                        <Text style={[styles.segText, mode === k && styles.segTextOn]}>{label}</Text>
+                        <Text style={styles.segHint}>{hint}</Text>
+                      </View>
+                      {locked ? <ProTag /> : null}
+                    </Pressable>
+                  );
+                })}
               </View>
+              {proNote ? <Text style={styles.meta}>{EXACT_IS_PRO}</Text> : null}
               {mode === 'exact' ? (
                 <>
                   <View style={styles.wrap}>

@@ -24,7 +24,6 @@ import { FEATURES } from '@/config';
 import { catalogCopy, priceNote, priceText, type ItemKind, type ServiceItem } from '@/lib/catalog';
 import { fmtQty, missingIngredients, recommendationText, stockPill, unitFor, variantPill, type PillTone } from '@/lib/inventory';
 import { addDays, todayCO } from '@/lib/finance';
-import { FEW_BUSINESSES } from '@/lib/fewBusinesses';
 import { formatPesos } from '@/lib/ledger';
 import { getPhoneFlag, setPhoneFlag } from '@/lib/phoneFlags';
 import { countDraftKey, countedAgo, readDraft, staleSection, type CountDraft } from '@/lib/inventoryCount';
@@ -67,7 +66,7 @@ const unitShort = (u?: string) => (!u || u === 'unidad' ? 'und' : u);
  * Inventario (tablero «Inventario», 2026-11-16): productos, servicios e insumos como un catálogo, cada uno en su
  * pestaña con su número. Una barra: buscar y un solo filtro (cómo están, sección y orden), que se resuelven en el
  * servidor por páginas de 50; la lista dibuja solo lo que se ve y las variantes van plegadas dentro de su producto.
- * Con pocos (menos de 8) no hay barra: todo se ve de una vez. Empre AI va en su propia entrada (es de pago, nunca dentro
+ * Siempre por secciones plegadas (aunque sean pocos): se abre la que tocas. Empre AI va en su propia entrada (es de pago, nunca dentro
  * del buscador ni del filtro). Abajo, crear lo de la pestaña: producto, servicio o insumo.
  */
 export default function InventoryScreen() {
@@ -94,8 +93,8 @@ export default function InventoryScreen() {
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
   const [state, setState] = useState<InventoryState | undefined>();
-  // La sección abierta, una a la vez. Sin tocar: la primera; null: todas plegadas.
-  const [openPick, setOpenPick] = useState<string | null | undefined>(undefined);
+  // La sección abierta, una a la vez. Al entrar, todas plegadas (null).
+  const [openPick, setOpenPick] = useState<string | null>(null);
   const [sort, setSort] = useState<InventorySort | undefined>();
   // La sección elegida en el filtro (solo cuando son muchas): la lista sale corrida, solo con esa.
   const [filterSection, setFilterSection] = useState<string | undefined>();
@@ -117,12 +116,10 @@ export default function InventoryScreen() {
   const meta = TABS.find((t) => t.key === tab) ?? TABS[0];
   const tc: InventoryTabCounts | undefined = counts.data?.[meta.counts];
   const tabTotal = tc?.total;
-  // Pocos: sin barra ni filtro, todo de una vez y cada uno una vez (como Inicio con pocos negocios).
-  const few = tc ? tc.total < FEW_BUSINESSES && !q && !state : false;
   // Con tu orden y sin buscar ni filtrar, la lista es el índice: las secciones se pliegan y solo se pide la abierta.
   // Buscando, filtrando u ordenando, la lista sale corrida, de todas las secciones.
-  const grouped = Boolean(tc && tc.sections.length > 0) && !few && !sort && !q && !state && !filterSection;
-  const openSection = openPick === undefined ? tc?.sections[0]?.name : (openPick ?? undefined);
+  const grouped = Boolean(tc && tc.sections.length > 0) && !sort && !q && !state && !filterSection;
+  const openSection = openPick ?? undefined;
   const section = grouped ? openSection : filterSection;
   const pages = useInfiniteQuery({
     queryKey: pageKey(entityId, tab, q, section, state, sort),
@@ -143,11 +140,12 @@ export default function InventoryScreen() {
     for (const t of TABS) {
       const c = counts.data[t.counts];
       if (c.total === 0) continue;
-      // Lo que se ve al entrar a esa pestaña: su primera sección abierta (o todo, si son pocos).
-      const sec = c.total >= FEW_BUSINESSES ? c.sections[0]?.name : undefined;
+      // Al entrar a esa pestaña las secciones salen plegadas: solo se pide antes la lista corrida de una pestaña sin
+      // secciones.
+      if (c.sections.length > 0) continue;
       void qc.prefetchInfiniteQuery({
-        queryKey: pageKey(entityId, t.key, '', sec),
-        queryFn: ({ pageParam }) => ledgerApi.inventoryPage(entityId, { tab: t.key, section: sec, cursor: pageParam, limit: PAGE }),
+        queryKey: pageKey(entityId, t.key, ''),
+        queryFn: ({ pageParam }) => ledgerApi.inventoryPage(entityId, { tab: t.key, cursor: pageParam, limit: PAGE }),
         initialPageParam: undefined as string | undefined,
         staleTime: 30_000,
       });
@@ -326,7 +324,7 @@ export default function InventoryScreen() {
   const pickTab = (t: InventoryTab) => {
     setPickedTab(t);
     setState(undefined);
-    setOpenPick(undefined);
+    setOpenPick(null);
     setFilterSection(undefined);
     setSort(undefined);
     setSearch('');
@@ -426,19 +424,9 @@ export default function InventoryScreen() {
             <Button title="Sí, empezar" loading={setup.isPending} onPress={() => setup.mutate('recommended')} style={{ flex: 1 }} />
             <Button title="Más simple" variant="secondary" disabled={setup.isPending} onPress={() => setup.mutate('simple')} style={{ flex: 1 }} />
           </View>
-          <Pressable accessibilityRole="button" onPress={() => setup.mutate('none')} style={styles.linkRow}>
-            <Text style={styles.link}>No quiero llevar inventario</Text>
-          </Pressable>
         </View>
       ) : null}
-      {!grouped && !few && (q || state) && rows.length > 0 ? <Text style={styles.meta}>{flatLine}</Text> : null}
-      {few && rows.length > 0 ? (
-        <Text style={styles.meta}>
-          {tab === 'supply'
-            ? `Lo que gastas para atender o preparar; tus clientes no lo ven. Con menos de ${FEW_BUSINESSES}, todo se ve de una vez.`
-            : `Con menos de ${FEW_BUSINESSES} no hace falta buscar ni filtrar: todo se ve de una vez.`}
-        </Text>
-      ) : null}
+      {!grouped && (q || state) && rows.length > 0 ? <Text style={styles.meta}>{flatLine}</Text> : null}
     </View>
   );
 
@@ -490,7 +478,7 @@ export default function InventoryScreen() {
             );
           })}
         </View>
-        {tc && !few ? (
+        {tc ? (
           <View style={styles.bar}>
             <View style={styles.search}>
               <Ionicons name="search" size={18} color={colors.muted} />
@@ -615,7 +603,7 @@ export default function InventoryScreen() {
           const open = expanded[i.ref] ?? Boolean(q);
           const supplyRow = tab === 'supply';
           return (
-            <View style={few ? [styles.fewCard, index === 0 && styles.fewFirst, index === s.data.length - 1 && styles.fewLast] : undefined}>
+            <View>
               <ItemRow
                 item={i}
                 first={firstRow}
@@ -1028,9 +1016,6 @@ const styles = StyleSheet.create({
   moreBtn: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderTopWidth: 1, borderTopColor: colors.line },
   moreText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink, textDecorationLine: 'underline' },
   // Con pocos, la lista va en una sola tarjeta (tablero, teléfono 5).
-  fewCard: { paddingHorizontal: spacing.md, borderLeftWidth: 1, borderRightWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
-  fewFirst: { borderTopWidth: 1, borderTopLeftRadius: 18, borderTopRightRadius: 18 },
-  fewLast: { borderBottomWidth: 1, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 },
   createBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: spacing.md, paddingHorizontal: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg },
   findSec: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.well, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink },
   fChip: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },

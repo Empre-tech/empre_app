@@ -3,13 +3,14 @@ import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TrackModeChips } from '@/components/inventory/TrackModeChips';
 import { ledgerApi, type AdjustReason, type InventoryItem, type StockLevel, type StockMode } from '@/api/ledger';
 import { Button } from '@/components/Button';
 import { EmpreSymbol } from '@/components/EmpreSymbol';
 import type { SectionPick } from '@/api/sections';
 import { SectionChooser } from '@/components/catalog/SectionChooser';
 import { Chip } from '@/components/ledger/parts';
-import { fmtQty, MODE_LABEL } from '@/lib/inventory';
+import { fmtQty } from '@/lib/inventory';
 import { newClientId } from '@/lib/ledger';
 import { colors, fonts, radius, spacing } from '@/theme';
 
@@ -207,11 +208,7 @@ function SheetBody({ entityId, item, onClose, onChanged, onOpenDetail }: Props &
           ) : (
             <Text style={styles.metaSmall}>Cómo lo controlas</Text>
           )}
-          <View style={styles.wrap}>
-            {(['light', 'exact', 'none'] as const).map((m) => (
-              <Chip key={m} label={MODE_LABEL[m]} selected={item.mode === m} onPress={() => mode.mutate(m)} />
-            ))}
-          </View>
+          <TrackModeChips entityId={entityId} value={item.mode} onPick={(m) => mode.mutate(m)} />
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 

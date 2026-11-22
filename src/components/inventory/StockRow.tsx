@@ -5,7 +5,8 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ledgerApi, type AdjustReason, type InventoryItem, type StockLevel, type StockMode } from '@/api/ledger';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/ledger/parts';
-import { fmtQty, itemLine, missingIngredients, MODE_LABEL } from '@/lib/inventory';
+import { TrackModeChips } from '@/components/inventory/TrackModeChips';
+import { fmtQty, itemLine, missingIngredients } from '@/lib/inventory';
 import { formatPesos, newClientId } from '@/lib/ledger';
 import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 
@@ -95,11 +96,7 @@ export function StockRow({ entityId, item, onChanged, onError, onEdit, onRetire 
           ) : (
             <Text style={styles.meta}>Cómo lo controlas</Text>
           )}
-          <View style={styles.wrap}>
-            {(['light', 'exact', 'none'] as const).map((m) => (
-              <Chip key={m} label={MODE_LABEL[m]} selected={item.mode === m} onPress={() => mode.mutate(m)} />
-            ))}
-          </View>
+          <TrackModeChips entityId={entityId} value={item.mode} onPick={(m) => mode.mutate(m)} />
           <View style={styles.countRow}>
             <Text style={styles.meta}>Viene en pacas de</Text>
             <TextInput
