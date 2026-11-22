@@ -12,6 +12,7 @@ import { loadSavedClaims } from '@/claims/claimStore';
 import { Avatar } from '@/components/Avatar';
 import { EmptyState } from '@/components/EmptyState';
 import { SignInPrompt } from '@/components/SignInPrompt';
+import { FEATURES } from '@/config';
 import { formatWhen, STATUS_LABEL } from '@/lib/agendaFormat';
 import { claimDate, effectiveClaimStatus, mergeClaims, savedIn } from '@/lib/claims';
 import { formatPesos } from '@/lib/ledger';
@@ -126,10 +127,12 @@ export default function SalidasScreen() {
         <Text style={styles.title} accessibilityRole="header">
           Mis salidas
         </Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Armar una vuelta por el barrio" onPress={() => router.push('/vuelta')} style={styles.vuelta}>
-          <Ionicons name="walk-outline" size={16} color={colors.ink} />
-          <Text style={styles.vueltaText}>Armar una vuelta</Text>
-        </Pressable>
+        {FEATURES.vuelta ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Armar una vuelta por el barrio" onPress={() => router.push('/vuelta')} style={styles.vuelta}>
+            <Ionicons name="walk-outline" size={16} color={colors.ink} />
+            <Text style={styles.vueltaText}>Armar una vuelta</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {savedMonth > 0 ? (

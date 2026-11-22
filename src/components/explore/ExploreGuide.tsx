@@ -44,7 +44,8 @@ export function ExploreGuide({ step, rects, size, onStep }: Props) {
   const last = step === GUIDE_STEPS.length - 1;
 
   return (
-    <View style={StyleSheet.absoluteFill} accessibilityViewIsModal>
+    // Encima de todo, también de la barra de búsqueda (que tiene zIndex y sombra propios).
+    <View style={[StyleSheet.absoluteFill, styles.layer]} accessibilityViewIsModal>
       {/* Cuatro bandas oscuras alrededor del hueco. */}
       <View style={[styles.shade, { left: 0, right: 0, top: 0, height: hole.y }]} />
       <View style={[styles.shade, { left: 0, right: 0, top: hole.y + hole.height, bottom: 0 }]} />
@@ -72,6 +73,7 @@ export function ExploreGuide({ step, rects, size, onStep }: Props) {
 }
 
 const styles = StyleSheet.create({
+  layer: { zIndex: 50, elevation: 50 },
   shade: { position: 'absolute', backgroundColor: SHADE },
   ring: { position: 'absolute', borderRadius: radius.lg, borderWidth: 2, borderColor: '#fff' },
   tip: { position: 'absolute', left: spacing.lg, right: spacing.lg, padding: spacing.lg, gap: spacing.sm, borderRadius: radius.lg, backgroundColor: colors.surface, ...shadow },

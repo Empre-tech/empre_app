@@ -60,6 +60,8 @@ export const FEATURES = {
   ledger: true,
   /** Cuentas abiertas (mesas, clientes que pagan al final): construidas pero apagadas por ahora. */
   tabs: false,
+  /** «Armar una vuelta» por el barrio: construida, pero fuera de la app por ahora (2026-11-22). */
+  vuelta: false,
 } as const;
 
 /** Máximo de caracteres de un mensaje de chat (el backend rechaza los más largos). */

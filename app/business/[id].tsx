@@ -49,6 +49,7 @@ import { getPhoneFlag, setPhoneFlag } from '@/lib/phoneFlags';
 import { LatestStrip } from '@/components/profile/LatestStrip';
 import { ProfileHero } from '@/components/profile/ProfileHero';
 import { Protagonist } from '@/components/profile/Protagonist';
+import { InicioSummary } from '@/components/profile/InicioSummary';
 import { businessFamily } from '@/lib/family';
 import { SectionHeader } from '@/components/profile/SectionHeader';
 import { Recommendations } from '@/components/profile/Recommendations';
@@ -720,7 +721,23 @@ export default function BusinessScreen() {
               ) : null}
               {/* Con cita, las horas libres ya están arriba: la franja de la agenda sobra. */}
               {FEATURES.agenda && !isOwner && family !== 'cita' ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
-              {(['offers', 'latest', 'recs'] as BlockId[]).filter((b) => blockOrder({ isOwner }).includes(b)).map(block)}
+              {(['offers', 'latest'] as BlockId[]).filter((b) => blockOrder({ isOwner }).includes(b)).map(block)}
+              {/* El resumen de los apartados: Inicio nunca sale vacío (2026-11-22). */}
+              <InicioSummary
+                items={publicItems}
+                status={statusInfo}
+                location={location}
+                rating={rating}
+                isOwner={isOwner}
+                hasOffers={offerCount > 0}
+                hasPhotos={photos.length > 0}
+                onCatalog={() => setSection('catalogo')}
+                onInfo={() => setSection('info')}
+                onReviews={() => setSection('resenas')}
+                onNewOffer={isOwner ? () => router.push({ pathname: '/business/offers/new', params: { entityId: business.id } }) : undefined}
+                onPhotos={isOwner ? () => router.push({ pathname: '/business/my-photos/[id]', params: { id: business.id } }) : undefined}
+              />
+              {(['recs'] as BlockId[]).filter((b) => blockOrder({ isOwner }).includes(b)).map(block)}
             </>
           ) : current === 'catalogo' ? (
             catalogBlock

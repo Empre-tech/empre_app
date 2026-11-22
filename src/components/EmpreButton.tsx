@@ -260,7 +260,7 @@ export function EmpreButton({
     : [
         ...(signedIn
           ? [
-              { key: 'vuelta', title: 'Armar una vuelta', icon: 'walk-outline' as IconName, tone: 'plain' as const, go: () => router.push('/vuelta') },
+              ...(FEATURES.vuelta ? [{ key: 'vuelta', title: 'Armar una vuelta', icon: 'walk-outline' as IconName, tone: 'plain' as const, go: () => router.push('/vuelta') }] : []),
               { key: 'salidas', title: 'Mis salidas', icon: 'ticket-outline' as IconName, tone: 'plain' as const, go: () => router.push('/salidas') },
               { key: 'citas', title: 'Mis citas', icon: 'calendar-outline' as IconName, tone: 'plain' as const, go: () => router.push('/appointments') },
               { key: 'saved', title: 'Guardados', icon: 'bookmark-outline' as IconName, tone: 'plain' as const, go: () => router.push('/favorites') },
