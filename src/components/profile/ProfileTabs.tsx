@@ -36,6 +36,8 @@ interface Props {
   /** Solo el dueño: sumar un ítem o arreglar uno sin foto. */
   onAddItem?: (kind: 'service' | 'product') => void;
   onEditItem?: (item: ServiceItem) => void;
+  /** Solo estas pestañas (el apartado Catálogo muestra Productos y Servicios; el de Fotos, solo las fotos). */
+  only?: ProfileTabId[];
 }
 
 /**
@@ -43,7 +45,7 @@ interface Props {
  * cuadrícula de tres. Solo salen las pestañas que tienen algo; con una sola, no hay barra. Fotos es su trayectoria:
  * círculos para cada momento y la cuadrícula por mes (este año) o por año, lo más nuevo arriba.
  */
-export function ProfileTabs({ items, photos, copy, isOwner, loading, tab, onTab, onOpenItem, onOpenPhoto, onSearch, onAllPhotos, onAddItem, onEditItem }: Props) {
+export function ProfileTabs({ items, photos, copy, isOwner, loading, tab, onTab, onOpenItem, onOpenPhoto, onSearch, onAllPhotos, onAddItem, onEditItem, only }: Props) {
   const { width } = useWindowDimensions();
   const cell = (width - SIDE * 2 - GAP * 2) / 3;
   if (loading) {
@@ -64,7 +66,7 @@ export function ProfileTabs({ items, photos, copy, isOwner, loading, tab, onTab,
   }
   const services = items.filter((it) => itemTab(it, copy.kind) === 'services');
   const products = items.filter((it) => itemTab(it, copy.kind) === 'products');
-  const tabs = profileTabs({ services: services.length, products: products.length, photos: photos.length, noun: copy.noun, sells: copy.kind });
+  const tabs = profileTabs({ services: services.length, products: products.length, photos: photos.length, noun: copy.noun, sells: copy.kind }).filter((t) => !only || only.includes(t.id));
   if (!tabs.length) return null;
   const active = tabs.find((t) => t.id === tab)?.id ?? tabs[0].id;
   const iconOf = (id: ProfileTabId): IconName => (id === 'photos' ? 'grid-outline' : id === 'services' ? 'today-outline' : copy.kind === 'food' ? 'restaurant-outline' : 'bag-handle-outline');

@@ -35,3 +35,14 @@ test('photoPeriods: este año por mes, los anteriores por año, lo más nuevo ar
   );
   assert.equal(p[0].items[0].index, 3);
 });
+
+test('apartados del perfil: solo los que tienen algo, Inicio, Reseñas e Información siempre', async () => {
+  const { profileSections, sectionFor } = await import('./profileTabs.ts');
+  assert.deepEqual(profileSections({ services: 0, products: 0, photos: 0 }).map((s) => s.id), ['inicio', 'resenas', 'info']);
+  assert.deepEqual(profileSections({ services: 2, products: 0, photos: 5 }).map((s) => s.id), ['inicio', 'catalogo', 'fotos', 'resenas', 'info']);
+  assert.equal(sectionFor('reviews'), 'resenas');
+  assert.equal(sectionFor('photos'), 'fotos');
+  assert.equal(sectionFor('services'), 'catalogo');
+  assert.equal(sectionFor('where'), 'info');
+  assert.equal(sectionFor('offers'), 'inicio');
+});

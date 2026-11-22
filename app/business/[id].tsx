@@ -44,7 +44,7 @@ import { ACTION_BAR_HEIGHT, ActionBar } from '@/components/profile/ActionBar';
 import { AskSheet } from '@/components/profile/AskSheet';
 import { OffersFicha } from '@/components/profile/OffersFicha';
 import { ProfileTabs } from '@/components/profile/ProfileTabs';
-import type { ProfileTabId } from '@/lib/profileTabs';
+import { itemTab, profileSections, sectionFor, type ProfileSectionId, type ProfileTabId } from '@/lib/profileTabs';
 import { getPhoneFlag, setPhoneFlag } from '@/lib/phoneFlags';
 import { LatestStrip } from '@/components/profile/LatestStrip';
 import { ProfileHero } from '@/components/profile/ProfileHero';
@@ -138,6 +138,8 @@ export default function BusinessScreen() {
   const hasServices = (catalog.data?.length ?? 0) > 0;
   // La pestaña de lo que ofrece (Servicios, Productos o Fotos); null = la primera que tenga algo.
   const [offerTab, setOfferTab] = useState<ProfileTabId | null>(null);
+  // Los apartados del perfil (2026-11-22): como en Instagram, una pestaña por apartado y cada una muestra solo lo suyo.
+  const [section, setSection] = useState<ProfileSectionId>('inicio');
   // El índice queda flotando arriba (con su botón atrás) al pasar su lugar en el perfil (3.28).
   // Preguntar por un ítem del catálogo: el mensaje ya escrito según el tipo de negocio (3.27).
   const [asking, setAsking] = useState<ServiceItem | null>(null);
@@ -446,11 +448,10 @@ export default function BusinessScreen() {
   const secs = sections({ offers: offerCount, hasServices, photos: photos.length, isOwner, reviews: ratingSummary.count });
 
   const goTo = (id: SectionId) => {
-    // «Servicios» y «Fotos» abren su pestaña.
-    if (id === 'photos') setOfferTab('photos');
-    else if (id === 'services') setOfferTab(null);
-    const y = bodyY.current + (sectionY.current[id] ?? 0) - (isOwner ? 130 : 70);
-    scrollRef.current?.scrollTo({ y: Math.max(0, y), animated: true });
+    // Cada atajo abre su apartado y sube hasta las pestañas.
+    setSection(sectionFor(id));
+    if (id === 'services') setOfferTab(null);
+    scrollRef.current?.scrollTo({ y: Math.max(0, bodyY.current - (isOwner ? 130 : 70)), animated: true });
   };
   const mark = (id: SectionId) => (e: { nativeEvent: { layout: { y: number } } }) => {
     sectionY.current[id] = e.nativeEvent.layout.y;
@@ -614,29 +615,52 @@ export default function BusinessScreen() {
   const stickyChild = ownerTabs ? <View style={styles.sticky}>{ownerTabs}</View> : null;
   // Lo que ofrece, en pestañas como en Instagram (lienzo v115): Servicios, Productos y Fotos (su trayectoria). Reemplaza
   // al muro y a los apartados de catálogo y fotos. Va de borde a borde, como la cuadrícula.
-  const tabsBlock = (
-    <View
-      style={styles.tabsBlock}
-      onLayout={(e) => {
-        mark('services')(e);
-        mark('photos')(e);
-      }}
-    >
-      <ProfileTabs
-        items={publicCatalog(catalog.data ?? [])}
-        photos={photos}
-        copy={copy}
-        isOwner={isOwner}
-        loading={catalog.isLoading}
-        tab={offerTab}
-        onTab={setOfferTab}
-        onOpenItem={(it) => router.push({ pathname: '/business/product', params: { entityId: business.id, itemId: it.id } })}
-        onOpenPhoto={openViewer}
-        onSearch={() => openCatalog()}
-        onAllPhotos={openPhotos}
-        onAddItem={isOwner ? (kind) => router.push({ pathname: '/business/products/item', params: { entityId: business.id, kind } }) : undefined}
-        onEditItem={isOwner ? (it) => router.push({ pathname: '/business/products/item', params: { entityId: business.id, itemId: it.id } }) : undefined}
-      />
+  const tabsProps = {
+    items: publicCatalog(catalog.data ?? []),
+    photos,
+    copy,
+    isOwner,
+    loading: catalog.isLoading,
+    tab: offerTab,
+    onTab: setOfferTab,
+    onOpenItem: (it: ServiceItem) => router.push({ pathname: '/business/product', params: { entityId: business.id, itemId: it.id } }),
+    onOpenPhoto: openViewer,
+    onSearch: () => openCatalog(),
+    onAllPhotos: openPhotos,
+    onAddItem: isOwner ? (kind: 'service' | 'product') => router.push({ pathname: '/business/products/item', params: { entityId: business.id, kind } }) : undefined,
+    onEditItem: isOwner ? (it: ServiceItem) => router.push({ pathname: '/business/products/item', params: { entityId: business.id, itemId: it.id } }) : undefined,
+  };
+  // Catálogo: adentro, sus pestañas Productos y Servicios (las que existan). Fotos va en su propio apartado.
+  const catalogBlock = (
+    <View style={styles.tabsBlock}>
+      <ProfileTabs {...tabsProps} tab={offerTab === 'photos' ? null : offerTab} only={['services', 'products']} />
+    </View>
+  );
+  const photosBlock = (
+    <View style={styles.tabsBlock}>
+      <ProfileTabs {...tabsProps} tab="photos" only={['photos']} />
+    </View>
+  );
+  const publicItems = publicCatalog(catalog.data ?? []);
+  const sectionTabs = profileSections({
+    services: publicItems.filter((it) => itemTab(it, copy.kind) === 'services').length,
+    products: publicItems.filter((it) => itemTab(it, copy.kind) === 'products').length,
+    photos: photos.length,
+  });
+  const current = sectionTabs.some((t) => t.id === section) ? section : 'inicio';
+  const sectionBar = (
+    <View style={styles.sectionBarWrap}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sectionBar} accessibilityRole="tablist">
+        {sectionTabs.map((t) => {
+          const on = t.id === current;
+          return (
+            <Pressable key={t.id} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => setSection(t.id)} style={styles.sectionTab}>
+              <Text style={[styles.sectionTabText, on && styles.sectionTabTextOn]}>{t.label}</Text>
+              {on ? <View style={styles.sectionTabLine} /> : null}
+            </Pressable>
+          );
+        })}
+      </ScrollView>
     </View>
   );
   const barSpace = isOwner ? 0 : ACTION_BAR_HEIGHT + insets.bottom;
@@ -646,8 +670,8 @@ export default function BusinessScreen() {
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={{ paddingBottom: insets.bottom + barSpace + spacing.xxl }}
-        // Solo la barra del dueño («Así te ven los demás») se pega arriba.
-        stickyHeaderIndices={isOwner && stickyChild ? [1] : undefined}
+        // Las pestañas de los apartados se quedan arriba al bajar.
+        stickyHeaderIndices={[2]}
       >
           <ProfileHero
             name={business.name}
@@ -674,7 +698,9 @@ export default function BusinessScreen() {
           </ProfileHero>
         {stickyChild ?? <View />}
 
+        {sectionBar}
         <View style={styles.bodyList} onLayout={(e) => (bodyY.current = e.nativeEvent.layout.y)}>
+          {current === 'inicio' ? (
             <>
               {!isOwner ? (
                 <Protagonist
@@ -692,11 +718,19 @@ export default function BusinessScreen() {
                   onOpenItem={(item) => router.push({ pathname: '/business/product', params: { entityId: business.id, itemId: item.id } })}
                 />
               ) : null}
-              {tabsBlock}
               {/* Con cita, las horas libres ya están arriba: la franja de la agenda sobra. */}
               {FEATURES.agenda && !isOwner && family !== 'cita' ? <AgendaStrip entityId={business.id} entityName={business.name} /> : null}
-              {blockOrder({ isOwner }).map(block)}
+              {(['offers', 'latest', 'recs'] as BlockId[]).filter((b) => blockOrder({ isOwner }).includes(b)).map(block)}
             </>
+          ) : current === 'catalogo' ? (
+            catalogBlock
+          ) : current === 'fotos' ? (
+            photosBlock
+          ) : current === 'resenas' ? (
+            block('reviews')
+          ) : (
+            <>{(['info', 'about', 'where'] as BlockId[]).map(block)}</>
+          )}
         </View>
       </ScrollView>
       {!isOwner && coach && FEATURES.agenda && agendaSummary.data?.enabled ? (
@@ -898,6 +932,12 @@ function StarPicker({ value, onChange }: { value: number; onChange: (rating: num
 }
 
 const styles = StyleSheet.create({
+  sectionBarWrap: { backgroundColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.hairline },
+  sectionBar: { paddingHorizontal: 12, gap: 4 },
+  sectionTab: { minHeight: 46, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
+  sectionTabText: { fontSize: 14.5, fontFamily: fonts.ui.semibold, color: colors.muted },
+  sectionTabTextOn: { color: colors.ink, fontFamily: fonts.ui.bold },
+  sectionTabLine: { position: 'absolute', left: 10, right: 10, bottom: 0, height: 3, borderRadius: 2, backgroundColor: colors.primary },
   coach: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.sand },
   coachText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.ink },
   coachBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm },

@@ -61,3 +61,32 @@ export function photoPeriods<T extends { created_at: string }>(photos: T[], now:
   if (undated.length) out.push({ key: 'otras', label: 'Otras', items: undated.map(({ photo, index }) => ({ photo, index })) });
   return out;
 }
+
+/** Los apartados del perfil del negocio (2026-11-22): como en Instagram, cada pestaña muestra solo lo suyo. */
+export type ProfileSectionId = 'inicio' | 'catalogo' | 'fotos' | 'resenas' | 'info';
+
+export interface ProfileSection {
+  id: ProfileSectionId;
+  label: string;
+}
+
+/**
+ * Qué apartados tiene un perfil: Inicio e Información siempre; Catálogo si hay productos o servicios (adentro, sus
+ * pestañas); Fotos si hay fotos; Reseñas siempre (ahí se escribe la primera).
+ */
+export function profileSections(i: { services: number; products: number; photos: number }): ProfileSection[] {
+  const out: ProfileSection[] = [{ id: 'inicio', label: 'Inicio' }];
+  if (i.services + i.products > 0) out.push({ id: 'catalogo', label: 'Catálogo' });
+  if (i.photos > 0) out.push({ id: 'fotos', label: 'Fotos' });
+  out.push({ id: 'resenas', label: 'Reseñas' }, { id: 'info', label: 'Información' });
+  return out;
+}
+
+/** A qué apartado lleva un atajo del perfil (la estrella de las reseñas, «lo último», el índice). */
+export function sectionFor(target: string): ProfileSectionId {
+  if (target === 'reviews') return 'resenas';
+  if (target === 'photos') return 'fotos';
+  if (target === 'services' || target === 'products') return 'catalogo';
+  if (target === 'info' || target === 'about' || target === 'where') return 'info';
+  return 'inicio';
+}
