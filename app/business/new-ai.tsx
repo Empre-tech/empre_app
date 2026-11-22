@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ApiError } from '@/api/client';
 import { aiApi } from '@/api/endpoints';
 import type { AIBusinessDraft, AIChatMessage } from '@/api/types';
 import type { BusinessDraft } from '@/components/BusinessForm';
@@ -96,7 +97,12 @@ export default function AIBusinessAssistantScreen() {
       if (res.draft) setDraft((prev) => mergeDraft(prev, res.draft!));
       if (res.ready) setReady(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No pudimos hablar con el asistente. Intenta de nuevo.');
+      if (e instanceof ApiError && e.status === 429) {
+        // Tope del asistente (20 mensajes al día): el formulario sigue con lo que ya lleva el borrador.
+        setError('Llegaste al límite de mensajes del asistente por hoy. Toca «Revisar lo que llevamos hasta ahora» para terminar en el formulario con lo que ya llevas, o vuelve mañana.');
+      } else {
+        setError(e instanceof Error ? e.message : 'No pudimos hablar con el asistente. Intenta de nuevo.');
+      }
     } finally {
       setSending(false);
     }
