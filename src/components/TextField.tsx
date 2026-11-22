@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 13.5, fontFamily: fonts.ui.bold, color: colors.ink },
   labelFocused: { color: colors.selected },
   halo: { borderRadius: radius.lg + 3, padding: 2, backgroundColor: 'transparent' },
-  haloOn: { backgroundColor: colors.selectedSoft },
+  haloOn: { backgroundColor: colors.primarySoft },
   input: {
     minHeight: 50,
     borderWidth: 1.5,

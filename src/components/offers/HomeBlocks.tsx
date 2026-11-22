@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
   icons: { gap: 18, paddingHorizontal: 20 },
   icon: { width: 64, alignItems: 'center', gap: 6, minHeight: 44 },
   iconArt: { width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  iconArtOn: { backgroundColor: colors.selectedSoft },
+  iconArtOn: { backgroundColor: colors.primarySoft },
   iconText: { fontFamily: fonts.ui.medium, fontSize: 12, color: colors.ink, textAlign: 'center' },
   iconTextOn: { fontFamily: fonts.ui.semibold, color: colors.ink },
   chips: { gap: 8, paddingHorizontal: 20 },

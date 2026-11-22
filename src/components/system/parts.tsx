@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   aiNote: { ...typeScale.body, color: colors.muted },
   tile: { minHeight: 84, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 6, paddingVertical: 8, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
   tileFlex: { flex: 1, minWidth: 0 },
-  tileOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
+  tileOn: { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft },
   tileText: { ...typeScale.label, textAlign: 'center', color: colors.ink },
   share: { gap: 6, paddingVertical: 10 },
   shareHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },

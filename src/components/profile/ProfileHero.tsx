@@ -112,7 +112,7 @@ export function ProfileHero({ name, categoryLabel, tagline, color, icon, profile
           </View>
           {follow ? (
             <Pressable accessibilityRole="button" accessibilityLabel={follow.on ? 'Dejar de seguir' : 'Seguir este negocio'} accessibilityState={{ selected: follow.on }} disabled={follow.busy} onPress={follow.onToggle} style={[styles.follow, follow.on && styles.followOn]}>
-              {follow.busy ? <ActivityIndicator size="small" color={colors.ink} /> : <Text style={styles.followText}>{follow.on ? 'Siguiendo' : 'Seguir'}</Text>}
+              {follow.busy ? <ActivityIndicator size="small" color={colors.ink} /> : <Text style={[styles.followText, follow.on && { color: colors.onPrimary }]}>{follow.on ? 'Siguiendo' : 'Seguir'}</Text>}
             </Pressable>
           ) : null}
         </View>
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   count: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: 'rgba(11,26,54,0.72)' },
   countText: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: '#fff' },
   follow: { minHeight: 40, minWidth: 84, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  followOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
+  followOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   followText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   dots: { position: 'absolute', right: 16, bottom: 58, flexDirection: 'row', gap: 5 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.55)' },

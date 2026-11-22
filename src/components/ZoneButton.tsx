@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
   list: { borderRadius: 16, overflow: 'hidden', backgroundColor: colors.surface },
   row: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 14 },
   rowLine: { borderTopWidth: 1, borderTopColor: colors.selectedSoft },
-  rowOn: { backgroundColor: colors.selectedSoft, borderRadius: radius.sm },
+  rowOn: { backgroundColor: colors.primarySoft, borderRadius: radius.sm },
   rowText: { flexShrink: 1, fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
   rowWhere: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.faint },
 });

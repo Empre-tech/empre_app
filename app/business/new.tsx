@@ -77,7 +77,7 @@ export default function NewBusinessScreen() {
           onChangeText={setText}
           multiline
           autoFocus
-          placeholder="barbería en el centro, de lunes a sábado de 9 a 8"
+          placeholder="Barbería en el centro, de lunes a sábado de 9 a 8"
           placeholderTextColor={colors.placeholder}
           accessibilityLabel="Tu negocio, como lo dirías"
           style={styles.input}

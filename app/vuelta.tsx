@@ -159,7 +159,7 @@ export default function VueltaScreen() {
               onChangeText={setText}
               multiline
               autoFocus
-              placeholder="almorzar, cortarme el pelo y comprar unos tenis, antes de las 6"
+              placeholder="Almorzar, cortarme el pelo y comprar unos tenis, antes de las 6"
               placeholderTextColor={colors.placeholder}
               accessibilityLabel="Lo que tienes que hacer hoy"
               style={styles.input}
@@ -317,9 +317,9 @@ const styles = StyleSheet.create({
   errandD: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },
   prefs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   pref: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  prefOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
+  prefOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   prefText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
-  prefTextOn: { color: colors.ink },
+  prefTextOn: { color: colors.onPrimary},
   note: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.muted },
   err: { fontSize: 13.5, fontFamily: fonts.ui.medium, color: colors.ink },
   warn: { padding: 12, borderRadius: radius.md, backgroundColor: colors.surface, fontSize: 14, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.ink },

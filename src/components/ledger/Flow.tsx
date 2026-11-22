@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
   title: { flex: 1, minWidth: 0, fontSize: 19, lineHeight: 23, fontFamily: fonts.display.bold, color: colors.ink },
   kinds: { flexDirection: 'row', gap: 2, padding: 3, borderRadius: 12, backgroundColor: colors.surface, ...softShadow },
   kind: { minHeight: 38, minWidth: 58, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
-  kindOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
+  kindOn: { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft },
   kindText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   track: { height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: colors.line },
   fill: { height: 4, borderRadius: 2, backgroundColor: colors.sand },

@@ -347,7 +347,7 @@ export default function NewSaleScreen() {
                   const on = how === h.key;
                   return (
                     <Pressable key={h.key} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => pickHow(h.key)} style={[styles.segmentItem, on && styles.segmentOn]}>
-                      <Text style={styles.segmentText} numberOfLines={1}>
+                      <Text style={[styles.segmentText, on && { color: colors.onPrimary }]} numberOfLines={1}>
                         {h.label}
                       </Text>
                     </Pressable>
@@ -474,7 +474,7 @@ export default function NewSaleScreen() {
                   ] as const
                 ).map(([key, label]) => (
                   <Pressable key={key} accessibilityRole="tab" accessibilityState={{ selected: tab === key }} onPress={() => setTab(key)} style={[styles.tabPill, tab === key && styles.tabPillOn]}>
-                    <Text style={styles.tabPillText}>{label}</Text>
+                    <Text style={[styles.tabPillText, tab === key && { color: colors.onPrimary }]}>{label}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -616,13 +616,13 @@ const styles = StyleSheet.create({
   shortcutText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   tabsRow: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
   tabPill: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
-  tabPillOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
+  tabPillOn: { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primary },
   tabPillText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   tilesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   loadingWhat: { gap: 16 },
   tileWrap: { width: '48.5%' },
   tile: { flexGrow: 1, minHeight: 104, justifyContent: 'space-between', gap: 4, padding: 14, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
-  tileActive: { borderWidth: 2, borderColor: colors.ink, padding: 12, backgroundColor: colors.selectedSoft },
+  tileActive: { borderWidth: 2, borderColor: colors.primary, padding: 12, backgroundColor: colors.primarySoft },
   tilePressed: { transform: [{ scale: 0.97 }] },
   tileName: { paddingRight: 22, fontSize: 14.5, lineHeight: 18, fontFamily: fonts.ui.extrabold, color: colors.ink },
   tilePrice: { fontSize: 16, lineHeight: 20, fontFamily: fonts.display.bold, color: colors.ink },
@@ -646,7 +646,7 @@ const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   segment: { flexDirection: 'row', gap: 2, padding: 4, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
   segmentItem: { flex: 1, minHeight: 44, paddingHorizontal: 2, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
-  segmentOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
+  segmentOn: { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primary },
   segmentText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   splitCard: { gap: 10, padding: 14, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
   splitQuestion: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },

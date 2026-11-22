@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
   sheet: { gap: 8, paddingTop: 16, paddingHorizontal: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.surface },
   sheetTitle: { fontSize: 20, lineHeight: 25, fontFamily: fonts.display.bold, color: colors.ink },
   bizOption: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
-  bizOptionOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
+  bizOptionOn: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
   bizOptionIni: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sand },
   bizOptionIniText: { fontSize: 11, fontFamily: fonts.ui.extrabold, color: colors.ink },
   bizOptionName: { flex: 1, fontSize: 14.5, fontFamily: fonts.ui.bold, color: colors.ink },

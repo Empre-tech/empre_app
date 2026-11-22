@@ -590,7 +590,7 @@ const styles = StyleSheet.create({
   daysBar: { flexGrow: 0 },
   daysRow: { flexDirection: 'row', gap: 8, paddingTop: 6, paddingHorizontal: 16, paddingBottom: 10 },
   dayChip: { width: 52, minHeight: 70, gap: 2, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  dayChipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
+  dayChipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   dayWeek: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.ink },
   dayNum: { fontSize: 18, fontFamily: fonts.ui.extrabold, color: colors.ink },
 
@@ -650,7 +650,7 @@ const styles = StyleSheet.create({
   sheetSub: { fontSize: 13, fontFamily: fonts.ui.bold, color: colors.muted, marginTop: spacing.md, marginBottom: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: { minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
+  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   input: {
     minHeight: 46,

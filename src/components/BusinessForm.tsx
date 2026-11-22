@@ -1317,9 +1317,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     justifyContent: 'center',
   },
-  nameSuggestionChipActive: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
+  nameSuggestionChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   nameSuggestionChipText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.ink },
-  nameSuggestionChipTextActive: { fontFamily: fonts.ui.bold, color: colors.selected },
+  nameSuggestionChipTextActive: { fontFamily: fonts.ui.bold, color: colors.onPrimary},
   serviceModeRow: { flexDirection: 'row', gap: spacing.sm },
   serviceModeOption: {
     flex: 1,

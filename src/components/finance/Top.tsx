@@ -76,7 +76,7 @@ export function FinanceTop({ entityId, space, title }: { entityId: string; space
           return (
             <Pressable key={s.key} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`${s.label}${plan.base && s.key !== 'hoy' ? '. Es de Empre Pro' : ''}`} onPress={() => go(s.key)} style={[styles.space, { flex: s.flex }, on && styles.spaceOn]}>
               <View style={styles.spaceIn}>
-                <Text style={styles.spaceText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                <Text style={[styles.spaceText, on && { color: colors.onPrimary }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
                   {s.label}
                 </Text>
                 {plan.base && s.key !== 'hoy' ? <CrownIcon size={11} color={colors.muted} /> : null}
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
   mic: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, ...softShadow },
   spaces: { minHeight: 52, flexDirection: 'row', gap: 2, padding: 4, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
   space: { minWidth: 0, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2, borderRadius: 12 },
-  spaceOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
+  spaceOn: { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primary },
   spaceText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   spaceIn: { flexDirection: 'row', alignItems: 'center', gap: 3, maxWidth: '100%' },
   // Dictar en Base: en gris con una corona pequeña; abre «Pásate a Empre Pro».

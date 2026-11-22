@@ -516,7 +516,7 @@ export default function InventoryScreen() {
               style={[styles.filterPill, activeFilters > 0 && styles.filterOn]}
             >
               {activeFilters ? null : <Ionicons name="options-outline" size={16} color={colors.ink} />}
-              <Text style={styles.filterText} numberOfLines={1}>
+              <Text style={[styles.filterText, activeFilters > 0 && { color: colors.onPrimary }]} numberOfLines={1}>
                 {filterLabel}
               </Text>
               {activeFilters ? (
@@ -690,7 +690,7 @@ function FilterChip({ label, on, onPress, dot }: { label: string; on: boolean; o
       onPress={onPress}
       style={({ pressed }) => [styles.fChip, on && styles.fChipOn, pressed && !on && { backgroundColor: colors.well }]}
     >
-      <Text style={styles.fChipText}>{label}</Text>
+      <Text style={[styles.fChipText, on && { color: colors.onPrimary }]}>{label}</Text>
       {dot ? <View style={styles.accDot} /> : null}
     </Pressable>
   );
@@ -981,7 +981,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, minWidth: 0, paddingVertical: 0, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink },
   clear: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   filterPill: { maxWidth: 170, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
-  filterOn: { backgroundColor: colors.sand, borderColor: colors.sand },
+  filterOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   filterText: { flexShrink: 1, fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   listHead: { gap: spacing.md, paddingTop: spacing.xs, paddingBottom: spacing.sm },
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },
@@ -1034,7 +1034,7 @@ const styles = StyleSheet.create({
   createBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: spacing.md, paddingHorizontal: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg },
   findSec: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.well, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink },
   fChip: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg },
-  fChipOn: { backgroundColor: colors.sand, borderColor: colors.sand },
+  fChipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   fChipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   sheetVeil: { flex: 1, backgroundColor: 'rgba(43,38,34,0.28)' },
   sheet: { gap: 14, paddingTop: 10, paddingHorizontal: spacing.lg, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.bg },

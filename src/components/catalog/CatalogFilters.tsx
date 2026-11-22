@@ -110,14 +110,14 @@ export function CatalogFilters({ sections, total, section, onSection, audiences 
 const styles = StyleSheet.create({
   row: { gap: 6 },
   chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
+  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipEmpty: { opacity: 0.5 },
   chipText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  chipTextOn: { color: colors.selected },
+  chipTextOn: { color: colors.onPrimary},
   count: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },
   audRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
   audLabel: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.muted, marginRight: 2 },
   aud: { minHeight: 34, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.primarySoft, justifyContent: 'center' },
-  audOn: { backgroundColor: colors.selectedSoft },
+  audOn: { backgroundColor: colors.primary },
   audText: { fontSize: 12.5, fontFamily: fonts.ui.extrabold, color: colors.primaryDark },
 });

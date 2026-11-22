@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 19, lineHeight: 23, fontFamily: fonts.display.bold, color: colors.ink },
   methods: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   catTile: { width: '48.5%', minHeight: 64, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
-  methodOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
+  methodOn: { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft },
   methodText: { textAlign: 'center', fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   doneBody: { alignItems: 'center', gap: 16, paddingHorizontal: 20, paddingTop: 24, paddingBottom: 24 },
   doneText: { alignItems: 'center', gap: 2 },

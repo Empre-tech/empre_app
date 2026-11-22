@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
   plain: { fontSize: 14.5, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.muted },
   sides: { flexDirection: 'row', gap: 8 },
   side: { flex: 1, minWidth: 0, minHeight: 92, justifyContent: 'center', gap: 2, padding: 14, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
-  sideOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.selectedSoft },
+  sideOn: { borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft },
   sideLabel: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   sideValue: { fontSize: 28, lineHeight: 32, fontFamily: fonts.display.bold, color: colors.ink, fontVariant: ['tabular-nums'] },
   none: { minHeight: 58, paddingVertical: 18, fontSize: 14.5, fontFamily: fonts.ui.semibold, color: colors.muted },

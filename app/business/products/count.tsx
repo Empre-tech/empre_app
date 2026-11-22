@@ -248,7 +248,7 @@ export default function CountScreen() {
                       const on = (reasons[r.ref] ?? 'conteo') === x.key;
                       return (
                         <Pressable key={x.key} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setReason(r.ref, x.key)} style={[styles.reason, on && styles.reasonOn]}>
-                          <Text style={styles.reasonText}>{x.label}</Text>
+                          <Text style={[styles.reasonText, on && { color: colors.onPrimary }]}>{x.label}</Text>
                         </Pressable>
                       );
                     })}
@@ -325,7 +325,7 @@ export default function CountScreen() {
                       onPress={() => setEntry(r.ref, chosen === l.key ? undefined : { level: l.key })}
                       style={[styles.levelChip, chosen === l.key && styles.levelOn]}
                     >
-                      <Text style={styles.levelText}>{l.label}</Text>
+                      <Text style={[styles.levelText, chosen === l.key && { color: colors.onPrimary }]}>{l.label}</Text>
                     </Pressable>
                   ))}
                 </View>
@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
   inputOff: { borderColor: colors.brandRef, color: colors.primaryDark },
   levels: { flexDirection: 'row', gap: 4 },
   levelChip: { minHeight: 40, paddingHorizontal: 10, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg, justifyContent: 'center' },
-  levelOn: { backgroundColor: colors.sand, borderColor: colors.sand },
+  levelOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   levelText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   bottom: { paddingTop: spacing.md, paddingHorizontal: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg, gap: 6 },
   bottomNote: { textAlign: 'center', fontSize: 12, fontFamily: fonts.ui.medium, color: colors.muted },
@@ -425,7 +425,7 @@ const styles = StyleSheet.create({
   red: { color: colors.primaryDark },
   reasons: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingBottom: spacing.md },
   reason: { minHeight: 40, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg, justifyContent: 'center' },
-  reasonOn: { backgroundColor: colors.sand, borderColor: colors.sand },
+  reasonOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   reasonText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   linkRow: { minHeight: 44, justifyContent: 'center', alignSelf: 'center' },
   link: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink, textDecorationLine: 'underline' },

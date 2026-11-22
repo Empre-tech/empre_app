@@ -382,7 +382,7 @@ function CategoryModal({
                   onPress={() => setIcon(opt)}
                   style={[styles.iconOption, active && styles.iconOptionActive]}
                 >
-                  <Ionicons name={opt as keyof typeof Ionicons.glyphMap} size={20} color={active ? colors.selected : colors.ink} />
+                  <Ionicons name={opt as keyof typeof Ionicons.glyphMap} size={20} color={active ? colors.onPrimary : colors.ink} />
                 </Pressable>
               );
             })}
@@ -526,6 +526,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconOptionActive: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
+  iconOptionActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   error: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.danger },
 });

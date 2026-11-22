@@ -451,7 +451,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     backgroundColor: colors.surface,
   },
-  tileOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
+  tileOn: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
   tilePressed: { backgroundColor: colors.selectedSoft },
   tileName: { flexShrink: 1, fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink, paddingRight: 22 },
   tilePrice: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.muted },

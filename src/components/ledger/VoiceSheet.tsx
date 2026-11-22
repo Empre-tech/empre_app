@@ -1392,7 +1392,7 @@ const styles = StyleSheet.create({
   hintLine: { alignSelf: 'stretch', fontSize: 13.5, lineHeight: 19, fontFamily: fonts.ui.semibold, color: colors.muted, textAlign: 'center' },
   dock: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: spacing.sm },
   dockSide: { width: 52, height: 52, borderRadius: 26, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  dockSideOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
+  dockSideOn: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
   go: { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
   goOff: { backgroundColor: '#CBCED4', borderColor: '#CBCED4' },
   mic: { width: 76, height: 76, borderRadius: 38, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', shadowColor: colors.ink, shadowOpacity: 0.22, shadowRadius: 20, shadowOffset: { width: 0, height: 6 }, elevation: 6 },

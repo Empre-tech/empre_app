@@ -167,7 +167,7 @@ export default function ActivityScreen() {
               const sel = f.key === filter;
               return (
                 <Pressable key={f.key} accessibilityRole="button" accessibilityState={{ selected: sel }} onPress={() => setFilter(f.key)} style={[styles.filter, sel && styles.filterSel]}>
-                  <Text style={styles.filterText}>{`${FILTER_LABEL[f.key]} ${f.n}`}</Text>
+                  <Text style={[styles.filterText, sel && { color: colors.onPrimary }]}>{`${FILTER_LABEL[f.key]} ${f.n}`}</Text>
                 </Pressable>
               );
             })}
@@ -392,13 +392,13 @@ const styles = StyleSheet.create({
   goalEmpty: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 20, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.nightSoft },
   days: { flexDirection: 'row', gap: 6 },
   day: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
-  daySel: { backgroundColor: colors.selectedSoft, borderColor: colors.nightSoft },
+  daySel: { backgroundColor: colors.primary, borderColor: colors.primary },
   dayWeek: { fontSize: 11.5, fontFamily: fonts.ui.semibold, color: colors.muted },
   dayNum: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  dayTextSel: { color: colors.ink },
+  dayTextSel: { color: colors.onPrimary},
   filters: { gap: 6 },
   filter: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 22, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
-  filterSel: { backgroundColor: colors.selectedSoft, borderColor: colors.nightSoft },
+  filterSel: { backgroundColor: colors.primary, borderColor: colors.primary },
   filterText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
   summary: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.muted },
   item: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 16, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },

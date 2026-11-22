@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   proposeText: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: { minHeight: 46, paddingHorizontal: spacing.lg, borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.well },
-  chipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected },
+  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
-  chipTextOn: { color: colors.selected },
+  chipTextOn: { color: colors.onPrimary},
 });

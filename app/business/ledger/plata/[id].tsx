@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
   rangeBtn: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedSoft },
   bars: { flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
   barSlot: { flex: 1, minWidth: 0, minHeight: 98, justifyContent: 'flex-end', alignItems: 'center', gap: 4, paddingVertical: 4, borderRadius: 8 },
-  barSlotOn: { backgroundColor: colors.selectedSoft },
+  barSlotOn: { backgroundColor: colors.primarySoft },
   barPair: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, maxWidth: '100%' },
   bar: { width: 9, flexShrink: 1, borderRadius: 3 },
   barLabel: { fontSize: 12, fontFamily: fonts.ui.bold, color: colors.muted },

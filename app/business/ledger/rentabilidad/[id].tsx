@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
   body2: { fontSize: 14.5, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.muted },
   listCard: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 20, backgroundColor: colors.surface, ...softShadow },
   row: { gap: 6, paddingVertical: 10, paddingHorizontal: 8, borderRadius: 12 },
-  rowOn: { backgroundColor: colors.selectedSoft },
+  rowOn: { backgroundColor: colors.primarySoft },
   rowLine: { borderTopWidth: 1, borderTopColor: colors.selectedSoft, borderTopLeftRadius: 0, borderTopRightRadius: 0 },
   rowHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   rowTitle: { flex: 1, minWidth: 0, fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },

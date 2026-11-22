@@ -113,7 +113,7 @@ export default function NearbyScreen() {
         <View style={styles.seg}>
           {(['product', 'service'] as const).map((k) => (
             <Pressable key={k} accessibilityRole="tab" accessibilityState={{ selected: kind === k }} onPress={() => setKind(k)} style={[styles.segItem, kind === k && styles.segOn]}>
-              <Text style={styles.segText}>
+              <Text style={[styles.segText, kind === k && { color: colors.onPrimary }]}>
                 {k === 'product' ? 'Productos' : 'Servicios'} · {counts[k]}
               </Text>
             </Pressable>
@@ -122,7 +122,7 @@ export default function NearbyScreen() {
         <View style={styles.chips}>
           {chips.map((c) => (
             <Pressable key={c.key} accessibilityRole="button" accessibilityState={{ selected: c.on }} onPress={c.toggle} style={[styles.chip, c.on && styles.chipOn]}>
-              <Text style={styles.chipText}>{c.label}</Text>
+              <Text style={[styles.chipText, c.on && { color: colors.onPrimary }]}>{c.label}</Text>
             </Pressable>
           ))}
         </View>
@@ -180,11 +180,11 @@ const styles = StyleSheet.create({
   body: { padding: spacing.md, gap: spacing.md },
   seg: { flexDirection: 'row', gap: 6, padding: 4, borderRadius: 14, backgroundColor: colors.surface },
   segItem: { flex: 1, minHeight: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  segOn: { backgroundColor: colors.selectedSoft },
+  segOn: { backgroundColor: colors.primary },
   segText: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { minHeight: 40, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selectedSoft },
+  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 13, fontFamily: fonts.ui.semibold, color: colors.ink },
   wall: { flexDirection: 'row', gap: 8 },
   col: { flex: 1, gap: 8 },

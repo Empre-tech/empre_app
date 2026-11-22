@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   option: { minWidth: 48, minHeight: 42, paddingHorizontal: 12, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
-  optionOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
+  optionOn: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
   optionOut: { backgroundColor: colors.well, borderColor: colors.well },
   optionText: { fontSize: 14, fontFamily: fonts.ui.extrabold, color: colors.ink },
   optionTextOut: { color: '#9AA8BA', textDecorationLine: 'line-through' },

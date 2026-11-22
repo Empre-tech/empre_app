@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
   hint: { fontSize: 12.5, fontFamily: fonts.ui.bold, color: colors.muted },
   bars: { flexDirection: 'row', gap: 4 },
   col: { flex: 1, minWidth: 0, minHeight: 104, alignItems: 'center', gap: 6, paddingTop: 6, paddingBottom: 4, borderRadius: 8 },
-  colOn: { backgroundColor: colors.selectedSoft },
+  colOn: { backgroundColor: colors.primarySoft },
   barArea: { width: '100%', height: 72, alignItems: 'center', justifyContent: 'flex-end' },
   normal: { position: 'absolute', left: 4, right: 4, borderTopWidth: 2, borderStyle: 'dashed', borderTopColor: colors.placeholder },
   bar: { width: 14, borderRadius: 4 },

@@ -612,8 +612,8 @@ export default function OffersScreen() {
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activeTags} accessibilityLabel="Filtros puestos">
                 {tags.map((t) => (
                   <Pressable key={t.key} accessibilityRole="button" accessibilityLabel={`Quitar filtro ${t.label}`} onPress={t.onRemove} hitSlop={6} style={({ pressed }) => [styles.activeTag, pressed && { opacity: 0.8 }]}>
-                    <Text style={styles.activeTagText}>{t.label}</Text>
-                    <Ionicons name="close" size={13} color={colors.ink} />
+                    <Text style={[styles.activeTagText, { color: colors.onPrimary }]}>{t.label}</Text>
+                    <Ionicons name="close" size={13} color={colors.onPrimary} />
                   </Pressable>
                 ))}
                 {tags.length > 1 ? (
@@ -1122,7 +1122,7 @@ const styles = StyleSheet.create({
   fieldBadge: { position: 'absolute', top: -3, right: -3, minWidth: 16, height: 16, paddingHorizontal: 4, borderRadius: 8, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.surface },
   fieldBadgeText: { fontFamily: fonts.ui.extrabold, fontSize: 10, color: '#FFFFFF' },
   activeTags: { gap: 8, paddingHorizontal: 20, alignItems: 'center' },
-  activeTag: { minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: 17, backgroundColor: colors.selectedSoft },
+  activeTag: { minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: 17, backgroundColor: colors.primary },
   activeTagText: { fontFamily: fonts.ui.semibold, fontSize: 13, color: colors.ink },
   activeClear: { minHeight: 34, paddingHorizontal: 6, justifyContent: 'center' },
   activeClearText: { fontFamily: fonts.ui.semibold, fontSize: 13, color: colors.primaryDark },
@@ -1138,9 +1138,9 @@ const styles = StyleSheet.create({
   quietLine: { paddingHorizontal: 20, fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   vitrinaPills: { gap: 8, paddingHorizontal: 20 },
   vitrinaPill: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 13, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
-  vitrinaPillOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
+  vitrinaPillOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   vitrinaPillText: { fontSize: 13, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  vitrinaPillTextOn: { color: colors.ink },
+  vitrinaPillTextOn: { color: colors.onPrimary},
   search: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   searchInput: { flex: 1, fontSize: 15, fontFamily: fonts.ui.medium, color: colors.ink, paddingVertical: 0 },
   mini: { position: 'absolute', left: 0, right: 0, zIndex: 5, height: MINI_H, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, backgroundColor: 'rgba(254,250,242,0.97)', borderBottomWidth: 1, borderBottomColor: colors.hairline },
@@ -1150,13 +1150,13 @@ const styles = StyleSheet.create({
   cats: { gap: 8, paddingHorizontal: 20, paddingTop: 2, paddingBottom: 4 },
   terms: { gap: 6, paddingHorizontal: 20, paddingBottom: spacing.sm },
   chip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected, borderWidth: 1.5 },
-  chipSoftOn: { backgroundColor: colors.selectedSoft, borderColor: colors.selected, borderWidth: 1.5 },
+  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary, borderWidth: 1.5 },
+  chipSoftOn: { backgroundColor: colors.primary, borderColor: colors.primary, borderWidth: 1.5 },
   chipPressed: { transform: [{ scale: 0.97 }] },
   chipActiveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
   chipText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
-  chipOnText: { color: colors.selected },
-  chipSoftText: { color: colors.selected },
+  chipOnText: { color: colors.onPrimary},
+  chipSoftText: { color: colors.onPrimary},
   loc: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: 20, padding: spacing.md, borderRadius: 16, backgroundColor: colors.surface, ...softShadow },
   locText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.muted },
   locBtn: { minHeight: 44, paddingHorizontal: 14, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef, justifyContent: 'center' },

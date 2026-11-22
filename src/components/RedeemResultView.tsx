@@ -271,7 +271,7 @@ function SaleReceipt({ result, onFinance }: { result: RedeemResult; onFinance?: 
         <View style={styles.saleChips}>
           {PAY_METHODS.map((m) => (
             <Pressable key={m} accessibilityRole="button" accessibilityState={{ selected: method === m }} onPress={() => setMethod(m)} style={[styles.saleChip, method === m && styles.saleChipOn]}>
-              <Text style={styles.saleChipText}>{METHOD_LABEL[m]}</Text>
+              <Text style={[styles.saleChipText, method === m && { color: colors.onPrimary }]}>{METHOD_LABEL[m]}</Text>
             </Pressable>
           ))}
         </View>
@@ -312,7 +312,7 @@ function SaleReceipt({ result, onFinance }: { result: RedeemResult; onFinance?: 
       <View style={styles.saleChips}>
         {PAY_METHODS.map((m) => (
           <Pressable key={m} accessibilityRole="button" accessibilityState={{ selected: method === m }} onPress={() => pick(m)} style={[styles.saleChip, method === m && styles.saleChipOn]}>
-            <Text style={styles.saleChipText}>{METHOD_LABEL[m]}</Text>
+            <Text style={[styles.saleChipText, method === m && { color: colors.onPrimary }]}>{METHOD_LABEL[m]}</Text>
           </Pressable>
         ))}
       </View>
@@ -409,7 +409,7 @@ const styles = StyleSheet.create({
   saleLabel: { fontSize: 11, letterSpacing: 1.1, fontFamily: fonts.ui.extrabold, color: colors.faint },
   saleChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   saleChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line },
-  saleChipOn: { backgroundColor: colors.selectedSoft, borderColor: colors.ink },
+  saleChipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   saleChipText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   saleInput: { minHeight: 56, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderColor: colors.line, fontSize: 24, fontFamily: fonts.ui.extrabold, color: colors.ink, backgroundColor: colors.well },
   saleBtn: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },

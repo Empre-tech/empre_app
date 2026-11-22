@@ -253,8 +253,8 @@ export default function PlanScreen() {
 
       <View style={[styles.bar, { paddingBottom: insets.bottom + 16 }]}>
         <Pressable accessibilityRole="button" accessibilityState={{ selected: isSaved }} accessibilityLabel={isSaved ? 'Quitar de Mis salidas' : 'Guardar en Mis salidas'} onPress={() => void toggleSave()} style={[styles.saveBtn, isSaved && styles.saveBtnOn]}>
-          <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={18} color={colors.ink} />
-          <Text style={styles.saveText}>{isSaved ? 'Guardado' : 'Guardar'}</Text>
+          <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={18} color={isSaved ? colors.onPrimary : colors.ink} />
+          <Text style={[styles.saveText, isSaved && { color: colors.onPrimary }]}>{isSaved ? 'Guardado' : 'Guardar'}</Text>
         </Pressable>
         <Pressable accessibilityRole="button" disabled={located.length === 0} onPress={() => void Linking.openURL(routeUrl(stops))} style={[styles.routeBtn, located.length === 0 && { opacity: 0.5 }]}>
           <Ionicons name="map-outline" size={18} color={colors.ink} />
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
   toastLinkText: { fontSize: 13.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
   bar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: 10, paddingTop: 12, paddingHorizontal: 16, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.hairline },
   saveBtn: { minHeight: 54, minWidth: 120, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
-  saveBtnOn: { borderColor: colors.ink, backgroundColor: colors.selectedSoft },
+  saveBtnOn: { borderColor: colors.primary, backgroundColor: colors.primary },
   saveText: { fontSize: 15, fontFamily: fonts.ui.extrabold, color: colors.ink },
   routeBtn: { flex: 1, minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
   routeText: { fontSize: 16, fontFamily: fonts.ui.extrabold, color: colors.ink },
