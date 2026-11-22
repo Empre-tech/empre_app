@@ -52,6 +52,16 @@ export interface AskResponse {
   widened: boolean;
   suggestions: string[];
   used_ai: boolean;
+  /** Cupo del mes de quien pregunta (solo en las preguntas con IA). */
+  quota?: AskQuota;
+}
+
+/** Preguntas a «Pregúntale a Empre» este mes: 10 gratis, 300 con la suscripción. */
+export interface AskQuota {
+  used: number;
+  limit: number;
+  plan: 'free' | 'plus';
+  resets_at: string;
 }
 
 export interface AskParams {
@@ -62,15 +72,19 @@ export interface AskParams {
   offer?: boolean;
   delivery?: boolean;
   cheap?: boolean;
+  /** false: búsqueda solo por palabras, sin IA (la caja de Vitrina). Pública y sin gastar el cupo. */
+  ai?: boolean;
 }
 
 export const askApi = {
-  /** GET /api/ask: negocios reales cerca para lo que el cliente pide (público). */
+  /** GET /api/ask: negocios reales cerca para lo que el cliente pide. Con IA pide sesión y gasta el cupo del mes. */
   ask: async (p: AskParams): Promise<AskResponse> => {
+    const withAI = p.ai !== false;
     const res = await request<AskResponse>('/api/ask', {
-      auth: false,
+      auth: withAI,
       query: {
         q: p.q,
+        ...(withAI ? {} : { ai: 0 }),
         ...(p.lat !== undefined ? { lat: p.lat, long: p.long } : {}),
         ...(p.open ? { open: 1 } : {}),
         ...(p.offer ? { offer: 1 } : {}),

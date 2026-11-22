@@ -7,7 +7,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { askApi, type AskFilters, type AskResponse } from '@/api/ask';
+import { askApi, type AskFilters, type AskQuota, type AskResponse } from '@/api/ask';
+import { ApiError } from '@/api/client';
 import { categoriesApi } from '@/api/endpoints';
 import { discoveryApi } from '@/api/offers';
 import type { DiscoveryItem } from '@/api/types';
@@ -81,11 +82,14 @@ export default function AskScreen() {
   // Pidió una recomendación sin decir de qué (3.67).
   const [rec, setRec] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Qué botón acompaña el error: reintentar, iniciar sesión o ninguno (cupo del mes lleno).
+  const [errorKind, setErrorKind] = useState<'generic' | 'login' | 'quota'>('generic');
   const groups = useMemo(() => buildGroups(categories.data ?? []), [categories.data]);
 
   const run = async (q: string, nextFilters: AskFilters) => {
     const clean = q.trim();
     if (!clean) return;
+    setErrorKind('generic');
     // «¿Me recomiendas algún negocio?» (3.67): no se busca la palabra «negocio»; Empre AI recomienda de lo cercano.
     if (isRecommendAsk(clean)) {
       seq.current += 1;
@@ -122,8 +126,17 @@ export default function AskScreen() {
       if (id !== seq.current) return;
       setAnswer(res);
       setFilters(res.filters ?? nextFilters);
-    } catch {
-      if (id === seq.current) setError('No pudimos buscar ahora. Revisa tu conexión e inténtalo de nuevo.');
+    } catch (e) {
+      if (id !== seq.current) return;
+      if (e instanceof ApiError && e.status === 401) {
+        setErrorKind('login');
+        setError('Inicia sesión para preguntarle a Empre. Es gratis y tienes 10 preguntas al mes.');
+      } else if (e instanceof ApiError && e.status === 429 && /pregunta/i.test(e.message)) {
+        setErrorKind('quota');
+        setError(e.message);
+      } else {
+        setError('No pudimos buscar ahora. Revisa tu conexión e inténtalo de nuevo.');
+      }
     } finally {
       if (id === seq.current) setLoading(false);
     }
@@ -337,12 +350,19 @@ export default function AskScreen() {
           ) : error ? (
             <View style={styles.group} accessibilityLiveRegion="polite">
               <Text style={styles.hint}>{error}</Text>
-              <Pressable accessibilityRole="button" onPress={() => void run(question, filters)} style={styles.retry}>
-                <Text style={styles.retryText}>Reintentar</Text>
-              </Pressable>
+              {errorKind === 'login' ? (
+                <Pressable accessibilityRole="button" onPress={() => router.push('/(auth)/login')} style={styles.retry}>
+                  <Text style={styles.retryText}>Iniciar sesión</Text>
+                </Pressable>
+              ) : errorKind === 'generic' ? (
+                <Pressable accessibilityRole="button" onPress={() => void run(question, filters)} style={styles.retry}>
+                  <Text style={styles.retryText}>Reintentar</Text>
+                </Pressable>
+              ) : null}
             </View>
           ) : answer ? (
             <>
+              {answer.quota ? <Text style={styles.relaxed}>{quotaLine(answer.quota)}</Text> : null}
               {answer.widened ? (
                 <Text style={styles.relaxed}>No había nada muy cerca, así que busqué más lejos.</Text>
               ) : null}
@@ -801,3 +821,9 @@ const styles = StyleSheet.create({
   none: { gap: spacing.sm, padding: 14, borderRadius: 16, backgroundColor: colors.well },
   noneTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
 });
+
+/** «Te quedan 7 de 10 preguntas este mes». */
+function quotaLine(q: AskQuota): string {
+  const left = Math.max(0, q.limit - q.used);
+  return `Te ${left === 1 ? 'queda 1 pregunta' : `quedan ${left} preguntas`} de ${q.limit} este mes.`;
+}

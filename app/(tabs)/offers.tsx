@@ -282,6 +282,8 @@ export default function OffersScreen() {
       askApi.ask({
         q,
         ...(center ? { lat: center.latitude, long: center.longitude } : {}),
+        // La caja de Vitrina busca mientras escribes: por palabras, sin IA, sin gastar las preguntas del mes.
+        ai: false,
       }),
     enabled: Boolean(q && q.length >= 2),
     staleTime: 30_000,
