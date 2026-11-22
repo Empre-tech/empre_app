@@ -17,6 +17,7 @@ import { NoticeHost } from '@/components/Notice';
 import { flushLedger, initLedgerOutbox } from '@/ledger/ledgerStore';
 import { colors } from '@/theme';
 import { GlobalEmpreButton } from '@/components/GlobalEmpreButton';
+import { OfflineGate } from '@/components/system/OfflineGate';
 
 // Se mantiene la splash nativa visible hasta que Inter esté
 // lista, así se evita el "parpadeo" de la tipografía del sistema al abrir.
@@ -103,6 +104,7 @@ export default function RootLayout() {
             <GlobalEmpreButton />
             <UploadCapsule />
             <NoticeHost />
+            <OfflineGate />
           </ChatProvider>
         </AuthProvider>
       </QueryClientProvider>

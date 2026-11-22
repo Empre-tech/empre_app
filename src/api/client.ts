@@ -1,6 +1,8 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { API_URL } from '@/config';
 import type { TokenPair } from './types';
+import { reportReachable } from '@/lib/connectivity';
+import { checkConnectivityNow } from './connectivityRuntime';
 
 export class ApiError extends Error {
   status: number;
@@ -174,11 +176,13 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       if (error instanceof Error && error.name === 'AbortError') throw error;
       const raw = error instanceof Error ? error.message : String(error);
       console.warn(`[api] fetch falló para ${method} ${path}:`, raw);
+      void checkConnectivityNow();
       throw new ApiError(0, `No pudimos conectar con el servidor. Revisa tu conexión. (${raw})`);
     }
   };
 
   let { res, hadToken } = await send();
+  reportReachable();
 
   if (res.status === 401 && hadToken && (await refreshSession())) {
     ({ res, hadToken } = await send());
@@ -237,6 +241,7 @@ export async function uploadFile<T>(path: string, fileUri: string, options: Uplo
     } catch (error) {
       const raw = error instanceof Error ? error.message : String(error);
       console.warn(`[api] uploadAsync falló para ${path}:`, raw);
+      void checkConnectivityNow();
       throw new ApiError(0, `No pudimos conectar con el servidor. Revisa tu conexión. (${raw})`);
     }
   };
