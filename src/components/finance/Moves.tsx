@@ -1,6 +1,8 @@
 import { Ionicons } from '@/components/Icon';
+import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Expense, Sale } from '@/api/ledger';
+import { MoveSheet, type MoveDetail } from '@/components/finance/MoveSheet';
 import { queueVoid } from '@/ledger/ledgerStore';
 import { categoryLabel, formatPesos, METHOD_LABEL, salePayText } from '@/lib/ledger';
 import { colors, fonts } from '@/theme';
@@ -15,17 +17,20 @@ export interface Movement {
   sub: string;
   voided: boolean;
   pending: boolean;
+  /** La venta o el gasto completo, para abrir su ticket al tocarlo. */
+  sale?: Sale;
+  expense?: Expense;
 }
 
 const originText = (source: Sale['source']) => (source === 'offer_claim' ? 'Empre Offers · ' : source === 'appointment' ? 'Agenda · ' : '');
 
 export function saleMovement(s: Sale): Movement {
   const what = s.lines?.length ? s.lines.map((l) => (l.qty === 1 ? l.name : `${l.qty} × ${l.name}`)).join(', ') : s.note || 'Venta';
-  return { key: `s${s.id}`, kind: 'sale', id: s.id, at: s.occurred_at, amount: s.total, title: what, sub: `${originText(s.source)}${salePayText({ ...s, partyName: s.party?.name })}${s.source === 'voice' ? ' · por voz' : ''}`, voided: s.status === 'voided', pending: false };
+  return { key: `s${s.id}`, kind: 'sale', id: s.id, at: s.occurred_at, amount: s.total, title: what, sub: `${originText(s.source)}${salePayText({ ...s, partyName: s.party?.name })}${s.source === 'voice' ? ' · por voz' : ''}`, voided: s.status === 'voided', pending: false, sale: s };
 }
 
 export function expenseMovement(e: Expense): Movement {
-  return { key: `e${e.id}`, kind: 'expense', id: e.id, at: e.occurred_at, amount: e.amount, title: e.note || categoryLabel(e.category), sub: `${categoryLabel(e.category)} · ${e.method === 'credit' ? 'A crédito' : METHOD_LABEL[e.method]}${e.party ? ` · ${e.party.name}` : ''}`, voided: e.status === 'voided', pending: false };
+  return { key: `e${e.id}`, kind: 'expense', id: e.id, at: e.occurred_at, amount: e.amount, title: e.note || categoryLabel(e.category), sub: `${categoryLabel(e.category)} · ${e.method === 'credit' ? 'A crédito' : METHOD_LABEL[e.method]}${e.party ? ` · ${e.party.name}` : ''}`, voided: e.status === 'voided', pending: false, expense: e };
 }
 
 export function timeOf(iso: string): string {
@@ -34,8 +39,14 @@ export function timeOf(iso: string): string {
   return d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 }
 
-/** Ventas y gastos en una lista; tocar uno ofrece anularlo. `when` dice qué poner antes del detalle. */
+/** Ventas y gastos en una lista; tocar uno abre su ticket (enviar, ver el cliente, anular). `when` dice qué poner antes del detalle. */
 export function MoveRows({ entityId, moves, when = (m) => timeOf(m.at) }: { entityId: string; moves: Movement[]; when?: (m: Movement) => string }) {
+  const [open, setOpen] = useState<MoveDetail | null>(null);
+  const tap = (m: Movement) => {
+    if (m.sale) return setOpen({ kind: 'sale', sale: m.sale, voided: m.voided });
+    if (m.expense) return setOpen({ kind: 'expense', expense: m.expense, voided: m.voided });
+    askVoid(m);
+  };
   const askVoid = (m: Movement) => {
     if (m.voided) return;
     Alert.alert(m.kind === 'sale' ? 'Anular esta venta' : 'Anular este gasto', `${m.title} · ${formatPesos(m.amount)}\n\nNo se borra: queda marcada como anulada y deja de contar.`, [
@@ -46,7 +57,7 @@ export function MoveRows({ entityId, moves, when = (m) => timeOf(m.at) }: { enti
   return (
     <>
       {moves.map((m, i) => (
-        <Pressable key={m.key} accessibilityRole="button" accessibilityLabel={`${m.kind === 'sale' ? 'Venta' : 'Gasto'} de ${formatPesos(m.amount)}, ${m.title}${m.voided ? ', anulada' : ''}. Toca para anular`} onPress={() => (m.pending ? undefined : askVoid(m))} style={[styles.move, i > 0 && styles.moveLine]}>
+        <Pressable key={m.key} accessibilityRole="button" accessibilityLabel={`${m.kind === 'sale' ? 'Venta' : 'Gasto'} de ${formatPesos(m.amount)}, ${m.title}${m.voided ? ', anulada' : ''}. Toca para ver el detalle`} onPress={() => (m.pending ? undefined : tap(m))} style={[styles.move, i > 0 && styles.moveLine]}>
           <View style={styles.moveIcon}>
             <Ionicons name={m.kind === 'sale' ? 'arrow-up' : 'arrow-down'} size={16} color={colors.ink} />
           </View>
@@ -66,6 +77,7 @@ export function MoveRows({ entityId, moves, when = (m) => timeOf(m.at) }: { enti
           </Text>
         </Pressable>
       ))}
+      <MoveSheet entityId={entityId} move={open} onClose={() => setOpen(null)} />
     </>
   );
 }
