@@ -22,3 +22,6 @@ npm-debug.*
 *.p12
 *.key
 *.mobileprovision
+# Firebase: llega por EAS (GOOGLE_SERVICES_JSON) o se pone a mano para builds locales
+google-services.json
+GoogleService-Info.plist

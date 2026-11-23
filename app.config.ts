@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import type { ExpoConfig } from 'expo/config';
 
 // Los identificadores (bundleIdentifier / package) son provisionales:
@@ -23,6 +24,7 @@ try {
 // negocio). En EAS (preview / production) la build falla aquí en vez de entregar un APK que se cierra. La llave se crea
 // una vez con: npx eas-cli env:create --name GOOGLE_MAPS_API_KEY --environment preview --environment production
 const mapsKey = process.env.GOOGLE_MAPS_API_KEY?.trim();
+const googleServices = process.env.GOOGLE_SERVICES_JSON || (existsSync('./google-services.json') ? './google-services.json' : undefined);
 const easProfile = process.env.EAS_BUILD_PROFILE;
 if (easProfile && easProfile !== 'development' && !mapsKey) {
   throw new Error(
@@ -62,6 +64,10 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'co.empre.app',
+    // Firebase (notificaciones push en Android): en EAS llega como variable de tipo archivo GOOGLE_SERVICES_JSON; en un
+    // build local, el archivo google-services.json en la raíz (no se sube a git). Sin él, el build sigue, pero Android no
+    // recibe notificaciones.
+    ...(googleServices ? { googleServicesFile: googleServices } : {}),
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#D42020',
