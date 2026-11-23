@@ -16,6 +16,7 @@ import { TypeIn } from '@/components/chat/EmpreVoice';
 import { VoiceOrb } from '@/components/ai/VoiceOrb';
 import { AmountField, Chip, MethodChips, PartyPicker } from '@/components/ledger/parts';
 import { PayDeck } from '@/components/ledger/PayDeck';
+import { phoneProblem } from '@/lib/customerMessages';
 import { categoryLabel, formatPesos, newClientId } from '@/lib/ledger';
 import { speechAvailable, startDictation } from '@/ledger/speech';
 import { liveParse } from '@/lib/voiceLive';
@@ -92,6 +93,7 @@ export function actionProblem(a: VoiceAction): string | null {
   if (needsParty && !a.party_id && !(a.new_party && a.party_name?.trim())) {
     return a.candidates?.length ? 'Elige a quién.' : a.type === 'payment' ? 'No sé quién abonó.' : 'Falta el cliente o proveedor.';
   }
+  if (a.new_party && !a.party_id && a.party_phone) return phoneProblem(a.party_phone);
   return null;
 }
 
@@ -1359,7 +1361,7 @@ function ActionCard({ entityId, heard, action: a, problem, onChange, onRemove, o
                 {a.type === 'expense' ? 'Proveedor' : 'Cliente'}
                 {a.new_party && !a.party_id ? ' nuevo' : ''}: {a.party_name}
               </Text>
-              <Pressable accessibilityRole="button" accessibilityLabel="Cambiar" onPress={() => onChange({ party_id: undefined, party_name: '', new_party: false, candidates: [] })} hitSlop={8}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Cambiar" onPress={() => onChange({ party_id: undefined, party_name: '', new_party: false, party_phone: undefined, accepts_messages: undefined, candidates: [] })} hitSlop={8}>
                 <Text style={styles.link}>Cambiar</Text>
               </Pressable>
             </View>
@@ -1372,6 +1374,25 @@ function ActionCard({ entityId, heard, action: a, problem, onChange, onRemove, o
               onNew={(name) => setParty({ party_id: undefined, party_name: name, new_party: true, candidates: [] })}
             />
           )}
+          {/* Cliente nuevo (2026-11-22): su celular y la autorización de mensajes, para mandarle el ticket. */}
+          {a.new_party && !a.party_id && a.type !== 'expense' && a.party_name?.trim() ? (
+            <View style={styles.newParty}>
+              <TextInput
+                value={a.party_phone ?? ''}
+                onChangeText={(t) => onChange({ party_phone: t })}
+                placeholder={`Celular de ${a.party_name.trim().split(' ')[0]} (opcional)`}
+                placeholderTextColor={colors.muted}
+                keyboardType="phone-pad"
+                maxLength={20}
+                style={styles.newPartyInput}
+                accessibilityLabel="Celular del cliente nuevo"
+              />
+              <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: Boolean(a.accepts_messages) }} onPress={() => onChange({ accepts_messages: !a.accepts_messages })} style={styles.consentRow}>
+                <Ionicons name={a.accepts_messages ? 'checkbox' : 'square-outline'} size={22} color={a.accepts_messages ? colors.primary : colors.muted} />
+                <Text style={styles.consentText}>Aceptó que guarde su número y le escriba con ofertas y recordatorios.</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
       ) : null}
 
@@ -1507,6 +1528,10 @@ const styles = StyleSheet.create({
   cardType: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
   cardMeta: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   partyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  newParty: { gap: spacing.xs },
+  newPartyInput: { minHeight: 44, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 14.5, fontFamily: fonts.ui.medium, color: colors.ink },
+  consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, minHeight: 44 },
+  consentText: { flex: 1, fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.ink },
   link: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.primary },
   party: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },

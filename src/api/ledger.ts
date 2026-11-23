@@ -542,6 +542,9 @@ export interface VoiceAction {
   party_id?: string;
   party_name?: string;
   new_party?: boolean;
+  /** Cliente nuevo: su celular y si autorizó recibir mensajes, puestos en la hoja antes de confirmar. */
+  party_phone?: string;
+  accepts_messages?: boolean;
   candidates?: { id: string; name: string }[];
   warnings?: string[];
   /** Solo en el teléfono: sumar, descontar o contar lo que dijo. `from` es lo que hay contado; null si no se lleva la cuenta. */
