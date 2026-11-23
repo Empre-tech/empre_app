@@ -1,6 +1,7 @@
 import { Ionicons } from '@/components/Icon';
 import { Image } from 'expo-image';
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
 import type { Photo } from '@/api/types';
 import { priceText, type CatalogCopy, type ServiceItem } from '@/lib/catalog';
 import { SkeletonBlock } from '@/components/Skeleton';
@@ -47,10 +48,15 @@ interface Props {
  */
 export function ProfileTabs({ items, photos, copy, isOwner, loading, tab, onTab, onOpenItem, onOpenPhoto, onSearch, onAllPhotos, onAddItem, onEditItem, only }: Props) {
   const { width } = useWindowDimensions();
-  const cell = (width - SIDE * 2 - GAP * 2) / 3;
+  // El ancho real del bloque (el perfil le pone su propio margen): con el de la pantalla, la tercera columna no cabía y
+  // la cuadrícula quedaba de dos con un hueco a la derecha.
+  const [boxW, setBoxW] = useState(0);
+  const W = boxW || width;
+  const cell = Math.floor((W - SIDE * 2 - GAP * 2) / 3);
+  const onBox = (e: LayoutChangeEvent) => setBoxW(Math.round(e.nativeEvent.layout.width));
   if (loading) {
     return (
-      <View style={styles.wrap} accessible accessibilityLabel="Cargando lo que ofrece">
+      <View style={styles.wrap} onLayout={onBox} accessible accessibilityLabel="Cargando lo que ofrece">
         <View style={[styles.bar, styles.barLoading]}>
           {[0, 1, 2].map((i) => (
             <SkeletonBlock key={i} width={84} height={16} borderRadius={8} />
@@ -72,7 +78,7 @@ export function ProfileTabs({ items, photos, copy, isOwner, loading, tab, onTab,
   const iconOf = (id: ProfileTabId): IconName => (id === 'photos' ? 'grid-outline' : id === 'services' ? 'today-outline' : copy.kind === 'food' ? 'restaurant-outline' : 'bag-handle-outline');
 
   return (
-    <View style={styles.wrap}>
+    <View style={styles.wrap} onLayout={onBox}>
       {tabs.length > 1 ? (
         <View style={styles.bar} accessibilityRole="tablist">
           {tabs.map((t) => {
@@ -98,7 +104,7 @@ export function ProfileTabs({ items, photos, copy, isOwner, loading, tab, onTab,
         </View>
       ) : null}
       {active === 'photos' ? (
-        <PhotosTimeline photos={photos} cell={(width - 4) / 3} onOpenPhoto={onOpenPhoto} onAll={onAllPhotos} />
+        <PhotosTimeline photos={photos} cell={Math.floor((W - 4) / 3)} onOpenPhoto={onOpenPhoto} onAll={onAllPhotos} />
       ) : (
         <CatalogGrid
           list={active === 'services' ? services : products}
