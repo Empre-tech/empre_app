@@ -18,6 +18,7 @@ import { chosenCost, offerTitleIdeas, priceVerdict, quietSlot, suggestedPrice } 
 import { presetRange, todayCO } from '@/lib/finance';
 import { offerTypeLabel } from '@/lib/offer';
 import { bandHint, bestOffer, durationHint, slotsHint, suggestedSlots, type Hint } from '@/lib/offerInsights';
+import { offerOrder } from '@/lib/offerOrder';
 import { useNow } from '@/lib/useNow';
 import { colors, fonts, radius, spacing } from '@/theme';
 import { markFresh, notify } from '@/upload/uploadStore';
@@ -234,7 +235,9 @@ export default function NewOfferScreen() {
   const fold = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const kindsHere = new Set(services.map((s) => s.kind ?? 'service'));
   const catalogLabel = kindsHere.size > 1 ? 'Productos y servicios' : kindsHere.has('product') ? 'Productos' : 'Servicios';
-  const listed = [...chosen, ...services.filter((s) => !picked.includes(s.id) && (!itemQuery.trim() || fold(s.name).includes(fold(itemQuery.trim()))))];
+  // Primero lo quieto y lo que menos se vendió en 30 días (los datos de Empre AI); sin datos, el orden del catálogo.
+  const ordered = offerOrder(services, numbers.data ? { idle: numbers.data.inventory.idle, sold: numbers.data.products } : null);
+  const listed = [...chosen, ...ordered.items.filter((s) => !picked.includes(s.id) && (!itemQuery.trim() || fold(s.name).includes(fold(itemQuery.trim()))))];
   // Nunca más de 12 a la vista (más lo elegido), aunque sean 100 o la búsqueda encuentre muchos.
   const shownItems = listed.slice(0, chosen.length + 12);
   const hiddenCount = listed.length - shownItems.length;
@@ -275,6 +278,7 @@ export default function NewOfferScreen() {
       {useCatalog ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{`${catalogLabel} · hasta 5`}</Text>
+          {ordered.ranked && !itemQuery.trim() ? <Text style={styles.note}>Primero lo que menos se vende: una oferta ayuda a moverlo.</Text> : null}
           {idle ? (
             <Pressable accessibilityRole="button" accessibilityLabel={`Agregar ${idle.line.name} a la oferta`} onPress={() => togglePick(idle.service!.id)} style={styles.aiInline}>
               <EmpreSymbol product="ai" size={22} animated={false} />
