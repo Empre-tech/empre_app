@@ -12,6 +12,14 @@ export function waPhone(raw: string | null | undefined): string | null {
   return null;
 }
 
+/** Qué decir de un celular escrito: vacío, incompleto o que sirve para WhatsApp. */
+export function phoneProblem(raw: string | null | undefined): string | null {
+  const d = (raw ?? '').replace(/\D/g, '');
+  if (!d) return null;
+  if (waPhone(raw)) return null;
+  return d.length < 10 ? `Le faltan números: un celular tiene 10 (escribiste ${d.length}).` : 'Revisa el número: no parece un celular.';
+}
+
 /** El enlace que abre WhatsApp con el mensaje escrito (al número, o para elegir el chat si no hay número). */
 export function waLink(phone: string | null, text: string): string {
   const t = encodeURIComponent(text);

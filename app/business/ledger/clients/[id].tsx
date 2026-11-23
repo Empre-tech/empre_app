@@ -9,6 +9,7 @@ import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { queueParty } from '@/ledger/ledgerStore';
+import { phoneProblem } from '@/lib/customerMessages';
 import { formatPesos, newClientId } from '@/lib/ledger';
 import { colors, fonts, radius, spacing } from '@/theme';
 
@@ -42,6 +43,8 @@ export default function ClientsScreen() {
   const save = () => {
     const n = name.trim();
     if (n.length < 2) return setError('Escribe el nombre (mínimo 2 letras).');
+    const bad = phoneProblem(phone);
+    if (bad) return setError(bad);
     const clientId = newClientId();
     queueParty(entityId, { client_id: clientId, kind: 'customer', name: n, ...(phone.trim() ? { phone: phone.trim() } : {}), accepts_messages: consent });
     setAdding(false);

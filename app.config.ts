@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import type { ExpoConfig } from 'expo/config';
 
 // Los identificadores (bundleIdentifier / package) son provisionales:
@@ -24,6 +23,9 @@ try {
 // negocio). En EAS (preview / production) la build falla aquí en vez de entregar un APK que se cierra. La llave se crea
 // una vez con: npx eas-cli env:create --name GOOGLE_MAPS_API_KEY --environment preview --environment production
 const mapsKey = process.env.GOOGLE_MAPS_API_KEY?.trim();
+// app.config.ts corre en Node; el proyecto no trae los tipos de Node, así que se declara solo lo que se usa.
+declare const require: (id: string) => { existsSync: (path: string) => boolean };
+const { existsSync } = require('fs');
 const googleServices = process.env.GOOGLE_SERVICES_JSON || (existsSync('./google-services.json') ? './google-services.json' : undefined);
 const easProfile = process.env.EAS_BUILD_PROFILE;
 if (easProfile && easProfile !== 'development' && !mapsKey) {

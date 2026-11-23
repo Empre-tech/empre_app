@@ -10,6 +10,7 @@ import { useReduceMotion } from '@/lib/useReduceMotion';
 import { amountField, formatPesos, METHOD_LABEL, newClientId, parseAmountInput, type PayMethod } from '@/lib/ledger';
 import { pesosInWords } from '@/lib/ledgerWords';
 import { queueParty } from '@/ledger/ledgerStore';
+import { phoneProblem } from '@/lib/customerMessages';
 import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 
 const STEP_NAMES = ['Qué', 'Cuánto', 'Cómo se pagó', 'Listo'] as const;
@@ -361,12 +362,13 @@ export function PartyPicker({
           maxLength={20}
           accessibilityLabel="Celular del cliente"
         />
+        {phoneProblem(phone) ? <Text style={styles.consentText}>{phoneProblem(phone)}</Text> : null}
         <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: consent }} onPress={() => setConsent((v) => !v)} style={styles.consentRow}>
           <Ionicons name={consent ? 'checkbox' : 'square-outline'} size={22} color={consent ? colors.primary : colors.muted} />
           <Text style={styles.consentText}>El cliente aceptó que guarde su número y le escriba con ofertas y recordatorios.</Text>
         </Pressable>
         <View style={styles.wrap}>
-          <Chip icon="checkmark" label="Agregar" selected={false} onPress={() => create(draft, { phone, consent })} />
+          <Chip icon="checkmark" label="Agregar" selected={false} onPress={() => (phoneProblem(phone) ? undefined : create(draft, { phone, consent }))} />
           <Chip icon="close" label="Cancelar" selected={false} onPress={() => setDraft(null)} />
         </View>
       </View>

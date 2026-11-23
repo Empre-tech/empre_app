@@ -10,7 +10,7 @@ import { offersApi } from '@/api/offers';
 import { Button } from '@/components/Button';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { API_URL } from '@/config';
-import { debtMessage, freeMessage, offerMessage, ticketMessage, ticketUrl, waLink, waPhone } from '@/lib/customerMessages';
+import { debtMessage, freeMessage, offerMessage, phoneProblem, ticketMessage, ticketUrl, waLink, waPhone } from '@/lib/customerMessages';
 import { formatPesos, METHOD_LABEL } from '@/lib/ledger';
 import { timeLeftLabel } from '@/lib/offer';
 import { colors, fonts, radius, spacing } from '@/theme';
@@ -81,7 +81,9 @@ export default function ClientScreen() {
     if (wa) void Linking.openURL(waLink(wa, text)).catch(() => void Share.share({ message: text }));
     else void Share.share({ message: text });
   };
-  const active = (sales.data ?? []).filter((s) => s.status === 'active');
+  // Solo las de este cliente, aunque un servidor viejo ignore el filtro y devuelva todas.
+  const mine = (sales.data ?? []).filter((s) => s.party_id === partyId);
+  const active = mine.filter((s) => s.status === 'active');
   const last = active[0];
   const spent = active.reduce((n, s) => n + s.total, 0);
   const now = Date.now();
@@ -94,7 +96,11 @@ export default function ClientScreen() {
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: insets.bottom + spacing.xl }} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Mensajes por WhatsApp</Text>
-          {!wa ? <Text style={styles.meta}>Sin celular guardado: al tocar un mensaje eliges a quién mandarlo. Agrega su celular abajo para que se abra su chat.</Text> : null}
+          {!wa ? (
+            <Text style={styles.meta}>
+              {party.phone ? `El celular guardado no sirve para WhatsApp. ${phoneProblem(party.phone) ?? ''} Corrígelo abajo; mientras tanto eliges a quién mandarlo.` : 'Sin celular: al tocar un mensaje eliges a quién mandarlo. Agrega su celular abajo para que se abra su chat.'}
+            </Text>
+          ) : null}
           {last ? (
             <Action icon="receipt-outline" title="Su último ticket" sub={`${formatPesos(last.total)} · ${shortDate(last.occurred_at)}`} onPress={() => send(ticketMessage({ customer: party.name, business: bizName, total: last.total, url: ticketUrl(API_URL, last.id) }))} />
           ) : null}
@@ -134,6 +140,7 @@ export default function ClientScreen() {
           <Text style={styles.cardTitle}>Contacto</Text>
           <TextInput value={name} onChangeText={setName} placeholder="Nombre" placeholderTextColor={colors.muted} style={styles.input} maxLength={80} accessibilityLabel="Nombre" />
           <TextInput value={phone} onChangeText={setPhone} placeholder="Celular" placeholderTextColor={colors.muted} style={styles.input} keyboardType="phone-pad" maxLength={20} accessibilityLabel="Celular" />
+          {phoneProblem(phone) ? <Text style={styles.error}>{phoneProblem(phone)}</Text> : null}
           {dirty ? <Button title="Guardar" loading={update.isPending} onPress={() => update.mutate({ name: name.trim(), phone: phone.trim() })} /> : null}
           <View style={styles.switchRow}>
             <View style={{ flex: 1 }}>
@@ -150,8 +157,8 @@ export default function ClientScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{party.balance > 0 ? `Debe ${formatPesos(party.balance)}` : 'Al día'}</Text>
           {sales.isLoading ? <ActivityIndicator color={colors.ink} /> : null}
-          {!sales.isLoading && !(sales.data ?? []).length ? <Text style={styles.meta}>Cuando le vendas eligiéndolo como cliente, sus compras salen aquí.</Text> : null}
-          {(sales.data ?? []).map((s, i) => (
+          {!sales.isLoading && !mine.length ? <Text style={styles.meta}>Cuando le vendas eligiéndolo como cliente, sus compras salen aquí.</Text> : null}
+          {mine.map((s, i) => (
             <View key={s.id} style={[styles.saleRow, i > 0 && styles.saleLine]}>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={[styles.actionTitle, s.status !== 'active' && styles.voided]} numberOfLines={1}>
