@@ -67,6 +67,10 @@ export const authApi = {
 export const usersApi = {
   me: () => request<User>('/api/users/me'),
 
+  /** Verificar el correo: mandar un código nuevo y comprobarlo. */
+  sendEmailCode: () => request<{ sent: boolean }>('/api/users/me/verify-email/send', { method: 'POST' }),
+  verifyEmail: (code: string) => request<{ verified: boolean }>('/api/users/me/verify-email', { method: 'POST', body: { code } }),
+
   uploadProfileImage: (image: UploadableImage) =>
     uploadFile<UploadedImage>('/api/users/profile/image', image.uri, { fieldName: 'file', mimeType: image.type }),
 

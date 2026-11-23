@@ -7,7 +7,6 @@ import { AuthLayout } from '@/components/AuthLayout';
 import { Button } from '@/components/Button';
 import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 import { TextField } from '@/components/TextField';
-import { finishAuth } from '@/lib/navigation';
 import { colors, fonts, spacing } from '@/theme';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -37,7 +36,8 @@ export default function RegisterScreen() {
     setError(null);
     try {
       await signUp({ name, email, password, phone });
-      finishAuth(router);
+      // El código de verificación ya salió al correo: se pide de una vez (se puede dejar para después).
+      router.replace({ pathname: '/verify-email', params: { fresh: '1' } });
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) setFieldErr({ email: 'Ese correo ya tiene cuenta.', taken: true });
       else setError(e instanceof Error ? e.message : 'Algo salió mal. Intenta de nuevo.');

@@ -385,6 +385,9 @@ export default function ProfileScreen() {
               accessibilityLabel="Medición anónima de uso"
             />
           </View>
+          {user.email_verified === false && user.has_password !== false ? (
+            <MenuRow icon="mail-unread-outline" label="Verifica tu correo" sub="Para recuperar tu cuenta si olvidas la contraseña" onPress={() => router.push('/verify-email')} />
+          ) : null}
           <InterestsRow />
           <MenuRow icon="map-outline" label="Cómo usar el mapa" onPress={() => router.push({ pathname: '/map', params: { guide: '1' } })} />
           {user.role === 'admin' ? <MenuRow icon="settings-outline" label="Panel de administración" onPress={() => router.push('/admin')} /> : null}

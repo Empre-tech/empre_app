@@ -18,6 +18,8 @@ export interface User {
   role: Role;
   /** false si la cuenta entra solo con Google (no tiene contraseña). */
   has_password?: boolean;
+  /** El correo está verificado (código, Google o restablecer la contraseña). */
+  email_verified?: boolean;
 }
 
 export interface RegisterInput {
