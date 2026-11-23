@@ -199,6 +199,7 @@ export default function BusinessHubScreen() {
   ];
   const later: HubRow[] = [
     // Todo lo que pasó en una línea de tiempo, con la meta del mes arriba (tablero «Actividad y meta»).
+    ...(FEATURES.ledger ? [{ key: 'clients', icon: 'people-outline' as IconName, title: 'Clientes', sub: 'Su historial, su ticket y mensajes por WhatsApp', onPress: go({ pathname: '/business/ledger/clients/[id]', params: { id: entityId } }) }] : []),
     { key: 'activity', icon: 'pulse-outline', title: 'Actividad y meta', sub: 'Lo que pasó y tu meta del mes', onPress: go({ pathname: '/business/activity/[id]', params: { id: entityId } }) },
     { key: 'profile', icon: 'person-outline', title: 'Perfil público', sub: b.is_verified ? 'Nombre, horario y contacto' : 'Sin verificar · nombre, horario y contacto', onPress: edit },
     { key: 'photos', icon: 'images-outline', title: 'Fotos y videos', sub: (b.photos?.length ?? 0) === 1 ? '1 publicada' : `${b.photos?.length ?? 0} publicadas`, onPress: photos },

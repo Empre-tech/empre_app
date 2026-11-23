@@ -16,6 +16,9 @@ export interface Party {
   name: string;
   phone: string;
   credit_limit: number | null;
+  /** Autorizó guardar su celular y recibir mensajes del negocio (Ley 1581). */
+  accepts_messages?: boolean;
+  consent_at?: string;
 }
 
 export interface PartyBalance extends Party {
@@ -162,6 +165,13 @@ export interface PartyInput {
   kind: PartyKind;
   name: string;
   phone?: string;
+  accepts_messages?: boolean;
+}
+
+export interface PartyUpdate {
+  name?: string;
+  phone?: string;
+  accepts_messages?: boolean;
 }
 
 export interface PaymentInput {
@@ -574,7 +584,7 @@ export const ledgerApi = {
   analytics: (entityId: string, q: { from: string; to: string; compare: 'prev' | 'month' | 'year' }) =>
     request<Analytics>(`${base(entityId)}/analytics`, { query: q }),
 
-  sales: async (entityId: string, query?: { limit?: number; from?: string; to?: string; before?: string }) =>
+  sales: async (entityId: string, query?: { limit?: number; from?: string; to?: string; before?: string; party_id?: string }) =>
     (await request<{ sales: Sale[] | null }>(`${base(entityId)}/sales`, { query })).sales ?? [],
   createSale: (entityId: string, input: SaleInput) =>
     request<Sale>(`${base(entityId)}/sales`, { method: 'POST', body: input }),
@@ -604,6 +614,8 @@ export const ledgerApi = {
     (await request<{ parties: PartyBalance[] | null }>(`${base(entityId)}/parties`, { query })).parties ?? [],
   createParty: (entityId: string, input: PartyInput) =>
     request<Party>(`${base(entityId)}/parties`, { method: 'POST', body: input }),
+  updateParty: (entityId: string, partyId: string, input: PartyUpdate) =>
+    request<Party>(`${base(entityId)}/parties/${partyId}`, { method: 'PATCH', body: input }),
   payments: async (entityId: string, partyId: string) =>
     (await request<{ payments: DebtPayment[] | null }>(`${base(entityId)}/parties/${partyId}/payments`)).payments ?? [],
   createPayment: (entityId: string, input: PaymentInput) =>

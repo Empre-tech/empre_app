@@ -265,16 +265,42 @@ export function AmountField({ value, onChange, autoFocus }: { value: number; onC
 export interface PartyChoice {
   id: string;
   name: string;
+  /** El celular, si lo tiene (para mandarle el ticket por WhatsApp). */
+  phone?: string;
 }
 
 /** Elegir (o crear al vuelo) el cliente de un fiado o el proveedor de una compra a crédito. Funciona sin señal. */
-export function PartyPicker({ entityId, kind, value, onChange, onNew }: { entityId: string; kind: PartyKind; value: PartyChoice | null; onChange: (p: PartyChoice | null) => void; onNew?: (name: string) => void }) {
+/**
+ * Elegir un cliente o proveedor, o crear uno escribiendo su nombre. Con `withContact` (el cliente opcional de una venta),
+ * al crear uno pide también su celular y si autorizó recibir mensajes (Ley 1581).
+ */
+export function PartyPicker({
+  entityId,
+  kind,
+  value,
+  onChange,
+  onNew,
+  withContact,
+  placeholder,
+}: {
+  entityId: string;
+  kind: PartyKind;
+  value: PartyChoice | null;
+  onChange: (p: PartyChoice | null) => void;
+  onNew?: (name: string) => void;
+  withContact?: boolean;
+  placeholder?: string;
+}) {
   const [query, setQuery] = useState('');
   const [created, setCreated] = useState<PartyChoice[]>([]);
+  // Crear con contacto: el nombre queda fijo y se piden celular y autorización antes de agregarlo.
+  const [draft, setDraft] = useState<string | null>(null);
+  const [phone, setPhone] = useState('');
+  const [consent, setConsent] = useState(false);
   const parties = useQuery({ queryKey: ['ledger', entityId, 'parties', kind], queryFn: () => ledgerApi.parties(entityId, { kind }), staleTime: 30_000 });
 
   const all = useMemo<PartyChoice[]>(() => {
-    const server = (parties.data ?? []).map((p) => ({ id: p.id, name: p.name }));
+    const server = (parties.data ?? []).map((p) => ({ id: p.id, name: p.name, phone: p.phone || undefined }));
     return [...created.filter((c) => !server.some((s) => s.id === c.id)), ...server];
   }, [parties.data, created]);
 
@@ -297,6 +323,18 @@ export function PartyPicker({ entityId, kind, value, onChange, onNew }: { entity
     );
   }
 
+  const create = (name: string, contact?: { phone: string; consent: boolean }) => {
+    const clientId = newClientId();
+    const cleanPhone = contact?.phone.trim() ?? '';
+    queueParty(entityId, { client_id: clientId, kind, name, ...(cleanPhone ? { phone: cleanPhone } : {}), ...(contact ? { accepts_messages: contact.consent } : {}) });
+    const choice = { id: clientId, name, phone: cleanPhone || undefined };
+    setCreated((c) => [choice, ...c]);
+    onChange(choice);
+    setQuery('');
+    setDraft(null);
+    setPhone('');
+    setConsent(false);
+  };
   const add = () => {
     const name = query.trim();
     if (!name) return;
@@ -305,20 +343,42 @@ export function PartyPicker({ entityId, kind, value, onChange, onNew }: { entity
       setQuery('');
       return;
     }
-    const clientId = newClientId();
-    queueParty(entityId, { client_id: clientId, kind, name });
-    const choice = { id: clientId, name };
-    setCreated((c) => [choice, ...c]);
-    onChange(choice);
-    setQuery('');
+    if (withContact) return setDraft(name);
+    create(name);
   };
+
+  if (draft !== null) {
+    return (
+      <View style={styles.newParty}>
+        <Text style={styles.pickedName}>{`Nuevo cliente: ${draft}`}</Text>
+        <TextInput
+          value={phone}
+          onChangeText={setPhone}
+          placeholder="Celular (opcional), para mandarle el ticket"
+          placeholderTextColor={colors.muted}
+          keyboardType="phone-pad"
+          style={styles.search}
+          maxLength={20}
+          accessibilityLabel="Celular del cliente"
+        />
+        <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: consent }} onPress={() => setConsent((v) => !v)} style={styles.consentRow}>
+          <Ionicons name={consent ? 'checkbox' : 'square-outline'} size={22} color={consent ? colors.primary : colors.muted} />
+          <Text style={styles.consentText}>El cliente aceptó que guarde su número y le escriba con ofertas y recordatorios.</Text>
+        </Pressable>
+        <View style={styles.wrap}>
+          <Chip icon="checkmark" label="Agregar" selected={false} onPress={() => create(draft, { phone, consent })} />
+          <Chip icon="close" label="Cancelar" selected={false} onPress={() => setDraft(null)} />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={{ gap: spacing.sm }}>
       <TextInput
         value={query}
         onChangeText={setQuery}
-        placeholder={kind === 'customer' ? '¿A quién le fías? Busca o escribe un nombre' : '¿A qué proveedor? Busca o escribe un nombre'}
+        placeholder={placeholder ?? (kind === 'customer' ? '¿A quién le fías? Busca o escribe un nombre' : '¿A qué proveedor? Busca o escribe un nombre')}
         placeholderTextColor={colors.muted}
         style={styles.search}
         autoCapitalize="words"
@@ -348,6 +408,9 @@ export function Stat({ title, value, tone = 'ink', big = false }: { title: strin
 }
 
 const styles = StyleSheet.create({
+  newParty: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, minHeight: 44 },
+  consentText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.ink },
   headerWrap: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.sm,

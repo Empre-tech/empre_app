@@ -2,8 +2,9 @@ import { Ionicons } from '@/components/Icon';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, Easing, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi, type InventoryItem, type ItemCost } from '@/api/ledger';
 import { Button } from '@/components/Button';
 import { SkeletonBlock } from '@/components/Skeleton';
@@ -14,6 +15,8 @@ import { formatPesos, METHOD_LABEL, newClientId, salePayText, type PayMethod } f
 import { queueSale, queueVoid } from '@/ledger/ledgerStore';
 import { parkSale, removeParkedSale, useParkedSales, type ParkedSale } from '@/ledger/parkedSales';
 import { useReduceMotion } from '@/lib/useReduceMotion';
+import { API_URL } from '@/config';
+import { ticketMessage, ticketUrl, waLink, waPhone } from '@/lib/customerMessages';
 import { colors, fonts, softShadow, spacing } from '@/theme';
 
 type How = 'one' | 'split' | 'part';
@@ -66,6 +69,7 @@ export default function NewSaleScreen() {
 
   const items = useQuery({ queryKey: ['ledger', entityId, 'items'], queryFn: () => ledgerApi.items(entityId), enabled: Boolean(entityId), staleTime: 60_000 });
   const inv = useQuery({ queryKey: ['ledger', entityId, 'inventory'], queryFn: () => ledgerApi.inventory(entityId), enabled: Boolean(entityId), staleTime: 60_000 });
+  const business = useQuery({ queryKey: ['entity', entityId], queryFn: () => entitiesApi.get(entityId), enabled: Boolean(entityId), staleTime: 5 * 60_000 });
 
   const invById = useMemo(() => {
     const map = new Map<string, InventoryItem>();
@@ -106,7 +110,7 @@ export default function NewSaleScreen() {
   const [party, setParty] = useState<PartyChoice | null>(null);
   const [note, setNote] = useState('');
   const [editAmount, setEditAmount] = useState(false);
-  const [saved, setSaved] = useState<{ clientId: string; total: number; text: string; voided: boolean } | null>(null);
+  const [saved, setSaved] = useState<{ clientId: string; total: number; text: string; voided: boolean; party?: PartyChoice | null } | null>(null);
   const [how, setHow] = useState<How>('one');
   const [first, setFirst] = useState<number | null>(null);
   const [firstCustom, setFirstCustom] = useState(false);
@@ -270,12 +274,26 @@ export default function NewSaleScreen() {
       total,
       method,
       ...pay,
-      party_id: method === 'credit' || how === 'part' ? party?.id : undefined,
+      // El cliente va siempre que se eligió: en un fiado es obligatorio y, si no, es opcional (su historial y su ticket).
+      party_id: party?.id,
       note: note.trim() || undefined,
       lines: lines.map((i) => ({ item_id: i.id, name: i.name, qty: qty[i.id] ?? 1, unit_price: i.price ?? undefined })),
     });
     setError(null);
-    setSaved({ clientId, total, text: salePayText({ total, method, ...pay, partyName: party?.name }), voided: false });
+    setSaved({ clientId, total, text: salePayText({ total, method, ...pay, partyName: party?.name }), voided: false, party });
+  };
+
+  // El ticket digital: una página pública con la venta. Con el celular del cliente, se abre su chat de WhatsApp; si no,
+  // el dueño elige a quién mandarlo.
+  const sendTicket = () => {
+    if (!saved) return;
+    const text = ticketMessage({ customer: saved.party?.name, business: business.data?.name ?? 'nuestro negocio', total: saved.total, url: ticketUrl(API_URL, saved.clientId) });
+    const phone = waPhone(saved.party?.phone);
+    if (phone) {
+      void Linking.openURL(waLink(phone, text)).catch(() => void Share.share({ message: text }));
+    } else {
+      void Share.share({ message: text });
+    }
   };
 
   const primaryDisabled = !saved && (total <= 0 || Boolean(waiting));
@@ -322,6 +340,12 @@ export default function NewSaleScreen() {
                 }}
               />
             </View>
+            {!saved.voided ? (
+              <View style={styles.doneReceipt}>
+                <Button title={saved.party?.phone ? `Enviar ticket a ${saved.party.name.split(' ')[0]}` : 'Enviar ticket'} variant="secondary" onPress={sendTicket} />
+                <Text style={styles.ticketHint}>{saved.party?.phone ? 'Se abre su chat de WhatsApp con el enlace al ticket.' : 'Eliges por dónde mandarlo. El ticket no es factura electrónica.'}</Text>
+              </View>
+            ) : null}
           </ScrollView>
         ) : shown === 'pay' ? (
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
@@ -418,7 +442,13 @@ export default function NewSaleScreen() {
             {how === 'one' && method === 'credit' ? (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>¿Quién te queda debiendo?</Text>
-                <PartyPicker entityId={entityId} kind="customer" value={party} onChange={setParty} />
+                <PartyPicker entityId={entityId} kind="customer" value={party} onChange={setParty} withContact />
+              </View>
+            ) : how !== 'part' ? (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Cliente (opcional)</Text>
+                <PartyPicker entityId={entityId} kind="customer" value={party} onChange={setParty} withContact placeholder="Busca o escribe el nombre del cliente" />
+                <Text style={styles.hint}>Queda en su historial y le puedes mandar el ticket.</Text>
               </View>
             ) : null}
 
@@ -672,7 +702,8 @@ const styles = StyleSheet.create({
   doneTitle: { fontSize: 19, lineHeight: 23, fontFamily: fonts.display.bold, color: colors.ink },
   doneTotal: { fontSize: 40, lineHeight: 46, fontFamily: fonts.display.bold, color: colors.finance, fontVariant: ['tabular-nums'] },
   doneSub: { textAlign: 'center', fontSize: 14.5, lineHeight: 20, fontFamily: fonts.ui.semibold, color: colors.muted },
-  doneReceipt: { alignSelf: 'stretch' },
+  doneReceipt: { alignSelf: 'stretch', gap: 6 },
+  ticketHint: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.muted, textAlign: 'center' },
   footer: { gap: 8, paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.hairline, backgroundColor: colors.surface },
   primaryBtn: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.brandRef },
   primaryBtnDisabled: { backgroundColor: colors.hairline },
