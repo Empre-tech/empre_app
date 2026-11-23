@@ -338,13 +338,13 @@ export default function ProfileScreen() {
           LO TUYO
         </Text>
         <View style={styles.tiles}>
+          {/* Mis salidas y Mis citas en una sola (2026-11-23). */}
           <Tile
             icon="qr-code-outline"
-            title="Mis salidas"
-            sub={month.outings ? `${month.outings} este mes${month.saved ? ` · ${formatPesos(month.saved)} ahorrados` : ''}` : 'Ninguna este mes'}
-            onPress={() => (month.saved ? setPeek({ kind: 'saved' }) : router.push('/salidas'))}
+            title={FEATURES.agenda ? 'Mis salidas y citas' : 'Mis salidas'}
+            sub={[month.outings ? `${month.outings} salidas este mes${month.saved ? ` · ${formatPesos(month.saved)} ahorrados` : ''}` : null, FEATURES.agenda && comingAppts ? `Citas: ${apptSub}` : null].filter(Boolean).join(' · ') || 'Nada este mes'}
+            onPress={() => (month.saved && !comingAppts ? setPeek({ kind: 'saved' }) : router.push('/salidas'))}
           />
-          {FEATURES.agenda ? <Tile icon="calendar-outline" title="Mis citas" sub={apptSub} onPress={() => router.push('/appointments')} /> : null}
           <Tile icon="heart-outline" title="Negocios que sigues" sub={favCount ? `${favCount} · lo que publican` : 'Ninguno todavía'} onPress={() => router.push('/favorites')} />
           <Tile icon="shield-checkmark-outline" title="Lo que Agent sabe" sub="Y lo que nunca guarda" onPress={() => router.push('/agent/privacy')} />
         </View>

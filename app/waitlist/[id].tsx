@@ -77,7 +77,7 @@ export default function WaitlistOfferScreen() {
           <Text style={styles.sub}>
             {entry?.status === 'booked' ? 'La encuentras en tus citas.' : entry?.status === 'waiting' ? 'Sigues en la lista: si se libera otra, te avisamos.' : 'Pasaron los 10 minutos o alguien más la tomó.'}
           </Text>
-          <Button title="Ver mis citas" variant="secondary" onPress={() => router.replace('/appointments')} />
+          <Button title="Ver mis citas" variant="secondary" onPress={() => router.replace('/salidas')} />
         </View>
       )}
     </View>

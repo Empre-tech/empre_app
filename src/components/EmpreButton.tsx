@@ -261,8 +261,8 @@ export function EmpreButton({
         ...(signedIn
           ? [
               ...(FEATURES.vuelta ? [{ key: 'vuelta', title: 'Armar una vuelta', icon: 'walk-outline' as IconName, tone: 'plain' as const, go: () => router.push('/vuelta') }] : []),
-              { key: 'salidas', title: 'Mis salidas', icon: 'ticket-outline' as IconName, tone: 'plain' as const, go: () => router.push('/salidas') },
-              { key: 'citas', title: 'Mis citas', icon: 'calendar-outline' as IconName, tone: 'plain' as const, go: () => router.push('/appointments') },
+              // Mis salidas y Mis citas en una sola (2026-11-23): los QR, las citas que vienen y el diario.
+              { key: 'salidas', title: FEATURES.agenda ? 'Mis salidas y citas' : 'Mis salidas', icon: 'ticket-outline' as IconName, tone: 'plain' as const, go: () => router.push('/salidas') },
               { key: 'saved', title: 'Guardados', icon: 'bookmark-outline' as IconName, tone: 'plain' as const, go: () => router.push('/favorites') },
             ]
           : []),

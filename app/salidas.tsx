@@ -125,7 +125,7 @@ export default function SalidasScreen() {
           <Ionicons name="chevron-back" size={20} color={colors.ink} />
         </Pressable>
         <Text style={styles.title} accessibilityRole="header">
-          Mis salidas
+          {FEATURES.agenda ? 'Mis salidas y citas' : 'Mis salidas'}
         </Text>
         {FEATURES.vuelta ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Armar una vuelta por el barrio" onPress={() => router.push('/vuelta')} style={styles.vuelta}>
@@ -257,11 +257,17 @@ export default function SalidasScreen() {
       ) : null}
 
       {laterAppts.length ? (
-        <Section title="Lo que viene">
+        <Section title="Tus próximas citas">
           {laterAppts.map((a, i) => (
             <Row key={a.id} first={i === 0} agenda icon="calendar-outline" title={a.service?.name ?? 'Cita'} sub={[a.entity?.name, formatWhen(a.starts_at)].filter(Boolean).join(' · ')} tag={STATUS_LABEL[a.status]} onPress={() => openAppt(a)} />
           ))}
         </Section>
+      ) : null}
+
+      {FEATURES.agenda && (appts.data ?? []).length ? (
+        <Pressable accessibilityRole="link" onPress={() => router.push('/appointments')} style={{ minHeight: 44, justifyContent: 'center' }}>
+          <Text style={styles.link}>Ver todas tus citas, también las pasadas y canceladas</Text>
+        </Pressable>
       ) : null}
 
       {days.length ? (
