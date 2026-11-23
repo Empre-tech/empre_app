@@ -37,7 +37,8 @@ type NotificationData = {
     | 'appointment_closing'
     | 'appointment_digest'
     | 'offer'
-    | 'waitlist_offer';
+    | 'waitlist_offer'
+    | 'debts';
   entity_id?: string;
   /** «Avísame» de Ofertas: la oferta nueva que coincidió. */
   offer_id?: string;
@@ -169,6 +170,10 @@ export function usePushNotifications() {
           if (data.offer_id) {
             router.push({ pathname: '/offer/[id]', params: { id: data.offer_id, ...(data.entity_id ? { entityId: data.entity_id } : {}) } });
           }
+          break;
+        // El aviso de los lunes: lo que le deben al negocio. Abre Cuentas.
+        case 'debts':
+          if (data.entity_id) router.push({ pathname: '/business/ledger/debts/[id]', params: { id: data.entity_id } });
           break;
         case 'subscription':
           if (data.entity_id) {
