@@ -9,7 +9,7 @@ import { paymentsApi } from '@/api/endpoints';
 import { Button } from '@/components/Button';
 import { ProPerkList } from '@/components/pro/ProPerkList';
 import { ProTag } from '@/components/pro/ProTag';
-import { isProSubscription, PRO_PRICE_AMOUNT, PRO_PRICE_UNIT } from '@/lib/proPlan';
+import { isProSubscription, proPriceFor, PRO_PRICE_UNIT } from '@/lib/proPlan';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 
@@ -43,6 +43,7 @@ export default function BusinessSubscriptionScreen() {
   });
 
   const sub = query.data?.subscription;
+  const price = proPriceFor(query.data);
   const isPro = isProSubscription(sub);
 
   const pay = async () => {
@@ -118,18 +119,19 @@ export default function BusinessSubscriptionScreen() {
             <ProPerkList detail />
             <View style={styles.price}>
               <Text style={styles.priceName}>Empre Pro</Text>
-              <Text style={styles.priceAmount} accessibilityLabel={`${PRO_PRICE_AMOUNT} pesos al mes, por negocio`}>
-                {PRO_PRICE_AMOUNT}
+              <Text style={styles.priceAmount} accessibilityLabel={`${price.amount} pesos al mes, por negocio`}>
+                {price.amount}
                 <Text style={styles.priceUnit}> al mes</Text>
               </Text>
             </View>
+            {price.extra ? <Text style={styles.disclaimer}>Mitad de precio: ya tienes Empre Pro en otro de tus negocios.</Text> : null}
           </View>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <Button title={isPro ? 'Renovar un mes más' : 'Pásate a Pro'} onPress={() => void pay()} loading={paying} />
           <Text style={styles.disclaimer}>
-            {`Se paga por negocio, ${PRO_PRICE_AMOUNT} ${PRO_PRICE_UNIT}, en Wompi. Empre nunca ve ni guarda los datos de tu tarjeta.`}
+            {`Se paga por negocio, ${price.amount} ${PRO_PRICE_UNIT}, en Wompi. Cada negocio más va a mitad de precio. Empre nunca ve ni guarda los datos de tu tarjeta.`}
           </Text>
         </ScrollView>
       )}

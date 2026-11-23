@@ -7,6 +7,15 @@
 export const PRO_PRICE_AMOUNT = '$39.900';
 export const PRO_PRICE_UNIT = 'COP / mes';
 
+/**
+ * El precio de Pro para un negocio (2026-11-22): $39.900; si el dueño ya tiene Pro en otro de sus negocios, la mitad.
+ * Lo dice el servidor (price_cop); mientras no llega, el precio completo.
+ */
+export function proPriceFor(s?: { price_cop?: number; extra_business?: boolean } | null): { amount: string; extra: boolean } {
+  if (!s?.price_cop) return { amount: PRO_PRICE_AMOUNT, extra: false };
+  return { amount: `$${s.price_cop.toLocaleString('es-CO').replace(/,/g, '.')}`, extra: Boolean(s.extra_business) };
+}
+
 export interface ProSubscription {
   status: string;
   current_period_end?: string;

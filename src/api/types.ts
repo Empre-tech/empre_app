@@ -367,6 +367,9 @@ export interface SubscriptionRecord {
  * y nunca oculta el negocio. Ya no hay prueba gratis ni pago para seguir a la vista. */
 export interface Subscription {
   subscription: SubscriptionRecord;
+  /** Lo que paga este negocio por un mes de Pro (la mitad si el dueño ya tiene Pro en otro negocio). */
+  price_cop?: number;
+  extra_business?: boolean;
 }
 
 export interface SubscriptionCheckout {

@@ -1,3 +1,4 @@
+import { useQueries } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -5,7 +6,8 @@ import { Button } from '@/components/Button';
 import { Ionicons } from '@/components/Icon';
 import { ProTag } from '@/components/pro/ProTag';
 import { ProPerkList } from '@/components/pro/ProPerkList';
-import { PRO_PRICE_AMOUNT } from '@/lib/proPlan';
+import { proPriceFor } from '@/lib/proPlan';
+import { subscriptionQuery } from '@/lib/useProPlan';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, spacing } from '@/theme';
 
@@ -27,6 +29,10 @@ export function GoProSheet({
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const reduce = useReduceMotion();
+  // El precio de cada negocio: la mitad para los que no son el primero con Pro del mismo dueño.
+  const subs = useQueries({ queries: businesses.map((b) => ({ ...subscriptionQuery(b.id), enabled: visible })) });
+  const prices = businesses.map((_, i) => proPriceFor(subs[i]?.data));
+  const one = prices[0] ?? proPriceFor(null);
 
   const go = (id: string) => {
     onClose();
@@ -54,11 +60,13 @@ export function GoProSheet({
 
           <View style={styles.price}>
             <Text style={styles.priceName}>Empre Pro</Text>
-            <Text style={styles.priceAmount} accessibilityLabel={`${PRO_PRICE_AMOUNT} pesos al mes, por negocio`}>
-              {PRO_PRICE_AMOUNT}
+            <Text style={styles.priceAmount} accessibilityLabel={`${one.amount} pesos al mes, por negocio`}>
+              {one.amount}
               <Text style={styles.priceUnit}> al mes</Text>
             </Text>
           </View>
+          {businesses.length <= 1 && one.extra ? <Text style={styles.lead}>Mitad de precio: ya tienes Empre Pro en otro de tus negocios.</Text> : null}
+          {businesses.length > 1 ? <Text style={styles.lead}>El primer negocio paga completo; cada negocio más, la mitad.</Text> : null}
 
           {businesses.length <= 1 ? (
             <Button title="Pásate a Pro" disabled={!businesses.length} onPress={() => businesses[0] && go(businesses[0].id)} />
@@ -77,6 +85,7 @@ export function GoProSheet({
                   <Text style={styles.bizName} numberOfLines={1}>
                     {b.name}
                   </Text>
+                  <Text style={styles.lead}>{prices[businesses.indexOf(b)]?.amount}</Text>
                   <Ionicons name="chevron-forward" size={16} color={colors.muted} />
                 </Pressable>
               ))}
