@@ -3,13 +3,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { catalogApi } from '@/api/catalog';
 import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi, type InventoryItem, type StockMode } from '@/api/ledger';
 import { useAudienceEnabled, useEntitySections, type SectionPick } from '@/api/sections';
 import { Button } from '@/components/Button';
+import { ConfirmSheet } from '@/components/ConfirmSheet';
 import { PhotoGuide } from '@/components/catalog/PhotoGuide';
 import { ProductPhotos, readyIds, slotsFrom, type PhotoSlot } from '@/components/catalog/ProductPhotos';
 import { ReadyChecklist } from '@/components/catalog/ReadyChecklist';
@@ -109,6 +110,8 @@ export default function ItemScreen() {
   // Contar cuántos hay es de Empre Pro: en Base, «Cuento» sale en gris con la corona.
   const plan = useEntityPlan(entityId, FEATURES.ledger);
   const [proNote, setProNote] = useState(false);
+  const [confirm, setConfirm] = useState<'kind' | 'retire' | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
 
   // Llena el formulario una vez que llegan los datos (o con los valores por defecto si es nuevo).
   useEffect(() => {
@@ -334,55 +337,49 @@ export default function ItemScreen() {
     }
   };
 
+  // Cambiar de tipo y quitar se confirman en una hoja que dice qué pasa (2026-11-24), no en una alerta nativa.
   const changeKind = () => {
+    if (existing) setConfirm('kind');
+  };
+  const doChangeKind = async () => {
     if (!existing) return;
     const to: ItemKind = isService ? 'product' : 'service';
-    Alert.alert(
-      to === 'service' ? 'Cambiar a servicio' : 'Cambiar a producto',
-      to === 'service'
-        ? 'Un servicio no lleva inventario: sus existencias se guardan aparte (no se borran) y deja de verse agotado.'
-        : 'Un producto se cuenta. Si antes tenía existencias, vuelven con su historia. Pierde la duración y la reserva.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Cambiar',
-          onPress: async () => {
-            try {
-              await catalogApi.setKind(entityId, existing.id, to);
-              await refresh();
-              setKind(to);
-              if (to === 'product') {
-                setDuration(null);
-                setCustomDuration('');
-                setBookable(false);
-              }
-            } catch (e) {
-              setError(e instanceof Error ? e.message : 'No pudimos cambiarlo.');
-            }
-          },
-        },
-      ],
-    );
+    setConfirmBusy(true);
+    try {
+      await catalogApi.setKind(entityId, existing.id, to);
+      await refresh();
+      setKind(to);
+      if (to === 'product') {
+        setDuration(null);
+        setCustomDuration('');
+        setBookable(false);
+      }
+      setConfirm(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No pudimos cambiarlo.');
+      setConfirm(null);
+    } finally {
+      setConfirmBusy(false);
+    }
   };
 
   const retire = () => {
+    if (existing) setConfirm('retire');
+  };
+  const doRetire = async () => {
     if (!existing) return;
-    Alert.alert('Quitar', `«${existing.name}» dejará de mostrarse en tu perfil. Sus ventas pasadas se conservan.`, [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Quitar',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await catalogApi.retire(entityId, existing.id);
-            await refresh();
-            router.back();
-          } catch (e) {
-            setError(e instanceof Error ? e.message : 'No pudimos quitarlo.');
-          }
-        },
-      },
-    ]);
+    setConfirmBusy(true);
+    try {
+      await catalogApi.retire(entityId, existing.id);
+      await refresh();
+      setConfirm(null);
+      router.back();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No pudimos quitarlo.');
+      setConfirm(null);
+    } finally {
+      setConfirmBusy(false);
+    }
   };
 
   const step = (d: number) => {
@@ -1092,6 +1089,40 @@ export default function ItemScreen() {
 
       <QuickStockSheet entityId={entityId} item={sheet ? stock : null} onClose={() => setSheet(false)} onChanged={() => void refresh()} />
       <SupplyPicker visible={picker} entityId={entityId} forName={name.trim()} choices={pickerChoices} selected={picked} onClose={() => setPicker(false)} onDone={onPicked} />
+      <ConfirmSheet
+        visible={confirm === 'kind'}
+        title={isService ? `¿Cambiar «${existing?.name ?? ''}» a producto?` : `¿Cambiar «${existing?.name ?? ''}» a servicio?`}
+        points={
+          isService
+            ? [
+                { icon: 'cube-outline', text: 'Vuelve a llevar inventario. Si antes tenía existencias, regresan con su historia.' },
+                { icon: 'time-outline', text: 'Pierde la duración y ya no se puede reservar por la Agenda.' },
+                { icon: 'storefront-outline', text: 'En tu perfil pasa a la pestaña de productos.' },
+              ]
+            : [
+                { icon: 'cube-outline', text: 'Deja de llevar inventario: lo contado se guarda aparte por si vuelves a producto.' },
+                { icon: 'eye-outline', text: 'Ya no sale «agotado» en tu perfil.' },
+                { icon: 'calendar-outline', text: 'Le puedes poner duración y que tus clientes lo reserven.' },
+              ]
+        }
+        confirmLabel={isService ? 'Sí, cambiar a producto' : 'Sí, cambiar a servicio'}
+        loading={confirmBusy}
+        onConfirm={() => void doChangeKind()}
+        onClose={() => setConfirm(null)}
+      />
+      <ConfirmSheet
+        visible={confirm === 'retire'}
+        title={`¿Quitar «${existing?.name ?? ''}»?`}
+        points={[
+          { icon: 'eye-off-outline', text: 'Deja de verse en tu perfil, en tu catálogo y al buscar en Empre.' },
+          { icon: 'receipt-outline', text: 'Sus ventas pasadas se quedan en Finance: tus números no cambian.' },
+          { icon: 'refresh-outline', text: 'Si lo vuelves a vender, lo agregas de nuevo como producto o servicio.' },
+        ]}
+        confirmLabel="Sí, quitarlo"
+        loading={confirmBusy}
+        onConfirm={() => void doRetire()}
+        onClose={() => setConfirm(null)}
+      />
       <SectionSheet visible={sectionSheet} entityId={entityId} kind="sell" value={section?.id} onPick={setSection} onClose={() => setSectionSheet(false)} />
     </KeyboardAvoidingView>
   );
