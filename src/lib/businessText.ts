@@ -95,10 +95,16 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** El tipo de negocio entre las categorías de Empre: por su nombre en el texto o por palabras de todos los días. */
 export function guessCategory<T extends { id: string; name: string }>(text: string, categories: T[]): T | null {
   const t = norm(text);
-  const byName = categories.find((c) => {
-    const n = norm(c.name);
-    return t.includes(n) || n.split(/[\s,/y]+/).some((w) => w.length >= 5 && t.includes(w));
-  });
+  // Palabras completas (2026-11-24): «barbería» contiene «bar», pero no es un bar. Primero los nombres más largos.
+  const esc = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const whole = (w: string) => new RegExp(`(^|[^a-z0-9])${esc(w)}($|[^a-z0-9])`).test(t);
+  const starts = (w: string) => new RegExp(`(^|[^a-z0-9])${esc(w)}`).test(t);
+  const byName = [...categories]
+    .sort((x, y) => y.name.length - x.name.length)
+    .find((c) => {
+      const n = norm(c.name);
+      return whole(n) || n.split(/[\s,/]+/).some((w) => w.length >= 5 && w !== 'y' && starts(w));
+    });
   if (byName) return byName;
   for (const [re, keys] of HINTS) {
     if (!re.test(t)) continue;

@@ -36,3 +36,11 @@ test('lo entendido sale como chips', () => {
   assert.deepEqual(u.chips.map((c) => c.k), ['Nombre', 'Tipo', 'Horario']);
   assert.equal(u.categoryId, 'b');
 });
+
+test('«barbería» no cae en «Bar» (palabras completas)', () => {
+  const withBar = [{ id: 'x', name: 'Bar' }, ...cats];
+  assert.equal(guessCategory('Barberia', withBar)?.id, 'b');
+  assert.equal(guessCategory('un bar con música en vivo', withBar)?.id, 'x');
+  const noBarber = [{ id: 'x', name: 'Bar' }, { id: 'e', name: 'Belleza y cuidado personal' }];
+  assert.equal(guessCategory('Barbería', noBarber)?.id, 'e');
+});
