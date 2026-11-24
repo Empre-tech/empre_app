@@ -1102,14 +1102,33 @@ export default function MapScreen() {
     const t = setTimeout(() => setGuideStep(0), 800);
     return () => clearTimeout(t);
   }, [guideSeen, guideBusy, guideStep]);
+  // «Cómo usar el mapa» desde Perfil (2026-11-24): antes se borraba el parámetro y, al cambiar, se cancelaba el temporizador
+  // antes de abrir la guía; por eso solo funcionaba la primera vez (cuando salía sola). Ahora se abre y después se limpia.
   useEffect(() => {
     if (params.guide !== '1') return;
     const t = setTimeout(() => {
       setGuideStep(0);
+      router.setParams({ guide: undefined });
     }, 300);
-    router.setParams({ guide: undefined });
     return () => clearTimeout(t);
   }, [params.guide, router]);
+  // El hueco de la guía se mide contra la pantalla: onLayout da la posición dentro de su fila y la guía salía corrida.
+  const screenRef = useRef<View>(null);
+  const stripRef = useRef<View>(null);
+  const measureStrip = () => {
+    requestAnimationFrame(() => {
+      stripRef.current?.measureInWindow((x, y, width, height) => {
+        screenRef.current?.measureInWindow((sx, sy) => {
+          if (width > 0) setStripRect({ x: x - sx, y: y - sy, width, height });
+        });
+      });
+    });
+  };
+  // Al abrir la guía se mide otra vez: la barra de arriba pudo cambiar desde que se dibujó.
+  useEffect(() => {
+    if (guideStep === 0) measureStrip();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guideStep]);
   const onGuideStep = (next: number | null) => {
     if (next !== null) {
       setGuideStep(next);
@@ -1192,7 +1211,7 @@ export default function MapScreen() {
   );
 
   return (
-    <View style={styles.screen}>
+    <View ref={screenRef} style={styles.screen}>
       <View style={styles.content} onLayout={(e) => setMapSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}>
         <View style={styles.mapWrap}>
           {startupRegion === null ? (
@@ -1418,7 +1437,7 @@ export default function MapScreen() {
               <Ionicons name="chevron-back" size={22} color={colors.ink} />
             </Pressable>
             {selectedEntity ? null : (
-              <View style={{ flex: 1, minWidth: 0 }} onLayout={(e) => setStripRect(e.nativeEvent.layout)}>
+              <View ref={stripRef} collapsable={false} style={{ flex: 1, minWidth: 0 }} onLayout={measureStrip}>
                 <LocationStrip text={strip} moving={mapMoving} onAction={() => void goToMe()} />
               </View>
             )}
