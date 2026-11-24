@@ -51,13 +51,34 @@ const plain = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\
 /** La palabra en singular o plural: «cortes» y «corte», «flores» y «flor». */
 const forms = (w: string) => [w, w.replace(/s$/, ''), w.replace(/es$/, '')];
 
-/** El producto que mejor corresponde a una palabra: el nombre más corto que la contiene como palabra. */
-function findItem(word: string, items: LiveItem[]): LiveItem | null {
-  const said = forms(plain(word));
-  if (said[0].length < 3) return null;
-  const hits = items.filter((i) => i.name.split(/\s+/).some((n) => forms(plain(n)).some((f) => f.length >= 3 && said.includes(f))));
-  if (!hits.length) return null;
-  return [...hits].sort((a, b) => a.name.length - b.name.length)[0];
+/**
+ * El producto que corresponde a lo dicho desde la palabra i, mirando también las siguientes (2026-11-24): «zapatos
+ * Lacoste» es «Zapatos Lacoste», no «Zapatos Nike» y después «Zapatos Lacoste». Si «zapatos» solo encaja con varios y
+ * lo que sigue no los distingue, no se adivina (null): la palabra siguiente o el modelo deciden.
+ */
+function findItemAt(raw: string[], i: number, items: LiveItem[]): { item: LiveItem; used: number } | null {
+  const first = forms(plain(raw[i]));
+  if (first[0].length < 3) return null;
+  const wordMatches = (word: string, name: string) => {
+    const said = forms(plain(word));
+    return name.split(/\s+/).some((n) => forms(plain(n)).some((f) => f.length >= 3 && said.includes(f)));
+  };
+  let best = 0;
+  let hits: LiveItem[] = [];
+  for (const it of items) {
+    let c = 0;
+    while (c < 4 && i + c < raw.length && wordMatches(raw[i + c], it.name)) c++;
+    if (c > best) {
+      best = c;
+      hits = [it];
+    } else if (c === best && c > 0) hits.push(it);
+  }
+  if (best === 0) return null;
+  if (hits.length === 1) return { item: hits[0], used: best };
+  // Varios empatan: si uno se llama exactamente así («Zapatos»), es ese; si no, no se adivina.
+  const exact = hits.filter((h) => h.name.trim().split(/\s+/).length === best);
+  if (exact.length === 1) return { item: exact[0], used: best };
+  return null;
 }
 
 export function liveParse(text: string, items: LiveItem[] = []): LiveResult {
@@ -176,7 +197,15 @@ export function liveParse(text: string, items: LiveItem[] = []): LiveResult {
       continue;
     }
 
-    const item = findItem(raw[i], items);
+    const found = findItemAt(raw, i, items);
+    const item = found?.item ?? null;
+    if (found && found.used > 1) {
+      for (let k = i; k < i + found.used; k++) {
+        known[k] = true;
+        tags[k] = 'item';
+      }
+      i += found.used - 1;
+    }
     if (!item) {
       // Si el usuario está dictando un estado de inventario sobre un insumo que aún no está en items o usa su nombre libre
       if (pendingStock && w.length >= 3 && w !== 'queda') {
