@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { catalogApi } from '@/api/catalog';
 import { ApiError } from '@/api/client';
 import { entitiesApi } from '@/api/endpoints';
-import { ledgerApi, type AdjustReason, type InventoryItem, type VoiceAction, type VoiceResult } from '@/api/ledger';
+import { ledgerApi, type AdjustReason, type InventoryItem, type VoiceAction, type VoiceLine, type VoiceResult } from '@/api/ledger';
 import { answerFor, askWhichReading, destinationLabel, MODULE_COPY, numberQuestions, otherJob, serverModule, type AssistantModule, type NumberAnswer, type OtherJob } from '@/lib/assistantRoute';
 import { useEntitySections } from '@/api/sections';
 import { Button } from '@/components/Button';
@@ -22,6 +22,7 @@ import { categoryLabel, formatPesos, newClientId } from '@/lib/ledger';
 import { speechAvailable, startDictation } from '@/ledger/speech';
 import { liveParse } from '@/lib/voiceLive';
 import { liveRows, micLevel, phaseCopy, voicePhase, wordTone, type LiveRow, type WordTone } from '@/lib/voiceStage';
+import { pickVariant, withVariantChoices } from '@/lib/voiceVariants';
 import { availabilityLine, countFromWords, dictatedPrice, inventoryIntent, isMoneyTalk, isPriceStatement, itemNamedIn, sameNameItem, similarItems } from '@/lib/voiceNewItem';
 import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 import { KeyboardSheet } from '@/components/KeyboardSheet';
@@ -66,6 +67,8 @@ function errorText(e: unknown): string {
 
 /** ¿Falta algo para poder confirmar esta tarjeta? Devuelve el motivo o null. */
 export function actionProblem(a: VoiceAction): string | null {
+  const pending = a.lines?.find((l) => l.choose?.length);
+  if (pending) return `Elige cuál «${pending.name}» fue.`;
   if (a.stock_move) {
     const m = a.stock_move;
     if (!a.item_ref) return 'Elige uno parecido o agrégalo como nuevo.';
@@ -366,7 +369,7 @@ export function VoiceSheet({
       }
       if (await handleLocally(t)) return;
       const r = await ledgerApi.voiceParse(entityId, t, tabId, serverModule(module));
-      const priced = await withPriceAsk(t, r.actions);
+      const priced = await askVariants(await withPriceAsk(t, r.actions));
       const parsed = module === 'inventory' ? await keepInInventory(t, priced) : priced;
       setResult(r);
       setActions(parsed);
@@ -458,6 +461,17 @@ export function VoiceSheet({
         if (a.lines?.length) return a.lines.map((l) => stockAction(l.name, l.qty, inv.items, l.item_id));
         return count ? [stockAction(count.name, count.qty, inv.items)] : [a];
       });
+    } catch {
+      return list;
+    }
+  };
+
+  // «Vendí un top» y Top tiene tallas: el renglón queda con las tallas para elegir (2026-11-24). En Inventario no aplica.
+  const askVariants = async (list: VoiceAction[]): Promise<VoiceAction[]> => {
+    if (module === 'inventory' || !list.some((a) => (a.type === 'sale' || a.type === 'tab_add') && a.lines?.length)) return list;
+    try {
+      const inv = await qc.fetchQuery({ queryKey: ['ledger', entityId, 'inventory'], queryFn: () => ledgerApi.inventory(entityId), staleTime: 60_000 });
+      return list.map((a) => ((a.type === 'sale' || a.type === 'tab_add') && a.lines?.length ? { ...a, lines: withVariantChoices(a.lines, inv.items) } : a));
     } catch {
       return list;
     }
@@ -1178,6 +1192,33 @@ function PriceCard({ action: a, ask, problem, onChange, onRemove }: { action: Vo
  * Lo dictado no está en el inventario: primero lo que se le parece de verdad, entre lo que vende y sus insumos; si no es
  * ninguno, se agrega aquí mismo con el precio que dijo, sin salir de la hoja.
  */
+/** Las tallas (o sabores) de un producto que se vendió sin decir cuál: un toque y queda el renglón con su precio. */
+function VariantChoices({ action: a, onChange }: { action: VoiceAction; onChange: (p: Partial<VoiceAction>) => void }) {
+  const lines = a.lines ?? [];
+  if (!lines.some((l) => l.choose?.length)) return null;
+  const pick = (k: number, opt: NonNullable<VoiceLine['choose']>[number]) => {
+    const next = lines.map((l, i) => (i === k ? pickVariant(l, opt) : l));
+    const priced = next.every((l) => l.unit_price != null);
+    onChange({ lines: next, ...(priced ? { amount: next.reduce((sum, l) => sum + (l.unit_price ?? 0) * l.qty, 0) } : {}) });
+  };
+  return (
+    <View style={{ gap: spacing.sm }}>
+      {lines.map((l, k) =>
+        l.choose?.length ? (
+          <View key={`${l.name}${k}`} style={{ gap: spacing.xs }}>
+            <Text style={styles.cardMeta}>{`¿Cuál ${l.qty === 1 ? '' : `de los ${String(l.qty).replace('.', ',')} `}«${l.name}»?`}</Text>
+            <View style={styles.wrap}>
+              {l.choose.map((o) => (
+                <Chip key={o.ref} label={o.out ? `${o.label} · agotada` : o.label} selected={false} onPress={() => pick(k, o)} />
+              ))}
+            </View>
+          </View>
+        ) : null,
+      )}
+    </View>
+  );
+}
+
 function NewItemCard({ entityId, heard, action: a, onChange, onRemove }: { entityId: string; heard: string; action: VoiceAction; onChange: (p: Partial<VoiceAction>) => void; onRemove: () => void }) {
   const qc = useQueryClient();
   // El nombre se puede corregir antes de agregarlo (2026-11-24): la voz no siempre lo escribe como lo vendes.
@@ -1316,6 +1357,7 @@ function TabCard({ entityId, action: a, problem, onChange, onRemove }: { entityI
           <Ionicons name="close" size={20} color={colors.muted} />
         </Pressable>
       </View>
+      {add ? <VariantChoices action={a} onChange={onChange} /> : null}
       {add ? (
         <View style={{ gap: 2 }}>
           {(a.lines ?? []).map((l, k) => (
@@ -1376,6 +1418,7 @@ function ActionCard({ entityId, heard, action: a, problem, onChange, onRemove, o
         </Pressable>
       </View>
 
+      <VariantChoices action={a} onChange={onChange} />
       <PayDeck
         out={a.type === 'expense'}
         methods={a.type === 'payment' ? ['cash', 'transfer', 'card'] : ['cash', 'transfer', 'card', 'credit']}
@@ -1435,6 +1478,7 @@ function ActionCard({ entityId, heard, action: a, problem, onChange, onRemove, o
                 entityId={entityId}
                 kind={a.type === 'expense' ? 'supplier' : 'customer'}
                 value={null}
+                placeholder={a.type === 'expense' ? undefined : a.method === 'credit' ? '¿A quién le fías? Busca por nombre o celular' : a.type === 'payment' ? '¿Quién te pagó? Busca por nombre o celular' : '¿A quién le vendiste? Busca por nombre o celular'}
                 onChange={(p) => p && setParty({ party_id: p.id, party_name: p.name, new_party: false, candidates: [] })}
                 onNew={(name) => setParty({ party_id: undefined, party_name: name, new_party: true, candidates: [] })}
               />

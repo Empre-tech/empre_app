@@ -531,6 +531,8 @@ export interface VoiceLine {
   unit_price?: number | null;
   item_id?: string;
   from_catalog?: boolean;
+  /** Solo en el teléfono: el producto tiene variantes y falta elegir cuál se vendió. */
+  choose?: { ref: string; label: string; name: string; price: number | null; out: boolean }[];
 }
 
 export interface VoiceAction {
