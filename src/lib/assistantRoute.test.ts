@@ -74,3 +74,10 @@ test('numberQuestions: «ayer» y «los últimos N días»', () => {
   const b = answerFor({ topic: 'sales', period: 'days', days: 10 }, { sales_total: 500000, sales_count: 3 });
   assert.equal(b.title, 'En los últimos 10 días vendiste');
 });
+
+test('numberQuestions: «en los 10 días» sin «últimos» también es un rango', () => {
+  const [q] = numberQuestions('cuánto vendí en los 10 días');
+  assert.equal(q.period, 'days');
+  assert.equal(q.days, 10);
+  assert.equal(numberQuestions('cuánto vendí hoy')[0].period, 'day');
+});

@@ -34,6 +34,8 @@ export interface LineWithChoice {
   from_catalog?: boolean;
   /** Solo en el teléfono: el producto tiene variantes y hay que elegir cuál se vendió. */
   choose?: VariantOption[];
+  /** El renglón salió de elegir talla: guarda la elección para poder cambiarla. */
+  variant_of?: { key: string; name: string; qty: number; unit_price?: number | null; choose: VariantOption[] };
 }
 
 /**
@@ -67,10 +69,21 @@ export function withVariantChoices<L extends LineWithChoice>(lines: L[], items: 
 }
 
 /** El renglón con la variante elegida: su nombre, su id y su precio (o el del producto). */
-export function pickVariant<L extends LineWithChoice>(line: L, opt: VariantOption): L {
-  const { choose: _drop, ...rest } = line;
-  void _drop;
-  return { ...(rest as L), name: opt.name, item_id: opt.ref, unit_price: opt.price ?? line.unit_price ?? null, from_catalog: opt.price != null || line.from_catalog };
+export function pickVariant<L extends LineWithChoice>(line: L, opt: VariantOption, key = newKey()): L {
+  const { choose, ...rest } = line;
+  const variant_of = { key, name: line.name, qty: line.qty, unit_price: line.unit_price, choose: choose ?? [] };
+  return { ...(rest as L), name: opt.name, item_id: opt.ref, unit_price: opt.price ?? line.unit_price ?? null, from_catalog: opt.price != null || line.from_catalog, variant_of };
+}
+
+const newKey = () => Math.random().toString(36).slice(2, 10);
+
+/** «Cambiar tallas»: los renglones de esa elección vuelven a ser uno, con sus tallas para elegir otra vez. */
+export function reopenVariants<L extends LineWithChoice>(lines: L[], key: string): L[] {
+  const at = lines.findIndex((l) => l.variant_of?.key === key);
+  if (at < 0) return lines;
+  const v = lines[at].variant_of!;
+  const back = { ...lines[at], name: v.name, qty: v.qty, unit_price: v.unit_price ?? null, item_id: undefined, from_catalog: undefined, choose: v.choose, variant_of: undefined } as L;
+  return lines.flatMap((l, i) => (i === at ? [back] : l.variant_of?.key === key ? [] : [l]));
 }
 
 const SIZE_ORDER = ['xxs', 'xs', 's', 'm', 'l', 'xl', 'xxl', 'xxxl', '2xl', '3xl', '4xl'];
@@ -91,8 +104,8 @@ export function sortVariants<T extends { label: string }>(list: T[]): T[] {
     .map((x) => x.v);
 }
 
-/** Cuántas mostrar de entrada: las que hay, hasta 8; las agotadas y el resto quedan detrás de «Ver todas». */
-export const VARIANTS_AT_FIRST = 8;
+/** Cuántas mostrar de entrada: las que hay, hasta 6; las agotadas y el resto quedan detrás de «Ver todas». */
+export const VARIANTS_AT_FIRST = 6;
 export function visibleVariants<T extends { out: boolean }>(list: T[], all: boolean): { shown: T[]; hidden: number } {
   if (all) return { shown: list, hidden: 0 };
   const available = list.filter((v) => !v.out);
@@ -105,7 +118,8 @@ export function visibleVariants<T extends { out: boolean }>(list: T[], all: bool
  */
 export function splitByVariants<L extends LineWithChoice>(line: L, counts: Record<string, number>): L[] {
   const opts = line.choose ?? [];
-  return opts.filter((o) => (counts[o.ref] ?? 0) > 0).map((o) => ({ ...pickVariant(line, o), qty: counts[o.ref] }));
+  const key = newKey();
+  return opts.filter((o) => (counts[o.ref] ?? 0) > 0).map((o) => ({ ...pickVariant(line, o, key), qty: counts[o.ref] }));
 }
 
 /** El total de los renglones si todos tienen precio; si falta alguno, null (el total lo pone el dueño). */

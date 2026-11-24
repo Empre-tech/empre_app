@@ -22,8 +22,10 @@ test('withVariantChoices: «un top» pregunta la talla; con la talla o sin varia
 
 test('pickVariant: queda la talla con su precio, o el del producto', () => {
   const [top] = withVariantChoices([{ name: 'top', qty: 2 }], items);
-  const s = pickVariant(top, top.choose![0]);
-  assert.deepEqual(s, { name: 'Top · S', qty: 2, item_id: 'top-s', unit_price: 100000, from_catalog: true });
+  const s = pickVariant(top, top.choose![0], 'k');
+  const { variant_of, ...rest } = s;
+  assert.deepEqual(rest, { name: 'Top · S', qty: 2, item_id: 'top-s', unit_price: 100000, from_catalog: true });
+  assert.equal(variant_of?.name, 'top');
 });
 
 import { sortVariants, visibleVariants } from './voiceVariants.ts';
@@ -33,12 +35,12 @@ test('sortVariants: XS, S, M, L, XL y los números en orden', () => {
   assert.deepEqual(sortVariants([{ label: '42' }, { label: '38' }, { label: 'Rojo' }, { label: '40' }]).map((v) => v.label), ['38', '40', '42', 'Rojo']);
 });
 
-test('visibleVariants: primero las que hay, hasta 8; si todas están agotadas, se muestran', () => {
+test('visibleVariants: primero las que hay, hasta 6; si todas están agotadas, se muestran', () => {
   const many = Array.from({ length: 12 }, (_, i) => ({ label: String(30 + i), out: i === 0 }));
   const first = visibleVariants(many, false);
-  assert.equal(first.shown.length, 8);
+  assert.equal(first.shown.length, 6);
   assert.equal(first.shown[0].label, '31');
-  assert.equal(first.hidden, 4);
+  assert.equal(first.hidden, 6);
   assert.equal(visibleVariants([{ out: true }, { out: true }], false).shown.length, 2);
 });
 
@@ -55,4 +57,16 @@ test('linesTotal: si falta un precio o una talla, no hay total', () => {
   assert.equal(linesTotal([{ qty: 2, unit_price: 1000 }, { qty: 1, unit_price: null }]), null);
   assert.equal(linesTotal([{ qty: 1, unit_price: 1000, choose: [{}] }]), null);
   assert.equal(linesTotal([{ qty: 2, unit_price: 1000 }, { qty: 1, unit_price: 500 }]), 2500);
+});
+
+import { reopenVariants } from './voiceVariants.ts';
+
+test('reopenVariants: «Cambiar tallas» vuelve a un renglón con sus tallas', () => {
+  const [top] = withVariantChoices([{ name: 'top', qty: 3 }], items);
+  const split = splitByVariants(top, { 'top-s': 1, 'top-xl': 2 });
+  const back = reopenVariants([{ name: 'Gorra', qty: 1, unit_price: 30000 }, ...split], split[0].variant_of!.key);
+  assert.equal(back.length, 2);
+  assert.equal(back[1].name, 'top');
+  assert.equal(back[1].qty, 3);
+  assert.equal(back[1].choose?.length, 2);
 });

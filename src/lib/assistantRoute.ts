@@ -95,7 +95,7 @@ const NUM_WORDS: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5
 
 /** El periodo dicho: «hoy» (por defecto), «ayer», «esta semana», «este mes» o «los últimos 10 días» (2026-11-24). */
 export function periodOf(t: string): { period: NumberPeriod; days?: number } {
-  const last = /\bultim[oa]s? (\d{1,3}|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|quince|veinte|treinta) dias\b/.exec(t);
+  const last = /\b(?:(?:en|de) )?(?:(?:los|las) )?(?:ultim[oa]s? |pasad[oa]s? )?(\d{1,3}|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|quince|veinte|treinta) dias\b/.exec(t);
   if (last) {
     const n = NUM_WORDS[last[1]] ?? Number(last[1]);
     if (n >= 1 && n <= 365) return { period: 'days', days: n };

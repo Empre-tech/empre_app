@@ -22,7 +22,8 @@ import { categoryLabel, formatPesos, newClientId } from '@/lib/ledger';
 import { speechAvailable, startDictation } from '@/ledger/speech';
 import { liveParse } from '@/lib/voiceLive';
 import { liveRows, micLevel, phaseCopy, voicePhase, wordTone, type LiveRow, type WordTone } from '@/lib/voiceStage';
-import { linesTotal, pickVariant, splitByVariants, visibleVariants, withVariantChoices } from '@/lib/voiceVariants';
+import { linesTotal, pickVariant, reopenVariants, splitByVariants, visibleVariants, withVariantChoices } from '@/lib/voiceVariants';
+import { TrackModeChips } from '@/components/inventory/TrackModeChips';
 import { availabilityLine, countFromWords, dictatedPrice, inventoryIntent, isMoneyTalk, isPriceStatement, itemNamedIn, sameNameItem, similarItems } from '@/lib/voiceNewItem';
 import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 import { KeyboardSheet } from '@/components/KeyboardSheet';
@@ -78,6 +79,7 @@ export function actionProblem(a: VoiceAction): string | null {
   }
   if (a.price_ask) return a.price_ask.from !== a.price_ask.to && a.price_ok === undefined ? 'Elige si cambio el precio.' : null;
   if (a.type === 'stock') {
+    if (a.track === 'exact' && a.item_ref && a.counted == null) return '¿Cuántos hay?';
     if (!a.item_ref) return a.candidates?.length ? 'Elige de cuál hablas.' : 'Elige uno parecido o agrégalo como nuevo.';
     if (a.counted == null && !a.level) return 'Dime si se acabó, queda poco o cuántos hay.';
     return null;
@@ -526,8 +528,17 @@ export function VoiceSheet({
           await catalogApi.update(entityId, item.id, { name: item.name, description: item.description, price: a.price_ask.to, price_from: item.price_from });
         }
       }
-      if (rest.length > 0) await ledgerApi.voiceConfirm(entityId, result.draft_id, rest);
-      else if (result.draft_id) void ledgerApi.voiceDiscard(entityId, result.draft_id).catch(() => undefined);
+      // Un producto recién agregado: primero cómo se lleva su cuenta (semáforo o exacta).
+      for (const a of rest) if (a.track && a.item_ref) await ledgerApi.stockSettings(entityId, a.item_ref, { mode: a.track });
+      if (rest.length > 0 && result.draft_id) await ledgerApi.voiceConfirm(entityId, result.draft_id, rest);
+      else if (rest.length > 0) {
+        // Armado aquí, sin el modelo (agregar al inventario): no hay borrador en el servidor; se guarda directo.
+        for (const a of rest) {
+          if (a.type !== 'stock' || !a.item_ref) continue;
+          if (a.counted != null) await ledgerApi.adjust(entityId, { client_id: a.client_id, ref: a.item_ref, counted: a.counted });
+          else if (a.level) await ledgerApi.setLevel(entityId, a.item_ref, a.client_id, a.level);
+        }
+      } else if (result.draft_id) void ledgerApi.voiceDiscard(entityId, result.draft_id).catch(() => undefined);
       void qc.invalidateQueries({ queryKey: ['ledger', entityId] });
       void qc.invalidateQueries({ queryKey: ['catalog', entityId] });
       const saved = [...changes, ...moves, ...rest];
@@ -557,7 +568,8 @@ export function VoiceSheet({
   const liveIntent = mode === 'search' || isMoneyTalk(text) || isPriceStatement(text) ? null : inventoryIntent(text);
   const phase = voicePhase({ listening, busy, text, error, errorCode });
   const copy = phaseCopy(phase, mode, canSpeak, error);
-  const rows = liveRows(live, mode, text, formatPesos);
+  // «Quiero agregar zapatos New Balance»: mientras habla no se muestra una venta de «zapatos nike» (2026-11-24).
+  const rows = liveIntent && liveIntent.kind !== 'count' ? [] : liveRows(live, mode, text, formatPesos);
   const canGo = Boolean(text.trim()) && !busy;
   const goLabel = mode === 'search' ? 'Buscar' : liveIntent?.kind === 'ask' ? 'Preguntar' : mode === 'inventory' ? 'Actualizar' : 'Seguir y revisar';
   const hintLine =
@@ -566,7 +578,9 @@ export function VoiceSheet({
       : mode !== 'search' && text.trim() && !listening && !busy && numberQuestions(text).length > 0
         ? 'Vas a preguntar por tus números: sale de lo que anotaste y no gasta tu tope.'
         : mode !== 'search' && text.trim() && rows.length === 0 && !listening && !busy
-      ? liveIntent?.kind === 'ask'
+      ? liveIntent?.kind === 'new'
+        ? `Vas a agregar «${liveIntent.name}» a tu inventario.`
+        : liveIntent?.kind === 'ask'
         ? `Vas a preguntar si hay «${liveIntent.name}».`
         : liveIntent?.kind === 'add' && mode === 'inventory'
           ? `Vas a sumar ${liveIntent.qty} a «${liveIntent.name}».`
@@ -1080,7 +1094,30 @@ function StockCard({ entityId, heard, action: a, problem, onChange, onRemove }: 
       ) : (
         <Text style={styles.party}>{a.item_name || 'Producto sin identificar'}</Text>
       )}
-      {a.counted != null ? (
+      {a.track ? (
+        // Recién agregado (2026-11-24): se elige cómo llevar la cuenta; contar exacto es de Pro.
+        <View style={{ gap: spacing.sm }}>
+          <Text style={styles.cardMeta}>¿Cómo llevas la cuenta?</Text>
+          <TrackModeChips entityId={entityId} value={a.track} onPick={(m) => onChange({ track: m, counted: m === 'exact' ? a.counted : undefined, level: a.level || 'ok', warnings: [] })} />
+          {a.track === 'exact' ? (
+            <TextInput
+              value={a.counted == null ? '' : String(a.counted)}
+              onChangeText={(v) => onChange({ counted: v.trim() === '' ? undefined : Number(v.replace(',', '.')) || 0 })}
+              keyboardType="decimal-pad"
+              placeholder="¿Cuántos hay?"
+              placeholderTextColor={colors.muted}
+              style={styles.moveInput}
+              accessibilityLabel="Cuántos hay"
+            />
+          ) : (
+            <View style={styles.wrap}>
+              {STOCK_LEVELS.map((l) => (
+                <Chip key={l.level} label={l.label} selected={a.level === l.level} onPress={() => onChange({ level: l.level, warnings: [] })} />
+              ))}
+            </View>
+          )}
+        </View>
+      ) : a.counted != null ? (
         <Text style={styles.cardMeta}>Hay {String(a.counted).replace('.', ',')} en total (queda contado).</Text>
       ) : (
         <View style={styles.wrap}>
@@ -1199,13 +1236,24 @@ function PriceCard({ action: a, ask, problem, onChange, onRemove }: { action: Vo
  * cada toque suma uno a esa talla hasta completar; al completar, el renglón se parte en uno por talla (2026-11-24).
  */
 function VariantChoices({ action: a, onChange }: { action: VoiceAction; onChange: (p: Partial<VoiceAction>) => void }) {
-  // Cuánto mostrar: en orden de talla, primero las que hay (hasta 8) con cuántas quedan; las agotadas y el resto, detrás
+  // Cuánto mostrar: en orden de talla, primero las que hay (hasta 6) con cuántas quedan; las agotadas y el resto, detrás
   // de «Ver todas». El precio solo aparece si no todas valen lo mismo.
   const [all, setAll] = useState<Record<number, boolean>>({});
   const [counts, setCounts] = useState<Record<number, Record<string, number>>>({});
   const [sameSize, setSameSize] = useState<Record<number, boolean>>({});
   const lines = a.lines ?? [];
-  if (!lines.some((l) => l.choose?.length)) return null;
+  // Lo ya elegido no desaparece (2026-11-24): queda en una línea con «Cambiar tallas».
+  const picked = new Map<string, { name: string; parts: string[] }>();
+  for (const l of lines) {
+    const v = l.variant_of;
+    if (!v) continue;
+    const label = v.choose.find((o) => o.ref === l.item_id)?.label ?? l.name;
+    const g = picked.get(v.key) ?? { name: v.name, parts: [] };
+    g.parts.push(`${String(l.qty).replace('.', ',')} × ${label}`);
+    picked.set(v.key, g);
+  }
+  if (!lines.some((l) => l.choose?.length) && picked.size === 0) return null;
+  const reopen = (key: string) => onChange({ lines: reopenVariants(lines, key) });
   const apply = (next: VoiceLine[]) => {
     const total = linesTotal(next);
     setCounts({});
@@ -1225,6 +1273,17 @@ function VariantChoices({ action: a, onChange }: { action: VoiceAction; onChange
   };
   return (
     <View style={{ gap: spacing.sm }}>
+      {[...picked.entries()].map(([key, g]) => (
+        <View key={key} style={styles.pickedRow}>
+          <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+          <Text style={[styles.cardMeta, { flex: 1, color: colors.ink }]} numberOfLines={2}>
+            {`${g.name.charAt(0).toUpperCase()}${g.name.slice(1)}: ${g.parts.join(', ')}`}
+          </Text>
+          <Pressable accessibilityRole="button" onPress={() => reopen(key)} hitSlop={8}>
+            <Text style={styles.link}>Cambiar</Text>
+          </Pressable>
+        </View>
+      ))}
       {lines.map((l, k) => {
         if (!l.choose?.length) return null;
         const opts = l.choose;
@@ -1333,7 +1392,11 @@ function NewItemCard({ entityId, heard, action: a, onChange, onRemove }: { entit
   const [kind, setKind] = useState<'product' | 'supply'>('product');
   const [price, setPrice] = useState(() => dictatedPrice(heard) ?? 0);
   const [sectionId, setSectionId] = useState<string | null>(null);
-  const section = sectionId ?? list[0]?.id ?? null;
+  // La sección se adivina por los parecidos («zapatos» → donde están los otros zapatos) y las demás quedan detrás de
+  // «Cambiar» (2026-11-24): todas a la vista era mucho.
+  const guessed = list.find((s) => similar.some((i) => (i as { section?: string }).section === s.name))?.id;
+  const section = sectionId ?? guessed ?? list[0]?.id ?? null;
+  const [pickSection, setPickSection] = useState(false);
   const add = useMutation({
     mutationFn: async () => {
       if (kind === 'supply') {
@@ -1346,7 +1409,7 @@ function NewItemCard({ entityId, heard, action: a, onChange, onRemove }: { entit
     onSuccess: (ref) => {
       void qc.invalidateQueries({ queryKey: ['ledger', entityId] });
       void qc.invalidateQueries({ queryKey: ['catalog', entityId] });
-      onChange({ item_ref: ref, item_name: name, level: a.counted == null && !a.stock_move ? a.level || 'ok' : a.level, stock_move: a.stock_move ? { ...a.stock_move, kind: a.stock_move.kind === 'remove' ? 'count' : a.stock_move.kind, from: null } : undefined, warnings: [] });
+      onChange({ item_ref: ref, item_name: name, track: kind === 'product' ? 'light' : undefined, level: a.counted == null && !a.stock_move ? a.level || 'ok' : a.level, stock_move: a.stock_move ? { ...a.stock_move, kind: a.stock_move.kind === 'remove' ? 'count' : a.stock_move.kind, from: null } : undefined, warnings: [] });
     },
   });
   const pick = (ref: string, itemName: string) => {
@@ -1402,10 +1465,28 @@ function NewItemCard({ entityId, heard, action: a, onChange, onRemove }: { entit
           <>
             <AmountField value={price} onChange={setPrice} />
             {dictatedPrice(heard) && price === dictatedPrice(heard) ? <Text style={styles.cardMeta}>Es el precio que dijiste. Puedes cambiarlo.</Text> : null}
-            {list.length > 1 ? (
+            {list.length > 1 && !pickSection ? (
+              <View style={styles.partyRow}>
+                <Text style={[styles.cardMeta, { flex: 1 }]} numberOfLines={1}>
+                  {`Sección: ${list.find((s) => s.id === section)?.name ?? '—'}`}
+                </Text>
+                <Pressable accessibilityRole="button" onPress={() => setPickSection(true)} hitSlop={8}>
+                  <Text style={styles.link}>Cambiar</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {list.length > 1 && pickSection ? (
               <View style={styles.wrap}>
                 {list.map((s) => (
-                  <Chip key={s.id} label={s.name} selected={section === s.id} onPress={() => setSectionId(s.id)} />
+                  <Chip
+                    key={s.id}
+                    label={s.name}
+                    selected={section === s.id}
+                    onPress={() => {
+                      setSectionId(s.id);
+                      setPickSection(false);
+                    }}
+                  />
                 ))}
               </View>
             ) : null}
@@ -1528,7 +1609,7 @@ function ActionCard({ entityId, heard, action: a, problem, onChange, onRemove, o
         party={a.party_name || undefined}
         onEdit={() => setEditing((v) => !v)}
       />
-      {needsPrice ? <MissingPrice entityId={entityId} action={a} onChange={onChange} onSwap={onSwap} /> : null}
+      {needsPrice && !a.lines?.some((l) => l.choose?.length || l.variant_of) ? <MissingPrice entityId={entityId} action={a} onChange={onChange} onSwap={onSwap} /> : null}
       {editing && !needsPrice ? <AmountField value={a.amount} onChange={(n) => onChange({ amount: n, words: '', warnings: (a.warnings ?? []).filter((w) => !AMOUNT_WARN.test(w)) })} /> : null}
 
       {a.lines && a.lines.length > 0 && !needsPrice ? (
@@ -1742,6 +1823,7 @@ const styles = StyleSheet.create({
   partyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   newParty: { gap: spacing.xs },
   linePriceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  pickedRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 8, paddingHorizontal: 12, borderRadius: radius.md, backgroundColor: colors.well },
   newPartyInput: { minHeight: 44, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 14.5, fontFamily: fonts.ui.medium, color: colors.ink },
   consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, minHeight: 44 },
   consentText: { flex: 1, fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.ink },

@@ -533,6 +533,8 @@ export interface VoiceLine {
   from_catalog?: boolean;
   /** Solo en el teléfono: el producto tiene variantes y falta elegir cuál se vendió. */
   choose?: { ref: string; label: string; name: string; price: number | null; out: boolean; left: number | null; low: boolean }[];
+  /** Solo en el teléfono: el renglón salió de elegir talla; con esto se vuelve a abrir la elección. */
+  variant_of?: { key: string; name: string; qty: number; unit_price?: number | null; choose: { ref: string; label: string; name: string; price: number | null; out: boolean; left: number | null; low: boolean }[] };
 }
 
 export interface VoiceAction {
@@ -565,6 +567,8 @@ export interface VoiceAction {
   item_name?: string;
   level?: StockLevel;
   counted?: number;
+  /** Solo en el teléfono: un producto recién agregado y cómo se llevará su cuenta (semáforo o exacta, que es de Pro). */
+  track?: StockMode;
   /** Cuentas abiertas: a qué cuenta va o, si no existe, con qué nombre se abre. */
   tab_id?: string;
   tab_name?: string;
