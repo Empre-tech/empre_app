@@ -1,7 +1,7 @@
 import { Ionicons } from '@/components/Icon';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError } from '@/api/client';
 import { ledgerApi } from '@/api/ledger';
@@ -16,6 +16,7 @@ import { newClientId } from '@/lib/ledger';
 import { cleanLabel } from '@/lib/supplies';
 import { useEntityPlan } from '@/lib/useProPlan';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { KeyboardSheet } from '@/components/KeyboardSheet';
 
 const UNITS = [
   { key: 'unidad', label: 'Unidades' },
@@ -98,7 +99,7 @@ function Body({ entityId, existing, initialSection, onClose, onAdded }: Props) {
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Cerrar" />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardSheet>
         <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }]} accessibilityViewIsModal>
           <View style={styles.grab} />
           <Text style={styles.title}>Nuevo insumo</Text>
@@ -186,7 +187,7 @@ function Body({ entityId, existing, initialSection, onClose, onAdded }: Props) {
             <Button title="Guardar" loading={add.isPending && !another} disabled={add.isPending} onPress={() => submit(false)} style={{ flex: 1 }} />
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardSheet>
     </Modal>
   );
 }

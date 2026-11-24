@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState, useMemo } from 'react';
-import { KeyboardAvoidingView, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Modal, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi } from '@/api/endpoints';
 import { ledgerApi, type PartyBalance, type PartyKind } from '@/api/ledger';
@@ -18,6 +18,7 @@ import { addOpeningDebt, reduceOpeningDebt, useFinanceSetup } from '@/ledger/fin
 import { queuePayment } from '@/ledger/ledgerStore';
 import { initials } from '@/lib/text';
 import { colors, fonts, radius, softShadow, spacing } from '@/theme';
+import { KeyboardSheet } from '@/components/KeyboardSheet';
 
 type Tone = 'amable' | 'directo';
 
@@ -233,7 +234,7 @@ export default function CuentasScreen() {
         }}
       />
       <Modal visible={Boolean(reminding)} transparent animationType="slide" onRequestClose={() => setReminding(null)}>
-        <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardSheet style={styles.backdrop}>
           <Pressable style={{ flex: 1 }} onPress={() => setReminding(null)} accessibilityLabel="Cerrar" />
           <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }]}>
             <Text style={styles.sheetTitle}>Recordarle a {reminding?.name.split(/\s+/)[0]}</Text>
@@ -263,7 +264,7 @@ export default function CuentasScreen() {
             />
             <Text style={styles.sheetMeta}>Lo envías tú. Empre no le escribe a nadie por su cuenta.</Text>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardSheet>
       </Modal>
       <NoteSheet
         key={adding ?? 'closed'}
@@ -295,7 +296,7 @@ function PaySheet({ party, onClose, onSave }: { party: PartyBalance | null; onCl
 
   return (
     <Modal visible={Boolean(party)} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardSheet style={styles.backdrop}>
         <Pressable style={{ flex: 1 }} onPress={onClose} accessibilityLabel="Cerrar" />
         <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }]}>
           <Text style={styles.sheetTitle}>{isCustomer ? `${party?.name ?? ''} te pagó` : `Le pagaste a ${party?.name ?? ''}`}</Text>
@@ -312,7 +313,7 @@ function PaySheet({ party, onClose, onSave }: { party: PartyBalance | null; onCl
             }}
           />
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardSheet>
     </Modal>
   );
 }
@@ -325,7 +326,7 @@ function NoteSheet({ kind, onClose, onSave }: { kind: PartyKind | null; onClose:
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={Boolean(kind)} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardSheet style={styles.backdrop}>
         <Pressable style={{ flex: 1 }} onPress={onClose} accessibilityLabel="Cerrar" />
         <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }]}>
           <Text style={styles.sheetTitle}>{kind === 'customer' ? '¿Quién te debe?' : '¿A quién le debes?'}</Text>
@@ -335,7 +336,7 @@ function NoteSheet({ kind, onClose, onSave }: { kind: PartyKind | null; onClose:
           <Button title="Guardar" disabled={!name.trim() || amount <= 0} onPress={() => kind && onSave(kind, name.trim(), amount, phone.trim())} />
           <Text style={styles.sheetMeta}>Se guarda en este teléfono y no suma en tus ventas.</Text>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardSheet>
     </Modal>
   );
 }

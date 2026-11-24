@@ -1,7 +1,7 @@
 import { Ionicons } from '@/components/Icon';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ledgerApi, type InventoryItem } from '@/api/ledger';
 import { Button } from '@/components/Button';
@@ -10,6 +10,7 @@ import { parsePriceInput } from '@/lib/catalog';
 import { fmtQty } from '@/lib/inventory';
 import { formatPesos, newClientId } from '@/lib/ledger';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { KeyboardSheet } from '@/components/KeyboardSheet';
 
 type Method = 'cash' | 'transfer' | 'card';
 const METHODS: { key: Method; label: string }[] = [
@@ -73,7 +74,7 @@ function ArrivedBody({ entityId, item, onClose, onDone }: Props & { item: Invent
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Cerrar" />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardSheet>
         <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }]} accessibilityViewIsModal>
           <View style={styles.grab} />
           <View>
@@ -131,7 +132,7 @@ function ArrivedBody({ entityId, item, onClose, onDone }: Props & { item: Invent
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Button title={exact ? (hasQty ? `Guardar: ahora hay ${fmtQty(after ?? 0)}` : 'Escribe cuántos llegaron') : 'Guardar: vuelve a «hay»'} loading={save.isPending} disabled={exact && !hasQty} onPress={submit} />
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardSheet>
     </Modal>
   );
 }

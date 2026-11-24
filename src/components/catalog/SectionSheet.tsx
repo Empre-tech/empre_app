@@ -1,7 +1,7 @@
 import { Ionicons } from '@/components/Icon';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError } from '@/api/client';
 import { OTHER_SECTION, sectionsApi, useEntitySections, type Section, type SectionKind, type SectionPick } from '@/api/sections';
@@ -9,6 +9,7 @@ import { safeIcon } from '@/lib/icons';
 import { normalize } from '@/lib/inventory';
 import { cleanLabel } from '@/lib/supplies';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { KeyboardSheet } from '@/components/KeyboardSheet';
 
 interface Props {
   visible: boolean;
@@ -87,7 +88,7 @@ function SectionBody({ visible, entityId, kind, value, onPick, onClose }: Props)
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Cerrar" />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardSheet>
         <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }]} accessibilityViewIsModal>
           <View style={styles.grab} />
           <Text style={styles.title}>¿En qué sección va?</Text>
@@ -181,7 +182,7 @@ function SectionBody({ visible, entityId, kind, value, onPick, onClose }: Props)
           </ScrollView>
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardSheet>
     </Modal>
   );
 }

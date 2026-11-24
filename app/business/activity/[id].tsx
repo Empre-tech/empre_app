@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useKeyboardHeight } from '@/lib/useKeyboardHeight';
 import { agendaApi } from '@/api/agenda';
 import { reviewsApi } from '@/api/endpoints';
 import { goalsApi } from '@/api/goals';
@@ -318,20 +319,34 @@ function GoalSheet({ month, current, lastMonth, onClose, onSave }: { month: stri
   const target = Number(text.replace(/\D/g, ''));
   const base = lastMonth ? (kind === 'left' ? lastMonth.left : lastMonth.sales) : 0;
   const suggestion = suggestedTarget(base);
+  // En Android el teclado ya no empuja la hoja: se le suma su alto para que la casilla y el botón queden a la vista.
+  const kb = useKeyboardHeight();
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
       <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" style={styles.veil} onPress={onClose} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + 18 }]}>
+        <View style={[styles.sheet, { paddingBottom: (kb ? kb + 12 : insets.bottom + 18) }]}>
           <View style={styles.handle} />
           <Text style={styles.sheetTitle}>{`La meta de ${monthName(month)}`}</Text>
-          <View style={styles.segment}>
-            {(['sales', 'left'] as const).map((k) => (
-              <Pressable key={k} accessibilityRole="button" accessibilityState={{ selected: kind === k }} onPress={() => setKind(k)} style={[styles.segmentItem, kind === k && styles.segmentOn]}>
-                <Text style={styles.segmentText}>{k === 'sales' ? 'Lo que vendo' : 'Lo que me queda'}</Text>
-              </Pressable>
-            ))}
+          <Text style={styles.goalLead}>¿Qué quieres medir este mes?</Text>
+          {/* Dos opciones con su explicación (2026-11-24): «Lo que vendo / Lo que me queda» solo no se entendía. */}
+          <View style={styles.goalOptions} accessibilityRole="radiogroup">
+            {(
+              [
+                ['sales', 'Mis ventas', 'Todo lo que te pagan en el mes, sin restar gastos.'],
+                ['left', 'Lo que me queda', 'Tus ventas menos tus gastos: lo que es tuyo.'],
+              ] as const
+            ).map(([k, label, hint]) => {
+              const on = kind === k;
+              return (
+                <Pressable key={k} accessibilityRole="radio" accessibilityState={{ checked: on }} onPress={() => setKind(k)} style={[styles.goalOption, on && styles.goalOptionOn]}>
+                  <Text style={[styles.goalOptionTitle, on && { color: colors.finance }]}>{label}</Text>
+                  <Text style={styles.goalOptionHint}>{hint}</Text>
+                </Pressable>
+              );
+            })}
           </View>
+          <Text style={styles.goalLead}>{kind === 'sales' ? '¿Cuánto quieres vender?' : '¿Cuánto quieres que te quede?'}</Text>
           <TextInput
             value={text ? formatPesos(target) : ''}
             onChangeText={(v) => {
@@ -416,6 +431,12 @@ const styles = StyleSheet.create({
   veil: { flex: 1, backgroundColor: 'rgba(43,38,34,0.32)' },
   sheet: { gap: 10, paddingTop: 10, paddingHorizontal: 18, borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: colors.bg },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line },
+  goalLead: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
+  goalOptions: { flexDirection: 'row', gap: 8 },
+  goalOption: { flex: 1, gap: 4, padding: 12, borderRadius: 14, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
+  goalOptionOn: { borderWidth: 2, borderColor: colors.finance, backgroundColor: colors.financeSoft },
+  goalOptionTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
+  goalOptionHint: { fontSize: 12, lineHeight: 16, fontFamily: fonts.ui.medium, color: colors.muted },
   sheetTitle: { fontSize: 19, lineHeight: 24, fontFamily: fonts.display.bold, color: colors.ink },
   sheetCard: { paddingHorizontal: 14, borderRadius: 16, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   sheetRow: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 10 },

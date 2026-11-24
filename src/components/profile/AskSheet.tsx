@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { addQuestion, askMessage, quickQuestions, type CatalogCopy } from '@/lib/catalog';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { KeyboardSheet } from '@/components/KeyboardSheet';
 
 interface Props {
   /** El ítem por el que se pregunta; null = cerrada. */
@@ -34,7 +35,7 @@ function AskBody({ item, businessName, copy, onClose, onSend }: Props & { item: 
   const [text, setText] = useState(() => askMessage(copy, item));
   const quick = quickQuestions(copy, text);
   return (
-    <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardSheet style={styles.backdrop}>
       <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} />
       <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.md }]} accessibilityViewIsModal>
         <View style={styles.handle} />
@@ -62,7 +63,7 @@ function AskBody({ item, businessName, copy, onClose, onSend }: Props & { item: 
         </Pressable>
         <Text style={styles.note}>Se abre el chat con el mensaje listo; lo envías tú.</Text>
       </View>
-    </KeyboardAvoidingView>
+    </KeyboardSheet>
   );
 }
 

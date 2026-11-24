@@ -1,7 +1,7 @@
 import { Ionicons } from '@/components/Icon';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TrackModeChips } from '@/components/inventory/TrackModeChips';
 import { ledgerApi, type AdjustReason, type InventoryItem, type StockLevel, type StockMode } from '@/api/ledger';
@@ -13,6 +13,7 @@ import { Chip } from '@/components/ledger/parts';
 import { fmtQty } from '@/lib/inventory';
 import { newClientId } from '@/lib/ledger';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { KeyboardSheet } from '@/components/KeyboardSheet';
 
 const LEVELS: { level: StockLevel; label: string; color: string; ink: string }[] = [
   { level: 'ok', label: 'Hay suficiente', color: colors.finance, ink: '#0B7F3D' },
@@ -95,7 +96,7 @@ function SheetBody({ entityId, item, onClose, onChanged, onOpenDetail }: Props &
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Cerrar" />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardSheet>
         <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }]} accessibilityViewIsModal>
           <View style={styles.grab} />
           <View style={styles.headRow}>
@@ -219,7 +220,7 @@ function SheetBody({ entityId, item, onClose, onChanged, onOpenDetail }: Props &
           ) : null}
           {isSupply ? <Button title="Quitar de mi lista" variant="ghost" loading={archive.isPending} onPress={() => archive.mutate()} /> : null}
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardSheet>
     </Modal>
   );
 }
