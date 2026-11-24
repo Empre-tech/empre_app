@@ -74,7 +74,15 @@ function findItemAt(raw: string[], i: number, items: LiveItem[]): { item: LiveIt
     } else if (c === best && c > 0) hits.push(it);
   }
   if (best === 0) return null;
-  if (hits.length === 1) return { item: hits[0], used: best };
+  // «zapatos New Balance» con solo «Zapatos Nike» en el catálogo: lo que sigue a «zapatos» es parte del nombre y no
+  // encaja, así que no es ese producto (2026-11-24). Si lo que sigue es «a», «y», un número o nada, sí.
+  const next = raw[i + best];
+  const nextWord = next ? plain(next) : '';
+  const nameGoesOn = Boolean(nextWord) && !SKIP.has(nextWord) && !(nextWord in NUM) && !/^\d+$/.test(nextWord) && nextWord.length >= 3;
+  if (hits.length === 1) {
+    const whole = hits[0].name.trim().split(/\s+/).length === best;
+    return whole || !nameGoesOn ? { item: hits[0], used: best } : null;
+  }
   // Varios empatan: si uno se llama exactamente así («Zapatos»), es ese; si no, no se adivina.
   const exact = hits.filter((h) => h.name.trim().split(/\s+/).length === best);
   if (exact.length === 1) return { item: exact[0], used: best };

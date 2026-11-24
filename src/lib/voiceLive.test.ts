@@ -18,3 +18,9 @@ test('liveParse: «zapatos» solo no adivina entre varios; «dos gorras» sí', 
   const r = liveParse('vendí dos gorras', items);
   assert.deepEqual(r.lines.map((l) => [l.name, l.qty]), [['Gorra', 2]]);
 });
+
+test('liveParse: «zapatos New Balance» no se vuelve «Zapatos Nike»', () => {
+  assert.deepEqual(liveParse('vendí zapatos New Balance', [{ name: 'Zapatos Nike', price: 1 }]).lines, []);
+  assert.deepEqual(liveParse('vendí zapatos New Balance', [...items, { name: 'New Balance', price: 1 }]).lines.map((l) => l.name), ['New Balance']);
+  assert.deepEqual(liveParse('vendí zapatos a Juan', [{ name: 'Zapatos Nike', price: 1 }]).lines.map((l) => l.name), ['Zapatos Nike']);
+});
