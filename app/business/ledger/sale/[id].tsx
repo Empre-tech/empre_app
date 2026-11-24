@@ -447,7 +447,7 @@ export default function NewSaleScreen() {
             ) : how !== 'part' ? (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Cliente (opcional)</Text>
-                <PartyPicker entityId={entityId} kind="customer" value={party} onChange={setParty} withContact placeholder="Busca o escribe el nombre del cliente" />
+                <PartyPicker entityId={entityId} kind="customer" value={party} onChange={setParty} withContact placeholder="Busca por nombre o celular, o escribe uno nuevo" />
                 <Text style={styles.hint}>Queda en su historial y le puedes mandar el ticket.</Text>
               </View>
             ) : null}

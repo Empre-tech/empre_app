@@ -26,6 +26,15 @@ export function phoneTail(raw: string | null | undefined): string | null {
   return d.length >= 4 ? d.slice(-4) : null;
 }
 
+/** Encaja con lo buscado: por nombre o, con 3 dígitos o más, por su celular («4472»). */
+export function partyMatches(p: { name: string; phone?: string | null }, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  if (p.name.toLowerCase().includes(q)) return true;
+  const digits = q.replace(/\D/g, '');
+  return digits.length >= 3 && digits.length === q.replace(/\s/g, '').length && (p.phone ?? '').replace(/\D/g, '').includes(digits);
+}
+
 /** Cómo se muestra un cliente en una lista: con «· …4472» solo si hay otro con su mismo nombre. */
 export function partyLabel(p: { name: string; phone?: string | null }, all: { name: string }[]): string {
   const key = p.name.trim().toLowerCase();

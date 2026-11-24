@@ -40,17 +40,19 @@ export default function ClientScreen() {
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [offerPick, setOfferPick] = useState(false);
   useEffect(() => {
     if (party) {
       setName(party.name);
       setPhone(party.phone ?? '');
+      setNote(party.note ?? '');
     }
   }, [party]);
 
   const update = useMutation({
-    mutationFn: (input: { name?: string; phone?: string; accepts_messages?: boolean }) => ledgerApi.updateParty(entityId, partyId, input),
+    mutationFn: (input: { name?: string; phone?: string; accepts_messages?: boolean; note?: string }) => ledgerApi.updateParty(entityId, partyId, input),
     onSuccess: () => {
       setError(null);
       void qc.invalidateQueries({ queryKey: ['ledger', entityId, 'parties'] });
@@ -88,7 +90,7 @@ export default function ClientScreen() {
   const spent = active.reduce((n, s) => n + s.total, 0);
   const now = Date.now();
   const liveOffers = (offers.data ?? []).filter((o) => Date.parse(o.ends_at) > now && o.slots_left > 0);
-  const dirty = name.trim() !== party.name || phone.trim() !== (party.phone ?? '');
+  const dirty = name.trim() !== party.name || phone.trim() !== (party.phone ?? '') || note.trim() !== (party.note ?? '');
 
   return (
     <View style={styles.screen}>
@@ -140,8 +142,9 @@ export default function ClientScreen() {
           <Text style={styles.cardTitle}>Contacto</Text>
           <TextInput value={name} onChangeText={setName} placeholder="Nombre" placeholderTextColor={colors.muted} style={styles.input} maxLength={80} accessibilityLabel="Nombre" />
           <TextInput value={phone} onChangeText={setPhone} placeholder="Celular" placeholderTextColor={colors.muted} style={styles.input} keyboardType="phone-pad" maxLength={20} accessibilityLabel="Celular" />
+          <TextInput value={note} onChangeText={setNote} placeholder="Nota (opcional): «el del taller de la esquina»" placeholderTextColor={colors.muted} style={styles.input} maxLength={120} accessibilityLabel="Nota sobre el cliente" />
           {phoneProblem(phone) ? <Text style={styles.error}>{phoneProblem(phone)}</Text> : null}
-          {dirty ? <Button title="Guardar" loading={update.isPending} onPress={() => update.mutate({ name: name.trim(), phone: phone.trim() })} /> : null}
+          {dirty ? <Button title="Guardar" loading={update.isPending} onPress={() => update.mutate({ name: name.trim(), phone: phone.trim(), note: note.trim() })} /> : null}
           <View style={styles.switchRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.actionTitle}>Acepta recibir mensajes</Text>

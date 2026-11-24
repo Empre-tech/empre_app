@@ -38,3 +38,12 @@ test('partyLabel: los últimos dígitos solo cuando hay otro con el mismo nombre
   assert.equal(partyLabel({ name: 'David Montes', phone: '300 111 4472' }, all), 'David Montes · …4472');
   assert.equal(partyLabel({ name: 'Ana', phone: '300 111 9999' }, all), 'Ana');
 });
+
+test('partyMatches: por nombre o por los dígitos del celular', async () => {
+  const { partyMatches } = await import('./customerMessages.ts');
+  const p = { name: 'David Montes', phone: '300 111 4472' };
+  assert.equal(partyMatches(p, 'davi'), true);
+  assert.equal(partyMatches(p, '4472'), true);
+  assert.equal(partyMatches(p, '44'), false, 'con menos de 3 dígitos no busca por celular');
+  assert.equal(partyMatches(p, '9999'), false);
+});

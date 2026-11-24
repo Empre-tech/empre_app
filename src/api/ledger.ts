@@ -19,6 +19,8 @@ export interface Party {
   /** Autorizó guardar su celular y recibir mensajes del negocio (Ley 1581). */
   accepts_messages?: boolean;
   consent_at?: string;
+  /** Nota opcional del dueño para reconocerlo («el del taller de la esquina»). */
+  note?: string;
 }
 
 export interface PartyBalance extends Party {
@@ -166,12 +168,14 @@ export interface PartyInput {
   name: string;
   phone?: string;
   accepts_messages?: boolean;
+  note?: string;
 }
 
 export interface PartyUpdate {
   name?: string;
   phone?: string;
   accepts_messages?: boolean;
+  note?: string;
 }
 
 export interface PaymentInput {
@@ -545,7 +549,7 @@ export interface VoiceAction {
   /** Cliente nuevo: su celular y si autorizó recibir mensajes, puestos en la hoja antes de confirmar. */
   party_phone?: string;
   accepts_messages?: boolean;
-  candidates?: { id: string; name: string; phone_tail?: string }[];
+  candidates?: { id: string; name: string; phone_tail?: string; note?: string }[];
   /** El dueño eligió «Ninguno de estos»: se guarda sin cliente a propósito. */
   no_party?: boolean;
   warnings?: string[];

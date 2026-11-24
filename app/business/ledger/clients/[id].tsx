@@ -9,7 +9,7 @@ import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { SubScreenHeader } from '@/components/profile/SubScreenHeader';
 import { queueParty } from '@/ledger/ledgerStore';
-import { phoneProblem } from '@/lib/customerMessages';
+import { partyMatches, phoneProblem, phoneTail } from '@/lib/customerMessages';
 import { formatPesos, newClientId } from '@/lib/ledger';
 import { colors, fonts, radius, spacing } from '@/theme';
 
@@ -31,14 +31,18 @@ export default function ClientsScreen() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [consent, setConsent] = useState(false);
+  const [note, setNote] = useState('');
+  // Ya hay alguien con ese nombre: se confirma antes de crear otro (2026-11-24).
+  const [twinOk, setTwinOk] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const shown = useMemo(() => {
     const all = list.data ?? [];
     const k = fold(q.trim());
-    return k ? all.filter((p) => fold(p.name).includes(k) || p.phone.replace(/\D/g, '').includes(k.replace(/\D/g, '') || '§')) : all;
+    return k ? all.filter((p) => fold(p.name).includes(k) || partyMatches(p, q)) : all;
   }, [list.data, q]);
 
+  const twins = (list.data ?? []).filter((p) => fold(p.name.trim()) === fold(name.trim()) && name.trim().length >= 2);
   const open = (partyId: string) => router.push({ pathname: '/business/ledger/client', params: { entityId, partyId } });
   const save = () => {
     const n = name.trim();
@@ -46,12 +50,15 @@ export default function ClientsScreen() {
     const bad = phoneProblem(phone);
     if (bad) return setError(bad);
     if (!phone.trim()) return setError('Escribe su celular: así lo distingues de otro con el mismo nombre.');
+    if (twins.length && !twinOk) return setError(null);
     const clientId = newClientId();
-    queueParty(entityId, { client_id: clientId, kind: 'customer', name: n, ...(phone.trim() ? { phone: phone.trim() } : {}), accepts_messages: consent });
+    queueParty(entityId, { client_id: clientId, kind: 'customer', name: n, ...(phone.trim() ? { phone: phone.trim() } : {}), accepts_messages: consent, ...(note.trim() ? { note: note.trim() } : {}) });
     setAdding(false);
     setName('');
     setPhone('');
     setConsent(false);
+    setNote('');
+    setTwinOk(false);
     setError(null);
     // La cola lo manda al servidor; la lista se pide otra vez enseguida.
     setTimeout(() => void qc.invalidateQueries({ queryKey: ['ledger', entityId, 'parties'] }), 1500);
@@ -70,8 +77,23 @@ export default function ClientsScreen() {
             {adding ? (
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Nuevo cliente</Text>
-                <TextInput value={name} onChangeText={setName} placeholder="Nombre" placeholderTextColor={colors.muted} style={styles.input} autoCapitalize="words" maxLength={80} accessibilityLabel="Nombre del cliente" />
+                <TextInput value={name} onChangeText={(t) => { setName(t); setTwinOk(false); }} placeholder="Nombre" placeholderTextColor={colors.muted} style={styles.input} autoCapitalize="words" maxLength={80} accessibilityLabel="Nombre del cliente" />
                 <TextInput value={phone} onChangeText={setPhone} placeholder="Celular" placeholderTextColor={colors.muted} style={styles.input} keyboardType="phone-pad" maxLength={20} accessibilityLabel="Celular del cliente" />
+                <TextInput value={note} onChangeText={setNote} placeholder="Nota (opcional): «el del taller de la esquina»" placeholderTextColor={colors.muted} style={styles.input} maxLength={120} accessibilityLabel="Nota sobre el cliente" />
+                {twins.length && !twinOk ? (
+                  <View style={styles.twinBox}>
+                    <Text style={styles.consentText}>{twins.length === 1 ? `Ya tienes a ${twins[0].name}. ¿Es esta persona?` : `Ya tienes ${twins.length} clientes con ese nombre. ¿Es alguno?`}</Text>
+                    {twins.map((p) => (
+                      <Pressable key={p.id} accessibilityRole="button" onPress={() => { setAdding(false); open(p.id); }} style={styles.twinRow}>
+                        <Text style={styles.name} numberOfLines={1}>{[p.name, phoneTail(p.phone) ? `…${phoneTail(p.phone)}` : null].filter(Boolean).join(' · ')}</Text>
+                        {p.note ? <Text style={styles.meta} numberOfLines={1}>{p.note}</Text> : null}
+                      </Pressable>
+                    ))}
+                    <Pressable accessibilityRole="button" onPress={() => setTwinOk(true)} style={styles.twinRow}>
+                      <Text style={styles.name}>Es otra persona: guardarlo</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
                 <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: consent }} onPress={() => setConsent((v) => !v)} style={styles.consentRow}>
                   <Ionicons name={consent ? 'checkbox' : 'square-outline'} size={22} color={consent ? colors.primary : colors.muted} />
                   <Text style={styles.consentText}>El cliente aceptó que guarde su número y le escriba con ofertas y recordatorios.</Text>
@@ -112,7 +134,7 @@ export default function ClientsScreen() {
                 {p.name}
               </Text>
               <Text style={styles.meta} numberOfLines={1}>
-                {[p.phone ? p.phone : 'Sin celular', p.accepts_messages ? 'Acepta mensajes' : null].filter(Boolean).join(' · ')}
+                {[p.phone ? p.phone : 'Sin celular', p.note || null, p.accepts_messages ? 'Acepta mensajes' : null].filter(Boolean).join(' · ')}
               </Text>
             </View>
             {p.balance > 0 ? <Text style={styles.owes}>{`Debe ${formatPesos(p.balance)}`}</Text> : null}
@@ -137,6 +159,8 @@ const styles = StyleSheet.create({
   consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, minHeight: 44 },
   consentText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.medium, color: colors.ink },
   row: { flexDirection: 'row', gap: spacing.sm },
+  twinBox: { gap: 4, padding: spacing.sm, borderRadius: radius.md, backgroundColor: colors.well },
+  twinRow: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm, borderRadius: radius.md, backgroundColor: colors.surface },
   search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.line },
   searchInput: { flex: 1, minHeight: 44, fontSize: 14, fontFamily: fonts.ui.medium, color: colors.ink },
   rowCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 64, paddingHorizontal: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },

@@ -1364,7 +1364,7 @@ function ActionCard({ entityId, heard, action: a, problem, onChange, onRemove, o
               <Text style={styles.cardMeta}>¿Cuál de estos?</Text>
               <View style={styles.wrap}>
                 {a.candidates.map((c) => (
-                  <Chip key={c.id} label={c.phone_tail ? `${c.name} · …${c.phone_tail}` : c.name} selected={false} onPress={() => setParty({ party_id: c.id, party_name: c.name, new_party: false, candidates: [] })} />
+                  <Chip key={c.id} label={[c.name, c.phone_tail ? `…${c.phone_tail}` : null, c.note || null].filter(Boolean).join(' · ')} selected={false} onPress={() => setParty({ party_id: c.id, party_name: c.name, new_party: false, candidates: [] })} />
                 ))}
                 {a.type !== 'payment' && a.method !== 'credit' ? (
                   <Chip icon="close" label="Ninguno de estos" selected={false} onPress={() => onChange({ party_id: undefined, party_name: '', new_party: false, candidates: [], no_party: true })} />

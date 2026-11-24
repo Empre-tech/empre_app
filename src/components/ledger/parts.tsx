@@ -10,7 +10,7 @@ import { useReduceMotion } from '@/lib/useReduceMotion';
 import { amountField, formatPesos, METHOD_LABEL, newClientId, parseAmountInput, type PayMethod } from '@/lib/ledger';
 import { pesosInWords } from '@/lib/ledgerWords';
 import { queueParty } from '@/ledger/ledgerStore';
-import { partyLabel, phoneProblem, waPhone } from '@/lib/customerMessages';
+import { partyLabel, partyMatches, phoneProblem, phoneTail, waPhone } from '@/lib/customerMessages';
 import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 
 const STEP_NAMES = ['Qué', 'Cuánto', 'Cómo se pagó', 'Listo'] as const;
@@ -268,6 +268,8 @@ export interface PartyChoice {
   name: string;
   /** El celular, si lo tiene (para mandarle el ticket por WhatsApp). */
   phone?: string;
+  /** La nota del dueño para reconocerlo. */
+  note?: string;
 }
 
 /** Elegir (o crear al vuelo) el cliente de un fiado o el proveedor de una compra a crédito. Funciona sin señal. */
@@ -298,16 +300,19 @@ export function PartyPicker({
   const [draft, setDraft] = useState<string | null>(null);
   const [phone, setPhone] = useState('');
   const [consent, setConsent] = useState(false);
+  const [note, setNote] = useState('');
   const parties = useQuery({ queryKey: ['ledger', entityId, 'parties', kind], queryFn: () => ledgerApi.parties(entityId, { kind }), staleTime: 30_000 });
 
   const all = useMemo<PartyChoice[]>(() => {
-    const server = (parties.data ?? []).map((p) => ({ id: p.id, name: p.name, phone: p.phone || undefined }));
+    const server = (parties.data ?? []).map((p) => ({ id: p.id, name: p.name, phone: p.phone || undefined, note: p.note || undefined }));
     return [...created.filter((c) => !server.some((s) => s.id === c.id)), ...server];
   }, [parties.data, created]);
 
   const q = query.trim().toLowerCase();
-  const matches = q ? all.filter((p) => p.name.toLowerCase().includes(q)) : all;
-  const exact = q ? all.some((p) => p.name.toLowerCase() === q) : true;
+  // Por nombre o por los dígitos del celular (2026-11-24).
+  const matches = q ? all.filter((p) => partyMatches(p, q)) : all;
+  // Los que ya se llaman así: antes de crear otro, se pregunta si es uno de ellos.
+  const twins = q ? all.filter((p) => p.name.trim().toLowerCase() === q) : [];
   const label = kind === 'customer' ? 'cliente' : 'proveedor';
 
   if (value) {
@@ -324,17 +329,19 @@ export function PartyPicker({
     );
   }
 
-  const create = (name: string, contact?: { phone: string; consent: boolean }) => {
+  const create = (name: string, contact?: { phone: string; consent: boolean; note: string }) => {
     const clientId = newClientId();
     const cleanPhone = contact?.phone.trim() ?? '';
-    queueParty(entityId, { client_id: clientId, kind, name, ...(cleanPhone ? { phone: cleanPhone } : {}), ...(contact ? { accepts_messages: contact.consent } : {}) });
-    const choice = { id: clientId, name, phone: cleanPhone || undefined };
+    const cleanNote = contact?.note.trim() ?? '';
+    queueParty(entityId, { client_id: clientId, kind, name, ...(cleanPhone ? { phone: cleanPhone } : {}), ...(contact ? { accepts_messages: contact.consent } : {}), ...(cleanNote ? { note: cleanNote } : {}) });
+    const choice = { id: clientId, name, phone: cleanPhone || undefined, note: cleanNote || undefined };
     setCreated((c) => [choice, ...c]);
     onChange(choice);
     setQuery('');
     setDraft(null);
     setPhone('');
     setConsent(false);
+    setNote('');
   };
   const add = () => {
     const name = query.trim();
@@ -364,12 +371,21 @@ export function PartyPicker({
         />
         {/* El celular es obligatorio para un cliente nuevo (2026-11-24): así se distingue de otro con el mismo nombre. */}
         <Text style={styles.consentText}>{phoneProblem(phone) ?? (waPhone(phone) ? 'Listo.' : 'El celular es obligatorio: así lo distingues de otro con el mismo nombre.')}</Text>
+        <TextInput
+          value={note}
+          onChangeText={setNote}
+          placeholder="Nota (opcional): «el del taller de la esquina»"
+          placeholderTextColor={colors.muted}
+          style={styles.search}
+          maxLength={120}
+          accessibilityLabel="Nota sobre el cliente"
+        />
         <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: consent }} onPress={() => setConsent((v) => !v)} style={styles.consentRow}>
           <Ionicons name={consent ? 'checkbox' : 'square-outline'} size={22} color={consent ? colors.primary : colors.muted} />
           <Text style={styles.consentText}>El cliente aceptó que guarde su número y le escriba con ofertas y recordatorios.</Text>
         </Pressable>
         <View style={styles.wrap}>
-          <Chip icon="checkmark" label="Agregar" selected={false} onPress={() => (waPhone(phone) ? create(draft, { phone, consent }) : undefined)} />
+          <Chip icon="checkmark" label="Agregar" selected={false} onPress={() => (waPhone(phone) ? create(draft, { phone, consent, note }) : undefined)} />
           <Chip icon="close" label="Cancelar" selected={false} onPress={() => setDraft(null)} />
         </View>
       </View>
@@ -381,18 +397,31 @@ export function PartyPicker({
       <TextInput
         value={query}
         onChangeText={setQuery}
-        placeholder={placeholder ?? (kind === 'customer' ? '¿A quién le fías? Busca o escribe un nombre' : '¿A qué proveedor? Busca o escribe un nombre')}
+        placeholder={placeholder ?? (kind === 'customer' ? '¿A quién le fías? Busca por nombre o celular' : '¿A qué proveedor? Busca o escribe un nombre')}
         placeholderTextColor={colors.muted}
         style={styles.search}
         autoCapitalize="words"
         accessibilityLabel={`Buscar ${label}`}
       />
-      <View style={styles.wrap}>
-        {matches.slice(0, 8).map((p) => (
-          <Chip key={p.id} label={partyLabel(p, all)} selected={false} onPress={() => onChange(p)} />
-        ))}
-        {query.trim() && !exact ? <Chip icon="add" label={`Agregar «${query.trim()}»`} selected={false} onPress={add} /> : null}
-      </View>
+      {twins.length ? (
+        // Ya hay alguien con ese nombre: primero se pregunta si es él, antes de crear un duplicado.
+        <View style={styles.newParty}>
+          <Text style={styles.consentText}>{twins.length === 1 ? `Ya tienes a ${twins[0].name}. ¿Es esta persona?` : `Ya tienes ${twins.length} con ese nombre. ¿Es alguno?`}</Text>
+          <View style={styles.wrap}>
+            {twins.map((p) => (
+              <Chip key={p.id} icon="person-outline" label={[p.name, phoneTail(p.phone) ? `…${phoneTail(p.phone)}` : null, p.note].filter(Boolean).join(' · ')} selected={false} onPress={() => onChange(p)} />
+            ))}
+            <Chip icon="add" label="Es otra persona: agregar" selected={false} onPress={add} />
+          </View>
+        </View>
+      ) : (
+        <View style={styles.wrap}>
+          {matches.slice(0, 8).map((p) => (
+            <Chip key={p.id} label={partyLabel(p, all)} selected={false} onPress={() => onChange(p)} />
+          ))}
+          {query.trim() && !/^[\d\s]+$/.test(query.trim()) ? <Chip icon="add" label={`Agregar «${query.trim()}»`} selected={false} onPress={add} /> : null}
+        </View>
+      )}
     </View>
   );
 }
