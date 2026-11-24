@@ -30,3 +30,11 @@ test('phoneProblem: dice qué le falta al número', async () => {
   assert.equal(phoneProblem('300 123 4567'), null);
   assert.match(phoneProblem('300310472') ?? '', /escribiste 9/);
 });
+
+test('partyLabel: los últimos dígitos solo cuando hay otro con el mismo nombre', async () => {
+  const { partyLabel, phoneTail } = await import('./customerMessages.ts');
+  const all = [{ name: 'David Montes' }, { name: 'david montes' }, { name: 'Ana' }];
+  assert.equal(phoneTail('300 111 4472'), '4472');
+  assert.equal(partyLabel({ name: 'David Montes', phone: '300 111 4472' }, all), 'David Montes · …4472');
+  assert.equal(partyLabel({ name: 'Ana', phone: '300 111 9999' }, all), 'Ana');
+});

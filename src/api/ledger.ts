@@ -545,7 +545,9 @@ export interface VoiceAction {
   /** Cliente nuevo: su celular y si autorizó recibir mensajes, puestos en la hoja antes de confirmar. */
   party_phone?: string;
   accepts_messages?: boolean;
-  candidates?: { id: string; name: string }[];
+  candidates?: { id: string; name: string; phone_tail?: string }[];
+  /** El dueño eligió «Ninguno de estos»: se guarda sin cliente a propósito. */
+  no_party?: boolean;
   warnings?: string[];
   /** Solo en el teléfono: sumar, descontar o contar lo que dijo. `from` es lo que hay contado; null si no se lleva la cuenta. */
   stock_move?: { kind: 'add' | 'remove' | 'count'; qty: number; from: number | null; reason: AdjustReason; counted?: number };

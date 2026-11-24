@@ -45,6 +45,7 @@ export default function ClientsScreen() {
     if (n.length < 2) return setError('Escribe el nombre (mínimo 2 letras).');
     const bad = phoneProblem(phone);
     if (bad) return setError(bad);
+    if (!phone.trim()) return setError('Escribe su celular: así lo distingues de otro con el mismo nombre.');
     const clientId = newClientId();
     queueParty(entityId, { client_id: clientId, kind: 'customer', name: n, ...(phone.trim() ? { phone: phone.trim() } : {}), accepts_messages: consent });
     setAdding(false);
@@ -70,7 +71,7 @@ export default function ClientsScreen() {
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Nuevo cliente</Text>
                 <TextInput value={name} onChangeText={setName} placeholder="Nombre" placeholderTextColor={colors.muted} style={styles.input} autoCapitalize="words" maxLength={80} accessibilityLabel="Nombre del cliente" />
-                <TextInput value={phone} onChangeText={setPhone} placeholder="Celular (opcional)" placeholderTextColor={colors.muted} style={styles.input} keyboardType="phone-pad" maxLength={20} accessibilityLabel="Celular del cliente" />
+                <TextInput value={phone} onChangeText={setPhone} placeholder="Celular" placeholderTextColor={colors.muted} style={styles.input} keyboardType="phone-pad" maxLength={20} accessibilityLabel="Celular del cliente" />
                 <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: consent }} onPress={() => setConsent((v) => !v)} style={styles.consentRow}>
                   <Ionicons name={consent ? 'checkbox' : 'square-outline'} size={22} color={consent ? colors.primary : colors.muted} />
                   <Text style={styles.consentText}>El cliente aceptó que guarde su número y le escriba con ofertas y recordatorios.</Text>

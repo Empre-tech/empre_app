@@ -10,7 +10,7 @@ import { useReduceMotion } from '@/lib/useReduceMotion';
 import { amountField, formatPesos, METHOD_LABEL, newClientId, parseAmountInput, type PayMethod } from '@/lib/ledger';
 import { pesosInWords } from '@/lib/ledgerWords';
 import { queueParty } from '@/ledger/ledgerStore';
-import { phoneProblem } from '@/lib/customerMessages';
+import { partyLabel, phoneProblem, waPhone } from '@/lib/customerMessages';
 import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 
 const STEP_NAMES = ['Qué', 'Cuánto', 'Cómo se pagó', 'Listo'] as const;
@@ -355,20 +355,21 @@ export function PartyPicker({
         <TextInput
           value={phone}
           onChangeText={setPhone}
-          placeholder="Celular (opcional), para mandarle el ticket"
+          placeholder="Celular, para distinguirlo y mandarle el ticket"
           placeholderTextColor={colors.muted}
           keyboardType="phone-pad"
           style={styles.search}
           maxLength={20}
           accessibilityLabel="Celular del cliente"
         />
-        {phoneProblem(phone) ? <Text style={styles.consentText}>{phoneProblem(phone)}</Text> : null}
+        {/* El celular es obligatorio para un cliente nuevo (2026-11-24): así se distingue de otro con el mismo nombre. */}
+        <Text style={styles.consentText}>{phoneProblem(phone) ?? (waPhone(phone) ? 'Listo.' : 'El celular es obligatorio: así lo distingues de otro con el mismo nombre.')}</Text>
         <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: consent }} onPress={() => setConsent((v) => !v)} style={styles.consentRow}>
           <Ionicons name={consent ? 'checkbox' : 'square-outline'} size={22} color={consent ? colors.primary : colors.muted} />
           <Text style={styles.consentText}>El cliente aceptó que guarde su número y le escriba con ofertas y recordatorios.</Text>
         </Pressable>
         <View style={styles.wrap}>
-          <Chip icon="checkmark" label="Agregar" selected={false} onPress={() => (phoneProblem(phone) ? undefined : create(draft, { phone, consent }))} />
+          <Chip icon="checkmark" label="Agregar" selected={false} onPress={() => (waPhone(phone) ? create(draft, { phone, consent }) : undefined)} />
           <Chip icon="close" label="Cancelar" selected={false} onPress={() => setDraft(null)} />
         </View>
       </View>
@@ -388,7 +389,7 @@ export function PartyPicker({
       />
       <View style={styles.wrap}>
         {matches.slice(0, 8).map((p) => (
-          <Chip key={p.id} label={p.name} selected={false} onPress={() => onChange(p)} />
+          <Chip key={p.id} label={partyLabel(p, all)} selected={false} onPress={() => onChange(p)} />
         ))}
         {query.trim() && !exact ? <Chip icon="add" label={`Agregar «${query.trim()}»`} selected={false} onPress={add} /> : null}
       </View>

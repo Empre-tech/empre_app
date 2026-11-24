@@ -20,6 +20,20 @@ export function phoneProblem(raw: string | null | undefined): string | null {
   return d.length < 10 ? `Le faltan números: un celular tiene 10 (escribiste ${d.length}).` : 'Revisa el número: no parece un celular.';
 }
 
+/** Los últimos 4 dígitos de un celular («…4472»), para distinguir a dos clientes con el mismo nombre. */
+export function phoneTail(raw: string | null | undefined): string | null {
+  const d = (raw ?? '').replace(/\D/g, '');
+  return d.length >= 4 ? d.slice(-4) : null;
+}
+
+/** Cómo se muestra un cliente en una lista: con «· …4472» solo si hay otro con su mismo nombre. */
+export function partyLabel(p: { name: string; phone?: string | null }, all: { name: string }[]): string {
+  const key = p.name.trim().toLowerCase();
+  const twins = all.filter((x) => x.name.trim().toLowerCase() === key).length > 1;
+  const tail = phoneTail(p.phone);
+  return twins && tail ? `${p.name} · …${tail}` : p.name;
+}
+
 /** El enlace que abre WhatsApp con el mensaje escrito (al número, o para elegir el chat si no hay número). */
 export function waLink(phone: string | null, text: string): string {
   const t = encodeURIComponent(text);

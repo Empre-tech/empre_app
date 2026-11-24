@@ -16,7 +16,7 @@ import { TypeIn } from '@/components/chat/EmpreVoice';
 import { VoiceOrb } from '@/components/ai/VoiceOrb';
 import { AmountField, Chip, MethodChips, PartyPicker } from '@/components/ledger/parts';
 import { PayDeck } from '@/components/ledger/PayDeck';
-import { phoneProblem } from '@/lib/customerMessages';
+import { phoneProblem, waPhone } from '@/lib/customerMessages';
 import { categoryLabel, formatPesos, newClientId } from '@/lib/ledger';
 import { speechAvailable, startDictation } from '@/ledger/speech';
 import { liveParse } from '@/lib/voiceLive';
@@ -94,7 +94,12 @@ export function actionProblem(a: VoiceAction): string | null {
   if (needsParty && !a.party_id && !(a.new_party && a.party_name?.trim())) {
     return a.candidates?.length ? 'Elige a quién.' : a.type === 'payment' ? 'No sé quién abonó.' : 'Falta el cliente o proveedor.';
   }
-  if (a.new_party && !a.party_id && a.party_phone) return phoneProblem(a.party_phone);
+  // Varios clientes con ese nombre: se elige uno o «Ninguno de estos» (2026-11-24); así no se pierde por descuido.
+  if (a.candidates?.length && !a.party_id && !a.no_party) return 'Elige a quién, o toca «Ninguno de estos».';
+  // Un cliente nuevo lleva su celular: lo distingue de otro con el mismo nombre.
+  if (a.new_party && !a.party_id && a.type !== 'expense' && a.party_name?.trim() && !waPhone(a.party_phone)) {
+    return phoneProblem(a.party_phone) ?? `Falta el celular de ${a.party_name.trim().split(' ')[0]}.`;
+  }
   return null;
 }
 
@@ -1359,8 +1364,11 @@ function ActionCard({ entityId, heard, action: a, problem, onChange, onRemove, o
               <Text style={styles.cardMeta}>¿Cuál de estos?</Text>
               <View style={styles.wrap}>
                 {a.candidates.map((c) => (
-                  <Chip key={c.id} label={c.name} selected={false} onPress={() => setParty({ party_id: c.id, party_name: c.name, new_party: false, candidates: [] })} />
+                  <Chip key={c.id} label={c.phone_tail ? `${c.name} · …${c.phone_tail}` : c.name} selected={false} onPress={() => setParty({ party_id: c.id, party_name: c.name, new_party: false, candidates: [] })} />
                 ))}
+                {a.type !== 'payment' && a.method !== 'credit' ? (
+                  <Chip icon="close" label="Ninguno de estos" selected={false} onPress={() => onChange({ party_id: undefined, party_name: '', new_party: false, candidates: [], no_party: true })} />
+                ) : null}
               </View>
             </>
           ) : a.party_id || a.new_party ? (
@@ -1388,7 +1396,7 @@ function ActionCard({ entityId, heard, action: a, problem, onChange, onRemove, o
               <TextInput
                 value={a.party_phone ?? ''}
                 onChangeText={(t) => onChange({ party_phone: t })}
-                placeholder={`Celular de ${a.party_name.trim().split(' ')[0]} (opcional)`}
+                placeholder={`Celular de ${a.party_name.trim().split(' ')[0]}`}
                 placeholderTextColor={colors.muted}
                 keyboardType="phone-pad"
                 maxLength={20}
