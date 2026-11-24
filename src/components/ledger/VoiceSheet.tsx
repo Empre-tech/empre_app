@@ -380,7 +380,8 @@ export function VoiceSheet({
       setDoubt({ text: t, qty: intent.qty, name: intent.name });
       return true;
     }
-    if (!intent || (intent.kind !== 'ask' && module !== 'inventory')) return false;
+    // «Incluir X en mi inventario» se entiende igual desde cualquier pantalla: dice «inventario».
+    if (!intent || (intent.kind !== 'ask' && intent.kind !== 'new' && module !== 'inventory')) return false;
     let items: InventoryItem[];
     try {
       items = (await qc.fetchQuery({ queryKey: ['ledger', entityId, 'inventory'], queryFn: () => ledgerApi.inventory(entityId), staleTime: 15_000 })).items;
@@ -391,6 +392,12 @@ export function VoiceSheet({
       const exact = sameNameItem(intent.name, items);
       const similar = similarItems(intent.name, items);
       setAnswer({ name: intent.name, text: t, exact, rows: exact ? [exact, ...similar.filter((i) => i.ref !== exact.ref)] : similar });
+      return true;
+    }
+    if (intent.kind === 'new') {
+      // Un producto para agregar: si no existe, la tarjeta ofrece crearlo (con sección y precio) o elegir uno parecido.
+      const known = sameNameItem(intent.name, items);
+      startLocal(t, [{ client_id: newClientId(), type: 'stock', amount: 0, words: '', method: 'cash', days_ago: 0, item_ref: known?.ref, item_name: known?.name ?? intent.name, level: 'ok', warnings: known ? ['Ya está en tu inventario: marca cómo está.'] : [] }]);
       return true;
     }
     startLocal(t, [localMove(intent.name, intent.kind, intent.qty, items, intent.kind === 'remove' ? intent.reason : 'otro')]);

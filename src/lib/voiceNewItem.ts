@@ -126,7 +126,9 @@ export type InvIntent =
   | { kind: 'ask'; name: string }
   | { kind: 'add'; qty: number; name: string }
   | { kind: 'remove'; qty: number; name: string; reason: 'danado' | 'vencido' | 'perdida' | 'otro' }
-  | { kind: 'count'; qty: number; name: string };
+  | { kind: 'count'; qty: number; name: string }
+  /** «Quiero incluir en mi inventario zapatos Nike»: un producto que se agrega (no es una venta). */
+  | { kind: 'new'; name: string };
 
 const WORD_QTY: Record<string, number> = { un: 1, una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10 };
 const QTY = '(\\d{1,5}|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)';
@@ -139,6 +141,20 @@ const cleanName = (s: string) => s.replace(/^(?:(?:mas|unidades|de|del|a|al|la|e
  */
 export function inventoryIntent(text: string): InvIntent | null {
   const t = norm(text);
+  // «(quiero) incluir/agregar/meter (en mi inventario) X (en mi inventario)»: con la palabra «inventario» es agregar un
+  // producto, nunca una venta (2026-11-24). Con un número delante («10 zapatos») es una entrada de esa cantidad.
+  const NEW_VERB = '(?:(?:quiero|quisiera|voy a|vamos a|necesito|ayudame a|me ayudas a) )?(?:incluir|incluye|agregar|agrega|agregale|anadir|anade|meter|mete|registrar|registra|crear|crea|subir|sube|poner|pon)';
+  const inv = '(?:a |en |al )?(?:mi |el |mis )?inventario';
+  const art = '(?:(?:los|las|unos|unas|un|una|el|la) )?';
+  const newA = new RegExp(`^${NEW_VERB} ${inv} ${art}(.+)$`).exec(t);
+  const newB = newA ? null : new RegExp(`^${NEW_VERB} ${art}(.+?) ${inv}$`).exec(t);
+  const newHit = newA?.[1] ?? newB?.[1];
+  if (newHit) {
+    const withQty = new RegExp(`^${QTY} (.+)$`).exec(newHit);
+    if (withQty) return { kind: 'add', qty: toQty(withQty[1]), name: cleanName(withQty[2]) };
+    const name = cleanName(newHit);
+    return name ? { kind: 'new', name } : null;
+  }
   const remove = new RegExp(`^(?:descuenta|descontar|descuentale|quita|quitar|quitale|resta|restar|restale|saca|sacar|bota|botar) ${QTY} (.+)$`).exec(t);
   if (remove) return { kind: 'remove', qty: toQty(remove[1]), name: cleanName(remove[2]), reason: 'otro' };
   const lost = new RegExp(`^se (danaron|dano|vencieron|vencio|perdieron|perdio) ${QTY} (.+)$`).exec(t);

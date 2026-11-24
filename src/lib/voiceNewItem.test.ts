@@ -110,3 +110,10 @@ test('availabilityLine responde con lo que se sabe', () => {
   assert.deepEqual(availabilityLine({ status: 'ok', qty: 0, counted: false, mode: 'light' }), { text: 'Hay', has: true });
   assert.deepEqual(availabilityLine({ status: 'none', qty: 0, counted: false, mode: 'none' }), { text: 'No llevas la cuenta', has: null });
 });
+
+test('inventoryIntent: «incluir en mi inventario» es agregar un producto, no una venta', () => {
+  assert.deepEqual(inventoryIntent('quiero incluir en mi inventario zapatos nike'), { kind: 'new', name: 'zapatos nike' });
+  assert.deepEqual(inventoryIntent('Agrega unos tenis Adidas al inventario'), { kind: 'new', name: 'tenis adidas' });
+  assert.deepEqual(inventoryIntent('quiero meter en el inventario 10 camisetas'), { kind: 'add', qty: 10, name: 'camisetas' });
+  assert.equal(inventoryIntent('vendí unos zapatos nike'), null);
+});
