@@ -64,3 +64,13 @@ test('el destino de cada línea y el módulo que entiende el servidor', () => {
   assert.equal(serverModule('tab'), undefined);
   assert.equal(serverModule('none'), undefined);
 });
+
+test('numberQuestions: «ayer» y «los últimos N días»', () => {
+  assert.deepEqual(numberQuestions('en los últimos 10 días cuánto vendí'), [{ topic: 'sales', period: 'days', days: 10 }]);
+  assert.deepEqual(numberQuestions('cuánto vendí ayer'), [{ topic: 'sales', period: 'yesterday' }]);
+  assert.deepEqual(numberQuestions('cuánto gasté en los últimos quince días'), [{ topic: 'expenses', period: 'days', days: 15 }]);
+  const a = answerFor({ topic: 'sales', period: 'days', days: 10 }, { sales_total: 0, sales_count: 0 });
+  assert.equal(a.sub, 'En los últimos 10 días no anotaste ventas.');
+  const b = answerFor({ topic: 'sales', period: 'days', days: 10 }, { sales_total: 500000, sales_count: 3 });
+  assert.equal(b.title, 'En los últimos 10 días vendiste');
+});

@@ -117,3 +117,10 @@ test('inventoryIntent: «incluir en mi inventario» es agregar un producto, no u
   assert.deepEqual(inventoryIntent('quiero meter en el inventario 10 camisetas'), { kind: 'add', qty: 10, name: 'camisetas' });
   assert.equal(inventoryIntent('vendí unos zapatos nike'), null);
 });
+
+test('inventoryIntent: «quiero agregar zapatos Nike» sin decir «inventario» también es un producto', () => {
+  assert.deepEqual(inventoryIntent('quiero agregar zapatos Nike'), { kind: 'new', name: 'zapatos nike' });
+  assert.deepEqual(inventoryIntent('Agrega unos tenis Adidas'), { kind: 'new', name: 'tenis adidas' });
+  assert.equal(inventoryIntent('agrega que le vendí a Juan'), null);
+  assert.equal(inventoryIntent('agregar unos zapatos de 250 mil'), null);
+});

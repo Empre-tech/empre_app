@@ -351,22 +351,6 @@ export default function InventoryScreen() {
   const header = (
     <View style={styles.listHead}>
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      {/* Empre AI a la vista en Inventario (2026-11-24): antes solo estaba dentro del botón Empre. Es de Pro. */}
-      {tab !== 'service' ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={plan.base ? 'Hablar con Empre AI. Es de Empre Pro' : 'Hablar con Empre AI'}
-          onPress={() => (plan.base ? setGoPro(true) : setVoiceOpen(true))}
-          style={({ pressed }) => [styles.aiPill, pressed && { backgroundColor: colors.well }]}
-        >
-          <EmpreSymbol product="ai" size={28} animated={false} />
-          <View style={{ flex: 1, minWidth: 0, opacity: plan.base ? LOCKED_OPACITY : 1 }}>
-            <Text style={styles.aiTitle}>Dile a Empre AI</Text>
-            <Text style={styles.aiSub} numberOfLines={2}>«Llegaron 10 camisetas», «se acabó el arroz», «agrega gorras al inventario»</Text>
-          </View>
-          {plan.base ? <ProTag /> : <Ionicons name="mic-outline" size={20} color={colors.primaryDark} />}
-        </Pressable>
-      ) : null}
       {/* Contar (tablero «Inventario», teléfonos 9 y 12): seguir el conteo a medias, contar la sección elegida o la que
           más tiempo lleva sin contarse. */}
       {draftLeft && countDraft && !draftHere ? (
@@ -1010,7 +994,6 @@ const styles = StyleSheet.create({
   // Empre AI: su propia entrada, aparte del buscador (tablero, teléfono 1).
   aiTitle: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   // Contar: la tarjeta de la sección (arena) con su botón en contorno rojo, y «Seguir contando» (blanca, con flecha).
-  aiPill: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 60, paddingHorizontal: spacing.md, paddingVertical: 10, borderRadius: 16, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   countCard: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 10, paddingHorizontal: spacing.md, borderRadius: 16, backgroundColor: colors.well },
   countBtn: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, borderRadius: 12, borderWidth: 2, borderColor: colors.brandRef, backgroundColor: colors.surface },
   // Contar en Base: sin el aro rojo (no invita a lo que no tienes), el contenido en gris y la corona de Pro.

@@ -92,6 +92,8 @@ export default function ItemScreen() {
   const [alsoSupply, setAlsoSupply] = useState(false);
   const [recipe, setRecipe] = useState<Record<string, string>>({});
   const [newVariant, setNewVariant] = useState('');
+  // Cuántos hay de la variante nueva, en la misma fila (2026-11-24). Contar exacto es de Pro; en Base queda «Hay».
+  const [newVariantQty, setNewVariantQty] = useState('');
   const [addingVariant, setAddingVariant] = useState(false);
   // Insumos nuevos elegidos aquí: se crean recién al guardar (si cancelas, no queda nada suelto).
   const [pendingSupplies, setPendingSupplies] = useState<NewSupply[]>([]);
@@ -322,14 +324,29 @@ export default function ItemScreen() {
       // «Talla 40, Color vinotinto» queda como atributos (filtros y búsqueda); «Chocolate», como el nombre corto.
       const known = [...new Set((catalog.data ?? []).filter((i) => i.parent_id === existing.id).flatMap((i) => (i.attrs ?? []).map((a) => a.name)))];
       const parsed = parseVariantInput(label, known);
-      await catalogApi.create(
+      const created = await catalogApi.create(
         entityId,
         parsed.attrs.length
           ? { name: label, price: null, price_from: false, parent_id: existing.id, attrs: parsed.attrs }
           : { name: label, price: null, price_from: false, parent_id: existing.id, variant_label: label },
       );
+      if (withLedger) {
+        const qty = Number(newVariantQty.replace(',', '.'));
+        try {
+          if (!plan.base && newVariantQty.trim() !== '' && Number.isFinite(qty) && qty >= 0) {
+            await ledgerApi.stockSettings(entityId, created.id, { mode: 'exact' });
+            await ledgerApi.adjust(entityId, { client_id: newClientId(), ref: created.id, counted: qty });
+          } else if (plan.base) {
+            await ledgerApi.stockSettings(entityId, created.id, { mode: 'light' });
+            await ledgerApi.setLevel(entityId, created.id, newClientId(), 'ok');
+          }
+        } catch {
+          // La variante ya quedó creada; la cantidad se puede ajustar desde su ficha.
+        }
+      }
       await refresh();
       setNewVariant('');
+      setNewVariantQty('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No pudimos agregar la variante.');
     } finally {
@@ -845,9 +862,22 @@ export default function ItemScreen() {
             maxLength={40}
             accessibilityLabel="Nombre de una variante nueva"
           />
+          {withLedger && !plan.base ? (
+            <TextInput
+              value={newVariantQty}
+              onChangeText={(v) => setNewVariantQty(v.replace(/[^0-9.,]/g, ''))}
+              placeholder="Cuántos"
+              placeholderTextColor={colors.muted}
+              keyboardType="decimal-pad"
+              style={[styles.input, { flex: 0, width: 92 }]}
+              maxLength={6}
+              accessibilityLabel="Cuántas hay de esta variante"
+            />
+          ) : null}
           <Button title="Agregar" variant="secondary" loading={addingVariant} disabled={newVariant.trim().length < 1} onPress={() => void addVariant()} />
         </View>
         <Text style={styles.metaSmall}>Escribe cada atributo con su nombre: «Talla 40, Color negro». Así se filtra y se encuentra en Empre.</Text>
+        {withLedger && plan.base ? <Text style={styles.metaSmall}>Cada variante nueva queda en «Hay». Contar cuántas hay de cada una es de Empre Pro.</Text> : null}
         {variants.length === 0 && stock?.counted ? <Text style={styles.metaSmall}>Al agregar variantes, el producto deja de contarse: cuenta cada variante.</Text> : null}
       </View>
     ) : null;
@@ -921,7 +951,7 @@ export default function ItemScreen() {
   const lastStep = at === steps.length - 1;
   const stepProblem = (k: WizardStep): string | null => {
     if (k === 'basico') {
-      if (name.trim().length < 2) return 'Escribe el nombre (mínimo 2 letras).';
+      if (name.trim().length < (isVariant ? 1 : 2)) return 'Escribe el nombre (mínimo 2 letras).';
       if (parsedPrice === undefined) return 'El precio debe ser un número, por ejemplo 25.000.';
       const dur = isService ? (customDuration.trim() ? Number(customDuration.trim()) : duration ?? 0) : 0;
       if (isService && (!Number.isInteger(dur) || (dur !== 0 && (dur < 5 || dur > 480)))) return 'La duración va en minutos, de 5 a 480.';

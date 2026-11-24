@@ -155,6 +155,13 @@ export function inventoryIntent(text: string): InvIntent | null {
     const name = cleanName(newHit);
     return name ? { kind: 'new', name } : null;
   }
+  // Sin la palabra «inventario» (2026-11-24): «quiero agregar zapatos Nike» también es un producto nuevo, siempre que no
+  // hable de plata, ventas o citas («agrega un gasto de 20 mil», «agrega que le vendí a Juan» siguen su camino).
+  const bare = new RegExp(`^(?:(?:quiero|quisiera|voy a|vamos a|necesito|ayudame a|me ayudas a) )?(?:incluir|incluye|agregar|agrega|agregale|anadir|anade|meter|mete) ${art}(.+)$`).exec(t);
+  if (bare && !new RegExp(`^${QTY} `).test(bare[1]) && !/\d|\bmil\b|\bpesos?\b|\blucas?\b|\bvent|\bvend|\bgast|\bpag|\bcobr|\bfia|\babon|\bdeb|\bcompr|\bcita|\bcliente|\bnota|\brecordatorio|\bque\b|\bmeta\b/.test(bare[1])) {
+    const name = cleanName(bare[1]);
+    if (name) return { kind: 'new', name };
+  }
   const remove = new RegExp(`^(?:descuenta|descontar|descuentale|quita|quitar|quitale|resta|restar|restale|saca|sacar|bota|botar) ${QTY} (.+)$`).exec(t);
   if (remove) return { kind: 'remove', qty: toQty(remove[1]), name: cleanName(remove[2]), reason: 'otro' };
   const lost = new RegExp(`^se (danaron|dano|vencieron|vencio|perdieron|perdio) ${QTY} (.+)$`).exec(t);

@@ -83,10 +83,29 @@ export function otherJob(text: string): OtherJob | null {
 // ---- Preguntas sobre tus números ----
 
 export type NumberTopic = 'sales' | 'expenses' | 'owed_to_me' | 'i_owe';
-export type NumberPeriod = 'day' | 'week' | 'month';
+export type NumberPeriod = 'day' | 'week' | 'month' | 'yesterday' | 'days';
 export interface NumberQuestion {
   topic: NumberTopic;
   period: NumberPeriod;
+  /** Con period = 'days': cuántos días hacia atrás, contando hoy («en los últimos 10 días»). */
+  days?: number;
+}
+
+const NUM_WORDS: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, quince: 15, veinte: 20, treinta: 30 };
+
+/** El periodo dicho: «hoy» (por defecto), «ayer», «esta semana», «este mes» o «los últimos 10 días» (2026-11-24). */
+export function periodOf(t: string): { period: NumberPeriod; days?: number } {
+  const last = /\bultim[oa]s? (\d{1,3}|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|quince|veinte|treinta) dias\b/.exec(t);
+  if (last) {
+    const n = NUM_WORDS[last[1]] ?? Number(last[1]);
+    if (n >= 1 && n <= 365) return { period: 'days', days: n };
+  }
+  if (/\b(ultimo mes|ultimos 30 dias)\b/.test(t)) return { period: 'days', days: 30 };
+  if (/\b(ultima semana|ultimos 7 dias)\b/.test(t)) return { period: 'days', days: 7 };
+  if (/\bayer\b/.test(t)) return { period: 'yesterday' };
+  if (/\bsemana\b/.test(t)) return { period: 'week' };
+  if (/\bmes\b/.test(t)) return { period: 'month' };
+  return { period: 'day' };
 }
 
 const TOPICS: [NumberTopic, RegExp][] = [
@@ -100,14 +119,16 @@ const TOPICS: [NumberTopic, RegExp][] = [
 export function numberQuestions(text: string): NumberQuestion[] {
   const t = norm(text);
   if (!t) return [];
-  const period: NumberPeriod = /\b(semana)\b/.test(t) ? 'week' : /\b(mes)\b/.test(t) ? 'month' : 'day';
+  const p = periodOf(t);
   return TOPICS.map(([topic, r]) => ({ topic, at: t.search(r) }))
     .filter((x) => x.at >= 0)
     .sort((a, b) => a.at - b.at)
-    .map(({ topic }) => ({ topic, period: topic === 'owed_to_me' || topic === 'i_owe' ? 'day' : period }));
+    .map(({ topic }): NumberQuestion => (topic === 'owed_to_me' || topic === 'i_owe' ? { topic, period: 'day' } : { topic, ...p }));
 }
 
-const PERIOD_WORD: Record<NumberPeriod, string> = { day: 'Hoy', week: 'Esta semana', month: 'Este mes' };
+const PERIOD_WORD: Record<Exclude<NumberPeriod, 'days'>, string> = { day: 'Hoy', week: 'Esta semana', month: 'Este mes', yesterday: 'Ayer' };
+const past = (q: NumberQuestion) => q.period === 'yesterday' || (q.period === 'days' && (q.days ?? 1) > 1);
+const whenOf = (q: NumberQuestion) => (q.period === 'days' ? (q.days === 1 ? 'Hoy' : `En los últimos ${q.days} días`) : PERIOD_WORD[q.period]);
 
 const pesos = (n: number) => `$${Math.round(n).toLocaleString('es-CO').replace(/,/g, '.')}`;
 
@@ -144,18 +165,18 @@ export function answerFor(q: NumberQuestion, d: NumbersData): NumberAnswer {
 }
 
 function answerData(q: NumberQuestion, d: NumbersData): Omit<NumberAnswer, 'say'> {
-  const when = PERIOD_WORD[q.period];
+  const when = whenOf(q);
   if (q.topic === 'sales') {
     const n = d.sales_count ?? 0;
     return n > 0
       ? { topic: 'sales', title: `${when} vendiste`, big: pesos(d.sales_total ?? 0), sub: n === 1 ? '1 venta' : `${n} ventas`, link: 'Así sale, en Finance' }
-      : { topic: 'sales', title: `${when} vendiste`, big: null, sub: `${when} no has anotado ventas.`, link: 'Abrir Finance' };
+      : { topic: 'sales', title: `${when} vendiste`, big: null, sub: `${when} ${past(q) ? 'no anotaste' : 'no has anotado'} ventas.`, link: 'Abrir Finance' };
   }
   if (q.topic === 'expenses') {
     const v = d.expenses_total ?? 0;
     return v > 0
       ? { topic: 'expenses', title: `${when} gastaste`, big: pesos(v), sub: 'Lo que anotaste como gasto', link: 'Así sale, en Finance' }
-      : { topic: 'expenses', title: `${when} gastaste`, big: null, sub: `${when} no has anotado gastos.`, link: 'Abrir Finance' };
+      : { topic: 'expenses', title: `${when} gastaste`, big: null, sub: `${when} ${past(q) ? 'no anotaste' : 'no has anotado'} gastos.`, link: 'Abrir Finance' };
   }
   const list = (q.topic === 'owed_to_me' ? d.owing : d.owed) ?? [];
   const total = list.reduce((s, p) => s + p.balance, 0);

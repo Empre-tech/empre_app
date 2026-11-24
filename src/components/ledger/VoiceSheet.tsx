@@ -2,7 +2,7 @@ import { Ionicons } from '@/components/Icon';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Animated, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { catalogApi } from '@/api/catalog';
 import { ApiError } from '@/api/client';
@@ -17,6 +17,7 @@ import { VoiceOrb } from '@/components/ai/VoiceOrb';
 import { AmountField, Chip, MethodChips, PartyPicker } from '@/components/ledger/parts';
 import { PayDeck } from '@/components/ledger/PayDeck';
 import { phoneProblem, waPhone } from '@/lib/customerMessages';
+import { addDays, todayCO } from '@/lib/finance';
 import { categoryLabel, formatPesos, newClientId } from '@/lib/ledger';
 import { speechAvailable, startDictation } from '@/ledger/speech';
 import { liveParse } from '@/lib/voiceLive';
@@ -312,11 +313,20 @@ export function VoiceSheet({
 
   // Tus números con plantillas: la cifra sale de lo que anotaste; sin modelo y sin gastar el tope.
   const answerNumbers = async (qs: ReturnType<typeof numberQuestions>) => {
-    const period = qs.find((q) => q.topic === 'sales' || q.topic === 'expenses')?.period ?? 'day';
+    const money = qs.find((q) => q.topic === 'sales' || q.topic === 'expenses');
+    const period = money?.period ?? 'day';
     const needSummary = qs.some((q) => q.topic === 'sales' || q.topic === 'expenses');
     const needParties = qs.some((q) => q.topic === 'owed_to_me' || q.topic === 'i_owe');
+    // «Ayer» y «los últimos N días» (2026-11-24): un rango de fechas, con el análisis de Finance.
+    const range = async () => {
+      const today = todayCO();
+      const from = period === 'yesterday' ? addDays(today, -1) : addDays(today, -((money?.days ?? 1) - 1));
+      const to = period === 'yesterday' ? addDays(today, -1) : today;
+      const a = await ledgerApi.analytics(entityId, { from, to, compare: 'prev' });
+      return { sales_total: a.current.sales_total, sales_count: a.current.sales_count, expenses_total: a.current.expenses_total };
+    };
     const [summary, parties] = await Promise.all([
-      needSummary ? ledgerApi.summary(entityId, period) : Promise.resolve(null),
+      needSummary ? (period === 'yesterday' || period === 'days' ? range() : ledgerApi.summary(entityId, period)) : Promise.resolve(null),
       needParties ? ledgerApi.parties(entityId, { owing: '1' }) : Promise.resolve([]),
     ]);
     const byBalance = (kind: string) => parties.filter((p) => p.kind === kind && p.balance > 0).sort((a, b) => b.balance - a.balance).map((p) => ({ name: p.name, balance: p.balance }));
@@ -550,15 +560,30 @@ export function VoiceSheet({
               ? `Vas a dejar «${liveIntent.name}» en ${liveIntent.qty}.`
               : 'Toca la flecha y Empre AI lo arma para que lo revises.'
       : null;
+  // Atrás con el teclado abierto lo esconde; no cierra la hoja ni bota lo escrito.
+  const backOrClose = () => {
+    if (keyboardOpen && Keyboard.isVisible()) {
+      Keyboard.dismiss();
+      return;
+    }
+    onClose();
+  };
   const openKeyboard = () => {
+    // Si estaba escuchando, se para primero: el micrófono y el teclado a la vez se pisan.
+    if (listening) {
+      stopRef.current?.();
+      setListening(false);
+    }
     setKeyboardOpen(true);
     setTimeout(() => inputRef.current?.focus(), 80);
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={backOrClose}>
       <KeyboardSheet style={styles.backdrop}>
-        <Pressable style={{ height: insets.top + 24 }} onPress={result || answer ? undefined : onClose} accessibilityRole="button" accessibilityLabel="Cerrar" />
+        {/* La franja de arriba cierra solo si no estás escribiendo (2026-11-24): al abrir el teclado la hoja se mueve y un
+            toque de más la cerraba, con lo escrito. */}
+        <Pressable style={{ height: insets.top + 24 }} onPress={result || answer || keyboardOpen || text.trim() ? undefined : onClose} accessibilityRole="button" accessibilityLabel="Cerrar" />
         <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
           {done ? (
             <View style={styles.doneBox}>
@@ -1155,7 +1180,12 @@ function PriceCard({ action: a, ask, problem, onChange, onRemove }: { action: Vo
  */
 function NewItemCard({ entityId, heard, action: a, onChange, onRemove }: { entityId: string; heard: string; action: VoiceAction; onChange: (p: Partial<VoiceAction>) => void; onRemove: () => void }) {
   const qc = useQueryClient();
-  const name = a.item_name?.trim() ?? '';
+  // El nombre se puede corregir antes de agregarlo (2026-11-24): la voz no siempre lo escribe como lo vendes.
+  const [draftName, setDraftName] = useState(() => {
+    const n = a.item_name?.trim() ?? '';
+    return n ? n.charAt(0).toUpperCase() + n.slice(1) : '';
+  });
+  const name = draftName.trim().replace(/\s+/g, ' ');
   const inventory = useQuery({ queryKey: ['ledger', entityId, 'inventory'], queryFn: () => ledgerApi.inventory(entityId), staleTime: 60_000 });
   const sections = useEntitySections(entityId, 'sell');
   const list = (sections.data ?? []).filter((s) => s.kind === 'sell');
@@ -1180,14 +1210,14 @@ function NewItemCard({ entityId, heard, action: a, onChange, onRemove }: { entit
     onSuccess: (ref) => {
       void qc.invalidateQueries({ queryKey: ['ledger', entityId] });
       void qc.invalidateQueries({ queryKey: ['catalog', entityId] });
-      onChange({ item_ref: ref, level: a.counted == null && !a.stock_move ? a.level || 'ok' : a.level, stock_move: a.stock_move ? { ...a.stock_move, kind: a.stock_move.kind === 'remove' ? 'count' : a.stock_move.kind, from: null } : undefined, warnings: [] });
+      onChange({ item_ref: ref, item_name: name, level: a.counted == null && !a.stock_move ? a.level || 'ok' : a.level, stock_move: a.stock_move ? { ...a.stock_move, kind: a.stock_move.kind === 'remove' ? 'count' : a.stock_move.kind, from: null } : undefined, warnings: [] });
     },
   });
   const pick = (ref: string, itemName: string) => {
     const it = (inventory.data?.items ?? []).find((i) => i.ref === ref);
     onChange({ item_ref: ref, item_name: itemName, candidates: [], level: a.counted == null && !a.stock_move ? a.level || 'ok' : a.level, stock_move: a.stock_move ? { ...a.stock_move, from: it && it.counted && it.mode === 'exact' ? it.qty : null } : undefined, warnings: [] });
   };
-  const canAdd = kind === 'supply' ? Boolean(supplySection) : Boolean(section);
+  const canAdd = name.length >= 2 && (kind === 'supply' ? Boolean(supplySection) : Boolean(section));
   return (
     <View style={styles.card}>
       <View style={styles.cardHead}>
@@ -1198,7 +1228,7 @@ function NewItemCard({ entityId, heard, action: a, onChange, onRemove }: { entit
           <Ionicons name="close" size={20} color={colors.muted} />
         </Pressable>
       </View>
-      <Text style={styles.party}>«{name}» aún no está en tu inventario</Text>
+      <Text style={styles.party}>«{a.item_name?.trim() ?? name}» aún no está en tu inventario</Text>
       {a.counted != null ? <Text style={styles.cardMeta}>Quedará con {String(a.counted).replace('.', ',')} en total.</Text> : null}
 
       {similar.length > 0 ? (
@@ -1218,6 +1248,16 @@ function NewItemCard({ entityId, heard, action: a, onChange, onRemove }: { entit
 
       <View style={{ gap: spacing.sm }}>
         <Text style={styles.cardMeta}>{similar.length > 0 ? 'Si es otro, agrégalo:' : 'Agrégalo de una vez:'}</Text>
+        <TextInput
+          value={draftName}
+          onChangeText={setDraftName}
+          placeholder="Nombre del producto"
+          placeholderTextColor={colors.muted}
+          autoCapitalize="sentences"
+          maxLength={80}
+          style={styles.newPartyInput}
+          accessibilityLabel="Nombre del producto"
+        />
         <View style={styles.wrap}>
           <Chip label="Lo vendo" selected={kind === 'product'} onPress={() => setKind('product')} />
           <Chip label="Lo uso en mi trabajo" selected={kind === 'supply'} onPress={() => setKind('supply')} />
@@ -1317,7 +1357,12 @@ function ActionCard({ entityId, heard, action: a, problem, onChange, onRemove, o
   const [editing, setEditing] = useState(a.amount <= 0);
   if (a.type === 'stock') return <StockCard entityId={entityId} heard={heard} action={a} problem={problem} onChange={onChange} onRemove={onRemove} />;
   if (a.type === 'tab_add' || a.type === 'tab_pay') return <TabCard entityId={entityId} action={a} problem={problem} onChange={onChange} onRemove={onRemove} />;
-  const setParty = (p: Partial<VoiceAction>) => onChange({ ...p, warnings: (a.warnings ?? []).filter((w) => !PARTY_WARN.test(w)) });
+  // «Cambiar» el cliente abre el buscador (2026-11-24): antes, al quitarlo en una venta de contado, la sección desaparecía.
+  const [choosing, setChoosing] = useState(false);
+  const setParty = (p: Partial<VoiceAction>) => {
+    setChoosing(false);
+    onChange({ ...p, warnings: (a.warnings ?? []).filter((w) => !PARTY_WARN.test(w)) });
+  };
   return (
     <View style={styles.card}>
       <View style={styles.cardHead}>
@@ -1357,7 +1402,7 @@ function ActionCard({ entityId, heard, action: a, problem, onChange, onRemove, o
         </View>
       ) : null}
 
-      {a.party_id || a.new_party || (a.candidates && a.candidates.length > 0) || a.type === 'payment' || a.method === 'credit' ? (
+      {choosing || a.party_id || a.new_party || (a.candidates && a.candidates.length > 0) || a.type === 'payment' || a.method === 'credit' ? (
         <View style={{ gap: spacing.xs }}>
           {a.candidates && a.candidates.length > 0 && !a.party_id ? (
             <>
@@ -1377,18 +1422,28 @@ function ActionCard({ entityId, heard, action: a, problem, onChange, onRemove, o
                 {a.type === 'expense' ? 'Proveedor' : 'Cliente'}
                 {a.new_party && !a.party_id ? ' nuevo' : ''}: {a.party_name}
               </Text>
-              <Pressable accessibilityRole="button" accessibilityLabel="Cambiar" onPress={() => onChange({ party_id: undefined, party_name: '', new_party: false, party_phone: undefined, accepts_messages: undefined, candidates: [] })} hitSlop={8}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Cambiar" onPress={() => {
+                  setChoosing(true);
+                  onChange({ party_id: undefined, party_name: '', new_party: false, party_phone: undefined, accepts_messages: undefined, candidates: [] });
+                }} hitSlop={8}>
                 <Text style={styles.link}>Cambiar</Text>
               </Pressable>
             </View>
           ) : (
-            <PartyPicker
-              entityId={entityId}
-              kind={a.type === 'expense' ? 'supplier' : 'customer'}
-              value={null}
-              onChange={(p) => p && setParty({ party_id: p.id, party_name: p.name, new_party: false, candidates: [] })}
-              onNew={(name) => setParty({ party_id: undefined, party_name: name, new_party: true, candidates: [] })}
-            />
+            <>
+              <PartyPicker
+                entityId={entityId}
+                kind={a.type === 'expense' ? 'supplier' : 'customer'}
+                value={null}
+                onChange={(p) => p && setParty({ party_id: p.id, party_name: p.name, new_party: false, candidates: [] })}
+                onNew={(name) => setParty({ party_id: undefined, party_name: name, new_party: true, candidates: [] })}
+              />
+              {choosing && a.type !== 'payment' && a.method !== 'credit' ? (
+                <Pressable accessibilityRole="button" onPress={() => setParty({ party_id: undefined, party_name: '', new_party: false, candidates: [], no_party: true })} hitSlop={8} style={{ alignSelf: 'flex-start' }}>
+                  <Text style={styles.link}>{a.type === 'expense' ? 'Sin proveedor' : 'Sin cliente'}</Text>
+                </Pressable>
+              ) : null}
+            </>
           )}
           {/* Cliente nuevo (2026-11-22): su celular y la autorización de mensajes, para mandarle el ticket. */}
           {a.new_party && !a.party_id && a.type !== 'expense' && a.party_name?.trim() ? (

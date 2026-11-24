@@ -325,7 +325,7 @@ function GoalSheet({ month, current, lastMonth, onClose, onSave }: { month: stri
     <Modal visible transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
       <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" style={styles.veil} onPress={onClose} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={[styles.sheet, { paddingBottom: (kb ? kb + 12 : insets.bottom + 18) }]}>
+        <View style={[styles.sheet, { paddingBottom: kb ? kb + 20 : insets.bottom + 18 }]}>
           <View style={styles.handle} />
           <Text style={styles.sheetTitle}>{`La meta de ${monthName(month)}`}</Text>
           <Text style={styles.goalLead}>¿Qué quieres medir este mes?</Text>
@@ -341,7 +341,8 @@ function GoalSheet({ month, current, lastMonth, onClose, onSave }: { month: stri
               return (
                 <Pressable key={k} accessibilityRole="radio" accessibilityState={{ checked: on }} onPress={() => setKind(k)} style={[styles.goalOption, on && styles.goalOptionOn]}>
                   <Text style={[styles.goalOptionTitle, on && { color: colors.finance }]}>{label}</Text>
-                  <Text style={styles.goalOptionHint}>{hint}</Text>
+                  {/* Con el teclado abierto se esconde la explicación: la hoja queda corta y ordenada. */}
+                  {kb ? null : <Text style={styles.goalOptionHint}>{hint}</Text>}
                 </Pressable>
               );
             })}
@@ -356,7 +357,7 @@ function GoalSheet({ month, current, lastMonth, onClose, onSave }: { month: stri
             keyboardType="number-pad"
             placeholder="$3.000.000"
             placeholderTextColor={colors.placeholder}
-            style={styles.input}
+            style={[styles.input, styles.goalInput]}
             accessibilityLabel="Cuánto quieres en el mes"
           />
           {suggestion && !text ? (
@@ -382,7 +383,7 @@ function GoalSheet({ month, current, lastMonth, onClose, onSave }: { month: stri
                 setSaving(false);
               }
             }}
-            style={({ pressed }) => [styles.save, (pressed || saving) && { opacity: 0.85 }]}
+            style={({ pressed }) => [styles.save, { marginTop: 6 }, (pressed || saving) && { opacity: 0.85 }]}
           >
             <Text style={styles.saveText}>{saving ? 'Guardando…' : 'Guardar meta'}</Text>
           </Pressable>
@@ -433,6 +434,7 @@ const styles = StyleSheet.create({
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line },
   goalLead: { fontSize: 14, fontFamily: fonts.ui.semibold, color: colors.ink },
   goalOptions: { flexDirection: 'row', gap: 8 },
+  goalInput: { minHeight: 60, textAlign: 'center', fontSize: 26, marginBottom: 2 },
   goalOption: { flex: 1, gap: 4, padding: 12, borderRadius: 14, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   goalOptionOn: { borderWidth: 2, borderColor: colors.finance, backgroundColor: colors.financeSoft },
   goalOptionTitle: { fontSize: 14.5, fontFamily: fonts.ui.extrabold, color: colors.ink },
