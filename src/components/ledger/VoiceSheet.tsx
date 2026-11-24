@@ -22,7 +22,7 @@ import { categoryLabel, formatPesos, newClientId } from '@/lib/ledger';
 import { speechAvailable, startDictation } from '@/ledger/speech';
 import { liveParse } from '@/lib/voiceLive';
 import { liveRows, micLevel, phaseCopy, voicePhase, wordTone, type LiveRow, type WordTone } from '@/lib/voiceStage';
-import { pickVariant, withVariantChoices } from '@/lib/voiceVariants';
+import { pickVariant, visibleVariants, withVariantChoices } from '@/lib/voiceVariants';
 import { availabilityLine, countFromWords, dictatedPrice, inventoryIntent, isMoneyTalk, isPriceStatement, itemNamedIn, sameNameItem, similarItems } from '@/lib/voiceNewItem';
 import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 import { KeyboardSheet } from '@/components/KeyboardSheet';
@@ -1194,6 +1194,9 @@ function PriceCard({ action: a, ask, problem, onChange, onRemove }: { action: Vo
  */
 /** Las tallas (o sabores) de un producto que se vendió sin decir cuál: un toque y queda el renglón con su precio. */
 function VariantChoices({ action: a, onChange }: { action: VoiceAction; onChange: (p: Partial<VoiceAction>) => void }) {
+  // Cuánto mostrar (2026-11-24): en orden de talla, primero las que hay (hasta 8) con cuántas quedan; las agotadas y
+  // el resto, detrás de «Ver todas». El precio solo aparece si no todas valen lo mismo.
+  const [all, setAll] = useState<Record<number, boolean>>({});
   const lines = a.lines ?? [];
   if (!lines.some((l) => l.choose?.length)) return null;
   const pick = (k: number, opt: NonNullable<VoiceLine['choose']>[number]) => {
@@ -1207,11 +1210,32 @@ function VariantChoices({ action: a, onChange }: { action: VoiceAction; onChange
         l.choose?.length ? (
           <View key={`${l.name}${k}`} style={{ gap: spacing.xs }}>
             <Text style={styles.cardMeta}>{`¿Cuál ${l.qty === 1 ? '' : `de los ${String(l.qty).replace('.', ',')} `}«${l.name}»?`}</Text>
-            <View style={styles.wrap}>
-              {l.choose.map((o) => (
-                <Chip key={o.ref} label={o.out ? `${o.label} · agotada` : o.label} selected={false} onPress={() => pick(k, o)} />
-              ))}
-            </View>
+            {(() => {
+              const opts = l.choose ?? [];
+              const { shown, hidden } = visibleVariants(opts, Boolean(all[k]));
+              const samePrice = new Set(opts.map((o) => o.price)).size <= 1;
+              const available = opts.filter((o) => !o.out);
+              const chipLabel = (o: (typeof opts)[number]) =>
+                [
+                  o.label,
+                  o.out ? 'agotada' : o.left != null ? `quedan ${String(o.left).replace('.', ',')}` : o.low ? 'queda poco' : null,
+                  !samePrice && o.price != null ? formatPesos(o.price) : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ');
+              return (
+                <>
+                  <View style={styles.wrap}>
+                    {shown.map((o) => (
+                      <Chip key={o.ref} label={chipLabel(o)} selected={false} onPress={() => pick(k, o)} />
+                    ))}
+                    {hidden > 0 ? <Chip icon="chevron-down" label={`Ver todas (${opts.length})`} selected={false} onPress={() => setAll((m) => ({ ...m, [k]: true }))} /> : null}
+                  </View>
+                  {available.length === 1 && opts.length > 1 ? <Text style={styles.cardMeta}>{`Solo queda ${available[0].label}.`}</Text> : null}
+                  {available.length === 0 ? <Text style={styles.cardMeta}>Todas aparecen agotadas: elige la que vendiste y se ajusta.</Text> : null}
+                </>
+              );
+            })()}
           </View>
         ) : null,
       )}

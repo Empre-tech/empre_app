@@ -7,6 +7,9 @@ export interface VariantSource {
   kind: 'product' | 'supply';
   price: number | null;
   status?: string;
+  qty?: number;
+  counted?: boolean;
+  mode?: string;
   parent_id?: string;
   variant_label?: string;
   variants?: number;
@@ -18,6 +21,9 @@ export interface VariantOption {
   name: string;
   price: number | null;
   out: boolean;
+  /** Cuántas quedan, solo si se cuentan exacto; «low» si queda poco. */
+  left: number | null;
+  low: boolean;
 }
 
 export interface LineWithChoice {
@@ -42,13 +48,20 @@ export function withVariantChoices<L extends LineWithChoice>(lines: L[], items: 
     if (!parent) return l;
     const kids = items.filter((i) => i.parent_id === parent.ref);
     if (kids.length === 0) return l;
-    const choose = kids.map((k) => ({
-      ref: k.ref,
-      label: k.variant_label || k.name,
-      name: k.name,
-      price: k.price ?? parent.price,
-      out: k.status === 'out',
-    }));
+    const choose = sortVariants(
+      kids.map((k) => {
+        const exact = k.mode === 'exact' && k.counted === true && typeof k.qty === 'number';
+        return {
+          ref: k.ref,
+          label: k.variant_label || k.name,
+          name: k.name,
+          price: k.price ?? parent.price,
+          out: k.status === 'out' || (exact && (k.qty ?? 0) <= 0),
+          left: exact ? Math.max(0, k.qty ?? 0) : null,
+          low: k.status === 'low',
+        };
+      }),
+    );
     return { ...l, choose };
   });
 }
@@ -58,4 +71,31 @@ export function pickVariant<L extends LineWithChoice>(line: L, opt: VariantOptio
   const { choose: _drop, ...rest } = line;
   void _drop;
   return { ...(rest as L), name: opt.name, item_id: opt.ref, unit_price: opt.price ?? line.unit_price ?? null, from_catalog: opt.price != null || line.from_catalog };
+}
+
+const SIZE_ORDER = ['xxs', 'xs', 's', 'm', 'l', 'xl', 'xxl', 'xxxl', '2xl', '3xl', '4xl'];
+
+/** El orden en que se leen las tallas: XS, S, M, L, XL; los números de menor a mayor; lo demás, como estaba. */
+export function sortVariants<T extends { label: string }>(list: T[]): T[] {
+  const key = (label: string): [number, number] => {
+    const t = label.toLowerCase().replace(/^talla\s*/, '').trim();
+    const size = SIZE_ORDER.indexOf(t);
+    if (size >= 0) return [0, size];
+    const n = Number(t.replace(',', '.'));
+    if (Number.isFinite(n) && t !== '') return [1, n];
+    return [2, 0];
+  };
+  return list
+    .map((v, i) => ({ v, i, k: key(v.label) }))
+    .sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.i - b.i)
+    .map((x) => x.v);
+}
+
+/** Cuántas mostrar de entrada: las que hay, hasta 8; las agotadas y el resto quedan detrás de «Ver todas». */
+export const VARIANTS_AT_FIRST = 8;
+export function visibleVariants<T extends { out: boolean }>(list: T[], all: boolean): { shown: T[]; hidden: number } {
+  if (all) return { shown: list, hidden: 0 };
+  const available = list.filter((v) => !v.out);
+  const shown = (available.length > 0 ? available : list).slice(0, VARIANTS_AT_FIRST);
+  return { shown, hidden: list.length - shown.length };
 }

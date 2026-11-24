@@ -25,3 +25,19 @@ test('pickVariant: queda la talla con su precio, o el del producto', () => {
   const s = pickVariant(top, top.choose![0]);
   assert.deepEqual(s, { name: 'Top · S', qty: 2, item_id: 'top-s', unit_price: 100000, from_catalog: true });
 });
+
+import { sortVariants, visibleVariants } from './voiceVariants.ts';
+
+test('sortVariants: XS, S, M, L, XL y los números en orden', () => {
+  assert.deepEqual(sortVariants([{ label: 'XL' }, { label: 'S' }, { label: 'Talla M' }, { label: 'XS' }]).map((v) => v.label), ['XS', 'S', 'Talla M', 'XL']);
+  assert.deepEqual(sortVariants([{ label: '42' }, { label: '38' }, { label: 'Rojo' }, { label: '40' }]).map((v) => v.label), ['38', '40', '42', 'Rojo']);
+});
+
+test('visibleVariants: primero las que hay, hasta 8; si todas están agotadas, se muestran', () => {
+  const many = Array.from({ length: 12 }, (_, i) => ({ label: String(30 + i), out: i === 0 }));
+  const first = visibleVariants(many, false);
+  assert.equal(first.shown.length, 8);
+  assert.equal(first.shown[0].label, '31');
+  assert.equal(first.hidden, 4);
+  assert.equal(visibleVariants([{ out: true }, { out: true }], false).shown.length, 2);
+});
