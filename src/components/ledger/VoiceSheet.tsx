@@ -22,7 +22,7 @@ import { categoryLabel, formatPesos, newClientId } from '@/lib/ledger';
 import { speechAvailable, startDictation } from '@/ledger/speech';
 import { liveParse } from '@/lib/voiceLive';
 import { liveRows, micLevel, phaseCopy, voicePhase, wordTone, type LiveRow, type WordTone } from '@/lib/voiceStage';
-import { pickVariant, visibleVariants, withVariantChoices } from '@/lib/voiceVariants';
+import { linesTotal, pickVariant, splitByVariants, visibleVariants, withVariantChoices } from '@/lib/voiceVariants';
 import { availabilityLine, countFromWords, dictatedPrice, inventoryIntent, isMoneyTalk, isPriceStatement, itemNamedIn, sameNameItem, similarItems } from '@/lib/voiceNewItem';
 import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 import { KeyboardSheet } from '@/components/KeyboardSheet';
@@ -93,6 +93,8 @@ export function actionProblem(a: VoiceAction): string | null {
     if (a.method === 'credit' && !a.party_id && !(a.new_party && a.party_name?.trim())) return '¿A quién le fías la cuenta?';
     return null;
   }
+  const unpriced = (a.lines?.length ?? 0) > 1 ? a.lines?.find((l) => l.unit_price == null) : undefined;
+  if (a.amount <= 0 && unpriced) return `Pon el precio de «${unpriced.name}».`;
   if (a.amount <= 0) return 'Falta el monto.';
   const needsParty = a.method === 'credit' || a.type === 'payment';
   if (needsParty && !a.party_id && !(a.new_party && a.party_name?.trim())) {
@@ -1192,50 +1194,119 @@ function PriceCard({ action: a, ask, problem, onChange, onRemove }: { action: Vo
  * Lo dictado no está en el inventario: primero lo que se le parece de verdad, entre lo que vende y sus insumos; si no es
  * ninguno, se agrega aquí mismo con el precio que dijo, sin salir de la hoja.
  */
-/** Las tallas (o sabores) de un producto que se vendió sin decir cuál: un toque y queda el renglón con su precio. */
+/**
+ * Las tallas (o sabores) de un producto que se vendió sin decir cuál. Con 1, un toque y listo. Con varios («3 tops»),
+ * cada toque suma uno a esa talla hasta completar; al completar, el renglón se parte en uno por talla (2026-11-24).
+ */
 function VariantChoices({ action: a, onChange }: { action: VoiceAction; onChange: (p: Partial<VoiceAction>) => void }) {
-  // Cuánto mostrar (2026-11-24): en orden de talla, primero las que hay (hasta 8) con cuántas quedan; las agotadas y
-  // el resto, detrás de «Ver todas». El precio solo aparece si no todas valen lo mismo.
+  // Cuánto mostrar: en orden de talla, primero las que hay (hasta 8) con cuántas quedan; las agotadas y el resto, detrás
+  // de «Ver todas». El precio solo aparece si no todas valen lo mismo.
   const [all, setAll] = useState<Record<number, boolean>>({});
+  const [counts, setCounts] = useState<Record<number, Record<string, number>>>({});
+  const [sameSize, setSameSize] = useState<Record<number, boolean>>({});
   const lines = a.lines ?? [];
   if (!lines.some((l) => l.choose?.length)) return null;
-  const pick = (k: number, opt: NonNullable<VoiceLine['choose']>[number]) => {
-    const next = lines.map((l, i) => (i === k ? pickVariant(l, opt) : l));
-    const priced = next.every((l) => l.unit_price != null);
-    onChange({ lines: next, ...(priced ? { amount: next.reduce((sum, l) => sum + (l.unit_price ?? 0) * l.qty, 0) } : {}) });
+  const apply = (next: VoiceLine[]) => {
+    const total = linesTotal(next);
+    setCounts({});
+    setSameSize({});
+    onChange({ lines: next, ...(total != null ? { amount: total, words: '' } : {}) });
+  };
+  const tap = (k: number, opt: NonNullable<VoiceLine['choose']>[number]) => {
+    const l = lines[k];
+    if (l.qty <= 1 || sameSize[k]) {
+      apply(lines.map((x, i) => (i === k ? pickVariant(x, opt) : x)));
+      return;
+    }
+    const mine = { ...(counts[k] ?? {}), [opt.ref]: (counts[k]?.[opt.ref] ?? 0) + 1 };
+    const done = Object.values(mine).reduce((sum, n) => sum + n, 0);
+    if (done >= l.qty) apply(lines.flatMap((x, i) => (i === k ? splitByVariants(x, mine) : [x])));
+    else setCounts((m) => ({ ...m, [k]: mine }));
   };
   return (
     <View style={{ gap: spacing.sm }}>
-      {lines.map((l, k) =>
-        l.choose?.length ? (
+      {lines.map((l, k) => {
+        if (!l.choose?.length) return null;
+        const opts = l.choose;
+        const { shown, hidden } = visibleVariants(opts, Boolean(all[k]));
+        const samePrice = new Set(opts.map((o) => o.price)).size <= 1;
+        const available = opts.filter((o) => !o.out);
+        const mine = counts[k] ?? {};
+        const done = Object.values(mine).reduce((sum, n) => sum + n, 0);
+        const many = l.qty > 1 && !sameSize[k];
+        const qty = String(l.qty).replace('.', ',');
+        const chipLabel = (o: (typeof opts)[number]) =>
+          [
+            mine[o.ref] ? `${mine[o.ref]} × ${o.label}` : o.label,
+            o.out ? 'agotada' : o.left != null ? `quedan ${String(o.left).replace('.', ',')}` : o.low ? 'queda poco' : null,
+            !samePrice && o.price != null ? formatPesos(o.price) : null,
+          ]
+            .filter(Boolean)
+            .join(' · ');
+        return (
           <View key={`${l.name}${k}`} style={{ gap: spacing.xs }}>
-            <Text style={styles.cardMeta}>{`¿Cuál ${l.qty === 1 ? '' : `de los ${String(l.qty).replace('.', ',')} `}«${l.name}»?`}</Text>
-            {(() => {
-              const opts = l.choose ?? [];
-              const { shown, hidden } = visibleVariants(opts, Boolean(all[k]));
-              const samePrice = new Set(opts.map((o) => o.price)).size <= 1;
-              const available = opts.filter((o) => !o.out);
-              const chipLabel = (o: (typeof opts)[number]) =>
-                [
-                  o.label,
-                  o.out ? 'agotada' : o.left != null ? `quedan ${String(o.left).replace('.', ',')}` : o.low ? 'queda poco' : null,
-                  !samePrice && o.price != null ? formatPesos(o.price) : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ');
-              return (
-                <>
-                  <View style={styles.wrap}>
-                    {shown.map((o) => (
-                      <Chip key={o.ref} label={chipLabel(o)} selected={false} onPress={() => pick(k, o)} />
-                    ))}
-                    {hidden > 0 ? <Chip icon="chevron-down" label={`Ver todas (${opts.length})`} selected={false} onPress={() => setAll((m) => ({ ...m, [k]: true }))} /> : null}
-                  </View>
-                  {available.length === 1 && opts.length > 1 ? <Text style={styles.cardMeta}>{`Solo queda ${available[0].label}.`}</Text> : null}
-                  {available.length === 0 ? <Text style={styles.cardMeta}>Todas aparecen agotadas: elige la que vendiste y se ajusta.</Text> : null}
-                </>
-              );
-            })()}
+            <Text style={styles.cardMeta}>
+              {l.qty === 1 ? `¿Cuál «${l.name}»?` : many ? `¿De qué talla son los ${qty} «${l.name}»? Toca una por cada uno: van ${done} de ${qty}.` : `Los ${qty} «${l.name}» de la misma: ¿cuál?`}
+            </Text>
+            <View style={styles.wrap}>
+              {shown.map((o) => (
+                <Chip key={o.ref} label={chipLabel(o)} selected={Boolean(mine[o.ref])} onPress={() => tap(k, o)} />
+              ))}
+              {hidden > 0 ? <Chip icon="chevron-down" label={`Ver todas (${opts.length})`} selected={false} onPress={() => setAll((m) => ({ ...m, [k]: true }))} /> : null}
+            </View>
+            {available.length === 1 && opts.length > 1 ? <Text style={styles.cardMeta}>{`Solo queda ${available[0].label}.`}</Text> : null}
+            {available.length === 0 ? <Text style={styles.cardMeta}>Todas aparecen agotadas: elige la que vendiste y se ajusta.</Text> : null}
+            {l.qty > 1 ? (
+              <View style={{ flexDirection: 'row', gap: spacing.md }}>
+                {done > 0 ? (
+                  <Pressable accessibilityRole="button" onPress={() => setCounts((m) => ({ ...m, [k]: {} }))} hitSlop={8}>
+                    <Text style={styles.link}>Empezar de nuevo</Text>
+                  </Pressable>
+                ) : (
+                  <Pressable accessibilityRole="button" onPress={() => setSameSize((m) => ({ ...m, [k]: !m[k] }))} hitSlop={8}>
+                    <Text style={styles.link}>{sameSize[k] ? 'Son de tallas distintas' : 'Todos de la misma talla'}</Text>
+                  </Pressable>
+                )}
+              </View>
+            ) : null}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+/**
+ * Varios productos y alguno sin precio (2026-11-24): cada renglón sin precio trae su casilla, y el total se arma solo
+ * cuando todos lo tienen. Antes solo se podía corregir el total.
+ */
+function LinePrices({ action: a, onChange }: { action: VoiceAction; onChange: (p: Partial<VoiceAction>) => void }) {
+  const lines = a.lines ?? [];
+  const [open] = useState(() => new Set(lines.map((l, i) => (l.unit_price == null ? i : -1)).filter((i) => i >= 0)));
+  if (lines.length < 2 || open.size === 0 || lines.some((l) => l.choose?.length)) return null;
+  const setPrice = (k: number, n: number) => {
+    const next = lines.map((l, i) => (i === k ? { ...l, unit_price: n > 0 ? n : null, from_catalog: false } : l));
+    const total = linesTotal(next);
+    onChange({ lines: next, ...(total != null ? { amount: total, words: '' } : {}), warnings: (a.warnings ?? []).filter((w) => !/precio|no encontr/i.test(w)) });
+  };
+  return (
+    <View style={{ gap: spacing.xs }}>
+      <Text style={styles.cardMeta}>Pon el precio de lo que falta y el total se suma solo:</Text>
+      {lines.map((l, k) =>
+        open.has(k) ? (
+          <View key={`${l.name}${k}`} style={styles.linePriceRow}>
+            <Text style={[styles.similarName, { flex: 1 }]} numberOfLines={1}>
+              {`${String(l.qty).replace('.', ',')} × ${l.name}`}
+            </Text>
+            <TextInput
+              value={l.unit_price ? formatPesos(l.unit_price) : ''}
+              onChangeText={(v) => setPrice(k, Number(v.replace(/\D/g, '')) || 0)}
+              keyboardType="number-pad"
+              placeholder="$ c/u"
+              placeholderTextColor={colors.muted}
+              style={[styles.newPartyInput, { width: 130, textAlign: 'right' }]}
+              accessibilityLabel={`Precio de cada ${l.name}`}
+            />
           </View>
         ) : null,
       )}
@@ -1382,6 +1453,7 @@ function TabCard({ entityId, action: a, problem, onChange, onRemove }: { entityI
         </Pressable>
       </View>
       {add ? <VariantChoices action={a} onChange={onChange} /> : null}
+      {add ? <LinePrices action={a} onChange={onChange} /> : null}
       {add ? (
         <View style={{ gap: 2 }}>
           {(a.lines ?? []).map((l, k) => (
@@ -1443,6 +1515,7 @@ function ActionCard({ entityId, heard, action: a, problem, onChange, onRemove, o
       </View>
 
       <VariantChoices action={a} onChange={onChange} />
+      {!needsPrice ? <LinePrices action={a} onChange={onChange} /> : null}
       <PayDeck
         out={a.type === 'expense'}
         methods={a.type === 'payment' ? ['cash', 'transfer', 'card'] : ['cash', 'transfer', 'card', 'credit']}
@@ -1668,6 +1741,7 @@ const styles = StyleSheet.create({
   cardMeta: { fontSize: 13, fontFamily: fonts.ui.medium, color: colors.muted },
   partyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   newParty: { gap: spacing.xs },
+  linePriceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   newPartyInput: { minHeight: 44, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, fontSize: 14.5, fontFamily: fonts.ui.medium, color: colors.ink },
   consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, minHeight: 44 },
   consentText: { flex: 1, fontSize: 12.5, lineHeight: 17, fontFamily: fonts.ui.medium, color: colors.ink },

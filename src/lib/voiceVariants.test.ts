@@ -41,3 +41,18 @@ test('visibleVariants: primero las que hay, hasta 8; si todas están agotadas, s
   assert.equal(first.hidden, 4);
   assert.equal(visibleVariants([{ out: true }, { out: true }], false).shown.length, 2);
 });
+
+import { linesTotal, splitByVariants } from './voiceVariants.ts';
+
+test('splitByVariants: 3 tops en 1 S y 2 XL quedan en dos renglones con su precio', () => {
+  const [top] = withVariantChoices([{ name: 'top', qty: 3 }], items);
+  const out = splitByVariants(top, { 'top-s': 1, 'top-xl': 2 });
+  assert.deepEqual(out.map((l) => [l.name, l.qty, l.unit_price, l.choose]), [['Top · S', 1, 100000, undefined], ['Top · XL', 2, 120000, undefined]]);
+  assert.equal(linesTotal(out), 340000);
+});
+
+test('linesTotal: si falta un precio o una talla, no hay total', () => {
+  assert.equal(linesTotal([{ qty: 2, unit_price: 1000 }, { qty: 1, unit_price: null }]), null);
+  assert.equal(linesTotal([{ qty: 1, unit_price: 1000, choose: [{}] }]), null);
+  assert.equal(linesTotal([{ qty: 2, unit_price: 1000 }, { qty: 1, unit_price: 500 }]), 2500);
+});

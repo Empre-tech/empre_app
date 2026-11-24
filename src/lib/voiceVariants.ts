@@ -99,3 +99,17 @@ export function visibleVariants<T extends { out: boolean }>(list: T[], all: bool
   const shown = (available.length > 0 ? available : list).slice(0, VARIANTS_AT_FIRST);
   return { shown, hidden: list.length - shown.length };
 }
+
+/**
+ * «Vendí 3 tops»: 1 S y 2 M (2026-11-24). Reparte el renglón en uno por talla, con su precio. Las tallas en 0 no van.
+ */
+export function splitByVariants<L extends LineWithChoice>(line: L, counts: Record<string, number>): L[] {
+  const opts = line.choose ?? [];
+  return opts.filter((o) => (counts[o.ref] ?? 0) > 0).map((o) => ({ ...pickVariant(line, o), qty: counts[o.ref] }));
+}
+
+/** El total de los renglones si todos tienen precio; si falta alguno, null (el total lo pone el dueño). */
+export function linesTotal(lines: { qty: number; unit_price?: number | null; choose?: unknown[] }[]): number | null {
+  if (lines.length === 0 || lines.some((l) => l.unit_price == null || (l.choose && l.choose.length > 0))) return null;
+  return lines.reduce((sum, l) => sum + (l.unit_price ?? 0) * l.qty, 0);
+}
