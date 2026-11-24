@@ -40,6 +40,9 @@ import { formatDayLabel, formatMessageTime } from '@/lib/format';
 import { utf8Length } from '@/lib/text';
 import { colors, fonts, radius, spacing } from '@/theme';
 
+/** Empre AI ya no responde en el chat (solo en «Pregúntale a Empre»). */
+const AI_IN_CHAT = false;
+
 const LOCAL_PREFIX = 'local-';
 const PHONE_RE = /^[+\d\s()-]{7,}$/;
 const QUICK_REPLIES = ['¿Horario?', '¿Precios?', '¿Hacen envíos?'];
@@ -79,7 +82,7 @@ function askedIdOf(msgs: ChatMessage[], q: { text: string; askedAt: string }): s
 export default function ChatScreen() {
   // `draft`: un mensaje ya escrito (por ejemplo, preguntar por un ítem del catálogo); la persona lo revisa y lo envía.
   // `item`: el producto por el que se pregunta (JSON); va como tarjeta con el primer mensaje.
-  const { entityId, userId, name, avatar, draft, item: itemParam } = useLocalSearchParams<{ entityId: string; userId?: string; name?: string; avatar?: string; draft?: string; item?: string }>();
+  const { entityId, userId, name: nameParam, avatar: avatarParam, draft, item: itemParam } = useLocalSearchParams<{ entityId: string; userId?: string; name?: string; avatar?: string; draft?: string; item?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -90,6 +93,13 @@ export default function ChatScreen() {
   // Cliente: la conversación es entre yo y el negocio. Dueño: llega ?userId= del cliente.
   const customerId = userId ?? user?.id;
   const sentByEntity = Boolean(userId && userId !== user?.id);
+  // Sin nombre ni foto en la ruta (al abrir desde una notificación): se toman de la conversación (2026-11-24).
+  const convs = useQuery({ queryKey: ['conversations'], queryFn: chatApi.conversations, enabled: !nameParam && authStatus === 'signedIn', staleTime: 30_000 });
+  const convParty = nameParam
+    ? undefined
+    : (convs.data ?? []).find((c) => c.entity_id === entityId && (sentByEntity ? c.other_party.type === 'user' && c.other_party.id === userId : c.other_party.type === 'entity'))?.other_party;
+  const name = nameParam ?? convParty?.name;
+  const avatar = avatarParam ?? convParty?.profile_url;
 
   const [text, setText] = useState(() => (typeof draft === 'string' ? draft.slice(0, 1000) : ''));
   const [error, setError] = useState<string | null>(null);
@@ -717,7 +727,8 @@ export default function ChatScreen() {
                   </View>
                 </View>
                 )}
-                {sentByEntity && item.ai_unanswered ? <TeachLink onPress={() => teach({ question: item.content })} /> : null}
+                {/* Empre AI ya no responde en el chat (2026-11-22): sin el aviso de «no supo responder» bajo cada mensaje. */}
+                {AI_IN_CHAT && sentByEntity && item.ai_unanswered ? <TeachLink onPress={() => teach({ question: item.content })} /> : null}
               </View>
             );
             }}
