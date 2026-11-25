@@ -2,7 +2,7 @@ import { Ionicons } from '@/components/Icon';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { notifyError } from '@/components/Notice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agendaApi, type Appointment, type AppointmentService, type WaitlistEntry } from '@/api/agenda';
@@ -29,6 +29,7 @@ import { newClientId } from '@/lib/ledger';
 import { useNow } from '@/lib/useNow';
 import { queueTabOpen } from '@/ledger/ledgerStore';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { KeyboardSheet } from '@/components/KeyboardSheet';
 
 const DAYS_AHEAD = 14;
 const BLOCK_DURATIONS = [30, 60, 120, 180, 240];
@@ -452,7 +453,7 @@ function SlotActionSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardSheet style={{ flex: 1 }}>
         <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Cerrar" />
         <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
           <View style={styles.handle} />
@@ -539,7 +540,7 @@ function SlotActionSheet({
             </>
           )}
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardSheet>
     </Modal>
   );
 }

@@ -6,7 +6,6 @@ import {
   Animated,
   Easing,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -44,6 +43,7 @@ import { chatItemParam } from '@/lib/chatItem';
 import type { MarketItem } from '@/lib/offerMarket';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, radius, softShadow } from '@/theme';
+import { KeyboardSheet } from '@/components/KeyboardSheet';
 
 /** De dónde salió la respuesta (modelo de uso, 3.64): reglas, clasificador, la ficha de cada negocio o el dueño. */
 type Source = 'rule' | 'classify' | 'ficha' | 'owner';
@@ -264,7 +264,7 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
 
   return (
     // En Android un Modal de pantalla completa no se encoge con el teclado: sin «height», la caja quedaba debajo.
-    <KeyboardAvoidingView style={[styles.screen, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardSheet style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} style={styles.iconBtn}>
           <Ionicons name="close" size={24} color={colors.ink} />
@@ -366,7 +366,7 @@ function Panel({ product, items, onClose }: Omit<Props, 'visible'>) {
           </Pressable>
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </KeyboardSheet>
   );
 }
 

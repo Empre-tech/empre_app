@@ -9,6 +9,7 @@ import { getPhoneFlag } from '@/lib/phoneFlags';
 import { EmpreButton } from '@/components/EmpreButton';
 import { badgeText, messagesA11y } from '@/lib/inbox';
 import { useReduceMotion } from '@/lib/useReduceMotion';
+import { useKeyboardOpen } from '@/lib/useKeyboardOpen';
 import { colors, fonts } from '@/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -53,6 +54,8 @@ export default function TabsLayout() {
   const inbox = useInboxSummary();
   const insets = useSafeAreaInsets();
   const dockBottom = Math.max(insets.bottom, 10);
+  // Con el teclado abierto la barra de abajo se esconde: si no, sube con la app y tapa lo que escribes.
+  const typing = useKeyboardOpen();
   const msgBadge = badgeText(inbox.messages);
   // La primera vez sin sesión, la bienvenida (tablero «Primera vez»): una sola vez en este teléfono.
   const router = useRouter();
@@ -75,7 +78,7 @@ export default function TabsLayout() {
           headerShown: false,
           sceneStyle: { backgroundColor: colors.bg },
         }}
-        tabBar={({ state, navigation }) => (
+        tabBar={({ state, navigation }) => typing ? null : (
           <View style={[styles.bar, { paddingBottom: dockBottom }]}>
             {state.routes.map((route, index) => {
               const meta = TAB_META[route.name];

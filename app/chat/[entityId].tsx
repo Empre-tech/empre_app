@@ -546,7 +546,7 @@ export default function ChatScreen() {
   const connected = chat.status === 'open';
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <Pressable
           accessibilityRole="button"

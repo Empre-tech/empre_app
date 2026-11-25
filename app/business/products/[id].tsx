@@ -34,6 +34,7 @@ import { mediaUrl } from '@/lib/image';
 import { useNow } from '@/lib/useNow';
 import { useEntityPlan } from '@/lib/useProPlan';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { KeyboardSheet } from '@/components/KeyboardSheet';
 
 type Row = InventoryItem & { children: InventoryItem[] };
 // La lista con el índice (tablero «Inventario», v102): cada sección es un título plegable; la abierta trae, antes de sus
@@ -748,6 +749,7 @@ function FilterSheet({
   const n = total ?? known;
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardSheet style={{ flex: 1 }}>
       <Pressable accessibilityRole="button" accessibilityLabel="Cerrar el filtro" style={styles.sheetVeil} onPress={onClose} />
       <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }]}>
         <View style={styles.sheetHandle} />
@@ -800,6 +802,7 @@ function FilterSheet({
         </View>
         <Button title={n != null ? `Ver ${n} ${n === 1 ? meta.one : meta.many}` : `Ver ${meta.many}`} onPress={onClose} />
       </View>
+      </KeyboardSheet>
     </Modal>
   );
 }

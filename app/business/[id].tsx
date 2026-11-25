@@ -69,6 +69,7 @@ import { useNow } from '@/lib/useNow';
 import { itemsFor } from '@/lib/uploadQueue';
 import { useUploads } from '@/upload/uploadStore';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { KeyboardSheet } from '@/components/KeyboardSheet';
 
 const PHONE_RE = /^[+\d\s()-]{7,}$/;
 
@@ -866,6 +867,7 @@ export default function BusinessScreen() {
       </Modal>
 
       <Modal visible={reviewModalOpen} animationType="fade" transparent onRequestClose={() => setReviewModalOpen(false)}>
+        <KeyboardSheet style={{ flex: 1 }}>
         <Pressable style={styles.modalBackdrop} onPress={() => setReviewModalOpen(false)}>
           <Pressable style={styles.reviewModalCard} onPress={(event) => event.stopPropagation()}>
             <Text style={styles.modalTitle}>{myReview.data ? 'Editar tu reseña' : 'Escribir una reseña'}</Text>
@@ -892,6 +894,7 @@ export default function BusinessScreen() {
             )}
           </Pressable>
         </Pressable>
+        </KeyboardSheet>
       </Modal>
 
     </View>

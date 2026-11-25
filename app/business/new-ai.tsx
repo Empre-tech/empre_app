@@ -120,7 +120,7 @@ export default function AIBusinessAssistantScreen() {
   const canReview = hasAnyDraftInfo(draft);
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <Pressable
           accessibilityRole="button"

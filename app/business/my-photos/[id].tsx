@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { notifyError } from '@/components/Notice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { entitiesApi } from '@/api/endpoints';
@@ -18,6 +18,7 @@ import { resolveImageUrl } from '@/lib/image';
 import { itemsFor } from '@/lib/uploadQueue';
 import { removeUpload, retryUpload, useUploads } from '@/upload/uploadStore';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { KeyboardSheet } from '@/components/KeyboardSheet';
 
 const COLUMNS = 3;
 const GAP = 4;
@@ -154,7 +155,7 @@ function PhotoEditor({ photo, entityId, businessName, categoryName, onClose, onC
 
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardSheet style={styles.screen}>
         <View style={[styles.editorBar, { paddingTop: insets.top + spacing.sm }]}>
           <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} style={styles.close}>
             <Ionicons name="close" size={22} color={colors.ink} />
@@ -177,7 +178,7 @@ function PhotoEditor({ photo, entityId, businessName, categoryName, onClose, onC
           <Button title={saving ? 'Guardando…' : 'Guardar descripción'} onPress={() => void save()} disabled={!dirty || saving || deleting} />
           <Button title={deleting ? 'Eliminando…' : 'Eliminar'} variant="ghost" onPress={remove} disabled={saving || deleting} />
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardSheet>
     </Modal>
   );
 }

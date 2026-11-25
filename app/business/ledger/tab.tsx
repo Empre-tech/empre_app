@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ledgerApi } from '@/api/ledger';
 import { Button } from '@/components/Button';
@@ -17,6 +17,7 @@ import { openedAgo, projectTabs } from '@/lib/tabs';
 import { useNow } from '@/lib/useNow';
 import { queueTabAdd, queueTabCancel, queueTabPay, queueTabRemove, useLedgerOutbox } from '@/ledger/ledgerStore';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { KeyboardSheet } from '@/components/KeyboardSheet';
 
 /**
  * Una cuenta abierta: lo pedido, agregar con un toque (o dictando) y cobrar al final. Todo se guarda primero en el
@@ -180,7 +181,7 @@ function PaySheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Cerrar" />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardSheet>
         <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }]}>
           <Text style={styles.sheetTitle}>Cobrar {formatPesos(total)}</Text>
           <MethodChips value={method} onChange={setMethod} />
@@ -192,7 +193,7 @@ function PaySheet({
           <Button title={method === 'credit' ? 'Dejar a fiado' : 'Cobrar'} onPress={() => onPay(method, party, tipValue)} disabled={blocked} />
           <Button title="Volver" variant="ghost" onPress={onClose} />
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardSheet>
     </Modal>
   );
 }

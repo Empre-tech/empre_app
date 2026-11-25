@@ -18,6 +18,7 @@ import { flushLedger, initLedgerOutbox } from '@/ledger/ledgerStore';
 import { colors } from '@/theme';
 import { GlobalEmpreButton } from '@/components/GlobalEmpreButton';
 import { OfflineGate } from '@/components/system/OfflineGate';
+import { KeyboardRoot } from '@/components/KeyboardRoot';
 
 // Se mantiene la splash nativa visible hasta que Inter esté
 // lista, así se evita el "parpadeo" de la tipografía del sistema al abrir.
@@ -100,11 +101,13 @@ export default function RootLayout() {
         <AuthProvider>
           <ChatProvider>
             <StatusBar style="dark" />
-            <AppStack />
-            <GlobalEmpreButton />
-            <UploadCapsule />
-            <NoticeHost />
-            <OfflineGate />
+            <KeyboardRoot>
+              <AppStack />
+              <GlobalEmpreButton />
+              <UploadCapsule />
+              <NoticeHost />
+              <OfflineGate />
+            </KeyboardRoot>
           </ChatProvider>
         </AuthProvider>
       </QueryClientProvider>

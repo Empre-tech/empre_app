@@ -90,6 +90,9 @@ export default function AskScreen() {
   // Pidió una recomendación sin decir de qué (3.67).
   const [rec, setRec] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Cinco resultados de entrada y «Ver más» (2026-11-25): una lista larga no se lee; el mapa sí los muestra todos.
+  const [allResults, setAllResults] = useState(false);
+  useEffect(() => setAllResults(false), [answer]);
   // Qué botón acompaña el error: reintentar, iniciar sesión o ninguno (cupo del mes lleno).
   const [errorKind, setErrorKind] = useState<'generic' | 'login' | 'quota'>('generic');
   const groups = useMemo(() => buildGroups(categories.data ?? []), [categories.data]);
@@ -470,7 +473,7 @@ export default function AskScreen() {
                     <TypeIn parts={lead} play style={[styles.recLead, styles.aiIndent]} boldStyle={styles.leadBold} />
                     {order ? <Text style={[styles.orderText, styles.aiIndent]}>{order}</Text> : null}
                   </View>
-                  {biz.map((b, i) => {
+                  {biz.slice(0, allResults ? biz.length : FIRST_RESULTS).map((b, i) => {
                     const photo = b.profile_url ? resolveImageUrl(b.profile_url) : null;
                     return (
                       <Pressable key={b.id} accessibilityRole="button" onPress={() => setCard(b)} style={({ pressed }) => [styles.result, pressed && styles.pressed]}>
@@ -502,6 +505,7 @@ export default function AskScreen() {
                       </Pressable>
                     );
                   })}
+                  {!allResults && biz.length > FIRST_RESULTS ? <MoreButton count={biz.length - FIRST_RESULTS} onPress={() => setAllResults(true)} /> : null}
                   <SourceLine names={biz.map((b) => ({ name: b.name, uri: b.profile_url }))} />
                   {nextSuggestions.length && answer ? (
                     <View style={styles.chips}>
@@ -531,9 +535,10 @@ export default function AskScreen() {
                   {alts.rest.length && family ? (
                     <View style={styles.altGroup}>
                       <Text style={styles.altHead}>Otras opciones de {family.family}</Text>
-                      {alts.rest.map((b, i) => (
+                      {alts.rest.slice(0, allResults ? alts.rest.length : FIRST_RESULTS).map((b, i) => (
                         <ResultRow key={b.id} b={b} tone={i + alts.offers.length} onOpen={() => setCard(b)} />
                       ))}
+                      {!allResults && alts.rest.length > FIRST_RESULTS ? <MoreButton count={alts.rest.length - FIRST_RESULTS} onPress={() => setAllResults(true)} /> : null}
                     </View>
                   ) : null}
                   {hasAlts ? (
@@ -746,6 +751,18 @@ export default function AskScreen() {
 }
 
 /** Lo que escribiste, en negrita dentro del nombre. */
+const FIRST_RESULTS = 5;
+
+/** «Ver 3 más»: el resto de los resultados, en la misma lista. */
+function MoreButton({ count, onPress }: { count: number; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.moreBtn, pressed && styles.pressed]}>
+      <Text style={styles.moreText}>{count === 1 ? 'Ver 1 más' : `Ver ${count} más`}</Text>
+      <Ionicons name="chevron-down" size={16} color={colors.ink} />
+    </Pressable>
+  );
+}
+
 /** De dónde salió (tablero «Cada cifra con su porqué»): las caras de los negocios que leyó y cuántos. Nadie paga por salir. */
 function SourceLine({ names, extra }: { names: { name: string; uri?: string | null }[]; extra?: string }) {
   if (!names.length) return null;
@@ -814,6 +831,8 @@ function ResultRow({ b, tone, onOpen }: { b: AskPlace; tone: number; onOpen: () 
 }
 
 const styles = StyleSheet.create({
+  moreBtn: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 14, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  moreText: { fontSize: 14, fontFamily: fonts.ui.bold, color: colors.ink },
   chatHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8, paddingBottom: 10, backgroundColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.hairline },
   chatTitle: { fontSize: 16, fontFamily: fonts.display.bold, color: colors.ink },
   chatSub: { fontSize: 12.5, fontFamily: fonts.ui.medium, color: colors.muted },

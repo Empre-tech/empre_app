@@ -2,12 +2,13 @@ import { Ionicons } from '@/components/Icon';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AIWritingAssist } from './AIWritingAssist';
 import { pickPostMedia, type PickedPostMedia } from '@/lib/images';
 import { colors, fonts, radius, spacing } from '@/theme';
 import { enqueuePost } from '@/upload/uploadStore';
+import { KeyboardSheet } from '@/components/KeyboardSheet';
 
 interface Props {
   visible: boolean;
@@ -84,11 +85,7 @@ export function PostComposerSheet({ visible, onClose, entityId, businessName, ca
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={close}>
-      <KeyboardAvoidingView
-        style={styles.backdrop}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
-      >
+      <KeyboardSheet style={styles.backdrop}>
         <Pressable style={styles.backdropTouch} onPress={close} />
         <ScrollView
           style={styles.sheetScroll}
@@ -171,7 +168,7 @@ export function PostComposerSheet({ visible, onClose, entityId, businessName, ca
             </View>
           )}
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardSheet>
     </Modal>
   );
 }

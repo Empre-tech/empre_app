@@ -31,7 +31,6 @@ import { businessFamily, parseSpoken, starterItems } from '@/lib/family';
 import { suggestSection } from '@/lib/sections';
 import { groupOf, marginOf, NO_GROUP } from '@/lib/supplies';
 import { useEntityPlan } from '@/lib/useProPlan';
-import { useKeepFocusedVisible } from '@/lib/useKeepFocusedVisible';
 import { useKeyboardHeight } from '@/lib/useKeyboardHeight';
 import { colors, fonts, radius, spacing } from '@/theme';
 
@@ -111,9 +110,8 @@ export default function ItemScreen() {
   // Crear por pasos: en cuál va y el desplazamiento (cada paso arranca arriba).
   const [stepIdx, setStepIdx] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
-  // En Android el teclado no achica la pantalla (2026-11-24): se le suma su alto y se sube la casilla enfocada.
+  // Con el teclado abierto se esconde el botón de abajo (la app ya sube con el teclado: KeyboardRoot).
   const kb = useKeyboardHeight();
-  const onScroll = useKeepFocusedVisible(scrollRef, kb);
   // Contar cuántos hay es de Empre Pro: en Base, «Cuento» sale en gris con la corona.
   const plan = useEntityPlan(entityId, FEATURES.ledger);
   const [proNote, setProNote] = useState(false);
@@ -1059,7 +1057,7 @@ export default function ItemScreen() {
     );
 
   return (
-    <KeyboardAvoidingView style={[styles.screen, kb ? { paddingBottom: kb } : null]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <SubScreenHeader
         title={isNew ? (isService ? 'Nuevo servicio' : 'Nuevo producto') : isVariant ? existing!.variant_label ?? existing!.name : existing!.name}
         subtitle={isNew ? `Paso ${at + 1} de ${steps.length} · ${steps[at].title}` : undefined}
@@ -1071,7 +1069,7 @@ export default function ItemScreen() {
           ))}
         </View>
       ) : null}
-      <ScrollView ref={scrollRef} contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl }} keyboardShouldPersistTaps="handled" onScroll={onScroll} scrollEventThrottle={32}>
+      <ScrollView ref={scrollRef} contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl }} keyboardShouldPersistTaps="handled">
         {isNew ? (
           wizardBody
         ) : (

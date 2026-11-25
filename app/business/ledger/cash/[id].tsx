@@ -17,6 +17,7 @@ import { queueCashClose, queueCashMove, queueVoid, useLedgerOutbox } from '@/led
 import { cashReasonLabel, CASH_REASONS, formatPesos, newClientId, type CashDirection } from '@/lib/ledger';
 import { buildDeck, type DeckEntry } from '@/lib/methodDeck';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { KeyboardSheet } from '@/components/KeyboardSheet';
 
 const BILLS: { value: number; label: string; bg: string; fg: string }[] = [
   { value: 100000, label: '$100.000', bg: colors.selectedSoft, fg: colors.ink },
@@ -346,7 +347,7 @@ export default function CashScreen() {
       </View>
 
       <Modal visible={draft !== null} transparent animationType="slide" onRequestClose={() => setDraft(null)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardSheet style={{ flex: 1 }}>
           <Pressable accessibilityRole="button" accessibilityLabel="Cerrar" style={styles.veil} onPress={() => setDraft(null)} />
           {draft ? (
             <ScrollView style={styles.sheet} contentContainerStyle={[styles.sheetBody, { paddingBottom: insets.bottom + spacing.md }]} keyboardShouldPersistTaps="handled">
@@ -394,7 +395,7 @@ export default function CashScreen() {
               <Button title="Cancelar" variant="ghost" onPress={() => setDraft(null)} />
             </ScrollView>
           ) : null}
-        </KeyboardAvoidingView>
+        </KeyboardSheet>
       </Modal>
     </KeyboardAvoidingView>
   );

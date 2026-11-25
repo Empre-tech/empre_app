@@ -4,9 +4,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -48,6 +46,7 @@ import { untilLabel } from '@/lib/offerHome';
 import { useNow } from '@/lib/useNow';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, softShadow } from '@/theme';
+import { KeyboardSheet } from '@/components/KeyboardSheet';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -318,7 +317,7 @@ function SheetContent({ item, onClose, pool, onPick }: { item: MarketItem; onClo
   };
 
   return (
-    <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardSheet style={styles.backdrop}>
       <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel="Cerrar vista rápida" onPress={onClose} />
       <View style={[styles.sheet, { height: full ? '92%' : '62%', paddingBottom: insets.bottom + 14 }]} accessibilityViewIsModal>
         <Pressable accessibilityRole="button" accessibilityLabel={full ? 'Bajar la hoja' : 'Subir la hoja'} onPress={() => setFull((v) => !v)} style={styles.handleWrap}>
@@ -557,7 +556,7 @@ function SheetContent({ item, onClose, pool, onPick }: { item: MarketItem; onClo
           </Pressable>
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </KeyboardSheet>
   );
 }
 

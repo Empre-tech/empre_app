@@ -1,6 +1,6 @@
 import { Ionicons } from '@/components/Icon';
 import { useMemo, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { SectionPick } from '@/api/sections';
 import { Button } from '@/components/Button';
@@ -8,6 +8,7 @@ import { SectionChooser } from '@/components/catalog/SectionChooser';
 import { Chip } from '@/components/ledger/parts';
 import { blocksByGroup, cleanLabel, groupCounts, groupOf, hasExact, searchSupplies } from '@/lib/supplies';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { KeyboardSheet } from '@/components/KeyboardSheet';
 
 export interface PickerChoice {
   ref: string;
@@ -108,7 +109,7 @@ function PickerBody({ visible, entityId, forName, choices, selected, onClose, on
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={[styles.screen, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardSheet style={[styles.screen, { paddingTop: insets.top }]}>
         <View style={styles.header}>
           <Pressable accessibilityRole="button" accessibilityLabel="Cerrar sin cambiar" onPress={onClose} style={styles.close}>
             <Ionicons name="close" size={22} color={colors.ink} />
@@ -206,7 +207,7 @@ function PickerBody({ visible, entityId, forName, choices, selected, onClose, on
         <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
           <Button title={sel.length ? `Listo · ${sel.length} ${sel.length === 1 ? 'insumo' : 'insumos'}` : 'Listo · sin insumos'} onPress={() => onDone(sel, created.filter((c) => sel.includes(c.key)))} />
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardSheet>
     </Modal>
   );
 }

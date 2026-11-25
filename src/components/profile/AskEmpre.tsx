@@ -1,6 +1,6 @@
 import { Ionicons } from '@/components/Icon';
 import { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Chispa, type ChispaMood } from '@/components/ai/Chispa';
@@ -10,6 +10,7 @@ import { formatEndsWhen } from '@/lib/offer';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { colors, fonts, radius, spacing } from '@/theme';
 import { SectionHeader } from './SectionHeader';
+import { KeyboardSheet } from '@/components/KeyboardSheet';
 
 /**
  * «Pregúntale» (CONVERSACIONES_Y_AGENDA.md, fase 1; mockup `conversaciones_agenda.html`). Preguntas según lo que el
@@ -102,7 +103,7 @@ function SheetBody({ data, start, onClose, handlers }: { data: AnswerData; start
   };
 
   return (
-    <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardSheet style={styles.backdrop}>
       <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel="Cerrar" onPress={onClose} />
       <View style={[styles.sheet, { paddingBottom: insets.bottom }]} accessibilityViewIsModal>
         <View style={styles.handle} />
@@ -172,7 +173,7 @@ function SheetBody({ data, start, onClose, handlers }: { data: AnswerData; start
           </View>
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </KeyboardSheet>
   );
 }
 

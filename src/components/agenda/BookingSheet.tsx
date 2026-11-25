@@ -3,9 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -29,6 +27,7 @@ import {
   weekdayShort,
 } from '@/lib/agendaFormat';
 import { colors, fonts, radius, spacing } from '@/theme';
+import { KeyboardSheet } from '@/components/KeyboardSheet';
 
 interface Props {
   visible: boolean;
@@ -117,7 +116,7 @@ export function BookingSheet({ visible, entityId, entityName, summary, onClose, 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Cerrar" />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardSheet>
         <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
           <View style={styles.handle} />
           <View style={styles.header}>
@@ -252,7 +251,7 @@ export function BookingSheet({ visible, entityId, entityName, summary, onClose, 
                 : 'El negocio tiene que aceptarla. Te avisamos apenas responda.'}
           </Text>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardSheet>
     </Modal>
   );
 }
