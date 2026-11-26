@@ -21,11 +21,11 @@ test('noneTitle dice lo que falta sin repetir la frase', () => {
 
 const fam = familyFor('pizzería')!;
 const items = [
-  { id: 'lejos', category_name: 'Restaurantes', is_open_now: true, has_active_offer: false, distance_meters: 900 },
-  { id: 'cerrado', category_name: 'Restaurantes', is_open_now: false, has_active_offer: false, distance_meters: 100 },
-  { id: 'cerca', category_name: 'Cafeterías, panaderías y postres', is_open_now: true, has_active_offer: false, distance_meters: 200 },
-  { id: 'oferta', category_name: 'Restaurantes', is_open_now: true, has_active_offer: true, distance_meters: 400 },
-  { id: 'otro', category_name: 'Automotriz', is_open_now: true, has_active_offer: true, distance_meters: 50 },
+  { id: 'lejos', category_name: 'Comida y restaurantes', is_open_now: true, has_active_offer: false, distance_meters: 900 },
+  { id: 'cerrado', category_name: 'Comida y restaurantes', is_open_now: false, has_active_offer: false, distance_meters: 100 },
+  { id: 'cerca', category_name: 'Panadería, café y postres', is_open_now: true, has_active_offer: false, distance_meters: 200 },
+  { id: 'oferta', category_name: 'Comida y restaurantes', is_open_now: true, has_active_offer: true, distance_meters: 400 },
+  { id: 'otro', category_name: 'Vehículos', is_open_now: true, has_active_offer: true, distance_meters: 50 },
 ];
 
 test('pickAlternatives solo trae la familia, separa ofertas y ordena por abierto y cercanía', () => {

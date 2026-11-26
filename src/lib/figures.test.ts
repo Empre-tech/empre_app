@@ -5,10 +5,10 @@ import { figureFor } from './figures.ts';
 test('las categorías de Empre tienen figura o caen al ícono', () => {
   const want: Record<string, string | null> = {
     Restaurantes: 'comidas',
-    'Cafeterías, panaderías y postres': 'panaderia',
+    'Panadería, café y postres': 'panaderia',
     'Bares y vida nocturna': 'licores',
-    'Tiendas y comercio': 'accesorios',
-    'Belleza y peluquería': 'cortes',
+    'Mercado y tienda': 'accesorios',
+    'Belleza': 'cortes',
     'Salud y bienestar': 'suplementos',
     'Servicios del hogar': 'hogar',
     Tecnología: 'tecnologia',

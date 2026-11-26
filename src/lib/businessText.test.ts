@@ -4,7 +4,7 @@ import { guessCategory, guessName, parseHours, understandBusiness } from './busi
 
 const cats = [
   { id: 'b', name: 'Barbería y peluquería' },
-  { id: 'r', name: 'Restaurantes' },
+  { id: 'r', name: 'Comida y restaurantes' },
   { id: 't', name: 'Tiendas de ropa' },
 ];
 

@@ -10,11 +10,12 @@ const norm = (s: string) =>
     .toLowerCase()
     .trim();
 
-const COMIDA = ['restaurantes', 'cafeterias, panaderias y postres'];
-const BELLEZA = ['belleza y peluqueria'];
-const TIENDAS = ['tiendas y comercio'];
-const HOGAR = ['servicios del hogar'];
-const CARRO = ['automotriz'];
+// Catálogo del 2026-11-26.
+const COMIDA = ['comida y restaurantes', 'panaderia, cafe y postres'];
+const BELLEZA = ['belleza'];
+const TIENDAS = ['mercado y tienda', 'moda y accesorios', 'papeleria y variedades'];
+const HOGAR = ['hogar y construccion'];
+const CARRO = ['vehiculos'];
 const SALUD = ['salud y bienestar'];
 
 interface Rule {
@@ -33,8 +34,8 @@ const RULES: Rule[] = [
   ...rule('comida', COMIDA, [['pizz', 'pizzerías'], ['hamburg', 'hamburguesas'], ['perro caliente', 'perros calientes'], ['sushi', 'sushi'], ['arepa', 'arepas'], ['empanada', 'empanadas'], ['pollo', 'pollo asado'], ['asado', 'asados'], ['mariscos', 'mariscos'], ['pescado', 'pescado']]),
   ...rule('café y dulces', COMIDA, [['panad', 'panaderías'], ['pasteler', 'pastelerías'], ['helad', 'heladerías'], ['torta', 'tortas']]),
   ...rule('belleza', BELLEZA, [['barber', 'barberías'], ['peluquer', 'peluquerías'], ['salon de belleza', 'salones de belleza'], ['manicure', 'manicure'], ['unas', 'salones de uñas'], ['maquillaje', 'maquillaje']]),
-  ...rule('tiendas', TIENDAS, [['supermercado', 'supermercados'], ['ferreter', 'ferreterías'], ['zapater', 'zapaterías'], ['calzado', 'calzado'], ['boutique', 'boutiques'], ['papeler', 'papelerías'], ['licorera', 'licoreras']]),
-  ...rule('servicios del hogar', HOGAR, [['plomer', 'plomeros'], ['electricista', 'electricistas'], ['cerrajer', 'cerrajeros'], ['pintor', 'pintores'], ['lavanderia', 'lavanderías']]),
+  ...rule('tiendas', TIENDAS, [['supermercado', 'supermercados'], ['zapater', 'zapaterías'], ['calzado', 'calzado'], ['boutique', 'boutiques'], ['papeler', 'papelerías'], ['licorera', 'licoreras']]),
+  ...rule('hogar y construcción', HOGAR, [['ferreter', 'ferreterías'], ['plomer', 'plomeros'], ['electricista', 'electricistas'], ['cerrajer', 'cerrajeros'], ['pintor', 'pintores'], ['lavanderia', 'lavanderías']]),
   ...rule('servicios para tu carro o moto', CARRO, [['taller', 'talleres'], ['mecanic', 'mecánicos'], ['lavadero', 'lavaderos'], ['montallanta', 'montallantas']]),
   ...rule('salud', SALUD, [['odontolog', 'odontólogos'], ['dentista', 'dentistas'], ['medico', 'médicos'], ['psicolog', 'psicólogos'], ['optica', 'ópticas'], ['fisioterap', 'fisioterapeutas']]),
 ];

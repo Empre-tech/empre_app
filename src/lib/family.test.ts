@@ -6,20 +6,20 @@ test('la familia sale del tipo guardado, la categoría y lo que vende', () => {
   assert.equal(businessFamily({ profile: 'food' }), 'comida');
   assert.equal(businessFamily({ profile: 'shop' }), 'tienda');
   assert.equal(businessFamily({ profile: 'valuable' }), 'tienda');
-  assert.equal(businessFamily({ profile: 'service', category: 'Belleza y peluquería' }), 'cita');
-  assert.equal(businessFamily({ profile: 'service', category: 'Automotriz' }), 'cotizar');
+  assert.equal(businessFamily({ profile: 'service', category: 'Belleza' }), 'cita');
+  assert.equal(businessFamily({ profile: 'service', category: 'Vehículos' }), 'cotizar');
   // Si reserva por Empre, es con cita aunque la categoría sea de reparaciones.
-  assert.equal(businessFamily({ profile: 'service', category: 'Automotriz', items: [{ kind: 'service', bookable: true, price: 35000, price_from: false }] }), 'cita');
+  assert.equal(businessFamily({ profile: 'service', category: 'Vehículos', items: [{ kind: 'service', bookable: true, price: 35000, price_from: false }] }), 'cita');
   // La mayoría sin precio fijo: a cotizar.
   const open = [
     { kind: 'service' as const, price: null, price_from: false },
     { kind: 'service' as const, price: 40000, price_from: true },
     { kind: 'service' as const, price: 20000, price_from: false },
   ];
-  assert.equal(businessFamily({ profile: 'service', category: 'Educación', items: open }), 'cotizar');
+  assert.equal(businessFamily({ profile: 'service', category: 'Educación y clases', items: open }), 'cotizar');
   // Datos viejos sin tipo: el nombre de la categoría.
-  assert.equal(businessFamily({ category: 'Restaurantes' }), 'comida');
-  assert.equal(businessFamily({ category: 'Tiendas y comercio' }), 'tienda');
+  assert.equal(businessFamily({ category: 'Comida y restaurantes' }), 'comida');
+  assert.equal(businessFamily({ category: 'Mercado y tienda' }), 'tienda');
 });
 
 test('las palabras de un servicio incluyen cómo habla la gente', () => {
@@ -56,7 +56,7 @@ test('«Escríbelo como lo dirías» separa nombre, duración y precio', () => {
 });
 
 test('las sugerencias para empezar no traen precio', () => {
-  const s = starterItems('cita', 'Belleza y peluquería');
+  const s = starterItems('cita', 'Belleza');
   assert.ok(s.length >= 3);
   assert.ok(s.every((x) => !('price' in x)));
   assert.deepEqual(starterItems('tienda'), []);

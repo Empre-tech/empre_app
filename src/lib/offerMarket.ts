@@ -288,18 +288,25 @@ export function initialOf(name: string): string {
 }
 
 const SHORT: Record<string, string> = {
-  restaurantes: 'Comida',
-  'cafeterias, panaderias y postres': 'Café',
-  'bares y vida nocturna': 'Bares',
-  'tiendas y comercio': 'Tiendas',
-  'belleza y peluqueria': 'Belleza',
+  // Catálogo del 2026-11-26.
+  'comida y restaurantes': 'Comida',
+  'panaderia, cafe y postres': 'Café',
+  'bares y noche': 'Bares',
+  'mercado y tienda': 'Mercado',
+  'moda y accesorios': 'Moda',
+  belleza: 'Belleza',
   'salud y bienestar': 'Salud',
-  'servicios del hogar': 'Hogar',
-  'turismo y hospedaje': 'Turismo',
-  automotriz: 'Autos',
+  'hogar y construccion': 'Hogar',
+  tecnologia: 'Tecnología',
+  'papeleria y variedades': 'Papelería',
+  vehiculos: 'Vehículos',
+  mascotas: 'Mascotas',
   'eventos y fiestas': 'Eventos',
-  'fotografia y diseno': 'Fotos',
-  'deporte y recreacion': 'Deporte',
+  'educacion y clases': 'Clases',
+  deporte: 'Deporte',
+  'turismo y hospedaje': 'Turismo',
+  'servicios profesionales': 'Asesoría',
+  otros: 'Otros',
 };
 const fold = (s: string) => s.toLocaleLowerCase('es').normalize('NFD').replace(/\p{M}/gu, '').trim();
 

@@ -175,16 +175,17 @@ const FOOD: CatalogCopy = {
 };
 
 const BY_CATEGORY: Record<string, CatalogCopy> = {
-  restaurantes: FOOD,
-  'cafeterias, panaderias y postres': { ...FOOD, one: 'producto', plural: 'productos' },
-  'bares y vida nocturna': {
+  // Catálogo del 2026-11-26.
+  'comida y restaurantes': FOOD,
+  'panaderia, cafe y postres': { ...FOOD, one: 'producto', plural: 'productos' },
+  'bares y noche': {
     ...FOOD,
     one: 'producto',
     plural: 'productos',
     ask: (i) => `Hola, ¿hoy tienen ${i}? ¿Hay que reservar?`,
     quick: ['¿Hay que reservar?', '¿Hasta qué hora abren?', '¿Hay música en vivo?'],
   },
-  'belleza y peluqueria': {
+  belleza: {
     ...GENERIC,
     ask: (i) => `Hola, ¿tienen turno hoy para ${i}?`,
     quick: ['¿Tienen turno hoy?', '¿Atienden sin cita?', '¿Cuánto se demora?'],
@@ -194,7 +195,7 @@ const BY_CATEGORY: Record<string, CatalogCopy> = {
     ask: (i) => `Hola, quisiera pedir una cita para ${i}.`,
     quick: ['¿Qué días atienden?', '¿Reciben mi seguro?', '¿Cuánto dura?'],
   },
-  'deporte y recreacion': {
+  deporte: {
     ...GENERIC,
     noun: 'Planes',
     one: 'plan',
@@ -202,7 +203,7 @@ const BY_CATEGORY: Record<string, CatalogCopy> = {
     search: 'Buscar un plan',
     quick: ['¿Tienen clase de prueba?', '¿Qué horarios hay?'],
   },
-  'tiendas y comercio': {
+  'mercado y tienda': {
     ...GENERIC,
     noun: 'Productos',
     one: 'producto',
@@ -224,17 +225,17 @@ const BY_CATEGORY: Record<string, CatalogCopy> = {
     ask: (i) => `Hola, quisiera pedir una cita para ${i} para mi mascota.`,
     quick: ['¿Atienden gatos?', '¿Tienen urgencias?', '¿Van a domicilio?'],
   },
-  'servicios del hogar': {
+  'hogar y construccion': {
     ...GENERIC,
     ask: (i) => `Hola, ¿pueden venir para ${i}? ¿Cuándo tienen disponibilidad?`,
     quick: ['¿Pueden venir hoy?', '¿Cobran la visita?', '¿Dan garantía?'],
   },
-  automotriz: {
+  vehiculos: {
     ...GENERIC,
     ask: (i) => `Hola, ¿cuánto sale ${i} para mi carro? ¿Lo hacen hoy?`,
     quick: ['¿Lo hacen hoy?', '¿Hay que dejar el carro?'],
   },
-  educacion: {
+  'educacion y clases': {
     ...GENERIC,
     noun: 'Cursos',
     one: 'curso',
@@ -257,12 +258,15 @@ const BY_CATEGORY: Record<string, CatalogCopy> = {
     ask: (i) => `Hola, quisiera cotizar ${i} para un evento.`,
     quick: ['¿Tienen la fecha libre?', '¿Para cuántas personas?'],
   },
-  'fotografia y diseno': {
+  'servicios profesionales': {
     ...GENERIC,
     ask: (i) => `Hola, quisiera cotizar ${i}.`,
     quick: ['¿Cuánto se demora la entrega?', '¿Tienen ejemplos?'],
   },
 };
+// Moda y papelería venden productos como la tienda.
+BY_CATEGORY['moda y accesorios'] = BY_CATEGORY['mercado y tienda'];
+BY_CATEGORY['papeleria y variedades'] = { ...BY_CATEGORY['mercado y tienda'], example: 'Cuaderno', quick: ['¿Tienen disponible?', '¿Hacen domicilios?', '¿Hasta qué hora abren?'] };
 
 /** Sin tildes, sin «ñ», en minúsculas: para comparar textos escritos de distintas formas. */
 function plain(s: string): string {
@@ -278,7 +282,7 @@ function plain(s: string): string {
 /** Tipo de negocio guardado (igual que en `api/types`). */
 export type BusinessProfile = 'shop' | 'food' | 'service' | 'valuable' | 'other';
 
-const SHOP: CatalogCopy = BY_CATEGORY['tiendas y comercio'];
+const SHOP: CatalogCopy = BY_CATEGORY['mercado y tienda'];
 
 /** Qué se vende según el tipo de negocio guardado. «other» no impone nada. */
 const KIND_OF_PROFILE: Record<BusinessProfile, CatalogCopy['kind'] | null> = {

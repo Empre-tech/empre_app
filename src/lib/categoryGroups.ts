@@ -12,11 +12,12 @@ interface Def {
   members: string[];
 }
 
+// Catálogo del 2026-11-26. Igual que exploreGroups del backend (lo vigilan TestExploreGroupOf y categoryGroups.test).
 const DEFS: Def[] = [
-  { id: 'comer', name: 'Comer y beber', members: ['restaurantes', 'cafeterias, panaderias y postres', 'bares y vida nocturna'] },
-  { id: 'salud', name: 'Belleza y salud', members: ['belleza y peluqueria', 'salud y bienestar', 'deporte y recreacion'] },
-  { id: 'compras', name: 'Compras', members: ['tiendas y comercio', 'tecnologia', 'mascotas'] },
-  { id: 'servicios', name: 'Servicios', members: ['servicios del hogar', 'automotriz', 'educacion', 'fotografia y diseno', 'otros'] },
+  { id: 'comer', name: 'Comer y beber', members: ['comida y restaurantes', 'panaderia, cafe y postres', 'bares y noche'] },
+  { id: 'salud', name: 'Belleza y salud', members: ['belleza', 'salud y bienestar', 'deporte'] },
+  { id: 'compras', name: 'Compras', members: ['mercado y tienda', 'moda y accesorios', 'tecnologia', 'papeleria y variedades', 'mascotas'] },
+  { id: 'servicios', name: 'Servicios', members: ['hogar y construccion', 'vehiculos', 'educacion y clases', 'servicios profesionales', 'otros'] },
   { id: 'planes', name: 'Planes y viajes', members: ['turismo y hospedaje', 'eventos y fiestas'] },
 ];
 

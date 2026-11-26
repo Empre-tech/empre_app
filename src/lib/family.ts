@@ -17,7 +17,7 @@ function plain(s: string): string {
 }
 
 /** Categorías donde el trabajo casi siempre se cotiza antes (reparaciones, a domicilio, eventos). */
-const QUOTE_CATEGORIES = ['servicios del hogar', 'automotriz', 'tecnologia', 'eventos y fiestas', 'fotografia y diseno'];
+const QUOTE_CATEGORIES = ['hogar y construccion', 'vehiculos', 'tecnologia', 'eventos y fiestas', 'servicios profesionales'];
 
 /**
  * La familia del negocio. Comida y tienda salen del tipo guardado; un negocio de servicios es «con cita» si reserva
@@ -30,8 +30,8 @@ export function businessFamily(input: { profile?: BusinessProfile | null; catego
   if (profile === 'shop' || profile === 'valuable') return 'tienda';
   const cat = plain(category ?? '');
   if (!profile || profile === 'other') {
-    if (cat === 'restaurantes' || cat.startsWith('cafeterias') || cat.startsWith('bares')) return 'comida';
-    if (cat === 'tiendas y comercio') return 'tienda';
+    if (cat.startsWith('comida') || cat.startsWith('panaderia') || cat.startsWith('bares')) return 'comida';
+    if (cat === 'mercado y tienda' || cat === 'moda y accesorios' || cat === 'papeleria y variedades') return 'tienda';
   }
   const services = items.filter((i) => i.kind !== 'product');
   if (services.some((i) => i.bookable)) return 'cita';
@@ -160,8 +160,8 @@ export function starterItems(family: Family, category?: string | null): { name: 
       { name: 'Cejas', duration: 15 },
     ];
   }
-  if (family === 'cotizar' && cat === 'automotriz') return [{ name: 'Cambio de aceite', duration: 30 }, { name: 'Frenos', duration: 60 }, { name: 'Revisión general', duration: 60 }];
-  if (family === 'cotizar' && cat === 'servicios del hogar') return [{ name: 'Visita de diagnóstico', duration: 60 }, { name: 'Arreglo de fuga' }, { name: 'Instalación eléctrica' }];
+  if (family === 'cotizar' && cat === 'vehiculos') return [{ name: 'Cambio de aceite', duration: 30 }, { name: 'Frenos', duration: 60 }, { name: 'Revisión general', duration: 60 }];
+  if (family === 'cotizar' && cat === 'hogar y construccion') return [{ name: 'Visita de diagnóstico', duration: 60 }, { name: 'Arreglo de fuga' }, { name: 'Instalación eléctrica' }];
   if (family === 'cotizar' && cat === 'tecnologia') return [{ name: 'Cambio de pantalla' }, { name: 'Mantenimiento de computador' }, { name: 'Revisión sin costo' }];
   return [];
 }
