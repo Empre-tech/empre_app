@@ -50,8 +50,9 @@ async function ready(userId: string): Promise<PurchasesModule> {
 
 /** Al cerrar sesión: la próxima compra queda a nombre de quien entre. */
 export async function storeLogout(): Promise<void> {
+  if (!configured || !loggedAs) return;
   const P = purchases();
-  if (!P || !configured || !loggedAs) return;
+  if (!P) return;
   loggedAs = null;
   try {
     await P.logOut();
