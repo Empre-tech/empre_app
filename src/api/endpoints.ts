@@ -6,6 +6,7 @@ import type {
   AITextRequest,
   AITextResponse,
   Category,
+  ProOverview,
   Subscription,
   SubscriptionCheckout,
   CategoryInput,
@@ -67,6 +68,9 @@ export const authApi = {
 export const usersApi = {
   me: () => request<User>('/api/users/me'),
   /** Aceptar la Política de tratamiento de datos y los Términos vigentes (queda la versión y la fecha). */
+  /** Empre Pro del dueño (tienda): el plan, sus negocios y cuáles cubre. */
+  proOverview: () => request<ProOverview>('/api/users/me/pro'),
+  setProCoverage: (entityIds: string[]) => request<ProOverview>('/api/users/me/pro/coverage', { method: 'PUT', body: { entity_ids: entityIds } }),
   acceptTerms: (version: string) => request<{ terms_version: string }>('/api/users/me/accept-terms', { method: 'POST', body: { version } }),
 
   /** Verificar el correo: mandar un código nuevo y comprobarlo. */

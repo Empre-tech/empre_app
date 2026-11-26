@@ -14,6 +14,7 @@ import type { RegisterInput, User } from '@/api/types';
 import { getRegisteredPushToken, setRegisteredPushToken } from '@/notifications/pushTokenStore';
 import { googleSignOut } from './google';
 import { clearTokens, loadTokens, saveTokens } from './storage';
+import { storeLogout } from '@/payments/storePurchases';
 
 type Status = 'loading' | 'signedOut' | 'signedIn';
 
@@ -37,6 +38,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
   const signOut = useCallback(async () => {
+    // Las compras de la tienda quedan a nombre de quien entre después (RevenueCat).
+    void storeLogout();
     // Antes de borrar los tokens de sesión (que son los que autentican la
     // llamada): si no, este dispositivo seguiría recibiendo notificaciones
     // de esta cuenta después de cerrar sesión.

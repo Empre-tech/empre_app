@@ -377,6 +377,27 @@ export interface Subscription {
   /** Lo que paga este negocio por un mes de Pro (la mitad si el dueño ya tiene Pro en otro negocio). */
   price_cop?: number;
   extra_business?: boolean;
+  /** «store»: el Pro de este negocio sale del plan del dueño comprado en la tienda. */
+  source?: string;
+}
+
+/** Empre Pro del dueño comprado en la tienda (2026-11-26): el nivel dice cuántos negocios cubre. */
+export interface OwnerProPlan {
+  user_id: string;
+  tier: number;
+  product_id: string;
+  store: string;
+  will_renew: boolean;
+  current_period_end: string;
+}
+
+export interface ProOverview {
+  plan: OwnerProPlan | null;
+  active: boolean;
+  covered: string[];
+  businesses: { id: string; name: string; covered: boolean }[];
+  prices: Record<string, number>;
+  products: Record<string, string>;
 }
 
 export interface SubscriptionCheckout {
