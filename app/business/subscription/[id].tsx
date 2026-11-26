@@ -48,6 +48,9 @@ export default function BusinessSubscriptionScreen() {
   const plan = ov?.plan ?? null;
   const active = Boolean(ov?.active && plan);
   const tier = active && plan ? plan.tier : 0;
+  // Pro de bienvenida de la beta (gratis, sin tienda): comprar un plan no lo reemplaza en la tienda, solo lo suma.
+  const welcome = active && plan?.store === 'welcome';
+  const storeTier = active && !welcome ? tier : 0;
   const businesses = ov?.businesses ?? [];
   const isPro = isProSubscription(subQ.data?.subscription);
   const legacy = isPro && subQ.data?.source !== 'store';
@@ -61,7 +64,7 @@ export default function BusinessSubscriptionScreen() {
   }, [ov, active, tier]);
 
   const priceOf = (t: number): string => (pkgQ.data ?? []).find((p) => p.tier === t)?.price ?? pesos(tierPriceCOP(t));
-  const change = tierChange(tier, selected, active);
+  const change = tierChange(storeTier, selected, storeTier > 0);
   const refreshAll = async () => {
     await qc.invalidateQueries({ queryKey: ['pro-overview'] });
     await qc.invalidateQueries({ queryKey: ['subscription'] });
@@ -80,7 +83,7 @@ export default function BusinessSubscriptionScreen() {
     try {
       // Sin plan vigente: este negocio queda marcado para cubrirse primero cuando llegue la compra.
       if (!active) await usersApi.setProCoverage([id]).catch(() => undefined);
-      const r = await buyTier(user.id, tp, active && plan ? { productId: plan.product_id, tier: plan.tier } : null);
+      const r = await buyTier(user.id, tp, storeTier > 0 && plan ? { productId: plan.product_id, tier: plan.tier } : null);
       if (r === 'cancelled') return;
       if (change === 'downgrade') {
         setNote(`Listo: pasas a ${tierTitle(selected)} cuando se renueve tu plan.`);
@@ -165,7 +168,9 @@ export default function BusinessSubscriptionScreen() {
               </Text>
             </View>
             <Text style={styles.planSub}>{coverageLine({ active, tier, covered: coveredHere, legacy })}</Text>
-            {active && plan ? (
+            {welcome && plan ? (
+              <Text style={styles.planSub}>{`Pro de bienvenida, gratis hasta el ${formatDate(plan.current_period_end)}. Después puedes seguir con un plan o volver a Base sin perder nada.`}</Text>
+            ) : active && plan ? (
               <Text style={styles.planSub}>
                 {plan.will_renew ? `Se renueva el ${formatDate(plan.current_period_end)}.` : `Cancelado: tienes Pro hasta el ${formatDate(plan.current_period_end)}.`}
               </Text>
@@ -230,12 +235,13 @@ export default function BusinessSubscriptionScreen() {
           {available ? (
             <>
               <Button title={buyLabel} onPress={() => void buy()} loading={busy === 'buy'} disabled={change === 'same' || busy !== null || pkgQ.isLoading} />
+              {welcome ? <Text style={styles.disclaimer}>Si compras un plan ahora, conservas los días gratis que te quedan.</Text> : null}
               {pkgQ.isError ? <Text style={styles.disclaimer}>{`No pudimos traer los precios de ${STORE_NAME}. Revisa tu conexión.`}</Text> : null}
               <View style={styles.links}>
                 <Pressable accessibilityRole="button" onPress={() => void restore()} disabled={busy !== null} hitSlop={8}>
                   <Text style={styles.link}>{busy === 'restore' ? 'Restaurando…' : 'Restaurar compras'}</Text>
                 </Pressable>
-                {active && plan ? (
+                {storeTier > 0 && plan ? (
                   <Pressable accessibilityRole="button" onPress={() => void manageStore(plan.product_id)} hitSlop={8}>
                     <Text style={styles.link}>Administrar o cancelar</Text>
                   </Pressable>
