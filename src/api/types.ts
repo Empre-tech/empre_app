@@ -20,6 +20,9 @@ export interface User {
   has_password?: boolean;
   /** El correo está verificado (código, Google o restablecer la contraseña). */
   email_verified?: boolean;
+  /** La versión de la política y los términos que aceptó, y la vigente: si no coinciden, la app los pide. */
+  terms_version?: string;
+  legal_version?: string;
 }
 
 export interface RegisterInput {
@@ -27,6 +30,8 @@ export interface RegisterInput {
   email: string;
   password: string;
   phone?: string;
+  /** Marcó «Tengo 18 años o más y acepto la Política de tratamiento de datos y los Términos». */
+  accept_terms: boolean;
 }
 
 export interface Subcategory {

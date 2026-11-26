@@ -19,6 +19,7 @@ import { queuePayment } from '@/ledger/ledgerStore';
 import { initials } from '@/lib/text';
 import { colors, fonts, radius, softShadow, spacing } from '@/theme';
 import { KeyboardSheet } from '@/components/KeyboardSheet';
+import { contactBlock, noteContact } from '@/lib/contactLog';
 
 type Tone = 'amable' | 'directo';
 
@@ -61,6 +62,7 @@ export default function CuentasScreen() {
   const [paying, setPaying] = useState<PartyBalance | null>(null);
   const [adding, setAdding] = useState<PartyKind | null>(null);
   const [reminding, setReminding] = useState<PartyBalance | null>(null);
+  const [ruleNote, setRuleNote] = useState<string | null>(null);
   const [tone, setTone] = useState<Tone>('amable');
   const [draft, setDraft] = useState('');
   const [reminded, setReminded] = useState<string[]>([]);
@@ -255,13 +257,19 @@ export default function CuentasScreen() {
             <Button
               title="Abrir WhatsApp con este mensaje"
               disabled={!draft.trim()}
-              onPress={() => {
+              onPress={async () => {
                 if (!reminding) return;
+                // Un cobro: horario de la Ley 2300 y una vez al día por persona.
+                const block = await contactBlock(entityId, reminding.id);
+                setRuleNote(block);
+                if (block) return;
                 void sendReminder(reminding, draft.trim());
+                void noteContact(entityId, reminding.id);
                 setReminded((r) => [...r, reminding.id]);
                 setReminding(null);
               }}
             />
+            {ruleNote ? <Text style={[styles.sheetMeta, { color: colors.danger }]}>{ruleNote}</Text> : null}
             <Text style={styles.sheetMeta}>Lo envías tú. Empre no le escribe a nadie por su cuenta.</Text>
           </View>
         </KeyboardSheet>

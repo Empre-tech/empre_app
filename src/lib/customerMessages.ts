@@ -69,7 +69,7 @@ export function debtMessage(i: { customer: string; business: string; balance: nu
 export function offerMessage(i: { customer: string; business: string; title: string; price?: number | null; endsText?: string | null }): string {
   const price = i.price ? ` a ${pesos(i.price)}` : '';
   const ends = i.endsText ? ` ${i.endsText}.` : '';
-  return `${hello(i.customer)}, en ${i.business} tenemos «${i.title}»${price}.${ends} Si te interesa, respóndenos por aquí.`;
+  return `${hello(i.customer)}, en ${i.business} tenemos «${i.title}»${price}.${ends} Si te interesa, respóndenos por aquí. Si no quieres recibir más ofertas, respóndenos «no más».`;
 }
 
 export function freeMessage(i: { customer: string; business: string }): string {

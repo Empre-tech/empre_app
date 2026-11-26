@@ -21,7 +21,7 @@ test('waLink y ticket', () => {
 
 test('fiado y oferta', () => {
   assert.match(debtMessage({ customer: 'Luis', business: 'Tienda', balance: 15000 }), /saldo pendiente de \$15\.000/);
-  assert.equal(offerMessage({ customer: 'Ana', business: 'Moda Barrio', title: 'Camiseta', price: 84000, endsText: 'Termina hoy' }), 'Hola Ana, en Moda Barrio tenemos «Camiseta» a $84.000. Termina hoy. Si te interesa, respóndenos por aquí.');
+  assert.equal(offerMessage({ customer: 'Ana', business: 'Moda Barrio', title: 'Camiseta', price: 84000, endsText: 'Termina hoy' }), 'Hola Ana, en Moda Barrio tenemos «Camiseta» a $84.000. Termina hoy. Si te interesa, respóndenos por aquí. Si no quieres recibir más ofertas, respóndenos «no más».');
 });
 
 test('phoneProblem: dice qué le falta al número', async () => {

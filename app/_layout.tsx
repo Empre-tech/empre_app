@@ -19,6 +19,7 @@ import { colors } from '@/theme';
 import { GlobalEmpreButton } from '@/components/GlobalEmpreButton';
 import { OfflineGate } from '@/components/system/OfflineGate';
 import { KeyboardRoot } from '@/components/KeyboardRoot';
+import { TermsGate } from '@/components/TermsGate';
 
 // Se mantiene la splash nativa visible hasta que Inter esté
 // lista, así se evita el "parpadeo" de la tipografía del sistema al abrir.
@@ -107,6 +108,7 @@ export default function RootLayout() {
               <UploadCapsule />
               <NoticeHost />
               <OfflineGate />
+              <TermsGate />
             </KeyboardRoot>
           </ChatProvider>
         </AuthProvider>

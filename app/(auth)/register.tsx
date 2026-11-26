@@ -6,6 +6,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { AuthLayout } from '@/components/AuthLayout';
 import { Button } from '@/components/Button';
 import { GoogleSignInButton } from '@/components/GoogleSignInButton';
+import { LegalConsent } from '@/components/LegalConsent';
 import { TextField } from '@/components/TextField';
 import { colors, fonts, spacing } from '@/theme';
 
@@ -22,6 +23,8 @@ export default function RegisterScreen() {
   // Cada error va debajo de su campo (tablero «Primera vez»): dice qué pasa y, si se puede, qué hacer.
   const [fieldErr, setFieldErr] = useState<{ name?: string; email?: string; password?: string; taken?: boolean }>({});
   const [loading, setLoading] = useState(false);
+  const [accepted, setAccepted] = useState(false);
+  const [termsErr, setTermsErr] = useState<string | null>(null);
 
   const onSubmit = async () => {
     const errs = {
@@ -30,12 +33,13 @@ export default function RegisterScreen() {
       password: password.length >= 6 ? undefined : 'Usa al menos 6 letras o números.',
     };
     setFieldErr(errs);
-    if (errs.name || errs.email || errs.password) return;
+    setTermsErr(accepted ? null : 'Marca la casilla para crear tu cuenta.');
+    if (errs.name || errs.email || errs.password || !accepted) return;
 
     setLoading(true);
     setError(null);
     try {
-      await signUp({ name, email, password, phone });
+      await signUp({ name, email, password, phone, accept_terms: true });
       // El código de verificación ya salió al correo: se pide de una vez (se puede dejar para después).
       router.replace({ pathname: '/verify-email', params: { fresh: '1' } });
     } catch (e) {
@@ -89,9 +93,17 @@ export default function RegisterScreen() {
         error={fieldErr.password}
         onSubmitEditing={onSubmit}
       />
+      <LegalConsent
+        value={accepted}
+        onChange={(v) => {
+          setAccepted(v);
+          if (v) setTermsErr(null);
+        }}
+        error={termsErr}
+      />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Button title="Crear cuenta" onPress={onSubmit} loading={loading} />
-      <GoogleSignInButton onError={setError} />
+      <GoogleSignInButton onError={setError} needsTerms acceptedTerms={accepted} />
       <View style={styles.links}>
         <Button title="Ya tengo cuenta" variant="secondary" onPress={() => router.replace('/(auth)/login')} />
       </View>

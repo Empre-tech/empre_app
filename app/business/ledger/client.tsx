@@ -13,6 +13,7 @@ import { API_URL } from '@/config';
 import { debtMessage, freeMessage, offerMessage, phoneProblem, ticketMessage, ticketUrl, waLink, waPhone } from '@/lib/customerMessages';
 import { formatPesos, METHOD_LABEL } from '@/lib/ledger';
 import { timeLeftLabel } from '@/lib/offer';
+import { contactBlock, noteContact } from '@/lib/contactLog';
 import { colors, fonts, radius, spacing } from '@/theme';
 
 const shortDate = (iso: string) => {
@@ -83,6 +84,15 @@ export default function ClientScreen() {
     if (wa) void Linking.openURL(waLink(wa, text)).catch(() => void Share.share({ message: text }));
     else void Share.share({ message: text });
   };
+  // Cobros y ofertas con las reglas de la Ley 2300 (horario, domingos y festivos, una vez al día). El ticket no entra.
+  const [rule, setRule] = useState<string | null>(null);
+  const sendRuled = async (text: string) => {
+    const block = await contactBlock(entityId, partyId);
+    setRule(block);
+    if (block) return;
+    send(text);
+    void noteContact(entityId, partyId);
+  };
   // Solo las de este cliente, aunque un servidor viejo ignore el filtro y devuelva todas.
   const mine = (sales.data ?? []).filter((s) => s.party_id === partyId);
   const active = mine.filter((s) => s.status === 'active');
@@ -107,8 +117,9 @@ export default function ClientScreen() {
             <Action icon="receipt-outline" title="Su último ticket" sub={`${formatPesos(last.total)} · ${shortDate(last.occurred_at)}`} onPress={() => send(ticketMessage({ customer: party.name, business: bizName, total: last.total, url: ticketUrl(API_URL, last.id) }))} />
           ) : null}
           {party.balance > 0 ? (
-            <Action icon="time-outline" title="Recordarle lo que debe" sub={formatPesos(party.balance)} onPress={() => send(debtMessage({ customer: party.name, business: bizName, balance: party.balance }))} />
+            <Action icon="time-outline" title="Recordarle lo que debe" sub={formatPesos(party.balance)} onPress={() => void sendRuled(debtMessage({ customer: party.name, business: bizName, balance: party.balance }))} />
           ) : null}
+          {rule ? <Text style={styles.rule}>{rule}</Text> : null}
           {party.accepts_messages ? (
             <Action
               icon="pricetag-outline"
@@ -125,7 +136,7 @@ export default function ClientScreen() {
                 <Pressable
                   key={o.id}
                   accessibilityRole="button"
-                  onPress={() => send(offerMessage({ customer: party.name, business: bizName, title: o.title, price: o.special_price ?? null, endsText: timeLeftLabel(Date.parse(o.ends_at) - now) }))}
+                  onPress={() => void sendRuled(offerMessage({ customer: party.name, business: bizName, title: o.title, price: o.special_price ?? null, endsText: timeLeftLabel(Date.parse(o.ends_at) - now) }))}
                   style={styles.offerRow}
                 >
                   <Text style={[styles.actionTitle, { flex: 1 }]} numberOfLines={1}>
@@ -201,6 +212,7 @@ function Action({ icon, title, sub, onPress, disabled }: { icon: React.Component
 }
 
 const styles = StyleSheet.create({
+  rule: { fontSize: 13, lineHeight: 18, fontFamily: fonts.ui.semibold, color: colors.danger },
   screen: { flex: 1, backgroundColor: colors.bg },
   card: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   cardTitle: { fontSize: 12, fontFamily: fonts.ui.extrabold, color: colors.muted, letterSpacing: 0.5, textTransform: 'uppercase' },

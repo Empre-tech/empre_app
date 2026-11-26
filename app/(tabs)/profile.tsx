@@ -28,6 +28,7 @@ import { getPhoneFlag, setPhoneFlag } from '@/lib/phoneFlags';
 import { myInterests } from '@/lib/interests';
 import { clearInterests, useInterestSignals } from '@/lib/interestStore';
 import { ART_LABEL } from '@/lib/offerHome';
+import { openLegal } from '@/lib/legal';
 import { ScreenGlow } from '@/components/ScreenGlow';
 import { AsiSaleSheet } from '@/components/AsiSaleSheet';
 import { hasFacts, keptOf, keptPreview, savedPreview, totalPreview, type Preview } from '@/lib/asiSale';
@@ -391,6 +392,8 @@ export default function ProfileScreen() {
           <InterestsRow />
           <MenuRow icon="map-outline" label="Cómo usar el mapa" onPress={() => router.push({ pathname: '/map', params: { guide: '1' } })} />
           {user.role === 'admin' ? <MenuRow icon="settings-outline" label="Panel de administración" onPress={() => router.push('/admin')} /> : null}
+          <MenuRow icon="shield-checkmark-outline" label="Política de tratamiento de datos" onPress={() => openLegal('privacy')} />
+          <MenuRow icon="document-text-outline" label="Términos y condiciones" onPress={() => openLegal('terms')} />
           <MenuRow danger icon="log-out-outline" label="Cerrar sesión" onPress={() => void signOut()} />
           <MenuRow danger icon="trash-outline" label="Eliminar mi cuenta" onPress={() => router.push('/delete-account')} />
         </View>

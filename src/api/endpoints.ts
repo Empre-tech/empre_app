@@ -50,8 +50,8 @@ export const authApi = {
     request<TokenPair>('/api/auth/login', { method: 'POST', body: { email, password }, auth: false }),
 
   /** «Continuar con Google»: el backend verifica el id_token y devuelve la misma sesión que el login. */
-  google: (idToken: string) =>
-    request<TokenPair>('/api/auth/google', { method: 'POST', body: { id_token: idToken }, auth: false }),
+  google: (idToken: string, acceptTerms = false) =>
+    request<TokenPair>('/api/auth/google', { method: 'POST', body: { id_token: idToken, accept_terms: acceptTerms }, auth: false }),
 
   register: (input: RegisterInput) =>
     request<{ message: string }>('/api/auth/register', { method: 'POST', body: input, auth: false }),
@@ -66,6 +66,8 @@ export const authApi = {
 
 export const usersApi = {
   me: () => request<User>('/api/users/me'),
+  /** Aceptar la Política de tratamiento de datos y los Términos vigentes (queda la versión y la fecha). */
+  acceptTerms: (version: string) => request<{ terms_version: string }>('/api/users/me/accept-terms', { method: 'POST', body: { version } }),
 
   /** Verificar el correo: mandar un código nuevo y comprobarlo. */
   sendEmailCode: () => request<{ sent: boolean }>('/api/users/me/verify-email/send', { method: 'POST' }),

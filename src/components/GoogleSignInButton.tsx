@@ -23,19 +23,24 @@ function GoogleG({ size = 18 }: { size?: number }) {
  * «Continuar con Google» en el login y el registro, con una línea «o» que lo separa del formulario. Si el build no
  * trae el módulo de Google (Expo Go) no se muestra nada.
  */
-export function GoogleSignInButton({ onError }: { onError: (message: string | null) => void }) {
+export function GoogleSignInButton({ onError, needsTerms, acceptedTerms }: { onError: (message: string | null) => void; needsTerms?: boolean; acceptedTerms?: boolean }) {
   const router = useRouter();
   const { signInWithGoogle } = useAuth();
   const [loading, setLoading] = useState(false);
   if (!googleAvailable()) return null;
 
   const onPress = async () => {
+    // En el registro, Google también pide la casilla de la política (Ley 1581: autorización previa).
+    if (needsTerms && !acceptedTerms) {
+      onError('Marca la casilla de la política y los términos para crear tu cuenta.');
+      return;
+    }
     setLoading(true);
     onError(null);
     try {
       const idToken = await googleIdToken();
       if (!idToken) return; // canceló
-      await signInWithGoogle(idToken);
+      await signInWithGoogle(idToken, Boolean(acceptedTerms));
       finishAuth(router);
     } catch (e) {
       onError(e instanceof Error ? e.message : 'No pudimos entrar con Google. Intenta de nuevo.');

@@ -22,7 +22,7 @@ interface AuthContextValue {
   user: User | null;
   signIn: (email: string, password: string) => Promise<void>;
   /** Entra (o crea la cuenta) con el id_token de «Continuar con Google». */
-  signInWithGoogle: (idToken: string) => Promise<void>;
+  signInWithGoogle: (idToken: string, acceptTerms?: boolean) => Promise<void>;
   signUp: (input: RegisterInput) => Promise<void>;
   signOut: () => Promise<void>;
   /** Vuelve a pedir los datos del usuario (p. ej. tras cambiar la foto de perfil). */
@@ -118,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signInWithGoogle = useCallback(
-    async (idToken: string) => startSession(await authApi.google(idToken)),
+    async (idToken: string, acceptTerms?: boolean) => startSession(await authApi.google(idToken, acceptTerms)),
     [startSession],
   );
 
