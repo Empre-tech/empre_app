@@ -50,7 +50,7 @@ const config: ExpoConfig = {
   name: 'Empre',
   slug: 'empre',
   scheme: 'empre',
-  version: '0.1.0',
+  version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
