@@ -44,6 +44,8 @@ export default function ClientScreen() {
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [offerPick, setOfferPick] = useState(false);
+  // El motivo por el que no se puede mandar ahora un cobro o una oferta (Ley 2300). Va antes de los return tempranos.
+  const [rule, setRule] = useState<string | null>(null);
   useEffect(() => {
     if (party) {
       setName(party.name);
@@ -85,7 +87,6 @@ export default function ClientScreen() {
     else void Share.share({ message: text });
   };
   // Cobros y ofertas con las reglas de la Ley 2300 (horario, domingos y festivos, una vez al día). El ticket no entra.
-  const [rule, setRule] = useState<string | null>(null);
   const sendRuled = async (text: string) => {
     const block = await contactBlock(entityId, partyId);
     setRule(block);
