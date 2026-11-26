@@ -101,6 +101,29 @@ export default function AdminScreen() {
     }
   };
 
+  // Dar o quitar Empre Pro a un negocio (2026-11-26): regalos y pruebas, sin pasar por la tienda.
+  const setPro = async (entity: EntityOwnerItem, days: number) => {
+    if (workingId) return;
+    setWorkingId(entity.id);
+    try {
+      const r = await adminApi.setEntityPro(entity.id, days);
+      await queryClient.invalidateQueries({ queryKey: ['subscription', entity.id] });
+      const until = r.current_period_end ? new Date(r.current_period_end).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+      Alert.alert(days > 0 ? 'Listo: tiene Empre Pro' : 'Listo: quedó en Base', days > 0 ? `«${entity.name}» tiene Pro hasta el ${until}.` : `«${entity.name}» ya no tiene Pro.`);
+    } catch (error) {
+      Alert.alert('No pudimos cambiar el plan', error instanceof Error ? error.message : 'Inténtalo de nuevo.');
+    } finally {
+      setWorkingId(null);
+    }
+  };
+  const choosePro = (entity: EntityOwnerItem) => {
+    Alert.alert(`Empre Pro para «${entity.name}»`, '90 días de Pro, de inmediato y sin cobro.', [
+      { text: '90 días', onPress: () => void setPro(entity, 90) },
+      { text: 'Quitar Pro', style: 'destructive', onPress: () => void setPro(entity, 0) },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
+  };
+
   const confirmReview = (entity: EntityOwnerItem, nextStatus: 'verified' | 'rejected') => {
     const verb = nextStatus === 'verified' ? 'verificar' : 'rechazar';
     Alert.alert(`¿${verb.charAt(0).toUpperCase() + verb.slice(1)} "${entity.name}"?`, undefined, [
@@ -184,6 +207,18 @@ export default function AdminScreen() {
                   <ActivityIndicator color={colors.primary} />
                 ) : (
                   <View style={styles.actions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Dar o quitar Empre Pro a ${item.name}`}
+                      hitSlop={8}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        choosePro(item);
+                      }}
+                      style={styles.actionButton}
+                    >
+                      <Ionicons name="diamond-outline" size={18} color={colors.primary} />
+                    </Pressable>
                     {tab !== 'rejected' && (
                       <Pressable
                         accessibilityRole="button"

@@ -271,6 +271,10 @@ export const adminApi = {
       query: { status: params.status, page: params.page, pageSize: params.pageSize ?? 50 },
     }),
 
+  /** Solo admin. Pone un negocio en Empre Pro por `days` días (0 = lo deja en Base). Para pruebas y regalos. */
+  setEntityPro: (id: string, days: number) =>
+    request<{ plan: string; status: string; current_period_end?: string }>(`/api/admin/entities/${id}/pro`, { method: 'POST', body: { days } }),
+
   verifyEntity: (id: string, verificationStatus: VerificationStatus) =>
     request<EntityDetail>(`/api/admin/entities/${id}/verify`, {
       method: 'PATCH',
