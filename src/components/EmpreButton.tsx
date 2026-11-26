@@ -127,6 +127,7 @@ export function EmpreButton({
   here,
   onOpen,
   module = 'none',
+  fabHidden = false,
 }: {
   /** Desde el borde de abajo de la pantalla hasta el botón (flotando) o hasta donde queda en la barra (en línea). */
   bottom: number;
@@ -138,6 +139,11 @@ export function EmpreButton({
   here?: EmpreHere;
   /** Al abrir el menú (para pedir, solo entonces, lo que el menú muestra: lo usado de Empre AI). */
   onOpen?: () => void;
+  /**
+   * Esconde solo el botón (mientras escribes), sin desmontar las hojas que abrió (2026-11-26): antes el botón se
+   * quitaba entero y con él se cerraba «Habla con Empre» justo al abrir el teclado.
+   */
+  fabHidden?: boolean;
   /** Dónde se abre «Habla con Empre AI» desde este botón (en Finance, «En Finance»); por defecto, el negocio. */
   module?: AssistantModule;
 }) {
@@ -274,6 +280,7 @@ export function EmpreButton({
 
   return (
     <>
+      {fabHidden ? null : (
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={entities.length ? 'Empre: anotar una venta o un gasto, Empre AI y más' : 'Empre: Empre AI, tus salidas y tus citas'}
@@ -285,6 +292,7 @@ export function EmpreButton({
       >
         <EmpreMark color="#FFFFFF" size={inline ? 30 : 34} />
       </Pressable>
+      )}
 
       <Modal visible={open} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => (asking ? setAsking(null) : close())}>
         <Animated.View style={[StyleSheet.absoluteFill, { opacity: fade }]}>

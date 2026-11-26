@@ -39,10 +39,11 @@ export function GlobalEmpreButton() {
   const insets = useSafeAreaInsets();
   const typing = useKeyboardOpen();
   const route = segments.join('/');
-  if (typing || !(route in ROUTES)) return null;
+  if (!(route in ROUTES)) return null;
   const key = ROUTES[route];
   const raw = key ? params[key] : undefined;
   const entityId = typeof raw === 'string' && raw ? raw : undefined;
   const module = route.startsWith('business/ledger/debts') ? 'debts' : route.startsWith('business/ledger/') ? 'finance' : 'none';
-  return <EmpreButton key={route} bottom={insets.bottom + 16} entityId={entityId} module={module} />;
+  // Mientras escribes se esconde solo el botón: las hojas abiertas desde él (Habla con Empre, Empre AI) siguen.
+  return <EmpreButton key={route} bottom={insets.bottom + 16} entityId={entityId} module={module} fabHidden={typing} />;
 }

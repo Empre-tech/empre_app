@@ -122,7 +122,7 @@ export default function TabsLayout() {
       </Tabs>
 
       {/* El botón Empre flota sobre todas las pestañas, a la derecha y encima de la barra. */}
-      <EmpreButton bottom={BAR + dockBottom + 14} />
+      <EmpreButton bottom={BAR + dockBottom + 14} fabHidden={typing} />
     </>
   );
 }
