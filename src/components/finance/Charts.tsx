@@ -66,8 +66,8 @@ export function HeatGrid({ heat }: { heat: number[][] }) {
       ))}
       <View style={[styles.legend, { marginTop: 4 }]}>
         <Text style={styles.hint}>Menos</Text>
-        {HEAT.map((c) => (
-          <View key={c} style={[styles.swatchWide, { backgroundColor: c }]} />
+        {HEAT.map((c, i) => (
+          <View key={i} style={[styles.swatchWide, { backgroundColor: c }]} />
         ))}
         <Text style={styles.hint}>Más</Text>
       </View>
